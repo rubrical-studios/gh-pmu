@@ -1,0 +1,182 @@
+# GitHub Projects Template: Simple Manuscript
+# Lightweight tracking for any book project
+# Works for fiction, nonfiction, or mixed projects
+
+template:
+  name: "Simple Manuscript"
+  description: "Lightweight manuscript tracking for any book type - minimal fields, maximum flexibility"
+  version: "1.0.0"
+  author: "gh-pm-unified"
+  tags:
+    - writing
+    - manuscript
+    - simple
+    - flexible
+    - authoring
+
+project:
+  title: "{{.ProjectName}}"
+  description: |
+    Manuscript tracker for {{.ProjectName}}.
+    Created {{.Date}}.
+    
+    Simple workflow: **To Write** → **Writing** → **Revising** → **Done**
+  visibility: private
+  readme: |
+    # {{.ProjectName}}
+    
+    ## Simple Manuscript Tracker
+    
+    A lightweight project board for tracking your book.
+    
+    ### How to Use
+    
+    1. **Create issues** for each chapter or section
+    2. **Move cards** through the board as you progress
+    3. **Track word counts** to monitor progress
+    4. **Set due dates** if you have deadlines
+    
+    ### Labels
+    - `chapter` - Main content
+    - `research` - Research tasks
+    - `edit` - Revision tasks
+    - `idea` - Future ideas
+    
+    ### Tips
+    - Keep it simple - add complexity only if needed
+    - Update word counts weekly
+    - Use due dates for accountability
+
+fields:
+  - name: "Status"
+    type: single_select
+    options:
+      - name: "📋 To Write"
+        color: gray
+        description: "Planned but not started"
+      - name: "✏️ Writing"
+        color: blue
+        description: "Currently working on"
+      - name: "🔄 Revising"
+        color: yellow
+        description: "Editing and revising"
+      - name: "✅ Done"
+        color: green
+        description: "Complete"
+  
+  - name: "Type"
+    type: single_select
+    options:
+      - name: "📖 Chapter"
+        color: purple
+      - name: "🔬 Research"
+        color: blue
+      - name: "✂️ Edit"
+        color: orange
+      - name: "💡 Idea"
+        color: yellow
+  
+  - name: "Order"
+    type: number
+    description: "Sequence number in manuscript"
+  
+  - name: "Words"
+    type: number
+    description: "Current word count"
+  
+  - name: "Target"
+    type: number
+    description: "Target word count"
+  
+  - name: "Due"
+    type: date
+    description: "Due date"
+
+views:
+  - name: "Board"
+    type: board
+    default: true
+    group_by: "Status"
+    columns:
+      - "📋 To Write"
+      - "✏️ Writing"
+      - "🔄 Revising"
+      - "✅ Done"
+    card_fields:
+      - "Type"
+      - "Order"
+      - "Due"
+  
+  - name: "Manuscript"
+    type: table
+    description: "Chapters in order"
+    sort:
+      - field: "Order"
+        direction: asc
+    columns:
+      - field: "Title"
+        width: 300
+      - field: "Type"
+        width: 100
+      - field: "Status"
+        width: 100
+      - field: "Words"
+        width: 80
+      - field: "Target"
+        width: 80
+      - field: "Due"
+        width: 100
+  
+  - name: "By Type"
+    type: board
+    group_by: "Type"
+    card_fields:
+      - "Status"
+      - "Order"
+
+workflows:
+  - name: "New chapters start as To Write"
+    trigger: item_added
+    conditions:
+      - labels: ["chapter"]
+    actions:
+      - set_field:
+          field: "Status"
+          value: "📋 To Write"
+      - set_field:
+          field: "Type"
+          value: "📖 Chapter"
+
+draft_issues:
+  - title: "Chapter 1"
+    body: |
+      ## Chapter 1
+      
+      **Summary:** [What happens in this chapter]
+      
+      **Notes:**
+      - 
+      
+      **Word target:** [number]
+    labels:
+      - chapter
+    fields:
+      Status: "📋 To Write"
+      Type: "📖 Chapter"
+      Order: 1
+
+aliases:
+  status:
+    field: Status
+    values:
+      todo: "📋 To Write"
+      writing: "✏️ Writing"
+      revising: "🔄 Revising"
+      done: "✅ Done"
+  type:
+    field: Type
+    values:
+      chapter: "📖 Chapter"
+      research: "🔬 Research"
+      edit: "✂️ Edit"
+      idea: "💡 Idea"

@@ -1,0 +1,387 @@
+# GitHub Projects Template: Nonfiction Manuscript
+# For tracking chapters, revisions, and publication milestones
+# Designed to complement the AI-Assisted Nonfiction Authoring Framework
+
+template:
+  name: "Nonfiction Manuscript"
+  description: "Track chapters, revisions, research, and publication milestones for nonfiction books"
+  version: "1.0.0"
+  author: "gh-pm-unified"
+  tags:
+    - writing
+    - nonfiction
+    - manuscript
+    - publishing
+    - authoring
+
+project:
+  title: "{{.ProjectName}} - Manuscript Tracker"
+  description: |
+    Track writing progress for {{.ProjectName}}.
+    Created {{.Date}} by {{.User}}.
+    
+    ## Workflow
+    - **Outline** → **Drafting** → **Revision** → **Review** → **Final**
+    
+    ## Views
+    - Board: Kanban view of all chapters by status
+    - Manuscript Order: Chapters in book sequence
+    - By Section: Front matter, chapters, back matter
+    - Research & Citations: Track research tasks
+    - Dashboard: Word counts and progress metrics
+  visibility: private
+  readme: |
+    # {{.ProjectName}} Manuscript Tracker
+    
+    ## How to Use This Project
+    
+    ### Issue Types
+    - **Chapter**: Main content chapters (use `chapter` label)
+    - **Front Matter**: Preface, introduction, acknowledgments (`front-matter` label)
+    - **Back Matter**: Appendix, bibliography, index (`back-matter` label)
+    - **Research**: Research tasks and citation verification (`research` label)
+    - **Revision**: Specific revision tasks (`revision` label)
+    
+    ### Workflow Stages
+    1. **Outline**: Chapter planned but not started
+    2. **Drafting**: First draft in progress
+    3. **Revision**: Revising based on feedback or self-review
+    4. **Review**: Under review (beta readers, editor)
+    5. **Final**: Publication-ready
+    
+    ### Tracking Progress
+    - Set **Word Count Target** for each chapter
+    - Update **Current Words** as you write
+    - Use **Chapter Number** to maintain manuscript order
+    - Set **Due Date** for deadline tracking
+    
+    ### Milestones
+    Create milestone issues for:
+    - 25% First Draft Complete
+    - 50% First Draft Complete
+    - 75% First Draft Complete
+    - First Draft Complete
+    - Revision Complete
+    - Final Manuscript
+
+fields:
+  - name: "Status"
+    type: single_select
+    options:
+      - name: "📋 Outline"
+        color: gray
+        description: "Chapter planned, not yet started"
+      - name: "✏️ Drafting"
+        color: blue
+        description: "First draft in progress"
+      - name: "🔄 Revision"
+        color: yellow
+        description: "Revising content"
+      - name: "👁️ Review"
+        color: purple
+        description: "Under review"
+      - name: "✅ Final"
+        color: green
+        description: "Publication-ready"
+  
+  - name: "Priority"
+    type: single_select
+    options:
+      - name: "🔴 Critical"
+        color: red
+        description: "Blocking publication"
+      - name: "🟠 High"
+        color: orange
+        description: "Important for current milestone"
+      - name: "🟡 Medium"
+        color: yellow
+        description: "Standard priority"
+      - name: "🟢 Low"
+        color: green
+        description: "Nice to have"
+  
+  - name: "Section"
+    type: single_select
+    options:
+      - name: "📖 Front Matter"
+        color: blue
+        description: "Preface, introduction, acknowledgments"
+      - name: "📚 Chapter"
+        color: purple
+        description: "Main content chapters"
+      - name: "📑 Back Matter"
+        color: gray
+        description: "Appendix, bibliography, index"
+      - name: "🔬 Research"
+        color: yellow
+        description: "Research and citations"
+      - name: "📝 Revision Task"
+        color: orange
+        description: "Specific revision work"
+  
+  - name: "Chapter Number"
+    type: number
+    description: "Chapter sequence number (0 for front matter, 99+ for back matter)"
+  
+  - name: "Word Count Target"
+    type: number
+    description: "Target word count for this chapter"
+  
+  - name: "Current Words"
+    type: number
+    description: "Current word count"
+  
+  - name: "Writing Style"
+    type: single_select
+    description: "Writing style applied to this chapter"
+    options:
+      - name: "Book Default"
+        color: gray
+      - name: "Academic Authority"
+        color: blue
+      - name: "Narrative Storyteller"
+        color: purple
+      - name: "Conversational Expert"
+        color: green
+      - name: "Practical Guide"
+        color: yellow
+      - name: "Custom Override"
+        color: orange
+  
+  - name: "Due Date"
+    type: date
+    description: "Target completion date"
+  
+  - name: "Milestone"
+    type: single_select
+    options:
+      - name: "First Draft"
+        color: blue
+      - name: "Second Draft"
+        color: purple
+      - name: "Final Draft"
+        color: green
+      - name: "Publication"
+        color: yellow
+
+views:
+  - name: "Board"
+    type: board
+    default: true
+    group_by: "Status"
+    columns:
+      - "📋 Outline"
+      - "✏️ Drafting"
+      - "🔄 Revision"
+      - "👁️ Review"
+      - "✅ Final"
+    card_fields:
+      - "Section"
+      - "Chapter Number"
+      - "Priority"
+      - "Due Date"
+  
+  - name: "Manuscript Order"
+    type: table
+    description: "Chapters in book sequence"
+    sort:
+      - field: "Chapter Number"
+        direction: asc
+    columns:
+      - field: "Title"
+        width: 300
+      - field: "Section"
+        width: 120
+      - field: "Status"
+        width: 120
+      - field: "Current Words"
+        width: 100
+      - field: "Word Count Target"
+        width: 100
+      - field: "Due Date"
+        width: 120
+  
+  - name: "By Section"
+    type: board
+    description: "Group by front/back matter and chapters"
+    group_by: "Section"
+    columns:
+      - "📖 Front Matter"
+      - "📚 Chapter"
+      - "📑 Back Matter"
+      - "🔬 Research"
+      - "📝 Revision Task"
+    card_fields:
+      - "Status"
+      - "Chapter Number"
+      - "Priority"
+  
+  - name: "Research & Citations"
+    type: table
+    description: "Track research tasks"
+    filter: "Section:🔬 Research"
+    columns:
+      - field: "Title"
+        width: 350
+      - field: "Status"
+        width: 120
+      - field: "Priority"
+        width: 100
+      - field: "Assignee"
+        width: 150
+  
+  - name: "Progress Dashboard"
+    type: table
+    description: "Word counts and completion tracking"
+    filter: "Section:📚 Chapter"
+    sort:
+      - field: "Chapter Number"
+        direction: asc
+    columns:
+      - field: "Title"
+        width: 250
+      - field: "Chapter Number"
+        width: 80
+      - field: "Status"
+        width: 120
+      - field: "Current Words"
+        width: 100
+      - field: "Word Count Target"
+        width: 100
+      - field: "Writing Style"
+        width: 140
+  
+  - name: "Timeline"
+    type: roadmap
+    description: "Deadline tracking"
+    date_field: "Due Date"
+    group_by: "Milestone"
+
+workflows:
+  - name: "Auto-set Section for Chapters"
+    trigger: item_added
+    conditions:
+      - labels: ["chapter"]
+    actions:
+      - set_field:
+          field: "Section"
+          value: "📚 Chapter"
+      - set_field:
+          field: "Status"
+          value: "📋 Outline"
+  
+  - name: "Auto-set Section for Front Matter"
+    trigger: item_added
+    conditions:
+      - labels: ["front-matter"]
+    actions:
+      - set_field:
+          field: "Section"
+          value: "📖 Front Matter"
+  
+  - name: "Auto-set Section for Research"
+    trigger: item_added
+    conditions:
+      - labels: ["research"]
+    actions:
+      - set_field:
+          field: "Section"
+          value: "🔬 Research"
+      - set_field:
+          field: "Priority"
+          value: "🟡 Medium"
+
+draft_issues:
+  - title: "Chapter 1: [Title]"
+    body: |
+      ## Chapter Overview
+      
+      **Topic:** [Main topic of this chapter]
+      
+      **Key Points:**
+      - [ ] Point 1
+      - [ ] Point 2
+      - [ ] Point 3
+      
+      **Research Needed:**
+      - [ ] [Research item]
+      
+      **Word Count Target:** [target]
+      
+      ---
+      
+      ## Revision Notes
+      
+      _Add revision notes here as the chapter develops_
+    labels:
+      - chapter
+    fields:
+      Status: "📋 Outline"
+      Section: "📚 Chapter"
+      Chapter Number: 1
+      Priority: "🟡 Medium"
+  
+  - title: "Introduction"
+    body: |
+      ## Introduction Overview
+      
+      **Hook:** [Opening hook]
+      
+      **Book Promise:** What will readers learn?
+      
+      **Chapter Preview:** Brief overview of chapters
+      
+      **Word Count Target:** [target]
+    labels:
+      - front-matter
+    fields:
+      Status: "📋 Outline"
+      Section: "📖 Front Matter"
+      Chapter Number: 0
+      Priority: "🟠 High"
+  
+  - title: "Milestone: First Draft Complete"
+    body: |
+      ## First Draft Milestone
+      
+      **Target Date:** [date]
+      
+      ### Checklist
+      - [ ] All chapters drafted
+      - [ ] Introduction complete
+      - [ ] Word count targets met (80%+)
+      - [ ] Major research incorporated
+      - [ ] Consistency check passed
+      
+      ### Notes
+      _Track progress toward first draft completion_
+    labels:
+      - milestone
+    fields:
+      Priority: "🔴 Critical"
+      Milestone: "First Draft"
+
+aliases:
+  status:
+    field: Status
+    values:
+      outline: "📋 Outline"
+      drafting: "✏️ Drafting"
+      revision: "🔄 Revision"
+      review: "👁️ Review"
+      final: "✅ Final"
+  priority:
+    field: Priority
+    values:
+      critical: "🔴 Critical"
+      high: "🟠 High"
+      medium: "🟡 Medium"
+      low: "🟢 Low"
+  section:
+    field: Section
+    values:
+      front: "📖 Front Matter"
+      chapter: "📚 Chapter"
+      back: "📑 Back Matter"
+      research: "🔬 Research"
+      revision: "📝 Revision Task"

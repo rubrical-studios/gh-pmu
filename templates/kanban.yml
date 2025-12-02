@@ -1,0 +1,114 @@
+# Kanban Board Project Template
+# A simple Kanban board for workflow visualization
+#
+# Usage:
+#   gh pm project create --from-template ./kanban.yml --title "My Kanban Board"
+
+schema_version: "1.0"
+
+template:
+  name: "Kanban Board"
+  description: "A simple Kanban board with To Do, In Progress, and Done columns"
+  version: "1.0.0"
+  author: "gh-pm-unified"
+  license: "MIT"
+  tags:
+    - kanban
+    - simple
+    - workflow
+
+project:
+  title: "{{.ProjectName | default \"Kanban Board\"}}"
+  description: "Simple Kanban workflow board"
+  visibility: private
+  readme: |
+    # {{.ProjectName | default "Kanban Board"}}
+    
+    A simple Kanban board for visualizing work in progress.
+    
+    ## Columns
+    
+    - **To Do**: Work that needs to be started
+    - **In Progress**: Work currently being done
+    - **Done**: Completed work
+
+fields:
+  - name: "Status"
+    type: single_select
+    options:
+      - name: "To Do"
+        color: GRAY
+      - name: "In Progress"
+        color: YELLOW
+      - name: "Done"
+        color: GREEN
+
+  - name: "Priority"
+    type: single_select
+    options:
+      - name: "High"
+        color: RED
+      - name: "Medium"
+        color: YELLOW
+      - name: "Low"
+        color: GRAY
+
+  - name: "Due Date"
+    type: date
+
+views:
+  - name: "Board"
+    type: board
+    default: true
+    group_by: "Status"
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Priority"
+      - "Assignees"
+      - "Due Date"
+
+  - name: "List"
+    type: table
+    filter: "is:open"
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Status"
+      - "Priority"
+      - "Assignees"
+      - "Due Date"
+
+  - name: "My Items"
+    type: table
+    filter: "assignee:@me is:open"
+    columns:
+      - "Title"
+      - "Status"
+      - "Priority"
+      - "Due Date"
+
+workflows:
+  - name: "Auto-archive done items"
+    enabled: true
+    trigger:
+      type: item_closed
+      conditions:
+        status: "Done"
+    action:
+      type: archive
+      after_days: 7
+
+aliases:
+  status:
+    todo: "To Do"
+    in_progress: "In Progress"
+    done: "Done"
+  
+  priority:
+    high: "High"
+    medium: "Medium"
+    low: "Low"
+
+repositories:
+  - "{{.Repository}}"

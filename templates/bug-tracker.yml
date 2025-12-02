@@ -1,0 +1,306 @@
+# Bug Tracker Project Template
+# A comprehensive bug tracking board with severity, status, and resolution tracking
+#
+# Usage:
+#   gh pm project create --from-template ./bug-tracker.yml --title "Bug Tracker"
+
+schema_version: "1.0"
+
+template:
+  name: "Bug Tracker"
+  description: "Bug tracking board with severity levels, status workflow, and resolution tracking"
+  version: "1.0.0"
+  author: "gh-pm-unified"
+  license: "MIT"
+  tags:
+    - bugs
+    - qa
+    - tracking
+    - support
+
+project:
+  title: "{{.ProjectName | default \"Bug Tracker\"}}"
+  description: "Bug tracking and resolution workflow"
+  visibility: private
+  readme: |
+    # {{.ProjectName | default "Bug Tracker"}}
+    
+    Track, prioritize, and resolve bugs efficiently.
+    
+    ## Workflow
+    
+    ```
+    New → Triaged → In Progress → In Review → Resolved → Closed
+                                            ↓
+                                      Won't Fix / Duplicate
+    ```
+    
+    ## Severity Levels
+    
+    | Level | Description | Response Time |
+    |-------|-------------|---------------|
+    | 🔴 Critical | System down, data loss | Immediate |
+    | 🟠 Major | Core feature broken | < 24 hours |
+    | 🟡 Minor | Feature impaired | < 1 week |
+    | ⚪ Trivial | Cosmetic issue | Backlog |
+
+fields:
+  - name: "Status"
+    type: single_select
+    description: "Bug workflow status"
+    options:
+      - name: "🆕 New"
+        color: GRAY
+        description: "Newly reported, needs triage"
+      - name: "📋 Triaged"
+        color: BLUE
+        description: "Reviewed and prioritized"
+      - name: "🔧 In Progress"
+        color: YELLOW
+        description: "Being fixed"
+      - name: "👀 In Review"
+        color: PURPLE
+        description: "Fix under review"
+      - name: "✅ Resolved"
+        color: GREEN
+        description: "Fixed and verified"
+      - name: "🚫 Won't Fix"
+        color: GRAY
+        description: "Intentional behavior or out of scope"
+      - name: "🔄 Duplicate"
+        color: GRAY
+        description: "Duplicate of another issue"
+
+  - name: "Severity"
+    type: single_select
+    description: "Bug severity level"
+    options:
+      - name: "🔴 Critical"
+        color: RED
+        description: "System down, data loss, security issue"
+      - name: "🟠 Major"
+        color: ORANGE
+        description: "Core functionality broken"
+      - name: "🟡 Minor"
+        color: YELLOW
+        description: "Feature impaired but workaround exists"
+      - name: "⚪ Trivial"
+        color: GRAY
+        description: "Cosmetic or minor inconvenience"
+
+  - name: "Environment"
+    type: single_select
+    description: "Where the bug was found"
+    options:
+      - name: "Production"
+        color: RED
+      - name: "Staging"
+        color: ORANGE
+      - name: "Development"
+        color: YELLOW
+      - name: "Local"
+        color: GRAY
+
+  - name: "Component"
+    type: single_select
+    description: "Affected component"
+    options:
+      - name: "Frontend"
+        color: BLUE
+      - name: "Backend"
+        color: GREEN
+      - name: "API"
+        color: PURPLE
+      - name: "Database"
+        color: ORANGE
+      - name: "Infrastructure"
+        color: GRAY
+      - name: "Mobile"
+        color: PINK
+
+  - name: "Reported By"
+    type: text
+    description: "Who reported the bug"
+
+  - name: "Found In Version"
+    type: text
+    description: "Version where bug was found"
+
+  - name: "Fixed In Version"
+    type: text
+    description: "Version where bug was fixed"
+
+  - name: "Due Date"
+    type: date
+    description: "Target resolution date"
+
+views:
+  - name: "Triage Board"
+    type: board
+    default: true
+    group_by: "Status"
+    sort_by: "Severity"
+    columns:
+      - "Title"
+      - "Severity"
+      - "Component"
+      - "Assignees"
+
+  - name: "By Severity"
+    type: board
+    group_by: "Severity"
+    sort_by: "Status"
+    columns:
+      - "Title"
+      - "Status"
+      - "Component"
+      - "Assignees"
+
+  - name: "Critical Bugs"
+    type: table
+    filter: "severity:\"🔴 Critical\",\"🟠 Major\" is:open"
+    sort_by: "Severity"
+    columns:
+      - "Title"
+      - "Status"
+      - "Severity"
+      - "Environment"
+      - "Component"
+      - "Assignees"
+      - "Due Date"
+
+  - name: "New & Untriaged"
+    type: table
+    filter: "status:\"🆕 New\""
+    sort_by: "Severity"
+    columns:
+      - "Title"
+      - "Severity"
+      - "Environment"
+      - "Component"
+      - "Reported By"
+
+  - name: "My Bugs"
+    type: table
+    filter: "assignee:@me is:open"
+    sort_by: "Severity"
+    columns:
+      - "Title"
+      - "Status"
+      - "Severity"
+      - "Due Date"
+
+  - name: "By Component"
+    type: board
+    group_by: "Component"
+    filter: "is:open"
+    columns:
+      - "Title"
+      - "Status"
+      - "Severity"
+
+  - name: "Recently Resolved"
+    type: table
+    filter: "status:\"✅ Resolved\""
+    sort_by: "updated"
+    sort_direction: desc
+    columns:
+      - "Title"
+      - "Severity"
+      - "Component"
+      - "Fixed In Version"
+
+workflows:
+  - name: "Auto-add bugs from repository"
+    enabled: true
+    trigger:
+      type: issue_opened
+      repositories:
+        - "{{.Repository}}"
+      conditions:
+        label: "bug"
+    action:
+      type: add_to_project
+      set_fields:
+        status: "🆕 New"
+
+  - name: "Auto-archive resolved bugs"
+    enabled: true
+    trigger:
+      type: item_closed
+      conditions:
+        status: "✅ Resolved"
+    action:
+      type: archive
+      after_days: 30
+
+draft_issues:
+  - title: "🐛 Bug Report Template"
+    body: |
+      ## Bug Description
+      _A clear and concise description of the bug._
+      
+      ## Steps to Reproduce
+      1. Go to '...'
+      2. Click on '...'
+      3. Scroll down to '...'
+      4. See error
+      
+      ## Expected Behavior
+      _What you expected to happen._
+      
+      ## Actual Behavior
+      _What actually happened._
+      
+      ## Screenshots
+      _If applicable, add screenshots to help explain your problem._
+      
+      ## Environment
+      - **Browser/App:** 
+      - **OS:** 
+      - **Version:** 
+      
+      ## Additional Context
+      _Add any other context about the problem here._
+      
+      ## Possible Solution
+      _If you have suggestions on how to fix the bug._
+    labels:
+      - "template"
+      - "bug-report"
+    fields:
+      status: "🆕 New"
+
+aliases:
+  status:
+    new: "🆕 New"
+    triaged: "📋 Triaged"
+    in_progress: "🔧 In Progress"
+    review: "👀 In Review"
+    resolved: "✅ Resolved"
+    wontfix: "🚫 Won't Fix"
+    duplicate: "🔄 Duplicate"
+  
+  severity:
+    critical: "🔴 Critical"
+    major: "🟠 Major"
+    minor: "🟡 Minor"
+    trivial: "⚪ Trivial"
+
+  environment:
+    prod: "Production"
+    production: "Production"
+    staging: "Staging"
+    dev: "Development"
+    local: "Local"
+
+  component:
+    frontend: "Frontend"
+    backend: "Backend"
+    api: "API"
+    db: "Database"
+    infra: "Infrastructure"
+    mobile: "Mobile"
+
+repositories:
+  - "{{.Repository}}"

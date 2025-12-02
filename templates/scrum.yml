@@ -1,0 +1,381 @@
+# Scrum Board Project Template
+# A complete Scrum-style project board with sprints, story points, and team tracking
+#
+# Usage:
+#   gh pm project create --from-template ./scrum.yml --title "Q1 2025 Sprint"
+#   gh pm project create --from-template ./scrum.yml --var "Repository=my-org/my-repo"
+
+schema_version: "1.0"
+
+template:
+  name: "Scrum Board"
+  description: "A Scrum-style project board with sprints, story points, and team workflows"
+  version: "1.0.0"
+  author: "gh-pm-unified"
+  license: "MIT"
+  tags:
+    - scrum
+    - agile
+    - sprint
+    - team
+
+project:
+  title: "{{.ProjectName | default \"Scrum Board\"}}"
+  description: "Scrum project board created from template"
+  visibility: private
+  readme: |
+    # {{.ProjectName | default "Scrum Board"}}
+    
+    This project uses a **Scrum workflow** for agile development.
+    
+    ## Workflow
+    
+    | Status | Description |
+    |--------|-------------|
+    | 📋 Backlog | Items waiting to be prioritized and estimated |
+    | 🎯 Sprint Backlog | Items committed to the current sprint |
+    | 🚧 In Progress | Work actively being developed |
+    | 👀 In Review | Code review, QA, or stakeholder review |
+    | ✅ Done | Completed and accepted |
+    
+    ## Quick Links
+    
+    - [Board View](#) - Kanban-style sprint board
+    - [Sprint Backlog](#) - Current sprint items
+    - [Roadmap](#) - Timeline view by sprint
+    
+    ## Sprint Ceremonies
+    
+    - **Sprint Planning**: Start of each sprint
+    - **Daily Standup**: Daily sync (15 min)
+    - **Sprint Review**: End of sprint demo
+    - **Retrospective**: End of sprint reflection
+
+fields:
+  - name: "Status"
+    type: single_select
+    description: "Current workflow status"
+    options:
+      - name: "📋 Backlog"
+        color: GRAY
+        description: "Waiting to be prioritized"
+      - name: "🎯 Sprint Backlog"
+        color: BLUE
+        description: "Committed to current sprint"
+      - name: "🚧 In Progress"
+        color: YELLOW
+        description: "Actively being worked on"
+      - name: "👀 In Review"
+        color: PURPLE
+        description: "Awaiting review"
+      - name: "✅ Done"
+        color: GREEN
+        description: "Completed"
+
+  - name: "Priority"
+    type: single_select
+    description: "Item priority level"
+    options:
+      - name: "🔴 P0 - Critical"
+        color: RED
+        description: "Drop everything, fix now"
+      - name: "🟠 P1 - High"
+        color: ORANGE
+        description: "Important, do this sprint"
+      - name: "🟡 P2 - Medium"
+        color: YELLOW
+        description: "Should do soon"
+      - name: "⚪ P3 - Low"
+        color: GRAY
+        description: "Nice to have"
+
+  - name: "Story Points"
+    type: number
+    description: "Relative effort estimate (Fibonacci: 1, 2, 3, 5, 8, 13)"
+
+  - name: "Sprint"
+    type: iteration
+    description: "Sprint iteration"
+    duration: 14
+    start_day: monday
+
+  - name: "Due Date"
+    type: date
+    description: "Target completion date"
+
+  - name: "Team"
+    type: single_select
+    description: "Responsible team"
+    options:
+      - name: "🎨 Frontend"
+        color: BLUE
+      - name: "⚙️ Backend"
+        color: GREEN
+      - name: "🔧 DevOps"
+        color: PURPLE
+      - name: "🧪 QA"
+        color: ORANGE
+      - name: "📊 Data"
+        color: PINK
+
+  - name: "Type"
+    type: single_select
+    description: "Item type"
+    options:
+      - name: "✨ Feature"
+        color: GREEN
+      - name: "🐛 Bug"
+        color: RED
+      - name: "🔨 Chore"
+        color: GRAY
+      - name: "📚 Documentation"
+        color: BLUE
+      - name: "🔬 Spike"
+        color: PURPLE
+
+  - name: "Epic"
+    type: text
+    description: "Parent epic or theme"
+
+views:
+  - name: "Board"
+    type: board
+    default: true
+    group_by: "Status"
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Priority"
+      - "Story Points"
+      - "Assignees"
+
+  - name: "Sprint Backlog"
+    type: table
+    filter: "status:\"🎯 Sprint Backlog\",\"🚧 In Progress\",\"👀 In Review\""
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Status"
+      - "Priority"
+      - "Story Points"
+      - "Assignees"
+      - "Type"
+
+  - name: "Backlog"
+    type: table
+    filter: "status:\"📋 Backlog\""
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Priority"
+      - "Story Points"
+      - "Type"
+      - "Epic"
+
+  - name: "Roadmap"
+    type: roadmap
+    date_field: "Sprint"
+    group_by: "Team"
+
+  - name: "My Items"
+    type: table
+    filter: "assignee:@me is:open"
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Status"
+      - "Priority"
+      - "Sprint"
+      - "Due Date"
+
+  - name: "By Team"
+    type: board
+    group_by: "Team"
+    sort_by: "Priority"
+    columns:
+      - "Title"
+      - "Status"
+      - "Story Points"
+
+workflows:
+  - name: "Auto-archive completed items"
+    enabled: true
+    trigger:
+      type: item_closed
+      conditions:
+        status: "✅ Done"
+    action:
+      type: archive
+      after_days: 14
+
+  - name: "Auto-add issues from repository"
+    enabled: true
+    trigger:
+      type: issue_opened
+      repositories:
+        - "{{.Repository}}"
+    action:
+      type: add_to_project
+      set_fields:
+        status: "📋 Backlog"
+
+draft_issues:
+  - title: "📋 Sprint Planning Template"
+    body: |
+      ## Sprint Goal
+      _What is the single most important objective for this sprint?_
+      
+      ---
+      
+      ## Sprint Capacity
+      
+      | Team Member | Available Days | Focus Areas |
+      |-------------|---------------|-------------|
+      | @member1    | 10            |             |
+      | @member2    | 8             |             |
+      
+      **Total Capacity:** _X story points_
+      
+      ---
+      
+      ## Committed Items
+      
+      - [ ] Item 1 (X points)
+      - [ ] Item 2 (X points)
+      
+      **Total Committed:** _X story points_
+      
+      ---
+      
+      ## Risks & Dependencies
+      
+      - 
+      
+      ## Notes
+      
+      -
+    labels:
+      - "template"
+      - "sprint-planning"
+    fields:
+      status: "📋 Backlog"
+      type: "📚 Documentation"
+
+  - title: "📊 Sprint Retrospective Template"
+    body: |
+      ## Sprint Retrospective - Sprint X
+      
+      **Date:** {{.Date}}
+      **Facilitator:** 
+      
+      ---
+      
+      ### 🌟 What went well?
+      
+      - 
+      - 
+      
+      ### 🔧 What could be improved?
+      
+      - 
+      - 
+      
+      ### 💡 Ideas & Experiments
+      
+      - 
+      
+      ### ✅ Action Items
+      
+      - [ ] Action 1 - Owner: @
+      - [ ] Action 2 - Owner: @
+      
+      ---
+      
+      ### Sprint Metrics
+      
+      | Metric | Planned | Actual |
+      |--------|---------|--------|
+      | Story Points | | |
+      | Items Completed | | |
+      | Bugs Found | | |
+      | Velocity | | |
+    labels:
+      - "template"
+      - "retrospective"
+    fields:
+      status: "📋 Backlog"
+      type: "📚 Documentation"
+
+  - title: "🎯 Definition of Done Checklist"
+    body: |
+      ## Definition of Done
+      
+      All items must meet these criteria before moving to Done:
+      
+      ### Code Quality
+      - [ ] Code reviewed and approved
+      - [ ] All tests passing
+      - [ ] No new linting errors
+      - [ ] Code coverage maintained/improved
+      
+      ### Documentation
+      - [ ] README updated (if needed)
+      - [ ] API documentation updated (if needed)
+      - [ ] Inline comments for complex logic
+      
+      ### Testing
+      - [ ] Unit tests written
+      - [ ] Integration tests (if applicable)
+      - [ ] Manual QA completed
+      - [ ] Edge cases tested
+      
+      ### Deployment
+      - [ ] Works in staging environment
+      - [ ] No breaking changes (or migration plan)
+      - [ ] Feature flag (if needed)
+      
+      ### Communication
+      - [ ] PR description complete
+      - [ ] Stakeholders notified (if needed)
+    labels:
+      - "template"
+      - "definition-of-done"
+    fields:
+      status: "📋 Backlog"
+      type: "📚 Documentation"
+
+# Field aliases for gh-pm configuration
+aliases:
+  status:
+    backlog: "📋 Backlog"
+    sprint: "🎯 Sprint Backlog"
+    in_progress: "🚧 In Progress"
+    review: "👀 In Review"
+    done: "✅ Done"
+  
+  priority:
+    critical: "🔴 P0 - Critical"
+    p0: "🔴 P0 - Critical"
+    high: "🟠 P1 - High"
+    p1: "🟠 P1 - High"
+    medium: "🟡 P2 - Medium"
+    p2: "🟡 P2 - Medium"
+    low: "⚪ P3 - Low"
+    p3: "⚪ P3 - Low"
+
+  type:
+    feature: "✨ Feature"
+    bug: "🐛 Bug"
+    chore: "🔨 Chore"
+    docs: "📚 Documentation"
+    spike: "🔬 Spike"
+
+  team:
+    frontend: "🎨 Frontend"
+    backend: "⚙️ Backend"
+    devops: "🔧 DevOps"
+    qa: "🧪 QA"
+    data: "📊 Data"
+
+repositories:
+  - "{{.Repository}}"

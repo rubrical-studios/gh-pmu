@@ -1,0 +1,623 @@
+# GitHub Projects Template: Fiction Manuscript
+# For tracking scenes, chapters, character arcs, and story structure
+# Designed for novelists and fiction writers
+
+template:
+  name: "Fiction Manuscript"
+  description: "Track scenes, chapters, character arcs, plot threads, and story structure for novels and fiction"
+  version: "1.0.0"
+  author: "gh-pm-unified"
+  tags:
+    - writing
+    - fiction
+    - novel
+    - manuscript
+    - storytelling
+
+project:
+  title: "{{.ProjectName}} - Fiction Tracker"
+  description: |
+    Track writing progress for {{.ProjectName}}.
+    Created {{.Date}} by {{.User}}.
+    
+    ## Story Structure
+    - Three-Act Structure with scene-level tracking
+    - Character POV and arc management
+    - Plot thread tracking
+    
+    ## Workflow
+    - **Planned** → **Drafting** → **Revision** → **Polished** → **Final**
+  visibility: private
+  readme: |
+    # {{.ProjectName}} Fiction Tracker
+    
+    ## How to Use This Project
+    
+    ### Issue Types
+    - **Scene**: Individual scenes within chapters (`scene` label)
+    - **Chapter**: Chapter-level tracking (`chapter` label)
+    - **Character**: Character development tasks (`character` label)
+    - **Plot Thread**: Subplot and arc tracking (`plot` label)
+    - **World Building**: Setting and world details (`worldbuilding` label)
+    - **Revision**: Specific revision tasks (`revision` label)
+    
+    ### Story Structure
+    Use the **Act** field to organize your three-act structure:
+    - **Act 1 - Setup**: Introduction, inciting incident
+    - **Act 2A - Rising**: Complications, midpoint
+    - **Act 2B - Crisis**: Dark moment, all is lost
+    - **Act 3 - Resolution**: Climax, resolution
+    
+    ### POV Tracking
+    For multiple POV novels, use the **POV Character** field to track whose perspective each scene uses.
+    
+    ### Scene Tracking
+    Each scene should have:
+    - **Scene Type**: Action, dialogue, reflection, etc.
+    - **Word Count Target**: Typical scene length
+    - **Tension Level**: Track pacing (1-5 scale via Priority)
+    
+    ### Revision Passes
+    Use **Draft Number** to track revision passes:
+    - Draft 1: Discovery draft
+    - Draft 2: Structural revision
+    - Draft 3: Line editing
+    - Draft 4+: Polish
+
+fields:
+  - name: "Status"
+    type: single_select
+    options:
+      - name: "💭 Planned"
+        color: gray
+        description: "Scene/chapter outlined"
+      - name: "✏️ Drafting"
+        color: blue
+        description: "First draft in progress"
+      - name: "🔄 Revision"
+        color: yellow
+        description: "Revising content"
+      - name: "✨ Polished"
+        color: purple
+        description: "Line-edited and polished"
+      - name: "✅ Final"
+        color: green
+        description: "Publication-ready"
+  
+  - name: "Act"
+    type: single_select
+    description: "Three-act story structure position"
+    options:
+      - name: "🎬 Act 1 - Setup"
+        color: blue
+        description: "Introduction, inciting incident, first plot point"
+      - name: "📈 Act 2A - Rising"
+        color: yellow
+        description: "Rising action, complications, midpoint"
+      - name: "📉 Act 2B - Crisis"
+        color: orange
+        description: "Complications deepen, dark moment, all is lost"
+      - name: "🎯 Act 3 - Resolution"
+        color: green
+        description: "Climax, falling action, resolution"
+      - name: "📑 Front/Back Matter"
+        color: gray
+        description: "Prologue, epilogue, appendices"
+  
+  - name: "Element Type"
+    type: single_select
+    options:
+      - name: "📖 Chapter"
+        color: purple
+        description: "Chapter-level item"
+      - name: "🎬 Scene"
+        color: blue
+        description: "Individual scene"
+      - name: "👤 Character"
+        color: green
+        description: "Character development"
+      - name: "🧵 Plot Thread"
+        color: yellow
+        description: "Subplot or story arc"
+      - name: "🌍 World Building"
+        color: orange
+        description: "Setting and world details"
+      - name: "📝 Revision Task"
+        color: red
+        description: "Specific revision work"
+  
+  - name: "Scene Type"
+    type: single_select
+    description: "Type of scene for pacing"
+    options:
+      - name: "⚔️ Action"
+        color: red
+        description: "Action, conflict, tension"
+      - name: "💬 Dialogue"
+        color: blue
+        description: "Character interaction, conversation"
+      - name: "💭 Reflection"
+        color: purple
+        description: "Internal thought, processing"
+      - name: "🔍 Discovery"
+        color: yellow
+        description: "Revelation, learning, exploration"
+      - name: "❤️ Emotional"
+        color: pink
+        description: "Emotional beat, relationship development"
+      - name: "🌄 Setting"
+        color: green
+        description: "World building, atmosphere"
+  
+  - name: "POV Character"
+    type: single_select
+    description: "Point of view character for this scene"
+    options:
+      - name: "Protagonist"
+        color: blue
+      - name: "Deuteragonist"
+        color: purple
+      - name: "Antagonist"
+        color: red
+      - name: "Supporting A"
+        color: green
+      - name: "Supporting B"
+        color: yellow
+      - name: "Omniscient"
+        color: gray
+  
+  - name: "Tension Level"
+    type: single_select
+    description: "Scene tension for pacing (1=low, 5=high)"
+    options:
+      - name: "1️⃣ Low"
+        color: green
+        description: "Quiet, reflective, breather"
+      - name: "2️⃣ Medium-Low"
+        color: blue
+        description: "Building, setup"
+      - name: "3️⃣ Medium"
+        color: yellow
+        description: "Engaging, moderate stakes"
+      - name: "4️⃣ Medium-High"
+        color: orange
+        description: "High stakes, conflict"
+      - name: "5️⃣ High"
+        color: red
+        description: "Climactic, maximum tension"
+  
+  - name: "Chapter Number"
+    type: number
+    description: "Chapter sequence number"
+  
+  - name: "Scene Number"
+    type: number
+    description: "Scene number within chapter (e.g., 3.2 = Chapter 3, Scene 2)"
+  
+  - name: "Word Count Target"
+    type: number
+    description: "Target word count"
+  
+  - name: "Current Words"
+    type: number
+    description: "Current word count"
+  
+  - name: "Draft Number"
+    type: number
+    description: "Current draft/revision pass number"
+  
+  - name: "Due Date"
+    type: date
+    description: "Target completion date"
+
+views:
+  - name: "Story Board"
+    type: board
+    default: true
+    description: "Scenes by status"
+    group_by: "Status"
+    columns:
+      - "💭 Planned"
+      - "✏️ Drafting"
+      - "🔄 Revision"
+      - "✨ Polished"
+      - "✅ Final"
+    card_fields:
+      - "Element Type"
+      - "Act"
+      - "Chapter Number"
+      - "POV Character"
+  
+  - name: "Three-Act Structure"
+    type: board
+    description: "Scenes organized by story act"
+    group_by: "Act"
+    columns:
+      - "🎬 Act 1 - Setup"
+      - "📈 Act 2A - Rising"
+      - "📉 Act 2B - Crisis"
+      - "🎯 Act 3 - Resolution"
+    card_fields:
+      - "Status"
+      - "Scene Type"
+      - "Tension Level"
+      - "POV Character"
+  
+  - name: "Manuscript Order"
+    type: table
+    description: "Scenes in reading order"
+    sort:
+      - field: "Chapter Number"
+        direction: asc
+      - field: "Scene Number"
+        direction: asc
+    columns:
+      - field: "Title"
+        width: 280
+      - field: "Element Type"
+        width: 100
+      - field: "Act"
+        width: 140
+      - field: "Status"
+        width: 100
+      - field: "Current Words"
+        width: 90
+      - field: "POV Character"
+        width: 120
+  
+  - name: "By POV Character"
+    type: board
+    description: "Scenes grouped by point of view"
+    group_by: "POV Character"
+    filter: "Element Type:🎬 Scene"
+    card_fields:
+      - "Status"
+      - "Act"
+      - "Chapter Number"
+      - "Tension Level"
+  
+  - name: "Pacing Analysis"
+    type: table
+    description: "Scene types and tension for pacing review"
+    filter: "Element Type:🎬 Scene"
+    sort:
+      - field: "Chapter Number"
+        direction: asc
+      - field: "Scene Number"
+        direction: asc
+    columns:
+      - field: "Title"
+        width: 250
+      - field: "Act"
+        width: 140
+      - field: "Scene Type"
+        width: 100
+      - field: "Tension Level"
+        width: 100
+      - field: "POV Character"
+        width: 120
+      - field: "Current Words"
+        width: 90
+  
+  - name: "Character Arcs"
+    type: table
+    description: "Character development tracking"
+    filter: "Element Type:👤 Character"
+    columns:
+      - field: "Title"
+        width: 300
+      - field: "Status"
+        width: 120
+      - field: "Act"
+        width: 140
+      - field: "Assignee"
+        width: 150
+  
+  - name: "Plot Threads"
+    type: board
+    description: "Subplot and arc tracking"
+    filter: "Element Type:🧵 Plot Thread"
+    group_by: "Status"
+    card_fields:
+      - "Act"
+  
+  - name: "World Building"
+    type: table
+    description: "Setting and world details"
+    filter: "Element Type:🌍 World Building"
+    columns:
+      - field: "Title"
+        width: 350
+      - field: "Status"
+        width: 120
+  
+  - name: "Progress Dashboard"
+    type: table
+    description: "Word counts and completion"
+    filter: "Element Type:📖 Chapter,Element Type:🎬 Scene"
+    sort:
+      - field: "Chapter Number"
+        direction: asc
+    columns:
+      - field: "Title"
+        width: 250
+      - field: "Status"
+        width: 100
+      - field: "Current Words"
+        width: 90
+      - field: "Word Count Target"
+        width: 90
+      - field: "Draft Number"
+        width: 80
+  
+  - name: "Timeline"
+    type: roadmap
+    description: "Deadline tracking"
+    date_field: "Due Date"
+    group_by: "Act"
+
+workflows:
+  - name: "Auto-setup Scenes"
+    trigger: item_added
+    conditions:
+      - labels: ["scene"]
+    actions:
+      - set_field:
+          field: "Element Type"
+          value: "🎬 Scene"
+      - set_field:
+          field: "Status"
+          value: "💭 Planned"
+      - set_field:
+          field: "Draft Number"
+          value: 1
+  
+  - name: "Auto-setup Chapters"
+    trigger: item_added
+    conditions:
+      - labels: ["chapter"]
+    actions:
+      - set_field:
+          field: "Element Type"
+          value: "📖 Chapter"
+      - set_field:
+          field: "Status"
+          value: "💭 Planned"
+  
+  - name: "Auto-setup Characters"
+    trigger: item_added
+    conditions:
+      - labels: ["character"]
+    actions:
+      - set_field:
+          field: "Element Type"
+          value: "👤 Character"
+  
+  - name: "Auto-setup Plot Threads"
+    trigger: item_added
+    conditions:
+      - labels: ["plot"]
+    actions:
+      - set_field:
+          field: "Element Type"
+          value: "🧵 Plot Thread"
+
+draft_issues:
+  - title: "Chapter 1: [Title]"
+    body: |
+      ## Chapter Overview
+      
+      **Chapter Goal:** What happens in this chapter?
+      
+      **POV Character:** [character]
+      
+      **Scenes in this chapter:**
+      - [ ] Scene 1.1: [description]
+      - [ ] Scene 1.2: [description]
+      - [ ] Scene 1.3: [description]
+      
+      **Chapter Arc:**
+      - **Opening:** [state at start]
+      - **Conflict:** [what goes wrong]
+      - **Resolution:** [how it ends]
+      
+      **Word Count Target:** [target]
+      
+      ---
+      ## Notes
+      _Chapter notes and revision history_
+    labels:
+      - chapter
+    fields:
+      Status: "💭 Planned"
+      Element Type: "📖 Chapter"
+      Act: "🎬 Act 1 - Setup"
+      Chapter Number: 1
+      Draft Number: 1
+  
+  - title: "Scene Template"
+    body: |
+      ## Scene Overview
+      
+      **Scene Goal:** What must happen?
+      
+      **POV Character:** [character]
+      
+      **Scene Type:** Action / Dialogue / Reflection / Discovery / Emotional / Setting
+      
+      **Tension Level:** 1-5
+      
+      ---
+      
+      ### Scene Beats
+      1. **Opening Hook:** [grab attention]
+      2. **Development:** [build the scene]
+      3. **Turn/Revelation:** [something changes]
+      4. **Closing Hook:** [propel to next scene]
+      
+      ---
+      
+      ### Checklist
+      - [ ] Clear scene goal
+      - [ ] Character motivation established
+      - [ ] Conflict/tension present
+      - [ ] Something changes by end
+      - [ ] Sensory details included
+      - [ ] Advances plot or character
+      
+      **Word Count Target:** [target]
+    labels:
+      - scene
+    fields:
+      Status: "💭 Planned"
+      Element Type: "🎬 Scene"
+      Scene Type: "⚔️ Action"
+      Tension Level: "3️⃣ Medium"
+      Draft Number: 1
+  
+  - title: "Character: [Name]"
+    body: |
+      ## Character Profile
+      
+      **Role:** Protagonist / Antagonist / Supporting / Minor
+      
+      **One-Line Description:** [who they are in one sentence]
+      
+      ---
+      
+      ### Character Arc
+      
+      **Starting State:** [who they are at the beginning]
+      
+      **Want:** [external goal]
+      
+      **Need:** [internal/emotional need they're unaware of]
+      
+      **Flaw:** [character flaw that creates conflict]
+      
+      **Ghost/Wound:** [past trauma or formative experience]
+      
+      **Ending State:** [who they become]
+      
+      ---
+      
+      ### Key Scenes
+      - [ ] Introduction scene
+      - [ ] Revealing flaw scene
+      - [ ] Midpoint shift
+      - [ ] Dark moment
+      - [ ] Transformation scene
+      
+      ---
+      
+      ### Notes
+      _Character development notes_
+    labels:
+      - character
+    fields:
+      Status: "💭 Planned"
+      Element Type: "👤 Character"
+  
+  - title: "Plot Thread: [Subplot Name]"
+    body: |
+      ## Subplot Overview
+      
+      **Thread Type:** Romance / Mystery / Character Growth / Thematic / Comic Relief
+      
+      **Connected Characters:** [list]
+      
+      **Theme:** What does this subplot explore?
+      
+      ---
+      
+      ### Arc Structure
+      
+      **Setup (Act 1):**
+      - Scene: [where introduced]
+      - Hook: [what draws reader in]
+      
+      **Development (Act 2):**
+      - Complications: [how it develops]
+      - Key scenes: [list]
+      
+      **Resolution (Act 3):**
+      - Payoff scene: [where it resolves]
+      - Connection to main plot: [how it ties in]
+      
+      ---
+      
+      ### Checklist
+      - [ ] Introduced by [chapter]
+      - [ ] Developed in Act 2
+      - [ ] Resolved before/during climax
+      - [ ] Connects to main theme
+    labels:
+      - plot
+    fields:
+      Status: "💭 Planned"
+      Element Type: "🧵 Plot Thread"
+  
+  - title: "World Building: [Topic]"
+    body: |
+      ## World Building Element
+      
+      **Category:** Geography / Culture / History / Magic System / Technology / Society
+      
+      ---
+      
+      ### Description
+      [Detailed description]
+      
+      ### Rules/Constraints
+      - Rule 1
+      - Rule 2
+      
+      ### Story Impact
+      How does this affect the plot or characters?
+      
+      ### Scenes Where Referenced
+      - [ ] Chapter X, Scene Y
+      
+      ---
+      ### Notes
+      _Additional world building notes_
+    labels:
+      - worldbuilding
+    fields:
+      Status: "💭 Planned"
+      Element Type: "🌍 World Building"
+
+aliases:
+  status:
+    field: Status
+    values:
+      planned: "💭 Planned"
+      drafting: "✏️ Drafting"
+      revision: "🔄 Revision"
+      polished: "✨ Polished"
+      final: "✅ Final"
+  act:
+    field: Act
+    values:
+      act1: "🎬 Act 1 - Setup"
+      act2a: "📈 Act 2A - Rising"
+      act2b: "📉 Act 2B - Crisis"
+      act3: "🎯 Act 3 - Resolution"
+      matter: "📑 Front/Back Matter"
+  element:
+    field: Element Type
+    values:
+      chapter: "📖 Chapter"
+      scene: "🎬 Scene"
+      character: "👤 Character"
+      plot: "🧵 Plot Thread"
+      world: "🌍 World Building"
+      revision: "📝 Revision Task"
+  tension:
+    field: Tension Level
+    values:
+      low: "1️⃣ Low"
+      medlow: "2️⃣ Medium-Low"
+      medium: "3️⃣ Medium"
+      medhigh: "4️⃣ Medium-High"
+      high: "5️⃣ High"

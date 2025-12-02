@@ -1,0 +1,17 @@
+{
+  "frameworkPath": "E:\\Projects\\process-docs",
+  "installedVersion": "**2.18.0",
+  "installedDate": "2025-12-01",
+  "projectType": {
+    "processFramework": "IDPF-Agile",
+    "domainSpecialists": [
+      "Backend-Specialist",      "API-Integration-Specialist",      "PRD-Analyst"
+    ]
+  },
+  "components": {
+    "frameworks": true,
+    "systemInstructions": true,
+    "skills": true,
+    "assistantGuidelines": true
+  }
+}
