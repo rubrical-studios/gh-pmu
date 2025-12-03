@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -23,14 +21,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Ensure go.mod compatibility
+        run: sed -i 's/go 1\.[0-9]*\.[0-9]*/go 1.23/' go.mod
+
       - name: Run tests
         run: go test -v -short ./...
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+      - name: Build and release
+        uses: cli/gh-extension-precompile@v2
         with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          build_script_override: |
+            go build -ldflags="-X github.com/scooter-indie/gh-pmu/cmd.version=${{ github.ref_name }}" -o "$1"

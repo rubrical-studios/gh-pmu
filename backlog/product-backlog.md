@@ -673,20 +673,39 @@ This epic is entirely blocked because it depends on the ability to create projec
 
 ### Tech Story: Release Build & Distribution
 
-**Description:** Configure GoReleaser and GitHub Actions to build and publish the extension as installable releases.
+**Description:** Configure GitHub Actions to build and publish the extension as installable releases, mirroring gh-pm workflows.
 
 **Benefit:** Users can install gh-pmu via `gh extension install` from published releases.
 
 **Acceptance Criteria:**
-- [ ] `.goreleaser.yml` configured for gh extension format
-- [ ] GitHub Actions workflow builds on tag push
-- [ ] Produces binaries for linux/darwin/windows (amd64/arm64)
-- [ ] Release includes checksums and changelog
-- [ ] `gh extension install scooter-indie/gh-pmu` works from release
-- [ ] README updated with installation instructions
+- [x] Build workflow: multi-OS (ubuntu, macos) + Go 1.22/1.23 matrix
+- [x] Lint workflow: golangci-lint + gofmt + go vet
+- [x] Test workflow: Go version matrix + coverage threshold
+- [x] Release workflow: cli/gh-extension-precompile
+- [x] `gh extension install scooter-indie/gh-pmu` works from release
+- [x] README updated with installation instructions
 
 **Story Points:** 5
 **Priority:** High
+**Status:** In Progress
+**Sprint:** 6
+
+---
+
+### Tech Story: Increase Test Coverage to 80%
+
+**Description:** Add comprehensive unit tests to achieve 80% code coverage.
+
+**Benefit:** Higher confidence in code quality and fewer regressions.
+
+**Acceptance Criteria:**
+- [ ] cmd package coverage >= 80%
+- [ ] internal/api package coverage >= 80%
+- [ ] Mock GitHub API calls for testing run* functions
+- [ ] Update CI threshold from 15% to 80%
+
+**Story Points:** 13
+**Priority:** Medium
 **Status:** Backlog
 **Sprint:** -
 
