@@ -98,7 +98,7 @@ func TestWriteConfig_CreatesValidYAML(t *testing.T) {
 	}
 
 	// Verify file was created
-	configPath := tmpDir + "/.gh-pm.yml"
+	configPath := tmpDir + "/.gh-pmu.yml"
 	content, err := readFile(configPath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
@@ -130,7 +130,7 @@ func TestWriteConfig_WithDefaults(t *testing.T) {
 		t.Fatalf("writeConfig failed: %v", err)
 	}
 
-	content, _ := readFile(tmpDir + "/.gh-pm.yml")
+	content, _ := readFile(tmpDir + "/.gh-pmu.yml")
 
 	// Should have default status field mapping
 	if !bytes.Contains(content, []byte("status:")) {
@@ -231,7 +231,7 @@ func TestWriteConfigWithMetadata_IncludesFields(t *testing.T) {
 		t.Fatalf("writeConfigWithMetadata failed: %v", err)
 	}
 
-	content, _ := readFile(tmpDir + "/.gh-pm.yml")
+	content, _ := readFile(tmpDir + "/.gh-pmu.yml")
 
 	// Should contain metadata section with project ID
 	if !bytes.Contains(content, []byte("metadata:")) {

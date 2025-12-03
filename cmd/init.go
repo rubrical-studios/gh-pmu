@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/scooter-indie/gh-pm/internal/api"
+	"github.com/scooter-indie/gh-pmu/internal/api"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -18,8 +18,8 @@ import (
 func newInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Initialize gh-pm configuration for the current project",
-		Long: `Initialize gh-pm configuration by creating a .gh-pm.yml file.
+		Short: "Initialize gh-pmu configuration for the current project",
+		Long: `Initialize gh-pmu configuration by creating a .gh-pmu.yml file.
 
 This command will:
 - Prompt for project owner and number
@@ -38,8 +38,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	reader := bufio.NewReader(os.Stdin)
 
 	// Check if config already exists
-	if _, err := os.Stat(".gh-pm.yml"); err == nil {
-		cmd.Print("Configuration file .gh-pm.yml already exists. Overwrite? [y/N]: ")
+	if _, err := os.Stat(".gh-pmu.yml"); err == nil {
+		cmd.Print("Configuration file .gh-pmu.yml already exists. Overwrite? [y/N]: ")
 		response, _ := reader.ReadString('\n')
 		response = strings.TrimSpace(strings.ToLower(response))
 		if response != "y" && response != "yes" {
@@ -158,7 +158,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
-	cmd.Println("Configuration saved to .gh-pm.yml")
+	cmd.Println("Configuration saved to .gh-pmu.yml")
 	cmd.Printf("Project: %s (#%d)\n", project.Title, project.Number)
 	cmd.Printf("Repository: %s\n", repo)
 	cmd.Printf("Fields cached: %d\n", len(fields))
@@ -216,7 +216,7 @@ type InitConfig struct {
 	Repositories  []string
 }
 
-// ConfigFile represents the .gh-pm.yml file structure.
+// ConfigFile represents the .gh-pmu.yml file structure.
 type ConfigFile struct {
 	Project      ProjectConfig            `yaml:"project"`
 	Repositories []string                 `yaml:"repositories"`
@@ -309,7 +309,7 @@ func validateProject(client ProjectValidator, owner string, number int) error {
 	return err
 }
 
-// writeConfig writes the configuration to a .gh-pm.yml file.
+// writeConfig writes the configuration to a .gh-pmu.yml file.
 func writeConfig(dir string, cfg *InitConfig) error {
 	configFile := &ConfigFile{
 		Project: ProjectConfig{
@@ -348,7 +348,7 @@ func writeConfig(dir string, cfg *InitConfig) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	configPath := filepath.Join(dir, ".gh-pm.yml")
+	configPath := filepath.Join(dir, ".gh-pmu.yml")
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
@@ -418,7 +418,7 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	configPath := filepath.Join(dir, ".gh-pm.yml")
+	configPath := filepath.Join(dir, ".gh-pmu.yml")
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}

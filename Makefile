@@ -1,9 +1,9 @@
 .PHONY: build test lint clean install
 
 # Build variables
-BINARY_NAME=gh-pm
+BINARY_NAME=gh-pmu
 VERSION?=dev
-LDFLAGS=-ldflags "-X github.com/scooter-indie/gh-pm/cmd.version=$(VERSION)"
+LDFLAGS=-ldflags "-X github.com/scooter-indie/gh-pmu/cmd.version=$(VERSION)"
 
 # Go commands
 GO=go

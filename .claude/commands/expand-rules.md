@@ -2,8 +2,6 @@
 
 Load the complete Anti-Hallucination Rules for Software Development.
 
-**Action:** Read the following file:
+Read the following file:
 
-```
-E:\Projects\process-docs\Assistant\Anti-Hallucination-Rules-for-Software-Development.md
-```
+E:\Projects\process-docs/Assistant/Anti-Hallucination-Rules-for-Software-Development.md

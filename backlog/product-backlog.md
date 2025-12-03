@@ -25,12 +25,12 @@ All stories must meet these criteria:
 ### Story 1.1: Project Configuration Initialization
 
 **As a** developer setting up a new project
-**I want** to initialize gh-pm configuration interactively
+**I want** to initialize gh-pmu configuration interactively
 **So that** I can quickly configure project settings without manual YAML editing
 
 **Acceptance Criteria:**
-- [ ] `gh pm init` prompts for project owner, number, and repositories
-- [ ] Creates `.gh-pm.yml` with provided values
+- [ ] `gh pmuinit` prompts for project owner, number, and repositories
+- [ ] Creates `.gh-pmu.yml` with provided values
 - [ ] Auto-detects current repository if in a git repo
 - [ ] Fetches and caches project field metadata from GitHub API
 - [ ] Validates project exists before saving configuration
@@ -49,7 +49,7 @@ All stories must meet these criteria:
 **So that** I can see status, priority, and other fields at a glance
 
 **Acceptance Criteria:**
-- [ ] `gh pm list` displays issues from configured project
+- [ ] `gh pmulist` displays issues from configured project
 - [ ] Shows Title, Status, Priority, Assignees by default
 - [ ] Supports `--status`, `--priority` filters
 - [ ] Supports `--json` output format
@@ -69,7 +69,7 @@ All stories must meet these criteria:
 **So that** I can see the complete context including custom fields
 
 **Acceptance Criteria:**
-- [ ] `gh pm view <issue>` displays issue details
+- [ ] `gh pmuview <issue>` displays issue details
 - [ ] Shows all project field values (Status, Priority, custom fields)
 - [ ] Shows sub-issues if any exist
 - [ ] Shows parent issue if this is a sub-issue
@@ -77,8 +77,8 @@ All stories must meet these criteria:
 
 **Story Points:** 3
 **Priority:** Medium
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -89,7 +89,7 @@ All stories must meet these criteria:
 **So that** the issue is properly categorized from the start
 
 **Acceptance Criteria:**
-- [ ] `gh pm create` opens editor for issue body
+- [ ] `gh pmucreate` opens editor for issue body
 - [ ] `--title`, `--body` flags for non-interactive creation
 - [ ] `--status`, `--priority` set project field values
 - [ ] Automatically adds issue to configured project
@@ -98,8 +98,8 @@ All stories must meet these criteria:
 
 **Story Points:** 5
 **Priority:** High
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -110,16 +110,16 @@ All stories must meet these criteria:
 **So that** I can update status without opening the web UI
 
 **Acceptance Criteria:**
-- [ ] `gh pm move <issue> --status <value>` updates status
-- [ ] `gh pm move <issue> --priority <value>` updates priority
+- [ ] `gh pmumove <issue> --status <value>` updates status
+- [ ] `gh pmumove <issue> --priority <value>` updates priority
 - [ ] Supports field aliases from config (e.g., `in_progress` → "In Progress")
 - [ ] Can update multiple fields in one command
 - [ ] Shows confirmation of changes made
 
 **Story Points:** 3
 **Priority:** High
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -130,7 +130,7 @@ All stories must meet these criteria:
 **So that** I can ensure all work is tracked on the project board
 
 **Acceptance Criteria:**
-- [ ] `gh pm intake` finds open issues not in the project
+- [ ] `gh pmuintake` finds open issues not in the project
 - [ ] Shows list of untracked issues with titles
 - [ ] `--apply` flag adds them to project with default fields
 - [ ] `--dry-run` shows what would be added
@@ -138,8 +138,8 @@ All stories must meet these criteria:
 
 **Story Points:** 5
 **Priority:** Medium
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 3
 
 ---
 
@@ -150,8 +150,8 @@ All stories must meet these criteria:
 **So that** I can efficiently maintain project hygiene
 
 **Acceptance Criteria:**
-- [ ] `gh pm triage <config-name>` runs named triage config
-- [ ] Triage configs defined in `.gh-pm.yml` with query and apply rules
+- [ ] `gh pmutriage <config-name>` runs named triage config
+- [ ] Triage configs defined in `.gh-pmu.yml` with query and apply rules
 - [ ] Supports applying labels, status, priority changes
 - [ ] `--interactive` flag prompts for each issue
 - [ ] `--dry-run` shows what would be changed
@@ -159,8 +159,8 @@ All stories must meet these criteria:
 
 **Story Points:** 8
 **Priority:** Medium
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 3
 
 ---
 
@@ -171,7 +171,7 @@ All stories must meet these criteria:
 **So that** I can create issue hierarchies
 
 **Acceptance Criteria:**
-- [ ] `gh pm sub add <parent> <child>` links issues
+- [ ] `gh pmusub add <parent> <child>` links issues
 - [ ] Validates both issues exist
 - [ ] Uses GraphQL API with `sub_issues` feature header
 - [ ] Shows confirmation with parent and child titles
@@ -179,8 +179,8 @@ All stories must meet these criteria:
 
 **Story Points:** 3
 **Priority:** High
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -191,7 +191,7 @@ All stories must meet these criteria:
 **So that** I can add child tasks without manual linking
 
 **Acceptance Criteria:**
-- [ ] `gh pm sub create --parent <id> --title <title>` creates sub-issue
+- [ ] `gh pmusub create --parent <id> --title <title>` creates sub-issue
 - [ ] Inherits labels from parent (configurable in settings)
 - [ ] Inherits assignees from parent (configurable)
 - [ ] Inherits milestone from parent (configurable)
@@ -200,8 +200,8 @@ All stories must meet these criteria:
 
 **Story Points:** 5
 **Priority:** High
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -212,7 +212,7 @@ All stories must meet these criteria:
 **So that** I can see the full scope of work
 
 **Acceptance Criteria:**
-- [ ] `gh pm sub list <parent>` shows sub-issues
+- [ ] `gh pmusub list <parent>` shows sub-issues
 - [ ] Displays title, status, assignee for each
 - [ ] Shows completion count (X of Y done)
 - [ ] Supports `--json` output format
@@ -220,8 +220,8 @@ All stories must meet these criteria:
 
 **Story Points:** 3
 **Priority:** Medium
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -232,15 +232,15 @@ All stories must meet these criteria:
 **So that** I can restructure issue hierarchies
 
 **Acceptance Criteria:**
-- [ ] `gh pm sub remove <parent> <child>` unlinks issues
+- [ ] `gh pmusub remove <parent> <child>` unlinks issues
 - [ ] Does not delete the child issue, only removes link
 - [ ] Shows confirmation of unlink
 - [ ] Errors gracefully if not linked
 
 **Story Points:** 2
 **Priority:** Low
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 2
 
 ---
 
@@ -251,17 +251,17 @@ All stories must meet these criteria:
 **So that** I can convert task lists into trackable issues
 
 **Acceptance Criteria:**
-- [ ] `gh pm split <issue> --from=body` parses checklist from issue body
-- [ ] `gh pm split <issue> --from=file.md` parses from external file
-- [ ] `gh pm split <issue> "Task 1" "Task 2"` creates from arguments
+- [ ] `gh pmusplit <issue> --from=body` parses checklist from issue body
+- [ ] `gh pmusplit <issue> --from=file.md` parses from external file
+- [ ] `gh pmusplit <issue> "Task 1" "Task 2"` creates from arguments
 - [ ] Each checklist item becomes a sub-issue
 - [ ] Sub-issues linked to parent automatically
 - [ ] Shows summary of created sub-issues
 
 **Story Points:** 8
 **Priority:** Medium
-**Status:** Backlog
-**Sprint:** -
+**Status:** Selected
+**Sprint:** 3
 
 ---
 
@@ -276,7 +276,7 @@ All stories must meet these criteria:
 **So that** I can replicate proven project configurations
 
 **Acceptance Criteria:**
-- [ ] `gh pm project create --from-project <owner>/<number>` copies project
+- [ ] `gh pmuproject create --from-project <owner>/<number>` copies project
 - [ ] Copies all custom fields with options
 - [ ] Copies all views with configurations
 - [ ] `--title` sets the new project name
@@ -298,7 +298,7 @@ All stories must meet these criteria:
 **So that** I can use version-controlled project definitions
 
 **Acceptance Criteria:**
-- [ ] `gh pm project create --from-template <path>` creates project
+- [ ] `gh pmuproject create --from-template <path>` creates project
 - [ ] Parses YAML template schema
 - [ ] Creates all defined fields with options and colors
 - [ ] Creates all defined views
@@ -321,7 +321,7 @@ All stories must meet these criteria:
 **So that** I can reuse it or share it with others
 
 **Acceptance Criteria:**
-- [ ] `gh pm project export <number>` exports to YAML
+- [ ] `gh pmuproject export <number>` exports to YAML
 - [ ] `--output <path>` writes to file (default: stdout)
 - [ ] Exports all custom fields with options
 - [ ] Exports all views with configurations
@@ -344,7 +344,7 @@ All stories must meet these criteria:
 **So that** I can catch errors early
 
 **Acceptance Criteria:**
-- [ ] `gh pm template validate <path>` validates template
+- [ ] `gh pmutemplate validate <path>` validates template
 - [ ] Checks YAML syntax
 - [ ] Validates against template schema
 - [ ] Reports field count, view count, etc.
@@ -365,7 +365,7 @@ All stories must meet these criteria:
 **So that** I can see what's available to use
 
 **Acceptance Criteria:**
-- [ ] `gh pm template list` shows all templates
+- [ ] `gh pmutemplate list` shows all templates
 - [ ] `--builtin` shows only built-in templates
 - [ ] `--local` shows only local templates (from config path)
 - [ ] Displays name, description, field count for each
@@ -385,7 +385,7 @@ All stories must meet these criteria:
 **So that** I can decide if it fits my needs
 
 **Acceptance Criteria:**
-- [ ] `gh pm template show <name>` displays template details
+- [ ] `gh pmutemplate show <name>` displays template details
 - [ ] Shows all fields with types and options
 - [ ] Shows all views with configurations
 - [ ] Shows workflow definitions if present
@@ -426,9 +426,9 @@ All stories must meet these criteria:
 **So that** I can bootstrap a project in one command
 
 **Acceptance Criteria:**
-- [ ] `gh pm init --from-template <path>` creates project and config
+- [ ] `gh pmuinit --from-template <path>` creates project and config
 - [ ] Creates project using template
-- [ ] Creates `.gh-pm.yml` configured for new project
+- [ ] Creates `.gh-pmu.yml` configured for new project
 - [ ] Caches field metadata automatically
 - [ ] `--from-project <owner>/<number>` works similarly
 
@@ -450,7 +450,7 @@ All stories must meet these criteria:
 **So that** I don't need separate gh-sub-issue installed
 
 **Acceptance Criteria:**
-- [ ] `gh pm split` uses internal sub-issue API code
+- [ ] `gh pmusplit` uses internal sub-issue API code
 - [ ] No dependency on gh-sub-issue extension
 - [ ] Same functionality as current split + sub-issue combo
 - [ ] Maintains backward compatibility
@@ -469,8 +469,8 @@ All stories must meet these criteria:
 **So that** I can organize work across my codebase
 
 **Acceptance Criteria:**
-- [ ] `gh pm sub add` works across repositories
-- [ ] `gh pm sub create --repo <owner/repo>` creates in specified repo
+- [ ] `gh pmusub add` works across repositories
+- [ ] `gh pmusub create --repo <owner/repo>` creates in specified repo
 - [ ] Parent can be in different repo than child
 - [ ] Validates repos are in same project
 - [ ] Shows repo info in sub list output
@@ -489,9 +489,9 @@ All stories must meet these criteria:
 **So that** I can track progress on large work items
 
 **Acceptance Criteria:**
-- [ ] `gh pm view <issue>` shows progress bar for parents
+- [ ] `gh pmuview <issue>` shows progress bar for parents
 - [ ] Shows "3 of 5 sub-issues complete (60%)"
-- [ ] `gh pm list --has-sub-issues` filters to parent issues
+- [ ] `gh pmulist --has-sub-issues` filters to parent issues
 - [ ] Progress based on closed/total sub-issue count
 
 **Story Points:** 5
@@ -508,7 +508,7 @@ All stories must meet these criteria:
 **So that** I can update parent and all sub-issues together
 
 **Acceptance Criteria:**
-- [ ] `gh pm move <issue> --recursive` updates all sub-issues
+- [ ] `gh pmumove <issue> --recursive` updates all sub-issues
 - [ ] Works with status, priority, labels changes
 - [ ] Shows confirmation of all issues to be updated
 - [ ] `--dry-run` shows what would be changed
@@ -532,9 +532,9 @@ All stories must meet these criteria:
 **So that** I can benefit from others' project configurations
 
 **Acceptance Criteria:**
-- [ ] `gh pm template list --remote` shows registry templates
-- [ ] `gh pm template search <query>` searches registry
-- [ ] `gh pm project create --from-template registry:<name>` uses remote
+- [ ] `gh pmutemplate list --remote` shows registry templates
+- [ ] `gh pmutemplate search <query>` searches registry
+- [ ] `gh pmuproject create --from-template registry:<name>` uses remote
 - [ ] Registry hosted on GitHub (repo or gist-based)
 - [ ] Templates verified for schema compliance
 
@@ -591,7 +591,7 @@ All stories must meet these criteria:
 **So that** others can benefit from my configuration
 
 **Acceptance Criteria:**
-- [ ] `gh pm template publish <path>` submits to registry
+- [ ] `gh pmutemplate publish <path>` submits to registry
 - [ ] Validates template before submission
 - [ ] Requires template metadata (name, description, author)
 - [ ] Creates PR to registry repo (or similar mechanism)
@@ -634,7 +634,7 @@ All stories must meet these criteria:
 **Benefit:** Shared infrastructure for all commands.
 
 **Acceptance Criteria:**
-- [ ] Load `.gh-pm.yml` with Viper
+- [ ] Load `.gh-pmu.yml` with Viper
 - [ ] Validate required fields
 - [ ] Cache project metadata from GitHub API
 - [ ] Support field aliases

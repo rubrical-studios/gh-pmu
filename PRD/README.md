@@ -1,23 +1,16 @@
-# Product Requirements Documents (PRD)
+# PRD Directory
 
-This directory contains product requirements documents for this project.
-
-## Structure
-
-```
-PRD/
-+-- PRD-[ProjectName].md    # Main requirements document
-+-- Templates/              # PRD templates (from framework)
-+-- Specs/                  # ATDD/BDD specifications (if using)
-    +-- Templates/          # Spec templates
-```
+This directory contains Product Requirements Documents for your project.
 
 ## Getting Started
 
-1. Copy the appropriate template from `Templates/`:
-   - `PRD-Structured-Comprehensive.md` - Full requirements coverage
-   - `PRD-Structured-Moderate.md` - Key sections only
+1. Choose a PRD template based on your framework:
+
+   **IDPF-Agile:**
+
    - `PRD-Agile-Lightweight.md` - Epic/Story input
+
+
 
 2. Rename to `PRD-[YourProjectName].md`
 

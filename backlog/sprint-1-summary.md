@@ -38,8 +38,8 @@ None - all planned stories completed.
 - Go project scaffolding with CI/CD pipeline
 - Configuration system with YAML loading and field aliases
 - GitHub GraphQL API client with feature headers (sub_issues, issue_types)
-- `gh pm init` command for interactive project setup
-- `gh pm list` command with filtering and JSON output
+- `gh pmuinit` command for interactive project setup
+- `gh pmulist` command with filtering and JSON output
 
 ---
 

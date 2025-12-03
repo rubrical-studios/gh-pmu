@@ -18,6 +18,10 @@ Note: This is the development version. It will replace 'gh pm' and 'gh sub-issue
 
 	cmd.AddCommand(newInitCommand())
 	cmd.AddCommand(newListCommand())
+	cmd.AddCommand(newViewCommand())
+	cmd.AddCommand(newCreateCommand())
+	cmd.AddCommand(newMoveCommand())
+	cmd.AddCommand(newSubCommand())
 
 	return cmd
 }

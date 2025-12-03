@@ -257,11 +257,11 @@ func TestLoadFromDirectory_FindsConfigFile(t *testing.T) {
 	// ARRANGE: Directory containing valid config
 	dir := filepath.Join("..", "..", "testdata", "config")
 
-	// Create a temporary .gh-pm.yml in testdata/config for this test
+	// Create a temporary .gh-pmu.yml in testdata/config for this test
 	// (We'll use the valid.gh-pm.yml by copying it)
 	testDir := t.TempDir()
 	srcPath := filepath.Join(dir, "valid.gh-pm.yml")
-	dstPath := filepath.Join(testDir, ".gh-pm.yml")
+	dstPath := filepath.Join(testDir, ".gh-pmu.yml")
 
 	// Copy the file
 	data, err := os.ReadFile(srcPath)

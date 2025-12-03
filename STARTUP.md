@@ -1,7 +1,7 @@
 # Startup Instructions
 
 **Framework:** IDPF-Agile
-**Specialists:** Backend-Specialist, API-Integration-Specialist, PRD-Analyst
+**Specialists:** Backend-Specialist, API-Integration-Specialist, PRD-Analyst, Security-Engineer
 
 ---
 
@@ -21,36 +21,24 @@
 - Framework, library, or language versions
 - Project structure or file organization
 
+### NEVER Expand Scope:
+- Act only on exactly what was requested
+- Do not assume related items should be included
+- If request is ambiguous, ask for clarification
+
 ### When Uncertain:
 1. Acknowledge the uncertainty
-2. Search official documentation
-3. Ask for clarification
-4. Provide conceptual guidance with caveats
-
-### Confidence Indicators:
-- **High:** "This is the standard approach..." / "According to [docs]..."
-- **Medium:** "This is commonly done by..." / "Based on typical patterns..."
-- **Low:** "This might work, but I'm not certain..." / "Let me verify..."
+2. Offer to search/verify
+3. Request missing context
 
 ---
 
-## Code Quality Standards
+## Quick Reference
 
-All code must be:
-- **Runnable** - No placeholders or incomplete implementations
-- **Complete** - All imports, error handling included
-- **Tested** - Include verification steps or test cases
-- **Secure** - Input validation, proper error handling
+**Framework Documentation:** `[frameworkPath]/IDPF-Agile/`
+**Anti-Hallucination Rules:** `[frameworkPath]/Assistant/Anti-Hallucination-Rules-for-Software-Development.md`
+**Domain Specialists:** `[frameworkPath]/System-Instructions/Domain/`
 
 ---
 
-## On-Demand Expansion
-
-For full documentation, use these commands:
-- `/expand-rules` - Load complete Anti-Hallucination Rules
-- `/expand-framework` - Load full IDPF-Agile documentation
-- `/expand-domain` - Load full Domain Specialist instructions
-
----
-
-**Startup complete. What would you like to work on?**
+**Load full documentation with expansion commands when needed.**

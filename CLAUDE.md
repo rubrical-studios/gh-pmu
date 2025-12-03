@@ -2,7 +2,7 @@
 
 **Purpose:** Automatic initialization with IDPF Framework integration
 **Process Framework:** IDPF-Agile
-**Domain Specialists:** Backend-Specialist, API-Integration-Specialist, PRD-Analyst
+**Domain Specialists:** Backend-Specialist, API-Integration-Specialist, PRD-Analyst, Security-Engineer
 
 ---
 
@@ -19,13 +19,15 @@ When starting a new session in this repository, **IMMEDIATELY** perform these st
 
 ### Step 1: Confirm Date
 
-State the date from your environment information and ask the user to confirm:
+State the date from your environment information and ask the user to confirm it is correct. **Wait for the user to respond before proceeding to Step 2.**
 
 ```
 "According to my environment information, today's date is YYYY-MM-DD. Is this correct?"
 ```
 
-If incorrect, prompt for the correct date. This prevents date-related errors in commits and documentation.
+If the user responds "no", prompt for the correct date in YYYY-MM-DD format.
+
+This ensures accurate timestamps in commits and documentation.
 
 ### Step 2: Load Configuration
 
@@ -37,8 +39,8 @@ Read `STARTUP.md` - this contains condensed essential rules and guidelines.
 
 ### Step 4: Configure GitHub Integration (if needed)
 
-If `.gh-pm.yml` does not exist, ask user if they have a GitHub repo and project.
-If yes, run `gh pm init`. If no, skip.
+If `.gh-pmu.yml` does not exist, ask user if they have a GitHub repo and project.
+If yes, run `gh pmu init`. If no, skip.
 
 If `.claude/commands/gh-workflow.md` has unreplaced placeholders, prompt user for values.
 
@@ -87,8 +89,11 @@ Use these to load full documentation when needed.
 
 ## Project-Specific Instructions
 
-<-- Add your project-specific instructions below this line -->
-<-- These will be preserved during framework updates -->
+<!-- Add your project-specific instructions below this line -->
+
+paint a pretty ascii picture on session startup
+
+<!-- These will be preserved during framework updates -->
 
 ---
 

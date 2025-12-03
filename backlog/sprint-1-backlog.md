@@ -34,7 +34,7 @@
 **Benefit:** Shared infrastructure for all commands.
 
 **Acceptance Criteria:**
-- [ ] Load `.gh-pm.yml` with Viper
+- [ ] Load `.gh-pmu.yml` with Viper
 - [ ] Validate required fields
 - [ ] Cache project metadata from GitHub API
 - [ ] Support field aliases
@@ -66,12 +66,12 @@
 ### Story 1.1: Project Configuration Initialization
 
 **As a** developer setting up a new project
-**I want** to initialize gh-pm configuration interactively
+**I want** to initialize gh-pmu configuration interactively
 **So that** I can quickly configure project settings without manual YAML editing
 
 **Acceptance Criteria:**
-- [ ] `gh pm init` prompts for project owner, number, and repositories
-- [ ] Creates `.gh-pm.yml` with provided values
+- [ ] `gh pmuinit` prompts for project owner, number, and repositories
+- [ ] Creates `.gh-pmu.yml` with provided values
 - [ ] Auto-detects current repository if in a git repo
 - [ ] Fetches and caches project field metadata from GitHub API
 - [ ] Validates project exists before saving configuration
@@ -88,7 +88,7 @@
 **So that** I can see status, priority, and other fields at a glance
 
 **Acceptance Criteria:**
-- [ ] `gh pm list` displays issues from configured project
+- [ ] `gh pmulist` displays issues from configured project
 - [ ] Shows Title, Status, Priority, Assignees by default
 - [ ] Supports `--status`, `--priority` filters
 - [ ] Supports `--json` output format

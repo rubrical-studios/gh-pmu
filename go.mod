@@ -1,4 +1,4 @@
-module github.com/scooter-indie/gh-pm
+module github.com/scooter-indie/gh-pmu
 
 go 1.25.4
 

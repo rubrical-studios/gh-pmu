@@ -1,4 +1,4 @@
-# gh-pm
+# gh-pmu
 
 A unified GitHub CLI extension for project management, sub-issue hierarchy, and project templating.
 
@@ -29,28 +29,28 @@ make install-extension
 1. Initialize configuration in your repository:
 
 ```bash
-gh pm init
+gh pmu init
 ```
 
 2. List issues with project metadata:
 
 ```bash
-gh pm list
+gh pmu list
 ```
 
 3. View an issue with all project fields:
 
 ```bash
-gh pm view 123
+gh pmu view 123
 ```
 
 ## Usage
 
 ```bash
-gh pm [command]
+gh pmu [command]
 
 Available Commands:
-  init        Initialize gh-pm configuration
+  init        Initialize gh-pmu configuration
   list        List issues with project metadata
   view        View issue with project fields
   create      Create issue with project fields
@@ -59,13 +59,13 @@ Available Commands:
   project     Manage project templates
 
 Flags:
-  -h, --help      help for gh-pm
-  -v, --version   version for gh-pm
+  -h, --help      help for gh-pmu
+  -v, --version   version for gh-pmu
 ```
 
 ## Configuration
 
-gh-pm uses a `.gh-pm.yml` file in your repository root:
+gh-pmu uses a `.gh-pmu.yml` file in your repository root:
 
 ```yaml
 project:

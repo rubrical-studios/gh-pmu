@@ -29,22 +29,22 @@ Eliminate the need for multiple fragmented extensions (`gh-pm`, `gh-sub-issue`) 
 **Description:** Merge functionality from gh-pm and gh-sub-issue into a unified extension with consistent command structure.
 
 **Capabilities:**
-- Initialize project configuration (`gh pm init`)
-- List issues in project with project metadata (`gh pm list`)
-- View issue with project fields (`gh pm view`)
-- Create issue with project fields pre-populated (`gh pm create`)
-- Move/update issue status and priority (`gh pm move`)
-- Find and add untracked issues to project (`gh pm intake`)
-- Bulk process issues with configurable rules (`gh pm triage`)
-- Add existing issue as sub-issue (`gh pm sub add`)
-- Create new sub-issue under parent (`gh pm sub create`)
-- List sub-issues of a parent issue (`gh pm sub list`)
-- Remove/unlink sub-issue from parent (`gh pm sub remove`)
-- Split issue into sub-issues from checklist or arguments (`gh pm split`)
+- Initialize project configuration (`gh pmuinit`)
+- List issues in project with project metadata (`gh pmulist`)
+- View issue with project fields (`gh pmuview`)
+- Create issue with project fields pre-populated (`gh pmucreate`)
+- Move/update issue status and priority (`gh pmumove`)
+- Find and add untracked issues to project (`gh pmuintake`)
+- Bulk process issues with configurable rules (`gh pmutriage`)
+- Add existing issue as sub-issue (`gh pmusub add`)
+- Create new sub-issue under parent (`gh pmusub create`)
+- List sub-issues of a parent issue (`gh pmusub list`)
+- Remove/unlink sub-issue from parent (`gh pmusub remove`)
+- Split issue into sub-issues from checklist or arguments (`gh pmusplit`)
 
 **Success Criteria:**
 - All commands from both source extensions work in unified tool
-- Single `.gh-pm.yml` configuration file serves all commands
+- Single `.gh-pmu.yml` configuration file serves all commands
 - Consistent flag patterns across all commands
 - Backward-compatible with existing gh-pm configurations
 
@@ -52,13 +52,13 @@ Eliminate the need for multiple fragmented extensions (`gh-pm`, `gh-sub-issue`) 
 **Description:** Enable declarative project creation from YAML templates and existing GitHub projects.
 
 **Capabilities:**
-- Create project by copying existing GitHub project structure (`gh pm project create --from-project`)
-- Create project from YAML template definition (`gh pm project create --from-template`)
-- Export existing project structure to YAML template (`gh pm project export`)
-- Validate template YAML syntax and schema (`gh pm template validate`)
-- List available templates (built-in and local) (`gh pm template list`)
-- Show template details and preview (`gh pm template show`)
-- Initialize with template selection (`gh pm init --from-template`)
+- Create project by copying existing GitHub project structure (`gh pmuproject create --from-project`)
+- Create project from YAML template definition (`gh pmuproject create --from-template`)
+- Export existing project structure to YAML template (`gh pmuproject export`)
+- Validate template YAML syntax and schema (`gh pmutemplate validate`)
+- List available templates (built-in and local) (`gh pmutemplate list`)
+- Show template details and preview (`gh pmutemplate show`)
+- Initialize with template selection (`gh pmuinit --from-template`)
 - Support Go template variables in templates (`{{.ProjectName}}`, `{{.Owner}}`, etc.)
 
 **Success Criteria:**
@@ -115,7 +115,7 @@ Eliminate the need for multiple fragmented extensions (`gh-pm`, `gh-sub-issue`) 
 - **GitHub API Limitations:** Sub-issues require special GraphQL headers (`sub_issues`, `issue_types`)
 - **Workflow API:** GitHub Project workflows may not be fully creatable via API (needs verification)
 - **License Compliance:** Must maintain MIT license and proper attribution to source projects
-- **Backward Compatibility:** Existing `.gh-pm.yml` files must continue to work
+- **Backward Compatibility:** Existing `.gh-pmu.yml` files must continue to work
 
 ---
 

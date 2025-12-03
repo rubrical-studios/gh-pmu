@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the .gh-pm.yml configuration file
+// Config represents the .gh-pmu.yml configuration file
 type Config struct {
 	Project      Project           `yaml:"project"`
 	Repositories []string          `yaml:"repositories"`
@@ -84,7 +84,7 @@ type OptionMetadata struct {
 }
 
 // ConfigFileName is the default configuration file name
-const ConfigFileName = ".gh-pm.yml"
+const ConfigFileName = ".gh-pmu.yml"
 
 // Load reads and parses a configuration file from the given path
 func Load(path string) (*Config, error) {

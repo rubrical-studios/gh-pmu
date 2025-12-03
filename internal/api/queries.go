@@ -397,3 +397,95 @@ func splitRepoName(nameWithOwner string) []string {
 	}
 	return nil
 }
+
+// GetSubIssues fetches all sub-issues for a given issue
+func (c *Client) GetSubIssues(owner, repo string, number int) ([]SubIssue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Repository struct {
+			Issue struct {
+				SubIssues struct {
+					Nodes []struct {
+						ID     string
+						Number int
+						Title  string
+						State  string
+						URL    string `graphql:"url"`
+					}
+				} `graphql:"subIssues(first: 50)"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]interface{}{
+		"owner":  graphql.String(owner),
+		"repo":   graphql.String(repo),
+		"number": graphql.Int(number),
+	}
+
+	err := c.gql.Query("GetSubIssues", &query, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sub-issues for %s/%s#%d: %w", owner, repo, number, err)
+	}
+
+	var subIssues []SubIssue
+	for _, node := range query.Repository.Issue.SubIssues.Nodes {
+		subIssues = append(subIssues, SubIssue{
+			ID:     node.ID,
+			Number: node.Number,
+			Title:  node.Title,
+			State:  node.State,
+			URL:    node.URL,
+		})
+	}
+
+	return subIssues, nil
+}
+
+// GetParentIssue fetches the parent issue for a given sub-issue
+func (c *Client) GetParentIssue(owner, repo string, number int) (*Issue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Repository struct {
+			Issue struct {
+				Parent struct {
+					ID     string
+					Number int
+					Title  string
+					State  string
+					URL    string `graphql:"url"`
+				} `graphql:"parent"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]interface{}{
+		"owner":  graphql.String(owner),
+		"repo":   graphql.String(repo),
+		"number": graphql.Int(number),
+	}
+
+	err := c.gql.Query("GetParentIssue", &query, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get parent issue for %s/%s#%d: %w", owner, repo, number, err)
+	}
+
+	// If no parent issue, return nil
+	if query.Repository.Issue.Parent.ID == "" {
+		return nil, nil
+	}
+
+	return &Issue{
+		ID:     query.Repository.Issue.Parent.ID,
+		Number: query.Repository.Issue.Parent.Number,
+		Title:  query.Repository.Issue.Parent.Title,
+		State:  query.Repository.Issue.Parent.State,
+		URL:    query.Repository.Issue.Parent.URL,
+	}, nil
+}

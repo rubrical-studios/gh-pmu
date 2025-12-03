@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/scooter-indie/gh-pm/internal/api"
-	"github.com/scooter-indie/gh-pm/internal/config"
+	"github.com/scooter-indie/gh-pmu/internal/api"
+	"github.com/scooter-indie/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +50,7 @@ func runList(cmd *cobra.Command, opts *listOptions) error {
 
 	cfg, err := config.LoadFromDirectory(cwd)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pm init' to create a configuration file", err)
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
 	}
 
 	// Validate config

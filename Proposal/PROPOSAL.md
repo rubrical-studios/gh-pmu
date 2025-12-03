@@ -103,76 +103,76 @@ However, it **lacks**:
 The unified extension will use a consistent command hierarchy:
 
 ```
-gh pm <command> [subcommand] [flags]
+gh pmu<command> [subcommand] [flags]
 ```
 
 #### Core Commands (from gh-pm)
 
 ```bash
 # Configuration
-gh pm init                    # Initialize project configuration
+gh pmuinit                    # Initialize project configuration
 
 # Issue Management
-gh pm list                    # List issues in project
-gh pm view <issue>            # View issue with project metadata
-gh pm create                  # Create issue with project fields
-gh pm move <issue>            # Update issue status/priority
+gh pmulist                    # List issues in project
+gh pmuview <issue>            # View issue with project metadata
+gh pmucreate                  # Create issue with project fields
+gh pmumove <issue>            # Update issue status/priority
 
 # Workflow Automation
-gh pm intake                  # Find and add untracked issues
-gh pm triage <config>         # Bulk process issues with rules
+gh pmuintake                  # Find and add untracked issues
+gh pmutriage <config>         # Bulk process issues with rules
 ```
 
 #### Sub-issue Commands (from gh-sub-issue)
 
 ```bash
 # Sub-issue Management
-gh pm sub add <parent> <child>      # Link existing issue as sub-issue
-gh pm sub create --parent <id>      # Create new sub-issue
-gh pm sub list <parent>             # List sub-issues of parent
-gh pm sub remove <parent> <child>   # Unlink sub-issue
+gh pmusub add <parent> <child>      # Link existing issue as sub-issue
+gh pmusub create --parent <id>      # Create new sub-issue
+gh pmusub list <parent>             # List sub-issues of parent
+gh pmusub remove <parent> <child>   # Unlink sub-issue
 ```
 
 #### Issue Splitting (combines both)
 
 ```bash
 # Split parent into sub-issues
-gh pm split <issue> --from=body     # Parse checklist from issue body
-gh pm split <issue> --from=file.md  # Parse from external file
-gh pm split <issue> "Task 1" "Task 2" # Direct task arguments
+gh pmusplit <issue> --from=body     # Parse checklist from issue body
+gh pmusplit <issue> --from=file.md  # Parse from external file
+gh pmusplit <issue> "Task 1" "Task 2" # Direct task arguments
 ```
 
 #### Project Template Commands (NEW)
 
 ```bash
 # Create project from existing GitHub project template
-gh pm project create --from-project <owner>/<project-number>
-gh pm project create --from-project github/4247 --title "My Roadmap"
+gh pmuproject create --from-project <owner>/<project-number>
+gh pmuproject create --from-project github/4247 --title "My Roadmap"
 
 # Create project from YAML template file
-gh pm project create --from-template ./templates/scrum-board.yml
-gh pm project create --from-template ./templates/kanban.yml --title "Q1 Sprint"
+gh pmuproject create --from-template ./templates/scrum-board.yml
+gh pmuproject create --from-template ./templates/kanban.yml --title "Q1 Sprint"
 
 # Export existing project to YAML template
-gh pm project export <project-number> --output ./my-template.yml
-gh pm project export 1 --owner my-org --output ./templates/team-board.yml
+gh pmuproject export <project-number> --output ./my-template.yml
+gh pmuproject export 1 --owner my-org --output ./templates/team-board.yml
 
 # List available templates (local + remote registry)
-gh pm template list
-gh pm template list --local          # Only local templates
-gh pm template list --remote         # Only from template registry
+gh pmutemplate list
+gh pmutemplate list --local          # Only local templates
+gh pmutemplate list --remote         # Only from template registry
 
 # Validate a template file
-gh pm template validate ./my-template.yml
+gh pmutemplate validate ./my-template.yml
 
 # Initialize with template selection
-gh pm init --from-template ./templates/scrum.yml
-gh pm init --from-project my-org/5
+gh pmuinit --from-template ./templates/scrum.yml
+gh pmuinit --from-project my-org/5
 ```
 
 ### Configuration File
 
-Unified `.gh-pm.yml` configuration:
+Unified `.gh-pmu.yml` configuration:
 
 ```yaml
 # Project settings
@@ -495,17 +495,17 @@ templates/
 
 ```bash
 # List available template projects
-gh pm project list --templates --owner my-org
+gh pmuproject list --templates --owner my-org
 
 # Create from existing GitHub project
-gh pm project create \
+gh pmuproject create \
   --from-project my-org/5 \
   --title "Q1 Sprint Board" \
   --owner @me \
   --include-drafts
 
 # Interactive mode
-gh pm project create --from-project
+gh pmuproject create --from-project
 # > Select source owner: my-org
 # > Select template project: [5] Scrum Template
 # > Enter new project title: Q1 Sprint Board
@@ -517,24 +517,24 @@ gh pm project create --from-project
 
 ```bash
 # Create from local template file
-gh pm project create \
+gh pmuproject create \
   --from-template ./templates/scrum.yml \
   --title "Q1 Sprint Board" \
   --owner my-org \
   --var "Repository=my-org/main-repo"
 
 # Create from URL
-gh pm project create \
+gh pmuproject create \
   --from-template https://example.com/templates/kanban.yml \
   --title "Feature Backlog"
 
 # Create from built-in template
-gh pm project create \
+gh pmuproject create \
   --from-template builtin:scrum \
   --title "Team Sprint Board"
 
 # Dry-run to preview what would be created
-gh pm project create \
+gh pmuproject create \
   --from-template ./scrum.yml \
   --dry-run
 
@@ -550,34 +550,34 @@ gh pm project create \
 
 ```bash
 # Export current project to YAML template
-gh pm project export 1 --output ./my-template.yml
+gh pmuproject export 1 --output ./my-template.yml
 
 # Export with specific options
-gh pm project export 1 \
+gh pmuproject export 1 \
   --owner my-org \
   --include-drafts \
   --include-workflows \
   --output ./full-template.yml
 
 # Export to stdout (for piping)
-gh pm project export 1 --format yaml
+gh pmuproject export 1 --format yaml
 
 # Export minimal template (fields and views only)
-gh pm project export 1 --minimal --output ./minimal.yml
+gh pmuproject export 1 --minimal --output ./minimal.yml
 ```
 
 #### Template Management
 
 ```bash
 # Validate template syntax
-gh pm template validate ./my-template.yml
+gh pmutemplate validate ./my-template.yml
 # ✓ Template is valid
 # Fields: 6 defined
 # Views: 4 defined
 # Workflows: 2 defined
 
 # List built-in templates
-gh pm template list --builtin
+gh pmutemplate list --builtin
 # NAME              DESCRIPTION
 # kanban            Simple Kanban board with To Do, In Progress, Done
 # scrum             Scrum board with sprints and story points
@@ -585,7 +585,7 @@ gh pm template list --builtin
 # feature-roadmap   Product roadmap with quarters and themes
 
 # Show template details
-gh pm template show builtin:scrum
+gh pmutemplate show builtin:scrum
 # Name: Scrum Board
 # Description: A Scrum-style project board with sprints and story points
 # Fields:
@@ -605,31 +605,31 @@ gh pm template show builtin:scrum
 
 | Feature | Source | Command | Status |
 |---------|--------|---------|--------|
-| Initialize config | gh-pm | `gh pm init` | 🔲 |
-| List issues | gh-pm | `gh pm list` | 🔲 |
-| View issue | gh-pm | `gh pm view` | 🔲 |
-| Create issue | gh-pm | `gh pm create` | 🔲 |
-| Move/update issue | gh-pm | `gh pm move` | 🔲 |
-| Issue intake | gh-pm | `gh pm intake` | 🔲 |
-| Triage issues | gh-pm | `gh pm triage` | 🔲 |
-| Add sub-issue | gh-sub-issue | `gh pm sub add` | 🔲 |
-| Create sub-issue | gh-sub-issue | `gh pm sub create` | 🔲 |
-| List sub-issues | gh-sub-issue | `gh pm sub list` | 🔲 |
-| Remove sub-issue | gh-sub-issue | `gh pm sub remove` | 🔲 |
-| Split issue | gh-pm | `gh pm split` | 🔲 |
+| Initialize config | gh-pm | `gh pmuinit` | 🔲 |
+| List issues | gh-pm | `gh pmulist` | 🔲 |
+| View issue | gh-pm | `gh pmuview` | 🔲 |
+| Create issue | gh-pm | `gh pmucreate` | 🔲 |
+| Move/update issue | gh-pm | `gh pmumove` | 🔲 |
+| Issue intake | gh-pm | `gh pmuintake` | 🔲 |
+| Triage issues | gh-pm | `gh pmutriage` | 🔲 |
+| Add sub-issue | gh-sub-issue | `gh pmusub add` | 🔲 |
+| Create sub-issue | gh-sub-issue | `gh pmusub create` | 🔲 |
+| List sub-issues | gh-sub-issue | `gh pmusub list` | 🔲 |
+| Remove sub-issue | gh-sub-issue | `gh pmusub remove` | 🔲 |
+| Split issue | gh-pm | `gh pmusplit` | 🔲 |
 
 ### Phase 2: Project Templates & Creation
 
 | Feature | Description | Command | Status |
 |---------|-------------|---------|--------|
-| Create from GitHub project | Copy existing project | `gh pm project create --from-project` | 🔲 |
-| Create from YAML template | Create project from YAML definition | `gh pm project create --from-template` | 🔲 |
-| Export to YAML template | Export project structure to YAML | `gh pm project export` | 🔲 |
-| Template validation | Validate template YAML syntax | `gh pm template validate` | 🔲 |
-| List templates | List built-in and local templates | `gh pm template list` | 🔲 |
+| Create from GitHub project | Copy existing project | `gh pmuproject create --from-project` | 🔲 |
+| Create from YAML template | Create project from YAML definition | `gh pmuproject create --from-template` | 🔲 |
+| Export to YAML template | Export project structure to YAML | `gh pmuproject export` | 🔲 |
+| Template validation | Validate template YAML syntax | `gh pmutemplate validate` | 🔲 |
+| List templates | List built-in and local templates | `gh pmutemplate list` | 🔲 |
 | Built-in templates | Ship with common project templates | N/A | 🔲 |
 | Template variables | Support Go template syntax | N/A | 🔲 |
-| Init from template | Initialize with template selection | `gh pm init --from-template` | 🔲 |
+| Init from template | Initialize with template selection | `gh pmuinit --from-template` | 🔲 |
 
 ### Phase 3: Enhanced Integration
 
@@ -712,7 +712,7 @@ gh-pm-unified/
 │   ├── bug-tracker.yml
 │   ├── feature-roadmap.yml
 │   └── release-planning.yml
-├── .gh-pm.yml            # Example configuration
+├── .gh-pmu.yml            # Example configuration
 ├── go.mod
 ├── go.sum
 ├── main.go
@@ -821,8 +821,8 @@ gh extension remove pm
 # Install unified extension
 gh extension install <org>/gh-pm-unified
 
-# Existing .gh-pm.yml files are compatible
-gh pm list  # Works immediately
+# Existing .gh-pmu.yml files are compatible
+gh pmulist  # Works immediately
 ```
 
 ### For gh-sub-issue Users
@@ -835,10 +835,10 @@ gh extension remove sub-issue
 gh extension install <org>/gh-pm-unified
 
 # Commands move under 'sub' subcommand
-gh pm sub add 123 456        # Was: gh sub-issue add 123 456
-gh pm sub create --parent 123 --title "Task"
-gh pm sub list 123
-gh pm sub remove 123 456
+gh pmusub add 123 456        # Was: gh sub-issue add 123 456
+gh pmusub create --parent 123 --title "Task"
+gh pmusub list 123
+gh pmusub remove 123 456
 ```
 
 ### Backward Compatibility
@@ -847,10 +847,10 @@ Consider providing aliases for transition period:
 
 ```bash
 # Aliases (deprecated, will show warning)
-gh sub-issue add → gh pm sub add
-gh sub-issue create → gh pm sub create
-gh sub-issue list → gh pm sub list
-gh sub-issue remove → gh pm sub remove
+gh sub-issue add → gh pmusub add
+gh sub-issue create → gh pmusub create
+gh sub-issue list → gh pmusub list
+gh sub-issue remove → gh pmusub remove
 ```
 
 ---

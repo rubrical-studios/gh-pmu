@@ -1,11 +1,7 @@
 # Expand: Process Framework
 
-Load the complete process framework documentation.
+Load the complete IDPF-Agile framework documentation.
 
-**Framework:** IDPF-Agile
+Read the following file:
 
-**Action:** Read all markdown files in:
-
-```
-E:\Projects\process-docs\IDPF-Agile\
-```
+E:\Projects\process-docs/IDPF-Agile/Agile-Driven Development Framework.md
