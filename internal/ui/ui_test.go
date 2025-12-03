@@ -282,3 +282,25 @@ func TestMax(t *testing.T) {
 		}
 	}
 }
+
+func TestVisibleWidth(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int
+	}{
+		{"plain text", 10},
+		{"✓ check", 7},                // checkmark is 1 visible char
+		{"\033[32m✓\033[0m check", 7}, // with ANSI codes
+		{"", 0},
+		{"hello", 5},
+		{"日本語", 3},                          // 3 Japanese characters
+		{"\033[1m\033[32m✓ Done\033[0m", 6}, // bold green checkmark
+	}
+
+	for _, tt := range tests {
+		result := visibleWidth(tt.input)
+		if result != tt.expected {
+			t.Errorf("visibleWidth(%q) = %d, want %d", tt.input, result, tt.expected)
+		}
+	}
+}

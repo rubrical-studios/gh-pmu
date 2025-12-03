@@ -148,12 +148,12 @@ func (u *UI) Box(lines []string) {
 		return
 	}
 
-	// Find max visible width (without ANSI codes)
+	// Find max visible width (rune count without ANSI codes)
 	maxWidth := 0
 	for _, line := range lines {
-		visible := len(stripANSI(line))
-		if visible > maxWidth {
-			maxWidth = visible
+		w := visibleWidth(line)
+		if w > maxWidth {
+			maxWidth = w
 		}
 	}
 	width := maxWidth + 4
@@ -169,8 +169,8 @@ func (u *UI) Box(lines []string) {
 
 	// Content lines
 	for _, line := range lines {
-		visible := len(stripANSI(line))
-		padding := width - visible - 2
+		w := visibleWidth(line)
+		padding := width - w - 2
 		if padding < 0 {
 			padding = 0
 		}
@@ -214,12 +214,12 @@ func (u *UI) SummaryBox(title string, items map[string]string, order []string) {
 		}
 	}
 
-	// Find max visible width (without ANSI codes)
+	// Find max visible width (rune count without ANSI codes)
 	maxWidth := 0
 	for _, line := range lines {
-		visible := stripANSI(line)
-		if len(visible) > maxWidth {
-			maxWidth = len(visible)
+		w := visibleWidth(line)
+		if w > maxWidth {
+			maxWidth = w
 		}
 	}
 	width := maxWidth + 4
@@ -235,8 +235,8 @@ func (u *UI) SummaryBox(title string, items map[string]string, order []string) {
 
 	// Content lines
 	for _, line := range lines {
-		visible := stripANSI(line)
-		padding := width - len(visible) - 2
+		w := visibleWidth(line)
+		padding := width - w - 2
 		if padding < 0 {
 			padding = 0
 		}
@@ -376,6 +376,12 @@ func stripANSI(s string) string {
 	}
 
 	return result.String()
+}
+
+// visibleWidth returns the visible width of a string (rune count without ANSI codes)
+func visibleWidth(s string) int {
+	stripped := stripANSI(s)
+	return len([]rune(stripped))
 }
 
 // max returns the larger of two ints
