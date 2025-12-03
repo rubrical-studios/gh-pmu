@@ -1,43 +1,49 @@
 version: 2
 
+project_name: gh-pmu
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
 builds:
   - id: gh-pmu
-    binary: gh-pmu
     main: .
+    binary: gh-pmu
     env:
       - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-      - -X github.com/scooter-indie/gh-pmu/cmd.version={{.Version}}
     goos:
-      - linux
       - darwin
+      - linux
       - windows
     goarch:
       - amd64
       - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/scooter-indie/gh-pmu/cmd.version={{.Version}}
 
 archives:
   - id: gh-pmu
-    builds:
-      - gh-pmu
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        format: zip
+    formats:
+      - binary
+    name_template: "{{ .Os }}-{{ .Arch }}"
 
 checksum:
-  name_template: "checksums.txt"
+  name_template: 'checksums.txt'
 
 changelog:
   sort: asc
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - Merge pull request
-      - Merge branch
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
 
 release:
+  github:
+    owner: scooter-indie
+    name: gh-pmu
   prerelease: auto
+  name_template: "gh-pmu {{.Version}}"
