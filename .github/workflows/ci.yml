@@ -165,10 +165,31 @@ jobs:
       - name: Run tests with coverage
         run: go test -short -coverprofile=coverage.out -covermode=atomic ./...
 
-      - name: Generate HTML coverage report
+      - name: Generate Markdown coverage report
         run: |
           mkdir -p coverage
-          go tool cover -html=coverage.out -o coverage/index.html
+          go tool cover -func=coverage.out | awk '
+          BEGIN {
+            print "# Coverage Report\n"
+          }
+          /^total:/ {
+            printf "**Total Coverage: %s**\n\n", $3
+            print "| File | Function | Coverage |"
+            print "|------|----------|----------|"
+            next
+          }
+          NF >= 3 {
+            file = $1
+            gsub(/.*\/gh-pmu\//, "", file)
+            func_name = $2
+            coverage = $NF
+            lines[NR] = sprintf("| %s | %s | %s |", file, func_name, coverage)
+          }
+          END {
+            for (i in lines) print lines[i]
+          }' > coverage/README.md
+          echo "" >> coverage/README.md
+          echo "*Generated: $(date +%Y-%m-%d) for ${{ github.ref_name }}*" >> coverage/README.md
 
       - name: Commit coverage report
         run: |
