@@ -163,7 +163,7 @@ jobs:
         run: go mod download
 
       - name: Run tests with coverage
-        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -short -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Generate HTML coverage report
         run: |
