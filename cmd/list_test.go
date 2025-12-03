@@ -62,3 +62,40 @@ func TestListCommand_HasJSONFlag(t *testing.T) {
 		t.Error("Expected --json flag to exist")
 	}
 }
+
+func TestListCommand_HasSubIssuesFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	listCmd, _, err := cmd.Find([]string{"list"})
+	if err != nil {
+		t.Fatalf("list command not found: %v", err)
+	}
+
+	flag := listCmd.Flags().Lookup("has-sub-issues")
+	if flag == nil {
+		t.Error("Expected --has-sub-issues flag to exist")
+	}
+
+	// Verify it's a boolean flag
+	if flag.Value.Type() != "bool" {
+		t.Errorf("Expected --has-sub-issues to be bool, got %s", flag.Value.Type())
+	}
+}
+
+func TestListCommand_HasSubIssuesHelpText(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"list", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("list help failed: %v", err)
+	}
+
+	output := buf.String()
+	if !bytes.Contains([]byte(output), []byte("has-sub-issues")) {
+		t.Error("Expected help to mention --has-sub-issues flag")
+	}
+}

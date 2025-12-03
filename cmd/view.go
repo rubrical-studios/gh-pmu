@@ -127,18 +127,26 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 
 // ViewJSONOutput represents the JSON output for view command
 type ViewJSONOutput struct {
-	Number      int               `json:"number"`
-	Title       string            `json:"title"`
-	State       string            `json:"state"`
-	Body        string            `json:"body"`
-	URL         string            `json:"url"`
-	Author      string            `json:"author"`
-	Assignees   []string          `json:"assignees"`
-	Labels      []string          `json:"labels"`
-	Milestone   string            `json:"milestone,omitempty"`
-	FieldValues map[string]string `json:"fieldValues"`
-	SubIssues   []SubIssueJSON    `json:"subIssues,omitempty"`
-	ParentIssue *ParentIssueJSON  `json:"parentIssue,omitempty"`
+	Number       int                `json:"number"`
+	Title        string             `json:"title"`
+	State        string             `json:"state"`
+	Body         string             `json:"body"`
+	URL          string             `json:"url"`
+	Author       string             `json:"author"`
+	Assignees    []string           `json:"assignees"`
+	Labels       []string           `json:"labels"`
+	Milestone    string             `json:"milestone,omitempty"`
+	FieldValues  map[string]string  `json:"fieldValues"`
+	SubIssues    []SubIssueJSON     `json:"subIssues,omitempty"`
+	SubProgress  *SubProgressJSON   `json:"subProgress,omitempty"`
+	ParentIssue  *ParentIssueJSON   `json:"parentIssue,omitempty"`
+}
+
+// SubProgressJSON represents sub-issue progress in JSON output
+type SubProgressJSON struct {
+	Total      int `json:"total"`
+	Completed  int `json:"completed"`
+	Percentage int `json:"percentage"`
 }
 
 // SubIssueJSON represents a sub-issue in JSON output
@@ -187,6 +195,7 @@ func outputViewJSON(cmd *cobra.Command, issue *api.Issue, fieldValues []api.Fiel
 
 	if len(subIssues) > 0 {
 		output.SubIssues = make([]SubIssueJSON, 0, len(subIssues))
+		closedCount := 0
 		for _, sub := range subIssues {
 			output.SubIssues = append(output.SubIssues, SubIssueJSON{
 				Number: sub.Number,
@@ -194,6 +203,21 @@ func outputViewJSON(cmd *cobra.Command, issue *api.Issue, fieldValues []api.Fiel
 				State:  sub.State,
 				URL:    sub.URL,
 			})
+			if sub.State == "CLOSED" {
+				closedCount++
+			}
+		}
+
+		// Add progress info
+		total := len(subIssues)
+		percentage := 0
+		if total > 0 {
+			percentage = (closedCount * 100) / total
+		}
+		output.SubProgress = &SubProgressJSON{
+			Total:      total,
+			Completed:  closedCount,
+			Percentage: percentage,
 		}
 	}
 
@@ -258,7 +282,7 @@ func outputViewTable(cmd *cobra.Command, issue *api.Issue, fieldValues []api.Fie
 		fmt.Printf("Parent Issue: #%d - %s\n", parentIssue.Number, parentIssue.Title)
 	}
 
-	// Sub-issues
+	// Sub-issues with progress bar
 	if len(subIssues) > 0 {
 		fmt.Println()
 		fmt.Println("Sub-Issues:")
@@ -269,9 +293,26 @@ func outputViewTable(cmd *cobra.Command, issue *api.Issue, fieldValues []api.Fie
 				state = "[x]"
 				closedCount++
 			}
+			// Show repo info if cross-repo
+			if sub.Repository.Owner != "" && sub.Repository.Name != "" {
+				parentRepo := issue.Repository.Owner + "/" + issue.Repository.Name
+				subRepo := sub.Repository.Owner + "/" + sub.Repository.Name
+				if subRepo != parentRepo {
+					fmt.Printf("  %s %s#%d - %s\n", state, subRepo, sub.Number, sub.Title)
+					continue
+				}
+			}
 			fmt.Printf("  %s #%d - %s\n", state, sub.Number, sub.Title)
 		}
-		fmt.Printf("\nProgress: %d/%d complete\n", closedCount, len(subIssues))
+
+		// Progress bar and percentage
+		total := len(subIssues)
+		percentage := 0
+		if total > 0 {
+			percentage = (closedCount * 100) / total
+		}
+		progressBar := renderProgressBar(closedCount, total, 20)
+		fmt.Printf("\n%s %d of %d sub-issues complete (%d%%)\n", progressBar, closedCount, total, percentage)
 	}
 
 	// Body
@@ -282,6 +323,22 @@ func outputViewTable(cmd *cobra.Command, issue *api.Issue, fieldValues []api.Fie
 	}
 
 	return nil
+}
+
+// renderProgressBar creates a visual progress bar
+// Example: [████████░░░░░░░░░░░░] for 40% complete
+func renderProgressBar(completed, total, width int) string {
+	if total == 0 {
+		return "[" + strings.Repeat("░", width) + "]"
+	}
+
+	filled := (completed * width) / total
+	if filled > width {
+		filled = width
+	}
+
+	empty := width - filled
+	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
 }
 
 // parseIssueNumber parses a string into an issue number

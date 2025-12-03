@@ -123,3 +123,41 @@ func TestViewCommand_ParsesIssueReference(t *testing.T) {
 		})
 	}
 }
+
+// Progress bar tests
+
+func TestRenderProgressBar(t *testing.T) {
+	tests := []struct {
+		name      string
+		completed int
+		total     int
+		width     int
+		want      string
+	}{
+		{"empty", 0, 10, 10, "[░░░░░░░░░░]"},
+		{"half", 5, 10, 10, "[█████░░░░░]"},
+		{"full", 10, 10, 10, "[██████████]"},
+		{"quarter", 1, 4, 8, "[██░░░░░░]"},
+		{"zero total", 0, 0, 10, "[░░░░░░░░░░]"},
+		{"60 percent", 3, 5, 10, "[██████░░░░]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderProgressBar(tt.completed, tt.total, tt.width)
+			if got != tt.want {
+				t.Errorf("renderProgressBar(%d, %d, %d) = %q, want %q",
+					tt.completed, tt.total, tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderProgressBar_OverflowProtection(t *testing.T) {
+	// Test that completed > total doesn't overflow
+	result := renderProgressBar(15, 10, 10)
+	// Should cap at full
+	if result != "[██████████]" {
+		t.Errorf("renderProgressBar with overflow should cap at full, got %q", result)
+	}
+}

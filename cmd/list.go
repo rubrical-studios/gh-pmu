@@ -13,9 +13,10 @@ import (
 )
 
 type listOptions struct {
-	status   string
-	priority string
-	json     bool
+	status       string
+	priority     string
+	hasSubIssues bool
+	json         bool
 }
 
 func newListCommand() *cobra.Command {
@@ -36,6 +37,7 @@ Use filters to narrow down the results.`,
 
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Filter by status (e.g., backlog, in_progress, done)")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Filter by priority (e.g., p0, p1, p2)")
+	cmd.Flags().BoolVar(&opts.hasSubIssues, "has-sub-issues", false, "Filter to only show parent issues (issues with sub-issues)")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 
 	return cmd
@@ -93,6 +95,11 @@ func runList(cmd *cobra.Command, opts *listOptions) error {
 		items = filterByFieldValue(items, "Priority", targetPriority)
 	}
 
+	// Apply has-sub-issues filter
+	if opts.hasSubIssues {
+		items = filterByHasSubIssues(client, items)
+	}
+
 	// Output
 	if opts.json {
 		return outputJSON(cmd, items)
@@ -110,6 +117,32 @@ func filterByFieldValue(items []api.ProjectItem, fieldName, value string) []api.
 				filtered = append(filtered, item)
 				break
 			}
+		}
+	}
+	return filtered
+}
+
+// filterByHasSubIssues filters items to only those with sub-issues
+func filterByHasSubIssues(client *api.Client, items []api.ProjectItem) []api.ProjectItem {
+	var filtered []api.ProjectItem
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+
+		// Check if issue has sub-issues
+		subIssues, err := client.GetSubIssues(
+			item.Issue.Repository.Owner,
+			item.Issue.Repository.Name,
+			item.Issue.Number,
+		)
+		if err != nil {
+			// Skip issues where we can't fetch sub-issues
+			continue
+		}
+
+		if len(subIssues) > 0 {
+			filtered = append(filtered, item)
 		}
 	}
 	return filtered
