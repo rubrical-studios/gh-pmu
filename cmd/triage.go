@@ -18,6 +18,7 @@ type triageOptions struct {
 	interactive bool
 	json        bool
 	list        bool
+	repo        string
 }
 
 // triageClient defines the interface for API methods used by triage functions.
@@ -51,7 +52,10 @@ Each triage config has a query to match issues and rules to apply.`,
   gh pmu triage tracked
 
   # Run interactively (prompt for each issue)
-  gh pmu triage tracked --interactive`,
+  gh pmu triage tracked --interactive
+
+  # Target a specific repository
+  gh pmu triage tracked --repo owner/repo`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTriage(cmd, args, opts)
 		},
@@ -61,6 +65,7 @@ Each triage config has a query to match issues and rules to apply.`,
 	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "Prompt before processing each issue")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 	cmd.Flags().BoolVarP(&opts.list, "list", "l", false, "List available triage configurations")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Target specific repository (owner/repo format)")
 
 	return cmd
 }
@@ -112,7 +117,7 @@ func runTriageWithDeps(cmd *cobra.Command, args []string, opts *triageOptions, c
 	}
 
 	// Search for issues matching the query
-	matchingIssues, err := searchIssuesForTriage(client, cfg, triageCfg.Query)
+	matchingIssues, err := searchIssuesForTriage(client, cfg, triageCfg.Query, opts.repo)
 	if err != nil {
 		return fmt.Errorf("failed to search issues: %w", err)
 	}
@@ -279,14 +284,24 @@ func describeTriageActions(cmd *cobra.Command, cfg *config.Config, tc *config.Tr
 	}
 }
 
-func searchIssuesForTriage(client triageClient, cfg *config.Config, query string) ([]api.Issue, error) {
+func searchIssuesForTriage(client triageClient, cfg *config.Config, query string, targetRepo string) ([]api.Issue, error) {
 	// Parse the query to determine what to search for
 	// For now, we search issues in configured repositories and filter locally
 	// A more sophisticated implementation would use GitHub's search API
 
+	// Determine which repositories to search
+	repos := cfg.Repositories
+	if targetRepo != "" {
+		// Validate format
+		if !strings.Contains(targetRepo, "/") {
+			return nil, fmt.Errorf("invalid repository format %q: expected owner/repo", targetRepo)
+		}
+		repos = []string{targetRepo}
+	}
+
 	var allIssues []api.Issue
 
-	for _, repoFullName := range cfg.Repositories {
+	for _, repoFullName := range repos {
 		parts := strings.SplitN(repoFullName, "/", 2)
 		if len(parts) != 2 {
 			continue

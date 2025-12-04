@@ -92,6 +92,15 @@ func TestTriageCommand(t *testing.T) {
 		if listFlag == nil {
 			t.Error("expected --list flag")
 		}
+
+		// Check --repo flag
+		repoFlag := cmd.Flags().Lookup("repo")
+		if repoFlag == nil {
+			t.Error("expected --repo flag")
+		}
+		if repoFlag.Shorthand != "R" {
+			t.Errorf("expected --repo shorthand to be 'R', got %q", repoFlag.Shorthand)
+		}
 	})
 
 	t.Run("command is registered in root", func(t *testing.T) {
@@ -121,6 +130,9 @@ func TestTriageOptions(t *testing.T) {
 		}
 		if opts.list {
 			t.Error("list should be false by default")
+		}
+		if opts.repo != "" {
+			t.Errorf("repo should be empty by default, got %q", opts.repo)
 		}
 	})
 }
@@ -482,7 +494,7 @@ func TestSearchIssuesForTriage(t *testing.T) {
 			Repositories: []string{"owner/repo"},
 		}
 
-		issues, err := searchIssuesForTriage(mock, cfg, "is:open label:bug")
+		issues, err := searchIssuesForTriage(mock, cfg, "is:open label:bug", "")
 		if err != nil {
 			t.Fatalf("searchIssuesForTriage() error = %v", err)
 		}
@@ -511,7 +523,7 @@ func TestSearchIssuesForTriage(t *testing.T) {
 			Repositories: []string{"owner/repo1", "owner/repo2"},
 		}
 
-		issues, err := searchIssuesForTriage(mock, cfg, "is:open")
+		issues, err := searchIssuesForTriage(mock, cfg, "is:open", "")
 		if err != nil {
 			t.Fatalf("searchIssuesForTriage() error = %v", err)
 		}
@@ -533,7 +545,7 @@ func TestSearchIssuesForTriage(t *testing.T) {
 			Repositories: []string{"invalid-format", "owner/repo"},
 		}
 
-		issues, err := searchIssuesForTriage(mock, cfg, "is:open")
+		issues, err := searchIssuesForTriage(mock, cfg, "is:open", "")
 		if err != nil {
 			t.Fatalf("searchIssuesForTriage() error = %v", err)
 		}
@@ -553,7 +565,7 @@ func TestSearchIssuesForTriage(t *testing.T) {
 			Repositories: []string{"owner/repo"},
 		}
 
-		issues, err := searchIssuesForTriage(mock, cfg, "is:open")
+		issues, err := searchIssuesForTriage(mock, cfg, "is:open", "")
 		if err != nil {
 			t.Fatalf("searchIssuesForTriage() should not return error, got %v", err)
 		}
@@ -575,13 +587,83 @@ func TestSearchIssuesForTriage(t *testing.T) {
 			Repositories: []string{"owner/repo"},
 		}
 
-		issues, err := searchIssuesForTriage(mock, cfg, "is:closed")
+		issues, err := searchIssuesForTriage(mock, cfg, "is:closed", "")
 		if err != nil {
 			t.Fatalf("searchIssuesForTriage() error = %v", err)
 		}
 
 		if len(issues) != 1 {
 			t.Errorf("expected 1 issue, got %d", len(issues))
+		}
+	})
+
+	t.Run("--repo flag overrides config repositories", func(t *testing.T) {
+		callCount := 0
+		mock := &mockTriageClient{
+			issues: []api.Issue{
+				{Number: 1, Title: "Issue 1", State: "OPEN"},
+			},
+		}
+		// Override GetRepositoryIssues to track calls
+		originalGetIssues := mock.GetRepositoryIssues
+		_ = originalGetIssues // suppress unused warning
+
+		cfg := &config.Config{
+			Repositories: []string{"owner/repo1", "owner/repo2", "owner/repo3"},
+		}
+
+		// Pass target repo - should only search that one
+		issues, err := searchIssuesForTriage(mock, cfg, "is:open", "target/specific-repo")
+		if err != nil {
+			t.Fatalf("searchIssuesForTriage() error = %v", err)
+		}
+
+		// Mock is called once for the target repo only
+		// Since mock returns same issues, we should get 1 issue
+		if len(issues) != 1 {
+			t.Errorf("expected 1 issue from target repo, got %d", len(issues))
+		}
+		_ = callCount // suppress unused warning
+	})
+
+	t.Run("--repo flag with invalid format returns error", func(t *testing.T) {
+		mock := &mockTriageClient{}
+
+		cfg := &config.Config{
+			Repositories: []string{"owner/repo"},
+		}
+
+		_, err := searchIssuesForTriage(mock, cfg, "is:open", "invalid-no-slash")
+		if err == nil {
+			t.Error("expected error for invalid repo format")
+		}
+		if !strings.Contains(err.Error(), "invalid repository format") {
+			t.Errorf("expected 'invalid repository format' error, got: %v", err)
+		}
+	})
+
+	t.Run("--repo flag allows repo not in config", func(t *testing.T) {
+		mock := &mockTriageClient{
+			issues: []api.Issue{
+				{Number: 99, Title: "External Issue", State: "OPEN"},
+			},
+		}
+
+		cfg := &config.Config{
+			Repositories: []string{"owner/repo1"}, // target repo not in config
+		}
+
+		issues, err := searchIssuesForTriage(mock, cfg, "is:open", "other-owner/other-repo")
+		if err != nil {
+			t.Fatalf("searchIssuesForTriage() error = %v", err)
+		}
+
+		// Should search the specified repo even though it's not in config
+		if len(issues) != 1 {
+			t.Errorf("expected 1 issue, got %d", len(issues))
+		}
+		if len(issues) > 0 && issues[0].Number != 99 {
+			t.Errorf("expected issue #99, got #%d", issues[0].Number)
 		}
 	})
 }
