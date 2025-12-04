@@ -10,9 +10,15 @@ const FeatureSubIssues = "sub_issues"
 // FeatureIssueTypes is the GitHub API preview header for issue types
 const FeatureIssueTypes = "issue_types"
 
+// GraphQLClient interface allows mocking the GitHub GraphQL client for testing
+type GraphQLClient interface {
+	Query(name string, query interface{}, variables map[string]interface{}) error
+	Mutate(name string, mutation interface{}, variables map[string]interface{}) error
+}
+
 // Client wraps the GitHub GraphQL API client with project management features
 type Client struct {
-	gql  *api.GraphQLClient
+	gql  GraphQLClient
 	opts ClientOptions
 }
 
@@ -77,6 +83,11 @@ func NewClientWithOptions(opts ClientOptions) *Client {
 		gql:  gql,
 		opts: opts,
 	}
+}
+
+// NewClientWithGraphQL creates a Client with a custom GraphQL client (for testing)
+func NewClientWithGraphQL(gql GraphQLClient) *Client {
+	return &Client{gql: gql}
 }
 
 // joinFeatures joins feature names with commas
