@@ -19,6 +19,16 @@ type moveOptions struct {
 	yes       bool // skip confirmation
 }
 
+// moveClient defines the interface for API methods used by move functions.
+// This allows for easier testing with mock implementations.
+type moveClient interface {
+	GetIssue(owner, repo string, number int) (*api.Issue, error)
+	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error)
+	SetProjectItemField(projectID, itemID, fieldName, value string) error
+}
+
 func newMoveCommand() *cobra.Command {
 	opts := &moveOptions{
 		depth: 10, // default max depth
@@ -84,6 +94,14 @@ func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	// Create API client
+	client := api.NewClient()
+
+	return runMoveWithDeps(cmd, args, opts, cfg, client)
+}
+
+// runMoveWithDeps is the testable implementation of runMove
+func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *config.Config, client moveClient) error {
 	// Parse issue reference
 	owner, repo, number, err := parseIssueReference(args[0])
 	if err != nil {
@@ -102,9 +120,6 @@ func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 		owner = parts[0]
 		repo = parts[1]
 	}
-
-	// Create API client
-	client := api.NewClient()
 
 	// Get issue to verify it exists
 	issue, err := client.GetIssue(owner, repo, number)
@@ -262,7 +277,7 @@ func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 }
 
 // collectSubIssuesRecursive recursively collects all sub-issues up to maxDepth
-func collectSubIssuesRecursive(client *api.Client, owner, repo string, number int, itemIDMap map[string]string, currentDepth, maxDepth int) ([]issueInfo, error) {
+func collectSubIssuesRecursive(client moveClient, owner, repo string, number int, itemIDMap map[string]string, currentDepth, maxDepth int) ([]issueInfo, error) {
 	if currentDepth > maxDepth {
 		return nil, nil
 	}
