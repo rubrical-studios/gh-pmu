@@ -502,7 +502,7 @@ func TestWriteConfig_ReadOnlyDirectory(t *testing.T) {
 		t.Fatalf("Failed to make directory read-only: %v", err)
 	}
 	// Restore permissions for cleanup
-	defer os.Chmod(tmpDir, 0755)
+	defer func() { _ = os.Chmod(tmpDir, 0755) }()
 
 	cfg := &InitConfig{
 		ProjectOwner:  "owner",
