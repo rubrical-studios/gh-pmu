@@ -46,9 +46,9 @@ jobs:
       - name: Install gh-pmu extension
         run: |
           go build -o gh-pmu .
-          mkdir -p ~/.local/bin
-          mv gh-pmu ~/.local/bin/
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mkdir -p ~/.local/share/gh/extensions/gh-pmu
+          mv gh-pmu ~/.local/share/gh/extensions/gh-pmu/
+          gh extension list
 
       - name: Configure gh CLI
         run: |
@@ -101,9 +101,9 @@ jobs:
       - name: Install gh-pmu extension
         run: |
           go build -o gh-pmu .
-          mkdir -p ~/.local/bin
-          mv gh-pmu ~/.local/bin/
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mkdir -p ~/.local/share/gh/extensions/gh-pmu
+          mv gh-pmu ~/.local/share/gh/extensions/gh-pmu/
+          gh extension list
 
       - name: Configure gh CLI
         run: |
