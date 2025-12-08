@@ -1,6 +1,13 @@
 {
   "permissions": {
-    "allow": [],
+    "allow": [
+      "Bash(git mv:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(gh pmu list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(go test:*)"
+    ],
     "deny": [
       "Bash^(rm -rf /:*^)",
       "Bash^(rm -rf /*:*^)",
