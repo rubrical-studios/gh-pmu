@@ -1,9 +1,22 @@
 # Coverage Report
 
-**Total Coverage: 58.0%**
+**Total Coverage: 58.3%**
 
 | File | Function | Coverage |
 |------|----------|----------|
+| cmd/board.go:38: | newBoardCommand | 88.9% |
+| cmd/board.go:83: | runBoard | 0.0% |
+| cmd/board.go:177: | getStatusColumns | 94.1% |
+| cmd/board.go:221: | groupByStatus | 90.9% |
+| cmd/board.go:245: | getTerminalWidth | 75.0% |
+| cmd/board.go:254: | truncateString | 100.0% |
+| cmd/board.go:265: | outputBoardBox | 85.9% |
+| cmd/board.go:368: | outputBoardSimple | 100.0% |
+| cmd/board.go:390: | outputBoardJSON | 100.0% |
+| cmd/close.go:21: | newCloseCommand | 85.7% |
+| cmd/close.go:64: | normalizeCloseReason | 100.0% |
+| cmd/close.go:79: | runClose | 33.3% |
+| cmd/close.go:120: | updateStatusToDone | 0.0% |
 | cmd/create.go:28: | newCreateCommand | 100.0% |
 | cmd/create.go:71: | runCreate | 44.1% |
 | cmd/create.go:185: | runCreateFromFile | 0.0% |
@@ -13,8 +26,8 @@
 | cmd/init.go:283: | detectRepository | 0.0% |
 | cmd/init.go:294: | splitRepository | 100.0% |
 | cmd/init.go:413: | validateProject | 100.0% |
-| cmd/init.go:419: | writeConfig | 75.0% |
-| cmd/init.go:490: | writeConfigWithMetadata | 85.7% |
+| cmd/init.go:419: | writeConfig | 87.5% |
+| cmd/init.go:490: | writeConfigWithMetadata | 92.9% |
 | cmd/intake.go:23: | newIntakeCommand | 88.9% |
 | cmd/intake.go:68: | runIntake | 0.0% |
 | cmd/intake.go:257: | outputIntakeTable | 100.0% |
@@ -25,7 +38,7 @@
 | cmd/list.go:29: | newListCommand | 92.3% |
 | cmd/list.go:58: | runList | 0.0% |
 | cmd/list.go:149: | filterByFieldValue | 100.0% |
-| cmd/list.go:163: | filterByHasSubIssues | 0.0% |
+| cmd/list.go:163: | filterByHasSubIssues | 50.0% |
 | cmd/list.go:189: | getFieldValue | 100.0% |
 | cmd/list.go:199: | outputTable | 100.0% |
 | cmd/list.go:263: | outputJSON | 100.0% |
@@ -38,7 +51,7 @@
 | cmd/move.go:123: | runMoveWithDeps | 90.4% |
 | cmd/move.go:299: | collectSubIssuesRecursive | 91.3% |
 | cmd/root.go:9: | NewRootCommand | 100.0% |
-| cmd/root.go:36: | Execute | 0.0% |
+| cmd/root.go:38: | Execute | 0.0% |
 | cmd/split.go:22: | newSplitCommand | 85.7% |
 | cmd/split.go:61: | runSplit | 0.0% |
 | cmd/split.go:184: | parseChecklist | 100.0% |
@@ -151,4 +164,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-04 for v0.2.13*
+*Generated: 2025-12-08 for v0.3.0*
