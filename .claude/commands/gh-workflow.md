@@ -79,3 +79,59 @@ Then:
 **Bug:** "I found an issue...", "There's a bug...", "finding:", "This is broken..."
 **Enhancement:** "I would like...", "Can you add...", "New feature...", "Enhancement..."
 **Sub-Issues:** "Create sub-issues for...", "Break this into phases..."
+
+---
+
+## Shell Construct Limitations
+
+Some shell constructs don't work correctly in the Bash tool due to escaping issues.
+
+### Heredocs with Backticks
+
+**Problem:** Backticks in heredoc content break the command.
+
+```bash
+# THIS FAILS - backticks break heredoc
+gh issue create --body "$(cat <<'EOF'
+Some `code` here
+EOF
+)"
+```
+
+**Solution:** Use file-based approach with `--body-file`:
+
+```bash
+# Step 1: Write content to temp file (using Write tool, not bash)
+# Step 2: Create issue from file
+gh issue create --title "My Issue" --body-file /tmp/issue-body.md
+
+# Step 3: Clean up
+rm /tmp/issue-body.md
+```
+
+### Command Substitution
+
+**Problem:** `$(...)` syntax fails due to escaping.
+
+```bash
+# THIS FAILS
+git log $(git tag --sort=-v:refname | head -1)..HEAD --oneline
+```
+
+**Solution:** Run commands separately and use literal values:
+
+```bash
+# Step 1: Get the value
+git tag --sort=-v:refname | head -1
+# Output: v0.2.13
+
+# Step 2: Use literal value in next command
+git log v0.2.13..HEAD --oneline
+```
+
+### Best Practices
+
+1. **Complex issue bodies:** Use Write tool to create temp file, then `--body-file`
+2. **Command substitution:** Run commands separately, use literal values
+3. **Special characters:** Escape or use file-based approaches
+4. **Multi-line content:** Prefer Write tool over heredocs
