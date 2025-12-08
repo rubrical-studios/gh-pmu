@@ -63,6 +63,8 @@ Project Management:
   view        View issue with project fields
   create      Create issue with project fields
   move        Update issue project fields
+  close       Close issue with optional reason
+  board       View project board in terminal
 
 Sub-Issue Management:
   sub add     Link existing issue as sub-issue
@@ -160,6 +162,16 @@ gh pmu create --title "New feature" --status "Backlog" --priority "P1"
 
 # Update issue status
 gh pmu move 42 --status "In Progress"
+
+# Close issue (defaults to "completed")
+gh pmu close 42
+
+# Close issue with reason
+gh pmu close 42 --reason not_planned
+gh pmu close 42 --reason duplicate
+
+# View project board in terminal
+gh pmu board
 ```
 
 ### Sub-Issue Management
