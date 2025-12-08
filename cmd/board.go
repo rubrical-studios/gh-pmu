@@ -295,7 +295,7 @@ func outputBoardBox(cmd *cobra.Command, grouped map[string][]api.ProjectItem, co
 
 	// Top border
 	fmt.Fprint(out, boardTopLeft)
-	for i, _ := range columns {
+	for i := range columns {
 		fmt.Fprint(out, strings.Repeat(boardHorizontal, colWidth))
 		if i < numCols-1 {
 			fmt.Fprint(out, boardTopTee)
