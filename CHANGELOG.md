@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-12-09
+
+### Changed
+- Repository moved from `scooter-indie/gh-pmu` to `rubrical-studios/gh-pmu` (#254)
+- Installation command updated: `gh extension install rubrical-studios/gh-pmu`
+- Go module path updated to `github.com/rubrical-studios/gh-pmu`
+
+### Note for Existing Users
+Existing installations will continue to work via GitHub redirect. For a clean setup, reinstall:
+```bash
+gh extension remove gh-pmu
+gh extension install rubrical-studios/gh-pmu
+```
+
 ## [0.3.0] - 2025-12-08
 
 ### Added
@@ -254,7 +268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.2.13...v0.3.0
 [0.2.13]: https://github.com/rubrical-studios/gh-pmu/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/rubrical-studios/gh-pmu/compare/v0.2.11...v0.2.12
