@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scooter-indie/gh-pmu/internal/testutil"
+	"github.com/rubrical-studios/gh-pmu/internal/testutil"
 )
 
 // UAT Epic 3: Enhanced Integration Tests

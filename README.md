@@ -14,7 +14,7 @@ A unified GitHub CLI extension for project management and sub-issue hierarchy.
 ### From GitHub Releases
 
 ```bash
-gh extension install scooter-indie/gh-pmu
+gh extension install rubrical-studios/gh-pmu
 ```
 
 After installation, use the extension as `gh pmu`:
@@ -26,7 +26,7 @@ gh pmu --help
 ### From Source
 
 ```bash
-git clone https://github.com/scooter-indie/gh-pmu.git
+git clone https://github.com/rubrical-studios/gh-pmu.git
 cd gh-pmu
 go build -o gh-pmu .
 gh extension install .
@@ -251,9 +251,9 @@ Integration tests run against real GitHub API with test fixtures:
 
 ```bash
 # Set environment variables
-export TEST_PROJECT_OWNER="scooter-indie"
+export TEST_PROJECT_OWNER="rubrical-studios"
 export TEST_PROJECT_NUMBER="99"
-export TEST_REPO_OWNER="scooter-indie"
+export TEST_REPO_OWNER="rubrical-studios"
 export TEST_REPO_NAME="gh-pmu-test"
 
 # Run integration tests

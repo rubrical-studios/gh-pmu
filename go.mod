@@ -1,4 +1,4 @@
-module github.com/scooter-indie/gh-pmu
+module github.com/rubrical-studios/gh-pmu
 
 go 1.22
 

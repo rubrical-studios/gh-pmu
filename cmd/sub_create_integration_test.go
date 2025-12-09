@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scooter-indie/gh-pmu/internal/testutil"
+	"github.com/rubrical-studios/gh-pmu/internal/testutil"
 )
 
 // TestRunSubCreate_Integration_WithTitle tests creating a sub-issue with --title

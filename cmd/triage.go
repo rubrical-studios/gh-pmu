@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/scooter-indie/gh-pmu/internal/api"
-	"github.com/scooter-indie/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
 

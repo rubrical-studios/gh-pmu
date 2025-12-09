@@ -21,7 +21,7 @@
 - [ ] GitHub Actions workflow builds on tag push
 - [ ] Produces binaries for linux/darwin/windows (amd64/arm64)
 - [ ] Release includes checksums and changelog
-- [ ] `gh extension install scooter-indie/gh-pmu` works from release
+- [ ] `gh extension install rubrical-studios/gh-pmu` works from release
 - [ ] README updated with installation instructions
 
 **Technical Notes:**

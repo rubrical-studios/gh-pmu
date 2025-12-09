@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/scooter-indie/gh-pmu/internal/testutil"
+	"github.com/rubrical-studios/gh-pmu/internal/testutil"
 )
 
 // TestRunTriage_Integration_ListConfigs tests --list shows available configs

@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/scooter-indie/gh-pmu/internal/api"
-	"github.com/scooter-indie/gh-pmu/internal/ui"
+	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )

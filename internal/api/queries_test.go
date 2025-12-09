@@ -15,8 +15,8 @@ func TestSplitRepoName(t *testing.T) {
 	}{
 		{
 			name:     "valid owner/repo format",
-			input:    "scooter-indie/gh-pmu",
-			expected: []string{"scooter-indie", "gh-pmu"},
+			input:    "rubrical-studios/gh-pmu",
+			expected: []string{"rubrical-studios", "gh-pmu"},
 		},
 		{
 			name:     "no slash returns nil",

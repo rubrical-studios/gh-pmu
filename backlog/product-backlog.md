@@ -682,7 +682,7 @@ This epic is entirely blocked because it depends on the ability to create projec
 - [x] Lint workflow: golangci-lint + gofmt + go vet
 - [x] Test workflow: Go version matrix + coverage threshold
 - [x] Release workflow: cli/gh-extension-precompile
-- [x] `gh extension install scooter-indie/gh-pmu` works from release
+- [x] `gh extension install rubrical-studios/gh-pmu` works from release
 - [x] README updated with installation instructions
 
 **Story Points:** 5
@@ -744,9 +744,9 @@ This epic is entirely blocked because it depends on the ability to create projec
 │  Configure project management settings  │
 ╰─────────────────────────────────────────╯
 
-✓ Detected repository: scooter-indie/gh-pmu
+✓ Detected repository: rubrical-studios/gh-pmu
 
-⠋ Fetching projects for scooter-indie...
+⠋ Fetching projects for rubrical-studios...
 
 Step 1 of 2: Select Project
 ┌─────────────────────────────────────────┐
@@ -760,7 +760,7 @@ Select [1]:
 ✓ Project: gh-pmu (#11)
 
 Step 2 of 2: Confirm Repository
-Repository [scooter-indie/gh-pmu]:
+Repository [rubrical-studios/gh-pmu]:
 
 ⠋ Fetching project fields...
 
@@ -768,7 +768,7 @@ Repository [scooter-indie/gh-pmu]:
 │  ✓ Configuration saved                  │
 │                                         │
 │  Project:    gh-pmu (#11)               │
-│  Repository: scooter-indie/gh-pmu       │
+│  Repository: rubrical-studios/gh-pmu    │
 │  Fields:     12 cached                  │
 │  Config:     .gh-pmu.yml                │
 ╰─────────────────────────────────────────╯

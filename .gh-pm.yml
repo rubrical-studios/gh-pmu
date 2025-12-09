@@ -1,9 +1,9 @@
 project:
     name: gh-pmu
     number: 11
-    owner: scooter-indie
+    owner: rubrical-studios
 repositories:
-    - scooter-indie/gh-pmu
+    - rubrical-studios/gh-pmu
 defaults:
     priority: p2
     status: backlog

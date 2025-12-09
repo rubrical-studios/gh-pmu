@@ -19,9 +19,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TEST_PROJECT_OWNER: scooter-indie
+  TEST_PROJECT_OWNER: rubrical-studios
   TEST_PROJECT_NUMBER: "29"
-  TEST_REPO_OWNER: scooter-indie
+  TEST_REPO_OWNER: rubrical-studios
   TEST_REPO_NAME: gh-pmu-test
 
 jobs:

@@ -300,8 +300,8 @@ func TestSplitRepository(t *testing.T) {
 	}{
 		{
 			name:          "valid owner/repo format",
-			input:         "scooter-indie/gh-pmu",
-			expectedOwner: "scooter-indie",
+			input:         "rubrical-studios/gh-pmu",
+			expectedOwner: "rubrical-studios",
 			expectedName:  "gh-pmu",
 		},
 		{

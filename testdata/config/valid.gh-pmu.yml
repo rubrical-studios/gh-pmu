@@ -2,9 +2,9 @@
 project:
   name: gh-pm-test-project
   number: 13
-  owner: scooter-indie
+  owner: rubrical-studios
 repositories:
-  - scooter-indie/gh-pm-test
+  - rubrical-studios/gh-pm-test
 defaults:
   priority: p2
   status: backlog

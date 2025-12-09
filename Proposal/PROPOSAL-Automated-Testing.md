@@ -661,7 +661,7 @@ import (
     "strings"
     "testing"
 
-    "github.com/scooter-indie/gh-pmu/internal/testutil"
+    "github.com/rubrical-studios/gh-pmu/internal/testutil"
 )
 
 func TestRunCreate_Integration_CreatesIssueWithFields(t *testing.T) {
@@ -902,18 +902,18 @@ func HasLabel(issue *Issue, label string) bool
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `TEST_PROJECT_OWNER` | Owner of test project | `scooter-indie` |
+| `TEST_PROJECT_OWNER` | Owner of test project | `rubrical-studios` |
 | `TEST_PROJECT_NUMBER` | Test project number | `99` |
-| `TEST_REPO_OWNER` | Owner of test repository | `scooter-indie` |
+| `TEST_REPO_OWNER` | Owner of test repository | `rubrical-studios` |
 | `TEST_REPO_NAME` | Test repository name | `gh-pmu-test` |
 
 ### Running the Tests
 
 ```bash
 # Set environment variables
-export TEST_PROJECT_OWNER="scooter-indie"
+export TEST_PROJECT_OWNER="rubrical-studios"
 export TEST_PROJECT_NUMBER="99"
-export TEST_REPO_OWNER="scooter-indie"
+export TEST_REPO_OWNER="rubrical-studios"
 export TEST_REPO_NAME="gh-pmu-test"
 
 # Run integration tests only

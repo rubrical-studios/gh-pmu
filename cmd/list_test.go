@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scooter-indie/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/spf13/cobra"
 )
 

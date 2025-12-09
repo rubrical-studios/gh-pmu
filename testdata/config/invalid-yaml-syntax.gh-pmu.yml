@@ -1,7 +1,7 @@
 # Invalid YAML syntax
 project:
   number: 13
-  owner: scooter-indie
+  owner: rubrical-studios
 repositories:
-  - scooter-indie/gh-pm-test
+  - rubrical-studios/gh-pm-test
   bad indentation here

@@ -6,15 +6,15 @@ This guide covers running integration tests for gh-pmu against the GitHub API.
 
 ### Test Repository
 
-- **Repository:** `scooter-indie/gh-pmu-test`
+- **Repository:** `rubrical-studios/gh-pmu-test`
 - **Visibility:** Private
 - **Purpose:** Isolated environment for integration tests
 
 ### Test Project
 
 - **Project:** `gh-pmu-test-prj` (Project #29)
-- **Owner:** `scooter-indie`
-- **URL:** https://github.com/users/scooter-indie/projects/29
+- **Owner:** `rubrical-studios`
+- **URL:** https://github.com/users/rubrical-studios/projects/29
 
 #### Project Fields
 
@@ -48,9 +48,9 @@ Set these environment variables before running integration tests:
 
 ```bash
 # Required
-export TEST_PROJECT_OWNER="scooter-indie"
+export TEST_PROJECT_OWNER="rubrical-studios"
 export TEST_PROJECT_NUMBER="29"
-export TEST_REPO_OWNER="scooter-indie"
+export TEST_REPO_OWNER="rubrical-studios"
 export TEST_REPO_NAME="gh-pmu-test"
 
 # Optional (uses gh auth token if not set)
@@ -216,12 +216,12 @@ If test fixtures need to be recreated:
 ### 1. Create Repository
 
 ```bash
-gh repo create scooter-indie/gh-pmu-test --private --description "gh-pmu-test for automated testing"
+gh repo create rubrical-studios/gh-pmu-test --private --description "gh-pmu-test for automated testing"
 ```
 
 ### 2. Create Project
 
-Create project manually at https://github.com/users/scooter-indie/projects with:
+Create project manually at https://github.com/users/rubrical-studios/projects with:
 - Status: Backlog, Ready, In progress, In review, Done
 - Priority: P0, P1, P2
 - Size: XS, S, M, L, XL

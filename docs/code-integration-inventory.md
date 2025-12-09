@@ -198,7 +198,7 @@ gh-pm-unified/
 ## Integration Steps
 
 ### Phase 1: Scaffolding
-1. [ ] Initialize Go module: `github.com/scooter-indie/gh-pm-unified`
+1. [ ] Initialize Go module: `github.com/rubrical-studios/gh-pm-unified`
 2. [ ] Set up Cobra root command
 3. [ ] Copy `.goreleaser.yaml` from gh-pm
 4. [ ] Copy `Makefile` from gh-pm

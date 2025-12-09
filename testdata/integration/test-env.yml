@@ -3,14 +3,14 @@
 
 github:
   # Test repository
-  repo: scooter-indie/gh-pm-test
+  repo: rubrical-studios/gh-pm-test
 
   # Test project
   project:
-    owner: scooter-indie
+    owner: rubrical-studios
     number: 13
     id: PVT_kwHOAATLPs4BJq7a
-    url: https://github.com/users/scooter-indie/projects/13
+    url: https://github.com/users/rubrical-studios/projects/13
 
   # Test issues (created for integration tests)
   issues:

@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** 2025-12-02
-**Author:** scooter-indie
+**Author:** rubrical-studios
 **Status:** Draft | Ready for Backlog Creation
 
 ---
@@ -178,5 +178,5 @@ Eliminate the need for multiple fragmented extensions (`gh-pm`, `gh-sub-issue`) 
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 1.0 | 2025-12-02 | scooter-indie | Initial PRD from PROPOSAL.md |
-| 1.1 | 2025-12-03 | scooter-indie | Removed Epic 2 & 4 - redundant with native gh project commands, template features blocked by API |
+| 1.0 | 2025-12-02 | rubrical-studios | Initial PRD from PROPOSAL.md |
+| 1.1 | 2025-12-03 | rubrical-studios | Removed Epic 2 & 4 - redundant with native gh project commands, template features blocked by API |

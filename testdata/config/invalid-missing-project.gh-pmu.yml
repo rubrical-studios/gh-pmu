@@ -1,5 +1,5 @@
 # Invalid: missing project section
 repositories:
-  - scooter-indie/gh-pm-test
+  - rubrical-studios/gh-pm-test
 defaults:
   priority: p2

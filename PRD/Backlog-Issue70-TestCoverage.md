@@ -262,9 +262,9 @@ Scenario: GetProject tries user first, then organization
   Then getUserProject fails and getOrgProject succeeds
 
 Scenario: splitRepoName correctly parses owner/repo
-  Given "scooter-indie/gh-pmu"
+  Given "rubrical-studios/gh-pmu"
   When splitRepoName is called
-  Then it returns ["scooter-indie", "gh-pmu"]
+  Then it returns ["rubrical-studios", "gh-pmu"]
 
 Scenario: GetProjectItems filters by repository when filter provided
   Given items from multiple repositories

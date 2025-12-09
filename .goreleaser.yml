@@ -22,7 +22,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/scooter-indie/gh-pmu/cmd.version={{.Version}}
+      - -X github.com/rubrical-studios/gh-pmu/cmd.version={{.Version}}
 
 archives:
   - id: gh-pmu
@@ -43,7 +43,7 @@ changelog:
 
 release:
   github:
-    owner: scooter-indie
+    owner: rubrical-studios
     name: gh-pmu
   prerelease: auto
   name_template: "gh-pmu {{.Version}}"

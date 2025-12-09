@@ -42,7 +42,7 @@ All integration test stories must meet these criteria:
 **So that** tests run in isolation from production data
 
 **Acceptance Criteria:**
-- [ ] Create test repository `gh-pmu-test` under `scooter-indie`
+- [ ] Create test repository `gh-pmu-test` under `rubrical-studios`
 - [ ] Create test project with Status, Priority, Sprint, Estimate fields
 - [ ] Create seed issues with known states for read-only tests
 - [ ] Document test fixture setup in TESTING.md
@@ -519,9 +519,9 @@ All integration test stories must meet these criteria:
 ### Locally
 ```bash
 # Set environment variables
-export TEST_PROJECT_OWNER="scooter-indie"
+export TEST_PROJECT_OWNER="rubrical-studios"
 export TEST_PROJECT_NUMBER="99"
-export TEST_REPO_OWNER="scooter-indie"
+export TEST_REPO_OWNER="rubrical-studios"
 export TEST_REPO_NAME="gh-pmu-test"
 
 # Run all integration tests
