@@ -101,10 +101,38 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// LoadFromDirectory finds and loads the config file from the given directory
+// LoadFromDirectory finds and loads the config file from the given directory.
+// It searches up the directory tree until it finds a .gh-pmu.yml file or
+// reaches the filesystem root.
 func LoadFromDirectory(dir string) (*Config, error) {
-	path := filepath.Join(dir, ConfigFileName)
-	return Load(path)
+	configPath, err := FindConfigFile(dir)
+	if err != nil {
+		return nil, err
+	}
+	return Load(configPath)
+}
+
+// FindConfigFile searches for .gh-pmu.yml starting from dir and walking up
+// the directory tree until found or filesystem root is reached.
+func FindConfigFile(startDir string) (string, error) {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	for {
+		configPath := filepath.Join(dir, ConfigFileName)
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root
+			return "", fmt.Errorf("no %s found in %s or any parent directory", ConfigFileName, startDir)
+		}
+		dir = parent
+	}
 }
 
 // Validate checks that required configuration fields are present

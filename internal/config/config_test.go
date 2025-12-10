@@ -378,3 +378,123 @@ func TestApplyEnvOverrides_NoEnvVars_Unchanged(t *testing.T) {
 		t.Errorf("Expected project number 13, got %d", cfg.Project.Number)
 	}
 }
+
+func TestFindConfigFile_InCurrentDir_ReturnsPath(t *testing.T) {
+	// ARRANGE: Create temp dir with config file
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// ACT: Find config starting from same dir
+	found, err := FindConfigFile(testDir)
+
+	// ASSERT: Found in current dir
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if found != configPath {
+		t.Errorf("Expected %s, got %s", configPath, found)
+	}
+}
+
+func TestFindConfigFile_InParentDir_ReturnsPath(t *testing.T) {
+	// ARRANGE: Create nested dirs, config in parent
+	parentDir := t.TempDir()
+	childDir := filepath.Join(parentDir, "subdir")
+	if err := os.MkdirAll(childDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdir: %v", err)
+	}
+	configPath := filepath.Join(parentDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// ACT: Find config starting from child dir
+	found, err := FindConfigFile(childDir)
+
+	// ASSERT: Found in parent dir
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if found != configPath {
+		t.Errorf("Expected %s, got %s", configPath, found)
+	}
+}
+
+func TestFindConfigFile_InGrandparentDir_ReturnsPath(t *testing.T) {
+	// ARRANGE: Create deeply nested dirs, config in grandparent
+	grandparentDir := t.TempDir()
+	parentDir := filepath.Join(grandparentDir, "parent")
+	childDir := filepath.Join(parentDir, "child")
+	if err := os.MkdirAll(childDir, 0755); err != nil {
+		t.Fatalf("Failed to create nested dirs: %v", err)
+	}
+	configPath := filepath.Join(grandparentDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// ACT: Find config starting from grandchild dir
+	found, err := FindConfigFile(childDir)
+
+	// ASSERT: Found in grandparent dir
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if found != configPath {
+		t.Errorf("Expected %s, got %s", configPath, found)
+	}
+}
+
+func TestFindConfigFile_NotFound_ReturnsError(t *testing.T) {
+	// ARRANGE: Empty temp dir (no config anywhere in tree)
+	testDir := t.TempDir()
+	childDir := filepath.Join(testDir, "subdir")
+	if err := os.MkdirAll(childDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdir: %v", err)
+	}
+
+	// ACT: Try to find config
+	_, err := FindConfigFile(childDir)
+
+	// ASSERT: Error returned
+	if err == nil {
+		t.Fatal("Expected error when no config file exists, got nil")
+	}
+}
+
+func TestLoadFromDirectory_FromSubdir_FindsParentConfig(t *testing.T) {
+	// ARRANGE: Create nested structure with config in parent
+	parentDir := t.TempDir()
+	childDir := filepath.Join(parentDir, "subdir", "nested")
+	if err := os.MkdirAll(childDir, 0755); err != nil {
+		t.Fatalf("Failed to create nested dirs: %v", err)
+	}
+
+	configContent := `project:
+  owner: rubrical-studios
+  number: 13
+repositories:
+  - rubrical-studios/gh-pmu
+`
+	configPath := filepath.Join(parentDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// ACT: Load from nested child dir
+	cfg, err := LoadFromDirectory(childDir)
+
+	// ASSERT: Config loaded from parent
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if cfg.Project.Owner != "rubrical-studios" {
+		t.Errorf("Expected owner 'rubrical-studios', got '%s'", cfg.Project.Owner)
+	}
+	if cfg.Project.Number != 13 {
+		t.Errorf("Expected number 13, got %d", cfg.Project.Number)
+	}
+}
