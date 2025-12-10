@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-12-10
+
+### Added
+- Detailed single-file history view with expanded commit information (#256)
+  - Shows full commit messages, relative timestamps ("3 days ago"), and line change stats (+/-)
+  - Automatically activates for single file paths
+  - `--compact` flag to use original compact format for single files
+
 ## [0.4.0] - 2025-12-10
 
 ### Added
@@ -283,7 +291,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.2.13...v0.3.0
