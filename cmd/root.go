@@ -31,6 +31,7 @@ Use 'gh pmu <command> --help' for more information about a command.`,
 	cmd.AddCommand(newIntakeCommand())
 	cmd.AddCommand(newTriageCommand())
 	cmd.AddCommand(newSplitCommand())
+	cmd.AddCommand(newHistoryCommand())
 
 	return cmd
 }
