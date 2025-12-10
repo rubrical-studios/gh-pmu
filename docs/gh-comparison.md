@@ -1,0 +1,93 @@
+# gh vs gh pmu Command Comparison
+
+This document compares `gh pmu` commands with the base GitHub CLI (`gh`) to help you understand when to use each.
+
+## Command Overlap
+
+| Function | `gh` Command | `gh pmu` Command | Notes |
+|----------|--------------|------------------|-------|
+| **Create issue** | `gh issue create` | `gh pmu create` | pmu adds project/status assignment in one step |
+| **List issues** | `gh issue list` | `gh pmu list` | pmu filters by project board, shows project fields |
+| **View issue** | `gh issue view` | `gh pmu view` | pmu shows project metadata (status, priority) |
+| **Close issue** | `gh issue close` | `gh pmu close` | pmu adds reason aliases (wontfix, dupe, completed) |
+| **Add to project** | `gh project item-add` | `gh pmu create` | pmu combines create + add + set fields |
+| **Edit project field** | `gh project item-edit` | `gh pmu move` | Both update status/priority fields |
+| **List project items** | `gh project item-list` | `gh pmu list` | Both list project items |
+
+## Unique to gh pmu
+
+These commands have no equivalent in the base `gh` CLI:
+
+| Command | Purpose |
+|---------|---------|
+| `gh pmu board` | Terminal Kanban board view |
+| `gh pmu history` | Git commit history with issue reference parsing |
+| `gh pmu init` | Configure project connection per-repo |
+| `gh pmu intake` | Find issues not yet added to the project |
+| `gh pmu split` | Break an issue into sub-issues from checklist |
+| `gh pmu sub` | Manage sub-issue hierarchy (add/create/list/remove) |
+| `gh pmu triage` | Bulk rule-based issue processing |
+
+## Unique to gh (use alongside gh pmu)
+
+These base `gh` commands complement `gh pmu`:
+
+| Command | Purpose |
+|---------|---------|
+| `gh issue comment` | Add comments to issues |
+| `gh issue edit` | Edit title, body, labels, assignees |
+| `gh issue develop` | Create linked branches |
+| `gh issue pin/unpin` | Pin issues to repository |
+| `gh issue transfer` | Move issue to another repository |
+| `gh project field-*` | Manage project field definitions |
+| `gh project copy/delete` | Project lifecycle management |
+
+## When to Use Which
+
+### Use `gh pmu` when:
+- Working within a configured project board workflow
+- You need project field values (status, priority) in output
+- Managing sub-issue hierarchies
+- Doing bulk operations (intake, triage)
+- Wanting a visual board view in terminal
+
+### Use base `gh` when:
+- Working outside a project context
+- Adding comments or editing issue content
+- Managing project structure (fields, templates)
+- Transferring issues between repos
+- Creating branches from issues
+
+## Common Workflows
+
+### Update status and add comment
+```bash
+gh pmu move 123 --status in_progress
+gh issue comment 123 --body "Starting work on this"
+```
+
+### Create issue with project tracking
+```bash
+# With gh pmu (one command)
+gh pmu create --title "New feature" --status backlog --priority p1
+
+# With base gh (multiple commands)
+gh issue create --title "New feature"
+gh project item-add --owner user --project 1 --url <issue-url>
+gh project item-edit --project-id <id> --id <item-id> --field-id <status-id> --single-select-option-id <backlog-id>
+```
+
+### View issue with all context
+```bash
+# Project fields + issue details
+gh pmu view 123
+
+# Just issue details
+gh issue view 123
+```
+
+## Summary
+
+`gh pmu` is designed for **project-first workflows** where issues are tracked on a project board. It reduces multi-command sequences to single commands and adds features like sub-issue hierarchy and board visualization that don't exist in base `gh`.
+
+Use `gh pmu` and `gh` together - they complement each other.

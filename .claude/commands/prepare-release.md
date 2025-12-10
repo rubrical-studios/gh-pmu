@@ -112,10 +112,35 @@ Review if README needs updates:
 
 ---
 
-## Step 6: Commit Release Preparation
+## Step 6: Review Documentation Freshness
+
+Check if documentation files need updates based on changes in this release:
+
+### docs/gh-comparison.md
+Compare `gh pmu` commands with base `gh` CLI. Update if:
+- [ ] New commands added to gh pmu
+- [ ] New flags added that overlap with `gh` functionality
+- [ ] Workflow examples need updating
 
 ```bash
-git add CHANGELOG.md README.md
+# Quick check: list current gh pmu commands
+go run . --help
+
+# Compare with documented commands in gh-comparison.md
+```
+
+### Other docs to review
+- [ ] `docs/testing.md` - if test patterns changed
+- [ ] `coverage/README.md` - coverage report auto-updates, verify accuracy
+
+**Only update documentation if changes in this release affect it.**
+
+---
+
+## Step 7: Commit Release Preparation
+
+```bash
+git add CHANGELOG.md README.md docs/
 git commit -m "chore: prepare release vX.Y.Z"
 git push
 ```
@@ -124,7 +149,7 @@ git push
 
 ---
 
-## Step 7: Create Release
+## Step 8: Create Release
 
 **Ask user for confirmation before creating release.**
 
@@ -148,6 +173,7 @@ Before creating release, verify:
 - [ ] CI passing on main branch
 - [ ] CHANGELOG.md updated with new version
 - [ ] README.md updated (if needed)
+- [ ] docs/gh-comparison.md reviewed (if new commands/flags)
 - [ ] Release preparation committed and pushed
 - [ ] CI passing on release preparation commit
 - [ ] User confirmed ready to release

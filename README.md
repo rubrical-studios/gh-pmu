@@ -52,6 +52,10 @@ gh pmu list
 gh pmu view 123
 ```
 
+## gh vs gh pmu
+
+See [docs/gh-comparison.md](docs/gh-comparison.md) for a detailed comparison of `gh pmu` commands with the base GitHub CLI.
+
 ## Commands
 
 ```
