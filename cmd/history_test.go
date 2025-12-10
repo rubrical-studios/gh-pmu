@@ -32,6 +32,7 @@ func TestHistoryCommand_HasFlags(t *testing.T) {
 		{"json", "false"},
 		{"compact", "false"},
 		{"browser", "false"},
+		{"files", "false"},
 	}
 
 	for _, tt := range tests {
@@ -271,6 +272,8 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 				Date:   time.Date(2025, 1, 16, 14, 0, 0, 0, time.UTC),
 			},
 		},
+		Files:     []string{"cmd/history.go", "cmd/history_test.go"},
+		FileCount: 2,
 	}
 
 	// Verify struct fields are properly tagged
@@ -294,6 +297,12 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 	}
 	if commit.Comments[0].Author != "reviewer" {
 		t.Errorf("expected comment author 'reviewer', got %s", commit.Comments[0].Author)
+	}
+	if len(commit.Files) != 2 {
+		t.Errorf("expected 2 files, got %d", len(commit.Files))
+	}
+	if commit.FileCount != 2 {
+		t.Errorf("expected file count 2, got %d", commit.FileCount)
 	}
 }
 

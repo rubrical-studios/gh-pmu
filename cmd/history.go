@@ -27,6 +27,7 @@ type historyOptions struct {
 	json    bool   // JSON output format
 	compact bool   // Force compact mode even for single file
 	browser bool   // Open in web browser
+	files   bool   // Show affected files for each commit
 }
 
 // CommitInfo represents parsed information from a git commit
@@ -41,6 +42,8 @@ type CommitInfo struct {
 	Insertions int              `json:"insertions,omitempty"`
 	Deletions  int              `json:"deletions,omitempty"`
 	Comments   []CommitComment  `json:"comments,omitempty"`
+	Files      []string         `json:"files,omitempty"`
+	FileCount  int              `json:"file_count,omitempty"`
 }
 
 // CommitComment represents a GitHub comment on a commit
@@ -135,6 +138,7 @@ Examples:
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 	cmd.Flags().BoolVar(&opts.compact, "compact", false, "Force compact output even for single file")
 	cmd.Flags().BoolVar(&opts.browser, "browser", false, "Open history in web browser")
+	cmd.Flags().BoolVar(&opts.files, "files", false, "Show affected files for each commit")
 
 	return cmd
 }
@@ -190,6 +194,11 @@ func runHistory(cmd *cobra.Command, args []string, opts *historyOptions) error {
 			commits[i].Body = getCommitBody(commits[i].Hash)
 			commits[i].Comments = getCommitComments(commits[i].Hash, repoOwner, repoName)
 		}
+
+		// Fetch file info for directory mode (or when --files flag is used)
+		if !isSingleFile || opts.files {
+			commits[i].Files, commits[i].FileCount = getCommitFiles(commits[i].Hash, paths)
+		}
 	}
 
 	// Generate target path string for display
@@ -212,7 +221,7 @@ func runHistory(cmd *cobra.Command, args []string, opts *historyOptions) error {
 	if isSingleFile && !opts.compact {
 		renderDetailedHistoryScreen(commits, targetPath)
 	} else {
-		renderHistoryScreen(commits, targetPath)
+		renderHistoryScreen(commits, targetPath, opts.files)
 	}
 	return nil
 }
@@ -440,7 +449,7 @@ func parseRepoFromConfig(cfg *config.Config) (string, string) {
 }
 
 // renderHistoryScreen outputs styled history to terminal
-func renderHistoryScreen(commits []CommitInfo, targetPath string) {
+func renderHistoryScreen(commits []CommitInfo, targetPath string, showFiles bool) {
 	// Header
 	header := historyHeaderStyle.Render(fmt.Sprintf(" %s ", targetPath))
 	commitCount := fmt.Sprintf("%d commits", len(commits))
@@ -467,7 +476,7 @@ func renderHistoryScreen(commits []CommitInfo, targetPath string) {
 		typeStr := typeStyle.Render(fmt.Sprintf("[%s]", commit.ChangeType))
 
 		// Subject (truncated)
-		subjectStr := truncate(commit.Subject, 50)
+		subjectStr := truncate(commit.Subject, 45)
 
 		// Issue references
 		var refStrs []string
@@ -479,8 +488,22 @@ func renderHistoryScreen(commits []CommitInfo, targetPath string) {
 			refStr = " " + strings.Join(refStrs, " ")
 		}
 
-		fmt.Printf("  %s  %s  %-12s  %s %s%s\n",
-			hashStr, dateStr, authorStr, typeStr, subjectStr, refStr)
+		// File count suffix
+		fileCountStr := ""
+		if commit.FileCount > 0 {
+			fileCountStr = fileCountStyle.Render(fmt.Sprintf(" (%d files)", commit.FileCount))
+		}
+
+		fmt.Printf("  %s  %s  %-12s  %s %s%s%s\n",
+			hashStr, dateStr, authorStr, typeStr, subjectStr, refStr, fileCountStr)
+
+		// Show file list if --files flag is used
+		if showFiles && len(commit.Files) > 0 {
+			for _, file := range commit.Files {
+				fmt.Printf("      %s\n", filePathStyle.Render(file))
+			}
+			fmt.Println()
+		}
 	}
 
 	// Summary line
@@ -749,6 +772,32 @@ func getCommitComments(hash, owner, repo string) []CommitComment {
 	return comments
 }
 
+// getCommitFiles returns the list of files changed in a commit, filtered by paths
+func getCommitFiles(hash string, paths []string) ([]string, int) {
+	args := []string{"show", "--name-only", "--format=", hash}
+	if len(paths) > 0 && !(len(paths) == 1 && paths[0] == ".") {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+
+	cmd := exec.Command("git", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, 0
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var files []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+
+	return files, len(files)
+}
+
 // Additional styles for detailed view
 var (
 	detailBoxStyle = lipgloss.NewStyle().
@@ -790,6 +839,13 @@ var (
 	commentAuthorStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("117")).
 				Bold(true)
+
+	filePathStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245"))
+
+	fileCountStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Italic(true)
 )
 
 // renderDetailedHistoryScreen outputs detailed history for single file
