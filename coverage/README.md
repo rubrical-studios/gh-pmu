@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 58.3%**
+**Total Coverage: 55.4%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -20,6 +20,19 @@
 | cmd/create.go:28: | newCreateCommand | 100.0% |
 | cmd/create.go:71: | runCreate | 44.1% |
 | cmd/create.go:185: | runCreateFromFile | 0.0% |
+| cmd/history.go:85: | newHistoryCommand | 88.9% |
+| cmd/history.go:125: | runHistory | 0.0% |
+| cmd/history.go:186: | validateHistorySafety | 0.0% |
+| cmd/history.go:237: | getRepoRoot | 0.0% |
+| cmd/history.go:247: | countFilesInPath | 0.0% |
+| cmd/history.go:261: | getCommitHistory | 0.0% |
+| cmd/history.go:306: | inferChangeType | 100.0% |
+| cmd/history.go:338: | parseCommitReferences | 100.0% |
+| cmd/history.go:397: | parseRepoFromConfig | 0.0% |
+| cmd/history.go:408: | renderHistoryScreen | 0.0% |
+| cmd/history.go:467: | outputHistoryJSON | 0.0% |
+| cmd/history.go:474: | outputMarkdown | 0.0% |
+| cmd/history.go:554: | truncate | 100.0% |
 | cmd/init.go:19: | newInitCommand | 100.0% |
 | cmd/init.go:36: | runInit | 0.0% |
 | cmd/init.go:262: | parseGitRemote | 100.0% |
@@ -51,7 +64,7 @@
 | cmd/move.go:123: | runMoveWithDeps | 90.4% |
 | cmd/move.go:299: | collectSubIssuesRecursive | 91.3% |
 | cmd/root.go:9: | NewRootCommand | 100.0% |
-| cmd/root.go:38: | Execute | 0.0% |
+| cmd/root.go:39: | Execute | 0.0% |
 | cmd/split.go:22: | newSplitCommand | 85.7% |
 | cmd/split.go:61: | runSplit | 0.0% |
 | cmd/split.go:184: | parseChecklist | 100.0% |
@@ -164,4 +177,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-09 for v0.3.1*
+*Generated: 2025-12-10 for v0.4.0*
