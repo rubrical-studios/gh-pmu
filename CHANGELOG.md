@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2025-12-10
+
+### Added
+- Config file search now walks up directory tree (#257)
+  - Run `gh pmu` commands from any subdirectory of a repo with `.gh-pmu.yml`
+  - Similar behavior to how git finds `.git` directories
+
 ## [0.4.1] - 2025-12-10
 
 ### Added
@@ -291,7 +298,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.0...v0.3.1
