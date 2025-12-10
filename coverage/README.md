@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 55.4%**
+**Total Coverage: 54.5%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -20,19 +20,23 @@
 | cmd/create.go:28: | newCreateCommand | 100.0% |
 | cmd/create.go:71: | runCreate | 44.1% |
 | cmd/create.go:185: | runCreateFromFile | 0.0% |
-| cmd/history.go:85: | newHistoryCommand | 88.9% |
-| cmd/history.go:125: | runHistory | 0.0% |
-| cmd/history.go:186: | validateHistorySafety | 0.0% |
-| cmd/history.go:237: | getRepoRoot | 0.0% |
-| cmd/history.go:247: | countFilesInPath | 0.0% |
-| cmd/history.go:261: | getCommitHistory | 0.0% |
-| cmd/history.go:306: | inferChangeType | 100.0% |
-| cmd/history.go:338: | parseCommitReferences | 100.0% |
-| cmd/history.go:397: | parseRepoFromConfig | 0.0% |
-| cmd/history.go:408: | renderHistoryScreen | 0.0% |
-| cmd/history.go:467: | outputHistoryJSON | 0.0% |
-| cmd/history.go:474: | outputMarkdown | 0.0% |
-| cmd/history.go:554: | truncate | 100.0% |
+| cmd/history.go:88: | newHistoryCommand | 90.0% |
+| cmd/history.go:129: | runHistory | 0.0% |
+| cmd/history.go:202: | validateHistorySafety | 0.0% |
+| cmd/history.go:253: | getRepoRoot | 0.0% |
+| cmd/history.go:263: | countFilesInPath | 0.0% |
+| cmd/history.go:277: | getCommitHistory | 0.0% |
+| cmd/history.go:322: | inferChangeType | 100.0% |
+| cmd/history.go:354: | parseCommitReferences | 100.0% |
+| cmd/history.go:413: | parseRepoFromConfig | 0.0% |
+| cmd/history.go:424: | renderHistoryScreen | 0.0% |
+| cmd/history.go:483: | outputHistoryJSON | 0.0% |
+| cmd/history.go:490: | outputMarkdown | 0.0% |
+| cmd/history.go:570: | truncate | 100.0% |
+| cmd/history.go:578: | isDirectory | 75.0% |
+| cmd/history.go:588: | relativeTime | 100.0% |
+| cmd/history.go:635: | getCommitStats | 0.0% |
+| cmd/history.go:704: | renderDetailedHistoryScreen | 0.0% |
 | cmd/init.go:19: | newInitCommand | 100.0% |
 | cmd/init.go:36: | runInit | 0.0% |
 | cmd/init.go:262: | parseGitRemote | 100.0% |
@@ -177,4 +181,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-10 for v0.4.0*
+*Generated: 2025-12-10 for v0.4.1*
