@@ -32,10 +32,19 @@ type CommitInfo struct {
 	Author     string           `json:"author"`
 	Date       time.Time        `json:"date"`
 	Subject    string           `json:"subject"`
+	Body       string           `json:"body,omitempty"`
 	ChangeType string           `json:"change_type"`
 	References []IssueReference `json:"references,omitempty"`
 	Insertions int              `json:"insertions,omitempty"`
 	Deletions  int              `json:"deletions,omitempty"`
+	Comments   []CommitComment  `json:"comments,omitempty"`
+}
+
+// CommitComment represents a GitHub comment on a commit
+type CommitComment struct {
+	Author string    `json:"author"`
+	Body   string    `json:"body"`
+	Date   time.Time `json:"date"`
 }
 
 // IssueReference represents a parsed issue/PR reference
@@ -171,9 +180,11 @@ func runHistory(cmd *cobra.Command, args []string, opts *historyOptions) error {
 		commits[i].ChangeType = inferChangeType(commits[i].Subject)
 		commits[i].References = parseCommitReferences(commits[i].Subject, repoOwner, repoName)
 
-		// Fetch stats for single file mode (or JSON output)
+		// Fetch additional details for single file mode (or JSON output)
 		if isSingleFile || opts.json {
 			commits[i].Insertions, commits[i].Deletions = getCommitStats(commits[i].Hash, paths)
+			commits[i].Body = getCommitBody(commits[i].Hash)
+			commits[i].Comments = getCommitComments(commits[i].Hash, repoOwner, repoName)
 		}
 	}
 
@@ -667,6 +678,69 @@ func getCommitStats(hash string, paths []string) (int, int) {
 	return insertions, deletions
 }
 
+// getCommitBody retrieves the full commit message body (excluding subject)
+func getCommitBody(hash string) string {
+	cmd := exec.Command("git", "log", "-1", "--format=%b", hash)
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	body := strings.TrimSpace(string(output))
+	// Remove common trailer lines (Co-Authored-By, Generated with, etc.)
+	lines := strings.Split(body, "\n")
+	var cleanLines []string
+	for _, line := range lines {
+		lower := strings.ToLower(line)
+		if strings.HasPrefix(lower, "co-authored-by:") ||
+			strings.Contains(lower, "generated with") ||
+			strings.HasPrefix(lower, "signed-off-by:") {
+			continue
+		}
+		cleanLines = append(cleanLines, line)
+	}
+	return strings.TrimSpace(strings.Join(cleanLines, "\n"))
+}
+
+// getCommitComments fetches GitHub comments on a commit via gh api
+func getCommitComments(hash, owner, repo string) []CommitComment {
+	if owner == "" || repo == "" {
+		return nil
+	}
+
+	// Use gh api to fetch commit comments
+	endpoint := fmt.Sprintf("repos/%s/%s/commits/%s/comments", owner, repo, hash)
+	cmd := exec.Command("gh", "api", endpoint)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	// Parse JSON response
+	var apiComments []struct {
+		User struct {
+			Login string `json:"login"`
+		} `json:"user"`
+		Body      string `json:"body"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	if err := json.Unmarshal(output, &apiComments); err != nil {
+		return nil
+	}
+
+	var comments []CommitComment
+	for _, c := range apiComments {
+		date, _ := time.Parse(time.RFC3339, c.CreatedAt)
+		comments = append(comments, CommitComment{
+			Author: c.User.Login,
+			Body:   c.Body,
+			Date:   date,
+		})
+	}
+
+	return comments
+}
+
 // Additional styles for detailed view
 var (
 	detailBoxStyle = lipgloss.NewStyle().
@@ -698,6 +772,16 @@ var (
 	relTimeStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("245")).
 			Italic(true)
+
+	bodyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252"))
+
+	commentStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("229"))
+
+	commentAuthorStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("117")).
+				Bold(true)
 )
 
 // renderDetailedHistoryScreen outputs detailed history for single file
@@ -726,7 +810,13 @@ func renderDetailedHistoryScreen(commits []CommitInfo, targetPath string) {
 		fmt.Println(separator)
 
 		// Full subject (not truncated)
-		fmt.Printf("%s\n\n", commit.Subject)
+		fmt.Printf("%s\n", commit.Subject)
+
+		// Commit body (if present)
+		if commit.Body != "" {
+			fmt.Printf("\n%s\n", bodyStyle.Render(commit.Body))
+		}
+		fmt.Println()
 
 		// Change type
 		typeStyle, ok := changeTypeStyles[commit.ChangeType]
@@ -749,6 +839,20 @@ func renderDetailedHistoryScreen(commits []CommitInfo, targetPath string) {
 			insStr := insertStyle.Render(fmt.Sprintf("+%d", commit.Insertions))
 			delStr := deleteStyle.Render(fmt.Sprintf("-%d", commit.Deletions))
 			fmt.Printf("Lines: %s %s\n", insStr, delStr)
+		}
+
+		// GitHub commit comments
+		if len(commit.Comments) > 0 {
+			fmt.Printf("\n💬 Comments (%d):\n", len(commit.Comments))
+			for _, comment := range commit.Comments {
+				authorStr := commentAuthorStyle.Render("@" + comment.Author)
+				dateStr := relTimeStyle.Render(fmt.Sprintf("(%s)", relativeTime(comment.Date)))
+				fmt.Printf("  %s %s:\n", authorStr, dateStr)
+				// Indent comment body
+				for _, line := range strings.Split(comment.Body, "\n") {
+					fmt.Printf("    %s\n", commentStyle.Render(line))
+				}
+			}
 		}
 
 		// Separator between commits (except last)

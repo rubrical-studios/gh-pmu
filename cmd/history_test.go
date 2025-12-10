@@ -249,6 +249,7 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 		Author:     "Test Author",
 		Date:       time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
 		Subject:    "Fix: test commit #123",
+		Body:       "This is the commit body\nwith multiple lines",
 		ChangeType: "Fix",
 		References: []IssueReference{
 			{
@@ -261,11 +262,21 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 		},
 		Insertions: 10,
 		Deletions:  5,
+		Comments: []CommitComment{
+			{
+				Author: "reviewer",
+				Body:   "Great change!",
+				Date:   time.Date(2025, 1, 16, 14, 0, 0, 0, time.UTC),
+			},
+		},
 	}
 
 	// Verify struct fields are properly tagged
 	if commit.Hash != "abc1234" {
 		t.Errorf("expected hash abc1234, got %s", commit.Hash)
+	}
+	if commit.Body != "This is the commit body\nwith multiple lines" {
+		t.Errorf("expected body, got %s", commit.Body)
 	}
 	if len(commit.References) != 1 {
 		t.Errorf("expected 1 reference, got %d", len(commit.References))
@@ -275,6 +286,30 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 	}
 	if commit.Deletions != 5 {
 		t.Errorf("expected 5 deletions, got %d", commit.Deletions)
+	}
+	if len(commit.Comments) != 1 {
+		t.Errorf("expected 1 comment, got %d", len(commit.Comments))
+	}
+	if commit.Comments[0].Author != "reviewer" {
+		t.Errorf("expected comment author 'reviewer', got %s", commit.Comments[0].Author)
+	}
+}
+
+func TestCommitComment_Fields(t *testing.T) {
+	comment := CommitComment{
+		Author: "test-user",
+		Body:   "This is a test comment",
+		Date:   time.Date(2025, 12, 10, 12, 0, 0, 0, time.UTC),
+	}
+
+	if comment.Author != "test-user" {
+		t.Errorf("expected author 'test-user', got %s", comment.Author)
+	}
+	if comment.Body != "This is a test comment" {
+		t.Errorf("expected body, got %s", comment.Body)
+	}
+	if comment.Date.Year() != 2025 {
+		t.Errorf("expected year 2025, got %d", comment.Date.Year())
 	}
 }
 
