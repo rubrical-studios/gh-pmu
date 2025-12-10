@@ -18,11 +18,12 @@ import (
 
 // historyOptions holds command flags
 type historyOptions struct {
-	since  string // Date filter (e.g., "2024-01-01", "1 week ago")
-	limit  int    // Max commits (default 50)
-	output bool   // Write to History/ directory
-	force  bool   // Override safety limits
-	json   bool   // JSON output format
+	since   string // Date filter (e.g., "2024-01-01", "1 week ago")
+	limit   int    // Max commits (default 50)
+	output  bool   // Write to History/ directory
+	force   bool   // Override safety limits
+	json    bool   // JSON output format
+	compact bool   // Force compact mode even for single file
 }
 
 // CommitInfo represents parsed information from a git commit
@@ -33,6 +34,8 @@ type CommitInfo struct {
 	Subject    string           `json:"subject"`
 	ChangeType string           `json:"change_type"`
 	References []IssueReference `json:"references,omitempty"`
+	Insertions int              `json:"insertions,omitempty"`
+	Deletions  int              `json:"deletions,omitempty"`
 }
 
 // IssueReference represents a parsed issue/PR reference
@@ -118,6 +121,7 @@ Examples:
 	cmd.Flags().BoolVar(&opts.output, "output", false, "Write output to History/ directory as markdown")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "Override safety limits (root directory, file count)")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
+	cmd.Flags().BoolVar(&opts.compact, "compact", false, "Force compact output even for single file")
 
 	return cmd
 }
@@ -159,10 +163,18 @@ func runHistory(cmd *cobra.Command, args []string, opts *historyOptions) error {
 	// Get repo info for issue URLs
 	repoOwner, repoName := parseRepoFromConfig(cfg)
 
+	// Determine if single file mode (detailed view)
+	isSingleFile := len(paths) == 1 && !isDirectory(paths[0])
+
 	// Parse references and infer change types
 	for i := range commits {
 		commits[i].ChangeType = inferChangeType(commits[i].Subject)
 		commits[i].References = parseCommitReferences(commits[i].Subject, repoOwner, repoName)
+
+		// Fetch stats for single file mode (or JSON output)
+		if isSingleFile || opts.json {
+			commits[i].Insertions, commits[i].Deletions = getCommitStats(commits[i].Hash, paths)
+		}
 	}
 
 	// Generate target path string for display
@@ -178,7 +190,11 @@ func runHistory(cmd *cobra.Command, args []string, opts *historyOptions) error {
 	}
 
 	// Default: styled screen output
-	renderHistoryScreen(commits, targetPath)
+	if isSingleFile && !opts.compact {
+		renderDetailedHistoryScreen(commits, targetPath)
+	} else {
+		renderHistoryScreen(commits, targetPath)
+	}
 	return nil
 }
 
@@ -556,4 +572,219 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// isDirectory checks if a path is a directory
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		// If path doesn't exist locally, check if it ends with /
+		return strings.HasSuffix(path, "/") || strings.HasSuffix(path, "\\")
+	}
+	return info.IsDir()
+}
+
+// relativeTime returns a human-readable relative time string
+func relativeTime(t time.Time) string {
+	now := time.Now()
+	diff := now.Sub(t)
+
+	switch {
+	case diff < time.Minute:
+		return "just now"
+	case diff < time.Hour:
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", mins)
+	case diff < 24*time.Hour:
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case diff < 7*24*time.Hour:
+		days := int(diff.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	case diff < 30*24*time.Hour:
+		weeks := int(diff.Hours() / 24 / 7)
+		if weeks == 1 {
+			return "1 week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", weeks)
+	case diff < 365*24*time.Hour:
+		months := int(diff.Hours() / 24 / 30)
+		if months == 1 {
+			return "1 month ago"
+		}
+		return fmt.Sprintf("%d months ago", months)
+	default:
+		years := int(diff.Hours() / 24 / 365)
+		if years == 1 {
+			return "1 year ago"
+		}
+		return fmt.Sprintf("%d years ago", years)
+	}
+}
+
+// getCommitStats returns insertions and deletions for a commit on specific paths
+func getCommitStats(hash string, paths []string) (int, int) {
+	args := []string{"show", "--stat", "--format=", hash, "--"}
+	args = append(args, paths...)
+
+	cmd := exec.Command("git", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, 0
+	}
+
+	// Parse the last line which contains: " N files changed, X insertions(+), Y deletions(-)"
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 0 {
+		return 0, 0
+	}
+
+	lastLine := lines[len(lines)-1]
+
+	var insertions, deletions int
+
+	// Match insertions
+	insMatch := regexp.MustCompile(`(\d+) insertion`).FindStringSubmatch(lastLine)
+	if len(insMatch) > 1 {
+		insertions, _ = strconv.Atoi(insMatch[1])
+	}
+
+	// Match deletions
+	delMatch := regexp.MustCompile(`(\d+) deletion`).FindStringSubmatch(lastLine)
+	if len(delMatch) > 1 {
+		deletions, _ = strconv.Atoi(delMatch[1])
+	}
+
+	return insertions, deletions
+}
+
+// Additional styles for detailed view
+var (
+	detailBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("63")).
+			Padding(0, 1).
+			MarginBottom(1)
+
+	detailHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("15")).
+				Background(lipgloss.Color("63")).
+				Padding(0, 1).
+				MarginBottom(1)
+
+	separatorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
+
+	insertStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46"))
+
+	deleteStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196"))
+
+	urlStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("75")).
+			Underline(true)
+
+	relTimeStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("245")).
+			Italic(true)
+)
+
+// renderDetailedHistoryScreen outputs detailed history for single file
+func renderDetailedHistoryScreen(commits []CommitInfo, targetPath string) {
+	// Header box
+	headerContent := fmt.Sprintf("%s\n%d commits", targetPath, len(commits))
+	if len(commits) > 0 {
+		headerContent = fmt.Sprintf("%s\n%d commits | Last modified: %s",
+			targetPath, len(commits), commits[0].Date.Format("2006-01-02"))
+	}
+
+	fmt.Println()
+	fmt.Println(detailBoxStyle.Render(detailHeaderStyle.Render(headerContent)))
+	fmt.Println()
+
+	separator := separatorStyle.Render(strings.Repeat("─", 60))
+
+	for i, commit := range commits {
+		// Header line: hash | date | author
+		hashStr := hashStyle.Render(commit.Hash)
+		dateStr := dateStyle.Render(commit.Date.Format("2006-01-02"))
+		authorStr := authorStyle.Render(commit.Author)
+		relTime := relTimeStyle.Render(fmt.Sprintf("(%s)", relativeTime(commit.Date)))
+
+		fmt.Printf("%s | %s | %s %s\n", hashStr, dateStr, authorStr, relTime)
+		fmt.Println(separator)
+
+		// Full subject (not truncated)
+		fmt.Printf("%s\n\n", commit.Subject)
+
+		// Change type
+		typeStyle, ok := changeTypeStyles[commit.ChangeType]
+		if !ok {
+			typeStyle = changeTypeStyles["Change"]
+		}
+		fmt.Printf("Type: %s\n", typeStyle.Render(commit.ChangeType))
+
+		// Issue references with full URLs
+		if len(commit.References) > 0 {
+			for _, ref := range commit.References {
+				fmt.Printf("Issue: %s %s\n",
+					issueRefStyle.Render(fmt.Sprintf("#%d", ref.Number)),
+					urlStyle.Render(fmt.Sprintf("(%s)", ref.URL)))
+			}
+		}
+
+		// Line stats
+		if commit.Insertions > 0 || commit.Deletions > 0 {
+			insStr := insertStyle.Render(fmt.Sprintf("+%d", commit.Insertions))
+			delStr := deleteStyle.Render(fmt.Sprintf("-%d", commit.Deletions))
+			fmt.Printf("Lines: %s %s\n", insStr, delStr)
+		}
+
+		// Separator between commits (except last)
+		if i < len(commits)-1 {
+			fmt.Printf("\n%s\n\n", separator)
+		} else {
+			fmt.Println()
+		}
+	}
+
+	// Summary
+	typeCounts := make(map[string]int)
+	totalIns, totalDel := 0, 0
+	for _, commit := range commits {
+		typeCounts[commit.ChangeType]++
+		totalIns += commit.Insertions
+		totalDel += commit.Deletions
+	}
+
+	var summaryParts []string
+	typeOrder := []string{"Fix", "Add", "Update", "Remove", "Refactor", "Docs", "Test", "Chore", "Change"}
+	for _, t := range typeOrder {
+		if count, ok := typeCounts[t]; ok && count > 0 {
+			style := changeTypeStyles[t]
+			summaryParts = append(summaryParts, style.Render(fmt.Sprintf("%s: %d", t, count)))
+		}
+	}
+
+	fmt.Println(separator)
+	if len(summaryParts) > 0 {
+		fmt.Printf("Summary: %s\n", strings.Join(summaryParts, " | "))
+	}
+	if totalIns > 0 || totalDel > 0 {
+		fmt.Printf("Total changes: %s %s\n",
+			insertStyle.Render(fmt.Sprintf("+%d", totalIns)),
+			deleteStyle.Render(fmt.Sprintf("-%d", totalDel)))
+	}
+	fmt.Println()
 }

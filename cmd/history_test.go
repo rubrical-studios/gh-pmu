@@ -29,6 +29,7 @@ func TestHistoryCommand_HasFlags(t *testing.T) {
 		{"output", "false"},
 		{"force", "false"},
 		{"json", "false"},
+		{"compact", "false"},
 	}
 
 	for _, tt := range tests {
@@ -258,6 +259,8 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 				URL:    "https://github.com/owner/repo/issues/123",
 			},
 		},
+		Insertions: 10,
+		Deletions:  5,
 	}
 
 	// Verify struct fields are properly tagged
@@ -266,5 +269,67 @@ func TestCommitInfo_JSONMarshalling(t *testing.T) {
 	}
 	if len(commit.References) != 1 {
 		t.Errorf("expected 1 reference, got %d", len(commit.References))
+	}
+	if commit.Insertions != 10 {
+		t.Errorf("expected 10 insertions, got %d", commit.Insertions)
+	}
+	if commit.Deletions != 5 {
+		t.Errorf("expected 5 deletions, got %d", commit.Deletions)
+	}
+}
+
+func TestRelativeTime(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		input    time.Time
+		expected string
+	}{
+		{"just now", now, "just now"},
+		{"1 minute ago", now.Add(-1 * time.Minute), "1 minute ago"},
+		{"5 minutes ago", now.Add(-5 * time.Minute), "5 minutes ago"},
+		{"1 hour ago", now.Add(-1 * time.Hour), "1 hour ago"},
+		{"3 hours ago", now.Add(-3 * time.Hour), "3 hours ago"},
+		{"1 day ago", now.Add(-24 * time.Hour), "1 day ago"},
+		{"5 days ago", now.Add(-5 * 24 * time.Hour), "5 days ago"},
+		{"1 week ago", now.Add(-7 * 24 * time.Hour), "1 week ago"},
+		{"2 weeks ago", now.Add(-14 * 24 * time.Hour), "2 weeks ago"},
+		{"1 month ago", now.Add(-30 * 24 * time.Hour), "1 month ago"},
+		{"6 months ago", now.Add(-180 * 24 * time.Hour), "6 months ago"},
+		{"1 year ago", now.Add(-365 * 24 * time.Hour), "1 year ago"},
+		{"2 years ago", now.Add(-730 * 24 * time.Hour), "2 years ago"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := relativeTime(tt.input)
+			if result != tt.expected {
+				t.Errorf("relativeTime() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsDirectory(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{"path ending with slash", "cmd/", true},
+		{"path ending with backslash", "cmd\\", true},
+		{"file path", "cmd/history.go", false},
+		{"nonexistent path", "nonexistent/path/file.txt", false},
+		{"nonexistent dir path", "nonexistent/path/", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isDirectory(tt.path)
+			if result != tt.expected {
+				t.Errorf("isDirectory(%q) = %v, want %v", tt.path, result, tt.expected)
+			}
+		})
 	}
 }
