@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 54.5%**
+**Total Coverage: 54.7%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -153,11 +153,12 @@
 | internal/api/queries.go:694: | GetIssueComments | 0.0% |
 | internal/api/queries.go:740: | listOrgProjects | 90.9% |
 | internal/config/config.go:90: | Load | 100.0% |
-| internal/config/config.go:105: | LoadFromDirectory | 100.0% |
-| internal/config/config.go:111: | Validate | 100.0% |
-| internal/config/config.go:129: | ResolveFieldValue | 100.0% |
-| internal/config/config.go:144: | GetFieldName | 83.3% |
-| internal/config/config.go:161: | ApplyEnvOverrides | 100.0% |
+| internal/config/config.go:107: | LoadFromDirectory | 100.0% |
+| internal/config/config.go:117: | FindConfigFile | 90.9% |
+| internal/config/config.go:139: | Validate | 100.0% |
+| internal/config/config.go:157: | ResolveFieldValue | 100.0% |
+| internal/config/config.go:172: | GetFieldName | 83.3% |
+| internal/config/config.go:189: | ApplyEnvOverrides | 100.0% |
 | internal/ui/ui.go:59: | New | 100.0% |
 | internal/ui/ui.go:67: | NewWithOptions | 100.0% |
 | internal/ui/ui.go:75: | color | 100.0% |
@@ -181,4 +182,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-10 for v0.4.1*
+*Generated: 2025-12-10 for v0.4.2*
