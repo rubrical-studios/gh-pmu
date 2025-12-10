@@ -3,10 +3,12 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,7 @@ type historyOptions struct {
 	force   bool   // Override safety limits
 	json    bool   // JSON output format
 	compact bool   // Force compact mode even for single file
+	browser bool   // Open in web browser
 }
 
 // CommitInfo represents parsed information from a git commit
@@ -131,6 +134,7 @@ Examples:
 	cmd.Flags().BoolVar(&opts.force, "force", false, "Override safety limits (root directory, file count)")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 	cmd.Flags().BoolVar(&opts.compact, "compact", false, "Force compact output even for single file")
+	cmd.Flags().BoolVar(&opts.browser, "browser", false, "Open history in web browser")
 
 	return cmd
 }
@@ -194,6 +198,10 @@ func runHistory(cmd *cobra.Command, args []string, opts *historyOptions) error {
 	// Output based on format
 	if opts.json {
 		return outputHistoryJSON(commits)
+	}
+
+	if opts.browser {
+		return openHistoryInBrowser(commits, targetPath, repoOwner, repoName)
 	}
 
 	if opts.output {
@@ -891,4 +899,238 @@ func renderDetailedHistoryScreen(commits []CommitInfo, targetPath string) {
 			deleteStyle.Render(fmt.Sprintf("-%d", totalDel)))
 	}
 	fmt.Println()
+}
+
+// openHistoryInBrowser generates HTML and opens it in the default browser
+func openHistoryInBrowser(commits []CommitInfo, targetPath, repoOwner, repoName string) error {
+	htmlContent := generateHistoryHTML(commits, targetPath, repoOwner, repoName)
+
+	// Create temp file
+	tmpFile, err := os.CreateTemp("", "gh-pmu-history-*.html")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.WriteString(htmlContent); err != nil {
+		return fmt.Errorf("failed to write HTML: %w", err)
+	}
+
+	filePath := tmpFile.Name()
+
+	// Open in browser based on OS
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", filePath)
+	case "darwin":
+		cmd = exec.Command("open", filePath)
+	default: // linux, etc.
+		cmd = exec.Command("xdg-open", filePath)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to open browser: %w", err)
+	}
+
+	fmt.Printf("Opened history in browser: %s\n", filePath)
+	return nil
+}
+
+// generateHistoryHTML creates an HTML document for the commit history
+func generateHistoryHTML(commits []CommitInfo, targetPath, repoOwner, repoName string) string {
+	var sb strings.Builder
+
+	// HTML header with styles
+	sb.WriteString(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>History: ` + html.EscapeString(targetPath) + `</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0d1117;
+      color: #c9d1d9;
+    }
+    h1 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+    .summary { color: #8b949e; margin-bottom: 20px; }
+    .commit {
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      background: #161b22;
+    }
+    .commit-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #30363d;
+      background: #21262d;
+      border-radius: 6px 6px 0 0;
+    }
+    .commit-body { padding: 16px; }
+    .hash {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      color: #58a6ff;
+      text-decoration: none;
+    }
+    .hash:hover { text-decoration: underline; }
+    .meta { color: #8b949e; font-size: 14px; }
+    .author { color: #58a6ff; }
+    .subject { font-weight: 600; color: #c9d1d9; margin: 8px 0; }
+    .body-text {
+      color: #8b949e;
+      white-space: pre-wrap;
+      font-size: 14px;
+      margin: 12px 0;
+      padding: 12px;
+      background: #0d1117;
+      border-radius: 6px;
+    }
+    .type {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .type-Fix { background: #f85149; color: #fff; }
+    .type-Add { background: #238636; color: #fff; }
+    .type-Update { background: #1f6feb; color: #fff; }
+    .type-Remove { background: #da3633; color: #fff; }
+    .type-Refactor { background: #8957e5; color: #fff; }
+    .type-Docs { background: #388bfd; color: #fff; }
+    .type-Test { background: #3fb950; color: #fff; }
+    .type-Chore { background: #6e7681; color: #fff; }
+    .type-Change { background: #6e7681; color: #fff; }
+    .stats {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 14px;
+    }
+    .ins { color: #3fb950; }
+    .del { color: #f85149; }
+    .issue-link { color: #58a6ff; text-decoration: none; }
+    .issue-link:hover { text-decoration: underline; }
+    .details { margin-top: 8px; }
+    .detail-row { margin: 4px 0; font-size: 14px; }
+    .comment {
+      margin: 12px 0;
+      padding: 12px;
+      background: #0d1117;
+      border-left: 3px solid #388bfd;
+      border-radius: 0 6px 6px 0;
+    }
+    .comment-author { color: #58a6ff; font-weight: 600; }
+    .comment-date { color: #6e7681; font-size: 12px; }
+    .comment-body { margin-top: 8px; white-space: pre-wrap; }
+    .totals {
+      margin-top: 20px;
+      padding: 16px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+`)
+
+	// Header
+	sb.WriteString(fmt.Sprintf("  <h1>📜 History: %s</h1>\n", html.EscapeString(targetPath)))
+	sb.WriteString(fmt.Sprintf("  <p class=\"summary\">%d commits</p>\n\n", len(commits)))
+
+	// Count types and totals for summary
+	typeCounts := make(map[string]int)
+	totalIns, totalDel := 0, 0
+
+	// Commits
+	for _, commit := range commits {
+		typeCounts[commit.ChangeType]++
+		totalIns += commit.Insertions
+		totalDel += commit.Deletions
+
+		sb.WriteString("  <div class=\"commit\">\n")
+		sb.WriteString("    <div class=\"commit-header\">\n")
+
+		// Hash with link to GitHub
+		commitURL := fmt.Sprintf("https://github.com/%s/%s/commit/%s", repoOwner, repoName, commit.Hash)
+		sb.WriteString(fmt.Sprintf("      <a href=\"%s\" class=\"hash\" target=\"_blank\">%s</a>\n",
+			commitURL, commit.Hash))
+
+		// Meta info
+		sb.WriteString(fmt.Sprintf("      <span class=\"meta\"> | %s | <span class=\"author\">%s</span> | %s</span>\n",
+			commit.Date.Format("2006-01-02"),
+			html.EscapeString(commit.Author),
+			relativeTime(commit.Date)))
+
+		sb.WriteString("    </div>\n")
+		sb.WriteString("    <div class=\"commit-body\">\n")
+
+		// Subject
+		sb.WriteString(fmt.Sprintf("      <div class=\"subject\">%s</div>\n", html.EscapeString(commit.Subject)))
+
+		// Body
+		if commit.Body != "" {
+			sb.WriteString(fmt.Sprintf("      <div class=\"body-text\">%s</div>\n", html.EscapeString(commit.Body)))
+		}
+
+		// Details row
+		sb.WriteString("      <div class=\"details\">\n")
+
+		// Type badge
+		sb.WriteString(fmt.Sprintf("        <div class=\"detail-row\"><span class=\"type type-%s\">%s</span></div>\n",
+			commit.ChangeType, commit.ChangeType))
+
+		// Issue references
+		for _, ref := range commit.References {
+			sb.WriteString(fmt.Sprintf("        <div class=\"detail-row\">Issue: <a href=\"%s\" class=\"issue-link\" target=\"_blank\">#%d</a></div>\n",
+				ref.URL, ref.Number))
+		}
+
+		// Stats
+		if commit.Insertions > 0 || commit.Deletions > 0 {
+			sb.WriteString(fmt.Sprintf("        <div class=\"detail-row stats\"><span class=\"ins\">+%d</span> <span class=\"del\">-%d</span></div>\n",
+				commit.Insertions, commit.Deletions))
+		}
+
+		sb.WriteString("      </div>\n")
+
+		// Comments
+		if len(commit.Comments) > 0 {
+			for _, comment := range commit.Comments {
+				sb.WriteString("      <div class=\"comment\">\n")
+				sb.WriteString(fmt.Sprintf("        <span class=\"comment-author\">@%s</span> <span class=\"comment-date\">%s</span>\n",
+					html.EscapeString(comment.Author), relativeTime(comment.Date)))
+				sb.WriteString(fmt.Sprintf("        <div class=\"comment-body\">%s</div>\n", html.EscapeString(comment.Body)))
+				sb.WriteString("      </div>\n")
+			}
+		}
+
+		sb.WriteString("    </div>\n")
+		sb.WriteString("  </div>\n\n")
+	}
+
+	// Summary totals
+	sb.WriteString("  <div class=\"totals\">\n")
+	sb.WriteString("    <strong>Summary:</strong> ")
+	typeOrder := []string{"Fix", "Add", "Update", "Remove", "Refactor", "Docs", "Test", "Chore", "Change"}
+	var parts []string
+	for _, t := range typeOrder {
+		if count, ok := typeCounts[t]; ok && count > 0 {
+			parts = append(parts, fmt.Sprintf("<span class=\"type type-%s\">%s: %d</span>", t, t, count))
+		}
+	}
+	sb.WriteString(strings.Join(parts, " "))
+	if totalIns > 0 || totalDel > 0 {
+		sb.WriteString(fmt.Sprintf("<br><span class=\"stats\">Total changes: <span class=\"ins\">+%d</span> <span class=\"del\">-%d</span></span>",
+			totalIns, totalDel))
+	}
+	sb.WriteString("\n  </div>\n")
+
+	sb.WriteString("</body>\n</html>")
+
+	return sb.String()
 }

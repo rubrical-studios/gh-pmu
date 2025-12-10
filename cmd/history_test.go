@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -30,6 +31,7 @@ func TestHistoryCommand_HasFlags(t *testing.T) {
 		{"force", "false"},
 		{"json", "false"},
 		{"compact", "false"},
+		{"browser", "false"},
 	}
 
 	for _, tt := range tests {
@@ -366,5 +368,101 @@ func TestIsDirectory(t *testing.T) {
 				t.Errorf("isDirectory(%q) = %v, want %v", tt.path, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGenerateHistoryHTML(t *testing.T) {
+	commits := []CommitInfo{
+		{
+			Hash:       "abc1234",
+			Author:     "Test Author",
+			Date:       time.Date(2025, 12, 10, 10, 0, 0, 0, time.UTC),
+			Subject:    "feat: Add new feature #123",
+			Body:       "This is the body",
+			ChangeType: "Add",
+			References: []IssueReference{
+				{Number: 123, URL: "https://github.com/owner/repo/issues/123"},
+			},
+			Insertions: 50,
+			Deletions:  10,
+		},
+		{
+			Hash:       "def5678",
+			Author:     "Another Author",
+			Date:       time.Date(2025, 12, 9, 10, 0, 0, 0, time.UTC),
+			Subject:    "fix: Bug fix",
+			ChangeType: "Fix",
+			Insertions: 5,
+			Deletions:  3,
+		},
+	}
+
+	html := generateHistoryHTML(commits, "cmd/test.go", "owner", "repo")
+
+	// Check HTML structure
+	if !strings.Contains(html, "<!DOCTYPE html>") {
+		t.Error("expected HTML doctype")
+	}
+	if !strings.Contains(html, "History: cmd/test.go") {
+		t.Error("expected title with path")
+	}
+	if !strings.Contains(html, "2 commits") {
+		t.Error("expected commit count")
+	}
+	if !strings.Contains(html, "abc1234") {
+		t.Error("expected first commit hash")
+	}
+	if !strings.Contains(html, "def5678") {
+		t.Error("expected second commit hash")
+	}
+	if !strings.Contains(html, "feat: Add new feature #123") {
+		t.Error("expected commit subject")
+	}
+	if !strings.Contains(html, "This is the body") {
+		t.Error("expected commit body")
+	}
+	if !strings.Contains(html, "type-Add") {
+		t.Error("expected Add type badge")
+	}
+	if !strings.Contains(html, "type-Fix") {
+		t.Error("expected Fix type badge")
+	}
+	if !strings.Contains(html, "#123") {
+		t.Error("expected issue reference")
+	}
+	if !strings.Contains(html, "+50") {
+		t.Error("expected insertions")
+	}
+	if !strings.Contains(html, "-10") {
+		t.Error("expected deletions")
+	}
+	if !strings.Contains(html, "github.com/owner/repo/commit/abc1234") {
+		t.Error("expected commit URL")
+	}
+}
+
+func TestGenerateHistoryHTML_EscapesHTML(t *testing.T) {
+	commits := []CommitInfo{
+		{
+			Hash:       "abc1234",
+			Author:     "<script>alert('xss')</script>",
+			Date:       time.Now(),
+			Subject:    "feat: <b>bold</b> & special chars",
+			Body:       "<div>HTML in body</div>",
+			ChangeType: "Add",
+		},
+	}
+
+	html := generateHistoryHTML(commits, "test.go", "owner", "repo")
+
+	// Should escape HTML entities
+	if strings.Contains(html, "<script>") {
+		t.Error("HTML should be escaped - found unescaped script tag")
+	}
+	if !strings.Contains(html, "&lt;script&gt;") {
+		t.Error("expected escaped script tag")
+	}
+	if strings.Contains(html, "<b>bold</b>") {
+		t.Error("HTML should be escaped - found unescaped b tag")
 	}
 }
