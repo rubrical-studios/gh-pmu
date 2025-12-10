@@ -16,6 +16,58 @@ This proposal outlines potential features for gh pmu based on a gap analysis com
 
 ---
 
+## Executive Summary
+
+### Complement gh (fill gaps in workflow)
+
+| Feature | Description | Why |
+|---------|-------------|-----|
+| `gh pmu comment` | Add comment + update status in one command | Common pattern: comment then move to in_progress |
+| `gh pmu assign` | Assign + set status/priority | Assigning often means starting work |
+| `gh pmu label` | Add labels + auto-triage based on label | Labels often trigger status changes |
+| `gh pmu link` | Link issues bidirectionally | `gh issue develop` only links PRs, not issues |
+
+### Extend gh (add project-aware versions)
+
+| Feature | Description | Why |
+|---------|-------------|-----|
+| `gh pmu search` | Search with project field filters | `gh search issues` can't filter by project status/priority |
+| `gh pmu edit` | Edit issue + update project fields | Currently need `gh issue edit` + `gh pmu move` |
+| `gh pmu reopen` | Reopen + set status (e.g., back to backlog) | Reopening usually means re-triaging |
+| `gh pmu transfer` | Transfer issue + add to destination project | `gh issue transfer` loses project association |
+
+### New capabilities (not in gh at all)
+
+| Feature | Description | Why |
+|---------|-------------|-----|
+| `gh pmu sprint` | Sprint management (create, assign issues, burndown) | Projects v2 has iterations but no CLI support |
+| `gh pmu velocity` | Show velocity metrics (issues closed per week) | No analytics in gh |
+| `gh pmu stale` | Find/report stale issues by status age | `gh search` can't query "in_progress for >7 days" |
+| `gh pmu blocked` | Track blocking relationships between issues | No dependency tracking in gh |
+| `gh pmu timeline` | Gantt-style view of issue dates/milestones | No timeline visualization |
+| `gh pmu standup` | Generate standup report (yesterday/today/blockers) | Common workflow, no tooling |
+| `gh pmu report` | Generate markdown status report | Release notes, weekly summaries |
+| `gh pmu watch` | Live-updating board view | `gh pmu board` is static snapshot |
+| `gh pmu bulk` | Bulk operations on multiple issues | `gh issue edit` is one-at-a-time |
+| `gh pmu template` | Issue templates with project field defaults | `gh issue create --template` doesn't set project fields |
+| `gh pmu clone` | Clone issue (duplicate with modifications) | No issue cloning in gh |
+| `gh pmu merge` | Merge duplicate issues (combine bodies, close one) | Manual process currently |
+
+### High-value candidates
+
+Based on frequency of use and complexity:
+
+| Priority | Feature | Effort | Impact |
+|----------|---------|--------|--------|
+| 🥇 | `gh pmu stale` | Low | High - common need |
+| 🥇 | `gh pmu standup` | Low | High - daily use |
+| 🥈 | `gh pmu bulk` | Medium | High - saves repetition |
+| 🥈 | `gh pmu search` | Medium | High - project-aware search |
+| 🥉 | `gh pmu sprint` | High | Medium - iteration support |
+| 🥉 | `gh pmu blocked` | Medium | Medium - dependency tracking |
+
+---
+
 ## Category 1: Complement gh
 
 These features streamline common multi-command workflows.
