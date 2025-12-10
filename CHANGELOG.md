@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2025-12-10
+
+### Added
+- `--browser` flag to open history in web browser (#259)
+  - Generates styled HTML with GitHub dark theme
+  - Clickable commit hashes and issue references
+  - Works on Windows, macOS, and Linux
+- `--files` flag to show affected files in directory history (#260)
+  - Compact view now shows file count: `(3 files)` suffix
+  - Full file list displayed with `--files` flag
+
 ## [0.4.3] - 2025-12-10
 
 ### Added
@@ -306,7 +317,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.0...v0.4.1
