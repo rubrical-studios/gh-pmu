@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 54.7%**
+**Total Coverage: 54.0%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -20,23 +20,25 @@
 | cmd/create.go:28: | newCreateCommand | 100.0% |
 | cmd/create.go:71: | runCreate | 44.1% |
 | cmd/create.go:185: | runCreateFromFile | 0.0% |
-| cmd/history.go:88: | newHistoryCommand | 90.0% |
-| cmd/history.go:129: | runHistory | 0.0% |
-| cmd/history.go:202: | validateHistorySafety | 0.0% |
-| cmd/history.go:253: | getRepoRoot | 0.0% |
-| cmd/history.go:263: | countFilesInPath | 0.0% |
-| cmd/history.go:277: | getCommitHistory | 0.0% |
-| cmd/history.go:322: | inferChangeType | 100.0% |
-| cmd/history.go:354: | parseCommitReferences | 100.0% |
-| cmd/history.go:413: | parseRepoFromConfig | 0.0% |
-| cmd/history.go:424: | renderHistoryScreen | 0.0% |
-| cmd/history.go:483: | outputHistoryJSON | 0.0% |
-| cmd/history.go:490: | outputMarkdown | 0.0% |
-| cmd/history.go:570: | truncate | 100.0% |
-| cmd/history.go:578: | isDirectory | 75.0% |
-| cmd/history.go:588: | relativeTime | 100.0% |
-| cmd/history.go:635: | getCommitStats | 0.0% |
-| cmd/history.go:704: | renderDetailedHistoryScreen | 0.0% |
+| cmd/history.go:97: | newHistoryCommand | 90.0% |
+| cmd/history.go:138: | runHistory | 0.0% |
+| cmd/history.go:213: | validateHistorySafety | 0.0% |
+| cmd/history.go:264: | getRepoRoot | 0.0% |
+| cmd/history.go:274: | countFilesInPath | 0.0% |
+| cmd/history.go:288: | getCommitHistory | 0.0% |
+| cmd/history.go:333: | inferChangeType | 100.0% |
+| cmd/history.go:365: | parseCommitReferences | 100.0% |
+| cmd/history.go:424: | parseRepoFromConfig | 0.0% |
+| cmd/history.go:435: | renderHistoryScreen | 0.0% |
+| cmd/history.go:494: | outputHistoryJSON | 0.0% |
+| cmd/history.go:501: | outputMarkdown | 0.0% |
+| cmd/history.go:581: | truncate | 100.0% |
+| cmd/history.go:589: | isDirectory | 75.0% |
+| cmd/history.go:599: | relativeTime | 100.0% |
+| cmd/history.go:646: | getCommitStats | 0.0% |
+| cmd/history.go:682: | getCommitBody | 0.0% |
+| cmd/history.go:705: | getCommitComments | 0.0% |
+| cmd/history.go:788: | renderDetailedHistoryScreen | 0.0% |
 | cmd/init.go:19: | newInitCommand | 100.0% |
 | cmd/init.go:36: | runInit | 0.0% |
 | cmd/init.go:262: | parseGitRemote | 100.0% |
@@ -182,4 +184,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-10 for v0.4.2*
+*Generated: 2025-12-10 for v0.4.3*
