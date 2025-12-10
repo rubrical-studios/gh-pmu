@@ -43,23 +43,29 @@ Read these files in order:
 
 ### Step 4: Load Primary Domain Specialist
 
-Read the primary specialist instructions to activate this role:
+Read `framework-config.json` to get the `primarySpecialist` value.
 
-`E:\Projects\process-docs/System-Instructions/Domain/API-Integration-Specialist.md`
+If a primary specialist is configured (not null):
+1. Read the specialist file: `E:\Projects\process-docs/System-Instructions/Domain/[primarySpecialist].md`
+2. Note the active role for your ready message
 
-**Active Role:** API-Integration-Specialist
+If no primary specialist is configured, skip this step.
 
-### Step 5: Configure GitHub Integration (if needed)
+### Step 5: Read GitHub Workflow Integration (MUST READ)
 
-If `.gh-pm.yml` does not exist, ask user if they have a GitHub repo and project.
-If yes, run `gh pm init`. If no, skip.
+Read the GitHub Workflow file to activate issue management:
 
-If `.claude/commands/gh-workflow.md` has unreplaced placeholders, prompt user for values.
+```
+E:\Projects\process-docs/Reference/GitHub-Workflow.md
+```
+
+If `.gh-pmu.yml` does not exist, ask user if they have a GitHub repo and project.
+If yes, run `gh pmu init`. If no, skip GitHub integration.
 
 ### Step 6: Confirm Ready
 
 Confirm initialization is complete and ask the user what they would like to work on.
-Include the active role in your ready message: "Active Role: API-Integration-Specialist"
+If a primary specialist was loaded, include it in your ready message: "Active Role: [specialist-name]"
 
 **Do NOT proceed with any other work until the startup sequence is complete.**
 
@@ -71,22 +77,21 @@ After completing the startup procedure, display available commands:
 
 | Command | Purpose |
 |---------|---------|
-| `/expand-rules` | Load complete Anti-Hallucination Rules |
-| `/expand-domain` | Load full Domain Specialist instructions |
 | `/switch-role` | Switch active domain specialist mid-session |
-| `/gh-workflow` | Activate GitHub workflow integration |
+| `/add-role` | Add a new domain specialist to your project |
 
-### When to Suggest Commands
 
-**Proactively suggest `/expand-rules` when:**
-- User asks about code quality or best practices
-- Reviewing code for potential issues
-- User mentions concerns about accuracy or hallucination
+---
 
-**Proactively suggest `/expand-domain` when:**
-- Working on domain-specific tasks (backend, frontend, DevOps, etc.)
-- User needs specialized technical guidance
-- Implementing complex features in a specific domain
+## Post-Compact Procedure
+
+**MUST REREAD AFTER COMPACTION:** After any compact operation (manual or automatic), immediately re-read:
+
+```
+E:\Projects\process-docs/Reference/GitHub-Workflow.md
+```
+
+This ensures GitHub workflow rules persist across context resets.
 
 ---
 

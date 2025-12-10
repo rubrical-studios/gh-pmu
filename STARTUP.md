@@ -5,40 +5,19 @@
 
 ---
 
-## Core Rules (Anti-Hallucination Essentials)
+## Required Reading
 
-**Principle:** Accuracy over helpfulness. Uncertainty over invention. Verification over assumption.
+**MUST READ** the Anti-Hallucination Rules for Software Development:
 
-### NEVER Invent:
-- API methods, function signatures, class names
-- Command-line flags or parameters
-- File paths or directory structures
-- Library dependencies or package names
+```
+E:\Projects\process-docs/Assistant/Anti-Hallucination-Rules-for-Software-Development.md
+```
 
-### NEVER Assume:
-- Operating system or platform
-- Available tools or installed packages
-- Framework, library, or language versions
-- Project structure or file organization
-
-### NEVER Expand Scope:
-- Act only on exactly what was requested
-- Do not assume related items should be included
-- If request is ambiguous, ask for clarification
-
-### When Uncertain:
-1. Acknowledge the uncertainty
-2. Offer to search/verify
-3. Request missing context
+These rules are critical for maintaining code quality and accuracy.
 
 ---
 
 ## Quick Reference
 
-**Framework Documentation:** `[frameworkPath]/IDPF-Agile/`
-**Anti-Hallucination Rules:** `[frameworkPath]/Assistant/Anti-Hallucination-Rules-for-Software-Development.md`
-**Domain Specialists:** `[frameworkPath]/System-Instructions/Domain/`
-
----
-
-**Load full documentation with expansion commands when needed.**
+**Framework Documentation:** `E:\Projects\process-docs/IDPF-Agile/`
+**Domain Specialists:** `E:\Projects\process-docs/System-Instructions/Domain/`

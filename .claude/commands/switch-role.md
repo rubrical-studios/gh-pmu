@@ -1,6 +1,6 @@
 # Switch Domain Specialist Role
 
-Switch to a different domain specialist role for this session.
+Switch to a different domain specialist role and make it the default for future sessions.
 
 ## Available Roles
 
@@ -9,20 +9,68 @@ Switch to a different domain specialist role for this session.
 3. Security-Engineer
 4. PRD-Analyst
 
-## Current Primary
-
-**API-Integration-Specialist** is loaded at session startup.
-
 ## Instructions
 
-When invoked, display the available roles and ask the user to select one.
-Upon selection:
-1. **Deactivate previous role**: State that previous role instructions are now inactive
-2. Read the new specialist's instruction file from the path below
-3. **Confirm exclusive operation**: State that you are now operating exclusively as the new role
-4. Apply that specialist's expertise to subsequent work
+When invoked:
 
-**Important:** Previous role instructions remain in conversation context but are explicitly deprioritized. The new role takes exclusive precedence.
+### Step 1: Read Current Configuration
+
+Read `framework-config.json` to get the current `primarySpecialist` value.
+
+### Step 2: Display Options and Get Selection
+
+Show available roles (mark current primary if set) and ask user to select one:
+
+```
+Available roles:
+1. Backend-Specialist
+2. API-Integration-Specialist
+3. Security-Engineer
+4. PRD-Analyst
+
+Current default: [primarySpecialist or "None"]
+
+Select a role (1-4):
+```
+
+### Step 3: Update Configuration (Persist Selection)
+
+Edit `framework-config.json` to set the new `primarySpecialist` value.
+
+**Example edit:**
+- Change `"primarySpecialist": "Backend-Specialist"` to `"primarySpecialist": "Frontend-Specialist"`
+
+### Step 4: Load New Specialist Instructions
+
+Read the new specialist's instruction file:
+
+- Backend-Specialist: `E:\Projects\process-docs/System-Instructions/Domain/Backend-Specialist.md`
+- API-Integration-Specialist: `E:\Projects\process-docs/System-Instructions/Domain/API-Integration-Specialist.md`
+- Security-Engineer: `E:\Projects\process-docs/System-Instructions/Domain/Security-Engineer.md`
+- PRD-Analyst: `E:\Projects\process-docs/System-Instructions/Domain/PRD-Analyst.md`
+
+### Step 5: Confirm Switch
+
+**Response format:**
+```
+⊘ Deactivating: [Previous-Role]
+
+✓ Updated framework-config.json (new default: [New-Role])
+
+Loading [New-Role]...
+
+✓ Now operating exclusively as: [New-Role]
+  Focus areas: [from specialist file]
+
+  This role will load automatically in future sessions.
+  Previous role instructions are now inactive.
+
+What would you like to work on?
+```
+
+## Context Management
+
+Previous role instructions remain in conversation history but are explicitly deprioritized. The new role takes exclusive precedence for all subsequent work.
 
 ## File Paths
 
@@ -34,20 +82,6 @@ Upon selection:
 ## Usage
 
 User says: `/switch-role` or "switch to frontend" or "I need backend help now"
-
-**Response format:**
-```
-⊘ Deactivating: [Previous-Role]
-
-Loading [New-Role]...
-
-✓ Now operating exclusively as: [New-Role]
-  Focus areas: [role-specific focus from the specialist file]
-
-  Previous role instructions ([Previous-Role]) are now inactive.
-
-What would you like to work on?
-```
 
 ## Natural Language Triggers
 
