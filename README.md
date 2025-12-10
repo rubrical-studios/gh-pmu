@@ -77,6 +77,9 @@ Batch Operations:
   triage      Bulk update issues based on config rules
   split       Create sub-issues from checklist or arguments
 
+Utilities:
+  history     Show git commit history with issue references
+
 Flags:
   -h, --help      help for gh-pm-unified
   -v, --version   version for gh-pm-unified

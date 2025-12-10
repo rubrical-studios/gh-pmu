@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-12-10
+
+### Added
+- `gh pmu history` command - Show git commit history for files/directories with issue references (#255)
+  - Parse issue/PR references from commit messages (#123, fixes #456)
+  - Infer change type from commit prefixes (Fix:, Add:, feat:, etc.)
+  - Lipgloss styled terminal output with color-coded change types
+  - JSON output format (`--json`)
+  - Markdown file output (`--output`) to History/ directory
+  - Safety protections: 25 file limit, repo root guard (`--force` to override)
+  - Filter options: `--since`, `--limit`
+
+### Dependencies
+- Added `github.com/charmbracelet/lipgloss` v1.1.0 for styled terminal output
+
 ## [0.3.1] - 2025-12-09
 
 ### Changed
@@ -268,7 +283,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.2.13...v0.3.0
 [0.2.13]: https://github.com/rubrical-studios/gh-pmu/compare/v0.2.12...v0.2.13
