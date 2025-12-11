@@ -16,7 +16,8 @@ type moveOptions struct {
 	recursive bool
 	depth     int
 	dryRun    bool
-	yes       bool // skip confirmation
+	yes       bool   // skip confirmation
+	repo      string // repository override (owner/repo format)
 }
 
 // moveClient defines the interface for API methods used by move functions.
@@ -65,7 +66,10 @@ Examples:
   gh pmu move 10 --status backlog --recursive --yes
 
   # Limit recursion depth (default is 10)
-  gh pmu move 10 --status in_progress --recursive --depth 2`,
+  gh pmu move 10 --status in_progress --recursive --depth 2
+
+  # Specify repository explicitly
+  gh pmu move 42 --status done --repo owner/repo`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMove(cmd, args, opts)
@@ -78,6 +82,7 @@ Examples:
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt for recursive operations")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
 }
@@ -127,17 +132,28 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		return err
 	}
 
-	// If owner/repo not specified, use first repo from config
-	if owner == "" || repo == "" {
-		if len(cfg.Repositories) == 0 {
-			return fmt.Errorf("no repository specified and none configured")
-		}
-		parts := strings.Split(cfg.Repositories[0], "/")
+	// Determine default repository (--repo flag takes precedence over config)
+	defaultOwner, defaultRepo := "", ""
+	if opts.repo != "" {
+		parts := strings.Split(opts.repo, "/")
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
 		}
-		owner = parts[0]
-		repo = parts[1]
+		defaultOwner, defaultRepo = parts[0], parts[1]
+	} else if len(cfg.Repositories) > 0 {
+		parts := strings.Split(cfg.Repositories[0], "/")
+		if len(parts) == 2 {
+			defaultOwner, defaultRepo = parts[0], parts[1]
+		}
+	}
+
+	// If owner/repo not specified in issue reference, use default
+	if owner == "" || repo == "" {
+		if defaultOwner == "" || defaultRepo == "" {
+			return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
+		}
+		owner = defaultOwner
+		repo = defaultRepo
 	}
 
 	// Get issue to verify it exists

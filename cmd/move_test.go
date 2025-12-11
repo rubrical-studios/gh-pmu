@@ -393,8 +393,134 @@ func TestRunMoveWithDeps_NoRepoConfigured(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when no repository configured")
 	}
-	if err.Error() != "no repository specified and none configured" {
+	if !strings.Contains(err.Error(), "no repository specified and none configured") {
 		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestMoveCommand_HasRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	moveCmd, _, err := cmd.Find([]string{"move"})
+	if err != nil {
+		t.Fatalf("move command not found: %v", err)
+	}
+
+	flag := moveCmd.Flags().Lookup("repo")
+	if flag == nil {
+		t.Fatal("Expected --repo flag to exist")
+	}
+
+	if flag.Shorthand != "R" {
+		t.Errorf("Expected --repo shorthand to be 'R', got '%s'", flag.Shorthand)
+	}
+}
+
+func TestRunMoveWithDeps_RepoFlagOverridesConfig(t *testing.T) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.issues["other/repo#456"] = &api.Issue{
+		ID:     "issue-456",
+		Number: 456,
+		Title:  "Issue in other repo",
+		Repository: api.Repository{
+			Owner: "other",
+			Name:  "repo",
+		},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-456",
+			Issue: &api.Issue{
+				Number: 456,
+				Repository: api.Repository{
+					Owner: "other",
+					Name:  "repo",
+				},
+			},
+		},
+	}
+	cfg := testMoveConfig() // Uses testowner/testrepo
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Use --repo flag to override config
+	opts := &moveOptions{status: "in_progress", repo: "other/repo"}
+
+	err := runMoveWithDeps(cmd, []string{"456"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(mock.fieldUpdates) != 1 {
+		t.Fatalf("Expected 1 field update, got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestRunMoveWithDeps_InvalidRepoFlagFormat(t *testing.T) {
+	mock := newMockMoveClient()
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", repo: "invalid-format"}
+
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+	if err == nil {
+		t.Error("Expected error for invalid --repo format")
+	}
+	if !strings.Contains(err.Error(), "invalid --repo format") {
+		t.Errorf("Expected 'invalid --repo format' error, got: %v", err)
+	}
+}
+
+func TestRunMoveWithDeps_RepoFlagWithNoConfiguredRepos(t *testing.T) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.issues["other/repo#123"] = &api.Issue{
+		ID:     "issue-123",
+		Number: 123,
+		Title:  "Test Issue",
+		Repository: api.Repository{
+			Owner: "other",
+			Name:  "repo",
+		},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-123",
+			Issue: &api.Issue{
+				Number: 123,
+				Repository: api.Repository{
+					Owner: "other",
+					Name:  "repo",
+				},
+			},
+		},
+	}
+	cfg := testMoveConfig()
+	cfg.Repositories = []string{} // No repos configured
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// --repo flag should work even without configured repos
+	opts := &moveOptions{status: "in_progress", repo: "other/repo"}
+
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(mock.fieldUpdates) != 1 {
+		t.Fatalf("Expected 1 field update, got %d", len(mock.fieldUpdates))
 	}
 }
 
