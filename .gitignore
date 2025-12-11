@@ -25,3 +25,6 @@ vendor/
 
 # Build artifacts
 dist/
+
+# Generated history files
+History/
