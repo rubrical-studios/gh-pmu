@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 53.8%**
+**Total Coverage: 54.3%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -20,6 +20,14 @@
 | cmd/create.go:28: | newCreateCommand | 100.0% |
 | cmd/create.go:71: | runCreate | 44.1% |
 | cmd/create.go:185: | runCreateFromFile | 0.0% |
+| cmd/field.go:27: | newFieldCommand | 100.0% |
+| cmd/field.go:42: | newFieldCreateCommand | 85.7% |
+| cmd/field.go:81: | newFieldListCommand | 100.0% |
+| cmd/field.go:94: | runFieldCreate | 0.0% |
+| cmd/field.go:132: | runFieldCreateWithDeps | 52.5% |
+| cmd/field.go:210: | runFieldList | 0.0% |
+| cmd/field.go:232: | runFieldListWithDeps | 87.5% |
+| cmd/field.go:263: | mustGetwd | 75.0% |
 | cmd/history.go:103: | newHistoryCommand | 91.7% |
 | cmd/history.go:146: | runHistory | 0.0% |
 | cmd/history.go:230: | validateHistorySafety | 0.0% |
@@ -68,12 +76,12 @@
 | cmd/list.go:317: | filterByLabel | 100.0% |
 | cmd/list.go:334: | filterBySearch | 100.0% |
 | cmd/list.go:351: | openInBrowser | 0.0% |
-| cmd/move.go:32: | newMoveCommand | 100.0% |
-| cmd/move.go:95: | runMove | 16.7% |
-| cmd/move.go:123: | runMoveWithDeps | 90.4% |
-| cmd/move.go:299: | collectSubIssuesRecursive | 91.3% |
+| cmd/move.go:33: | newMoveCommand | 100.0% |
+| cmd/move.go:100: | runMove | 16.7% |
+| cmd/move.go:128: | runMoveWithDeps | 91.1% |
+| cmd/move.go:315: | collectSubIssuesRecursive | 91.3% |
 | cmd/root.go:9: | NewRootCommand | 100.0% |
-| cmd/root.go:39: | Execute | 0.0% |
+| cmd/root.go:40: | Execute | 0.0% |
 | cmd/split.go:22: | newSplitCommand | 85.7% |
 | cmd/split.go:61: | runSplit | 0.0% |
 | cmd/split.go:184: | parseChecklist | 100.0% |
@@ -137,11 +145,12 @@
 | internal/api/mutations.go:281: | getRepositoryID | 100.0% |
 | internal/api/mutations.go:302: | AddSubIssue | 100.0% |
 | internal/api/mutations.go:342: | RemoveSubIssue | 100.0% |
-| internal/api/mutations.go:382: | AddLabelToIssue | 66.7% |
-| internal/api/mutations.go:393: | getLabelID | 100.0% |
-| internal/api/mutations.go:421: | getUserID | 0.0% |
-| internal/api/mutations.go:445: | getMilestoneID | 0.0% |
-| internal/api/mutations.go:479: | CreateIssueWithOptions | 0.0% |
+| internal/api/mutations.go:383: | CreateProjectField | 100.0% |
+| internal/api/mutations.go:474: | AddLabelToIssue | 66.7% |
+| internal/api/mutations.go:485: | getLabelID | 100.0% |
+| internal/api/mutations.go:513: | getUserID | 0.0% |
+| internal/api/mutations.go:537: | getMilestoneID | 0.0% |
+| internal/api/mutations.go:571: | CreateIssueWithOptions | 0.0% |
 | internal/api/queries.go:10: | GetProject | 100.0% |
 | internal/api/queries.go:30: | getUserProject | 100.0% |
 | internal/api/queries.go:66: | getOrgProject | 100.0% |
@@ -164,6 +173,8 @@
 | internal/config/config.go:157: | ResolveFieldValue | 100.0% |
 | internal/config/config.go:172: | GetFieldName | 83.3% |
 | internal/config/config.go:189: | ApplyEnvOverrides | 100.0% |
+| internal/config/config.go:202: | Save | 83.3% |
+| internal/config/config.go:216: | AddFieldMetadata | 100.0% |
 | internal/ui/ui.go:59: | New | 100.0% |
 | internal/ui/ui.go:67: | NewWithOptions | 100.0% |
 | internal/ui/ui.go:75: | color | 100.0% |
@@ -187,4 +198,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-11 for v0.4.5*
+*Generated: 2025-12-11 for v0.5.0*
