@@ -44,10 +44,10 @@ Edit `framework-config.json` to set the new `primarySpecialist` value.
 
 Read the new specialist's instruction file:
 
-- Backend-Specialist: `E:\Projects\process-docs/System-Instructions/Domain/Backend-Specialist.md`
-- API-Integration-Specialist: `E:\Projects\process-docs/System-Instructions/Domain/API-Integration-Specialist.md`
-- Security-Engineer: `E:\Projects\process-docs/System-Instructions/Domain/Security-Engineer.md`
-- PRD-Analyst: `E:\Projects\process-docs/System-Instructions/Domain/PRD-Analyst.md`
+- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
+- API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
+- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
+- PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
 
 ### Step 5: Confirm Switch
 
@@ -74,10 +74,10 @@ Previous role instructions remain in conversation history but are explicitly dep
 
 ## File Paths
 
-- Backend-Specialist: `E:\Projects\process-docs/System-Instructions/Domain/Backend-Specialist.md`
-- API-Integration-Specialist: `E:\Projects\process-docs/System-Instructions/Domain/API-Integration-Specialist.md`
-- Security-Engineer: `E:\Projects\process-docs/System-Instructions/Domain/Security-Engineer.md`
-- PRD-Analyst: `E:\Projects\process-docs/System-Instructions/Domain/PRD-Analyst.md`
+- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
+- API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
+- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
+- PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
 
 ## Usage
 

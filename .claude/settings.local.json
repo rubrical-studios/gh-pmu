@@ -21,5 +21,18 @@
       "Bash^(git add -i:*^)"
     ],
     "ask": []
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/workflow-trigger.js",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }
