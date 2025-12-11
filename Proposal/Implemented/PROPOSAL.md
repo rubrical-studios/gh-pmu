@@ -2,9 +2,20 @@
 
 ## Proposal Document
 
-**Version:** 0.2.0-draft  
-**Date:** November 30, 2025  
-**Status:** Proposal
+**Version:** 1.0.0
+**Date:** November 30, 2025
+**Status:** Implemented
+**Implemented:** December 10, 2025 (v0.4.4)
+
+---
+
+## Implementation Notes
+
+**Phase 1 (Core Unification):** ✅ Complete - All commands implemented and released.
+
+**Phase 2 (Project Templates):** ❌ Descoped - GitHub API does not support programmatic creation of project views or workflows. See [CHANGELOG.md](../CHANGELOG.md) for details.
+
+**Future Roadmap:** See [feature-roadmap-v0.5.md](feature-roadmap-v0.5.md) for planned enhancements.
 
 ---
 
@@ -12,11 +23,11 @@
 
 This proposal outlines the creation of a unified GitHub CLI extension that combines the functionality of two existing open-source projects into a single, cohesive tool for comprehensive GitHub project and issue management from the command line.
 
-The unified extension will provide:
+The unified extension provides:
 - Full GitHub Projects v2 management
 - Issue hierarchy (sub-issues/parent-child relationships)
 - Workflow automation (triage, intake, splitting)
-- **Project templating from GitHub projects and YAML definitions**
+- ~~Project templating from GitHub projects and YAML definitions~~ (descoped)
 - Extensible architecture for future capabilities
 
 ---
