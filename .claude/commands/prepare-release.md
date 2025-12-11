@@ -149,24 +149,78 @@ git push
 
 ---
 
-## Step 8: Create Release
+## Step 8: Create Tag
 
-**Ask user for confirmation before creating release.**
+**Ask user for confirmation before creating tag.**
 
 ```bash
 # Create and push tag
 git tag vX.Y.Z
 git push origin vX.Y.Z
+```
 
-# Or use gh release create
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file release-notes.md
+**DO NOT STOP HERE. Proceed immediately to Step 9.**
+
+---
+
+## Step 9: Monitor Release Pipeline to Completion
+
+**CRITICAL: The release is NOT complete until all CI jobs finish successfully.**
+
+Pushing a tag triggers the release workflow. You MUST monitor it to completion:
+
+```bash
+# Get the run ID for the tag push
+gh run list --limit 1 --json databaseId,status,headBranch
+
+# Monitor job progress
+gh run view <run-id> --json status,conclusion,jobs
+```
+
+**Required Monitoring:**
+1. Poll every 30 seconds until `status: "completed"`
+2. Verify ALL jobs pass:
+   - test (all matrix combinations)
+   - lint
+   - build (all matrix combinations)
+   - **release** (GoReleaser - creates binaries)
+   - **coverage** (updates coverage report)
+3. If ANY job fails, report immediately and stop
+4. Verify release assets were uploaded:
+   ```bash
+   gh release view vX.Y.Z --json tagName,assets
+   ```
+
+**Only after verifying:**
+- All jobs completed successfully
+- Release assets are uploaded (binaries for all platforms)
+- Coverage report was committed
+
+**THEN report to user:**
+```
+✅ Release vX.Y.Z complete!
+
+CI Pipeline:
+  ✅ test (1.22, 1.23)
+  ✅ lint
+  ✅ build (ubuntu, macos × go 1.22, 1.23)
+  ✅ release (GoReleaser)
+  ✅ coverage report updated
+
+Assets uploaded:
+  • darwin-amd64, darwin-arm64
+  • linux-amd64, linux-arm64
+  • windows-amd64.exe, windows-arm64.exe
+  • checksums.txt
+
+https://github.com/rubrical-studios/gh-pmu/releases/tag/vX.Y.Z
 ```
 
 ---
 
 ## Summary Checklist
 
-Before creating release, verify:
+Before tagging, verify:
 
 - [ ] All commits analyzed and categorized
 - [ ] Version number confirmed with user
@@ -176,7 +230,13 @@ Before creating release, verify:
 - [ ] docs/gh-comparison.md reviewed (if new commands/flags)
 - [ ] Release preparation committed and pushed
 - [ ] CI passing on release preparation commit
-- [ ] User confirmed ready to release
+- [ ] User confirmed ready to tag
+
+After tagging, verify:
+
+- [ ] All CI jobs completed successfully (test, lint, build, release, coverage)
+- [ ] Release assets uploaded (all platform binaries + checksums)
+- [ ] `gh release view vX.Y.Z` confirms release exists with assets
 
 ---
 
@@ -205,6 +265,8 @@ Shall I prepare the CHANGELOG entry for v0.3.0?
 ## Important Rules
 
 1. **NEVER skip CI verification** - Always wait for green CI
-2. **NEVER auto-create releases** - Always get user confirmation
+2. **NEVER auto-create tags** - Always get user confirmation
 3. **NEVER guess version numbers** - Base on actual commit analysis
 4. **ALWAYS show changes before committing** - User must approve
+5. **NEVER declare release complete after pushing tag** - Tag push only triggers the pipeline; you MUST monitor until GoReleaser finishes and assets are uploaded
+6. **ALWAYS verify release assets exist** - Run `gh release view` to confirm binaries were uploaded
