@@ -9,8 +9,8 @@ var version = "dev"
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gh-pmu",
-		Short: "GitHub Project Management CLI (Unified)",
-		Long: `gh-pmu is a unified GitHub CLI extension for project management, sub-issue hierarchy, and project templating.
+		Short: "Streamline GitHub project workflows",
+		Long: `gh-pmu streamlines GitHub project workflows with unified issue tracking and sub-issue hierarchy.
 
 This extension combines and replaces:
   - gh-pm (https://github.com/yahsan2/gh-pm) - Project management
