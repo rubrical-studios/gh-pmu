@@ -378,6 +378,98 @@ type RemoveSubIssueInput struct {
 	SubIssueID graphql.ID `json:"subIssueId"`
 }
 
+// CreateProjectField creates a new field in a GitHub project.
+// Supported field types: TEXT, NUMBER, DATE, SINGLE_SELECT, ITERATION
+func (c *Client) CreateProjectField(projectID, name, dataType string, singleSelectOptions []string) (*ProjectField, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		CreateProjectV2Field struct {
+			ProjectV2Field struct {
+				TypeName                     string `graphql:"__typename"`
+				ProjectV2Field               struct {
+					ID   string
+					Name string
+				} `graphql:"... on ProjectV2Field"`
+				ProjectV2SingleSelectField struct {
+					ID      string
+					Name    string
+					Options []struct {
+						ID   string
+						Name string
+					}
+				} `graphql:"... on ProjectV2SingleSelectField"`
+			}
+		} `graphql:"createProjectV2Field(input: $input)"`
+	}
+
+	input := CreateProjectV2FieldInput{
+		ProjectID: graphql.ID(projectID),
+		DataType:  graphql.String(dataType),
+		Name:      graphql.String(name),
+	}
+
+	// Add single select options if provided
+	if dataType == "SINGLE_SELECT" && len(singleSelectOptions) > 0 {
+		var options []ProjectV2SingleSelectFieldOptionInput
+		for _, opt := range singleSelectOptions {
+			options = append(options, ProjectV2SingleSelectFieldOptionInput{
+				Name: graphql.String(opt),
+			})
+		}
+		input.SingleSelectOptions = &options
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("CreateProjectV2Field", &mutation, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create project field: %w", err)
+	}
+
+	// Build result based on field type
+	result := &ProjectField{
+		Name:     name,
+		DataType: dataType,
+	}
+
+	// Extract ID based on the type returned
+	if dataType == "SINGLE_SELECT" {
+		result.ID = mutation.CreateProjectV2Field.ProjectV2Field.ProjectV2SingleSelectField.ID
+		result.Name = mutation.CreateProjectV2Field.ProjectV2Field.ProjectV2SingleSelectField.Name
+		for _, opt := range mutation.CreateProjectV2Field.ProjectV2Field.ProjectV2SingleSelectField.Options {
+			result.Options = append(result.Options, FieldOption{
+				ID:   opt.ID,
+				Name: opt.Name,
+			})
+		}
+	} else {
+		result.ID = mutation.CreateProjectV2Field.ProjectV2Field.ProjectV2Field.ID
+		result.Name = mutation.CreateProjectV2Field.ProjectV2Field.ProjectV2Field.Name
+	}
+
+	return result, nil
+}
+
+// CreateProjectV2FieldInput represents the input for creating a project field
+type CreateProjectV2FieldInput struct {
+	ProjectID           graphql.ID                                `json:"projectId"`
+	DataType            graphql.String                            `json:"dataType"`
+	Name                graphql.String                            `json:"name"`
+	SingleSelectOptions *[]ProjectV2SingleSelectFieldOptionInput `json:"singleSelectOptions,omitempty"`
+}
+
+// ProjectV2SingleSelectFieldOptionInput represents an option for a single select field
+type ProjectV2SingleSelectFieldOptionInput struct {
+	Name        graphql.String `json:"name"`
+	Color       graphql.String `json:"color,omitempty"`
+	Description graphql.String `json:"description,omitempty"`
+}
+
 // AddLabelToIssue adds a label to an issue
 func (c *Client) AddLabelToIssue(issueID, labelName string) error {
 	if c.gql == nil {

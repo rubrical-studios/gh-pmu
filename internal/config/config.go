@@ -197,3 +197,35 @@ func (c *Config) ApplyEnvOverrides() {
 		}
 	}
 }
+
+// Save writes the configuration back to the given path
+func (c *Config) Save(path string) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+// AddFieldMetadata adds or updates field metadata in the config
+func (c *Config) AddFieldMetadata(field FieldMetadata) {
+	if c.Metadata == nil {
+		c.Metadata = &Metadata{}
+	}
+
+	// Check if field already exists, update if so
+	for i, f := range c.Metadata.Fields {
+		if f.Name == field.Name {
+			c.Metadata.Fields[i] = field
+			return
+		}
+	}
+
+	// Add new field
+	c.Metadata.Fields = append(c.Metadata.Fields, field)
+}

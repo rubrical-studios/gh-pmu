@@ -498,3 +498,204 @@ repositories:
 		t.Errorf("Expected number 13, got %d", cfg.Project.Number)
 	}
 }
+
+// ============================================================================
+// Save Tests
+// ============================================================================
+
+func TestConfig_Save_Success(t *testing.T) {
+	// ARRANGE: Create temp dir and config
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+
+	cfg := &Config{
+		Project: Project{
+			Owner:  "test-owner",
+			Number: 42,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+
+	// ACT: Save config
+	err := cfg.Save(configPath)
+
+	// ASSERT: File saved correctly
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify file was created and can be loaded
+	loadedCfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to load saved config: %v", err)
+	}
+	if loadedCfg.Project.Owner != "test-owner" {
+		t.Errorf("Expected owner 'test-owner', got '%s'", loadedCfg.Project.Owner)
+	}
+	if loadedCfg.Project.Number != 42 {
+		t.Errorf("Expected number 42, got %d", loadedCfg.Project.Number)
+	}
+}
+
+func TestConfig_Save_WithMetadata(t *testing.T) {
+	// ARRANGE: Config with metadata
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+
+	cfg := &Config{
+		Project: Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+		Metadata: &Metadata{
+			Project: ProjectMetadata{ID: "PVT_test123"},
+			Fields: []FieldMetadata{
+				{Name: "Status", ID: "F1", DataType: "SINGLE_SELECT"},
+				{Name: "PRD", ID: "F2", DataType: "TEXT"},
+			},
+		},
+	}
+
+	// ACT: Save config
+	err := cfg.Save(configPath)
+
+	// ASSERT: Metadata preserved
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	loadedCfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to load saved config: %v", err)
+	}
+	if loadedCfg.Metadata == nil {
+		t.Fatal("Expected metadata to be preserved")
+	}
+	if loadedCfg.Metadata.Project.ID != "PVT_test123" {
+		t.Errorf("Expected project ID 'PVT_test123', got '%s'", loadedCfg.Metadata.Project.ID)
+	}
+	if len(loadedCfg.Metadata.Fields) != 2 {
+		t.Errorf("Expected 2 fields in metadata, got %d", len(loadedCfg.Metadata.Fields))
+	}
+}
+
+func TestConfig_Save_InvalidPath(t *testing.T) {
+	// ARRANGE: Config with invalid path
+	cfg := &Config{
+		Project: Project{Owner: "test", Number: 1},
+	}
+
+	// ACT: Try to save to invalid path
+	err := cfg.Save("/nonexistent/directory/config.yml")
+
+	// ASSERT: Error returned
+	if err == nil {
+		t.Fatal("Expected error for invalid path, got nil")
+	}
+}
+
+// ============================================================================
+// AddFieldMetadata Tests
+// ============================================================================
+
+func TestConfig_AddFieldMetadata_NewField(t *testing.T) {
+	// ARRANGE: Config without metadata
+	cfg := &Config{
+		Project: Project{Owner: "test", Number: 1},
+	}
+
+	field := FieldMetadata{
+		Name:     "PRD",
+		ID:       "PVTF_test",
+		DataType: "TEXT",
+	}
+
+	// ACT: Add field metadata
+	cfg.AddFieldMetadata(field)
+
+	// ASSERT: Metadata created and field added
+	if cfg.Metadata == nil {
+		t.Fatal("Expected metadata to be created")
+	}
+	if len(cfg.Metadata.Fields) != 1 {
+		t.Fatalf("Expected 1 field, got %d", len(cfg.Metadata.Fields))
+	}
+	if cfg.Metadata.Fields[0].Name != "PRD" {
+		t.Errorf("Expected field name 'PRD', got '%s'", cfg.Metadata.Fields[0].Name)
+	}
+}
+
+func TestConfig_AddFieldMetadata_UpdateExisting(t *testing.T) {
+	// ARRANGE: Config with existing field
+	cfg := &Config{
+		Project: Project{Owner: "test", Number: 1},
+		Metadata: &Metadata{
+			Fields: []FieldMetadata{
+				{Name: "PRD", ID: "old-id", DataType: "TEXT"},
+			},
+		},
+	}
+
+	updatedField := FieldMetadata{
+		Name:     "PRD",
+		ID:       "new-id",
+		DataType: "TEXT",
+	}
+
+	// ACT: Add same field with different ID
+	cfg.AddFieldMetadata(updatedField)
+
+	// ASSERT: Field updated, not duplicated
+	if len(cfg.Metadata.Fields) != 1 {
+		t.Fatalf("Expected 1 field (no duplicates), got %d", len(cfg.Metadata.Fields))
+	}
+	if cfg.Metadata.Fields[0].ID != "new-id" {
+		t.Errorf("Expected field ID 'new-id', got '%s'", cfg.Metadata.Fields[0].ID)
+	}
+}
+
+func TestConfig_AddFieldMetadata_MultipleFields(t *testing.T) {
+	// ARRANGE: Empty config
+	cfg := &Config{
+		Project: Project{Owner: "test", Number: 1},
+	}
+
+	// ACT: Add multiple fields
+	cfg.AddFieldMetadata(FieldMetadata{Name: "Field1", ID: "F1", DataType: "TEXT"})
+	cfg.AddFieldMetadata(FieldMetadata{Name: "Field2", ID: "F2", DataType: "NUMBER"})
+	cfg.AddFieldMetadata(FieldMetadata{Name: "Field3", ID: "F3", DataType: "SINGLE_SELECT"})
+
+	// ASSERT: All fields added
+	if len(cfg.Metadata.Fields) != 3 {
+		t.Fatalf("Expected 3 fields, got %d", len(cfg.Metadata.Fields))
+	}
+}
+
+func TestConfig_AddFieldMetadata_WithOptions(t *testing.T) {
+	// ARRANGE: Empty config
+	cfg := &Config{
+		Project: Project{Owner: "test", Number: 1},
+	}
+
+	field := FieldMetadata{
+		Name:     "Environment",
+		ID:       "PVTSSF_test",
+		DataType: "SINGLE_SELECT",
+		Options: []OptionMetadata{
+			{Name: "Development", ID: "opt1"},
+			{Name: "Production", ID: "opt2"},
+		},
+	}
+
+	// ACT: Add field with options
+	cfg.AddFieldMetadata(field)
+
+	// ASSERT: Options preserved
+	if len(cfg.Metadata.Fields[0].Options) != 2 {
+		t.Fatalf("Expected 2 options, got %d", len(cfg.Metadata.Fields[0].Options))
+	}
+	if cfg.Metadata.Fields[0].Options[0].Name != "Development" {
+		t.Errorf("Expected first option 'Development', got '%s'", cfg.Metadata.Fields[0].Options[0].Name)
+	}
+}

@@ -51,7 +51,7 @@ Load detailed documentation when needed:
 
 <!-- Add your project-specific instructions below this line -->
 
-paint a pretty ascii picture on session startup
+paint a pretty ascii picture on session startup after entering 3 linefeeds
 
 <!-- These will be preserved during framework updates -->
 

@@ -731,3 +731,182 @@ func TestCreateIssueInput_OptionalFields(t *testing.T) {
 	}
 	_ = milestoneID // Verify it can be assigned
 }
+
+// ============================================================================
+// CreateProjectField Tests
+// ============================================================================
+
+func TestCreateProjectField_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	_, err := client.CreateProjectField("proj-id", "TestField", "TEXT", nil)
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestCreateProjectField_TextFieldSuccess(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "CreateProjectV2Field" {
+				t.Errorf("Expected mutation name 'CreateProjectV2Field', got '%s'", name)
+			}
+
+			// Verify input
+			input, ok := variables["input"].(CreateProjectV2FieldInput)
+			if !ok {
+				t.Fatal("Expected CreateProjectV2FieldInput in variables")
+			}
+			if string(input.Name) != "PRD" {
+				t.Errorf("Expected field name 'PRD', got '%s'", input.Name)
+			}
+			if string(input.DataType) != "TEXT" {
+				t.Errorf("Expected data type 'TEXT', got '%s'", input.DataType)
+			}
+
+			// Populate response using reflection
+			v := reflect.ValueOf(mutation).Elem()
+			createField := v.FieldByName("CreateProjectV2Field")
+			projectV2Field := createField.FieldByName("ProjectV2Field")
+			field := projectV2Field.FieldByName("ProjectV2Field")
+			field.FieldByName("ID").SetString("PVTF_new123")
+			field.FieldByName("Name").SetString("PRD")
+
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	field, err := client.CreateProjectField("proj-id", "PRD", "TEXT", nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if field == nil {
+		t.Fatal("Expected field to be returned")
+	}
+	if field.Name != "PRD" {
+		t.Errorf("Expected field name 'PRD', got '%s'", field.Name)
+	}
+	if field.DataType != "TEXT" {
+		t.Errorf("Expected data type 'TEXT', got '%s'", field.DataType)
+	}
+}
+
+func TestCreateProjectField_SingleSelectSuccess(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			// Verify input has options
+			input, ok := variables["input"].(CreateProjectV2FieldInput)
+			if !ok {
+				t.Fatal("Expected CreateProjectV2FieldInput in variables")
+			}
+			if string(input.DataType) != "SINGLE_SELECT" {
+				t.Errorf("Expected data type 'SINGLE_SELECT', got '%s'", input.DataType)
+			}
+			if input.SingleSelectOptions == nil || len(*input.SingleSelectOptions) != 2 {
+				t.Error("Expected 2 single select options")
+			}
+
+			// Populate response
+			v := reflect.ValueOf(mutation).Elem()
+			createField := v.FieldByName("CreateProjectV2Field")
+			projectV2Field := createField.FieldByName("ProjectV2Field")
+			singleSelect := projectV2Field.FieldByName("ProjectV2SingleSelectField")
+			singleSelect.FieldByName("ID").SetString("PVTSSF_new123")
+			singleSelect.FieldByName("Name").SetString("Environment")
+
+			// Set options
+			optionsField := singleSelect.FieldByName("Options")
+			optType := optionsField.Type().Elem()
+			optSlice := reflect.MakeSlice(optionsField.Type(), 2, 2)
+
+			opt1 := reflect.New(optType).Elem()
+			opt1.FieldByName("ID").SetString("opt1")
+			opt1.FieldByName("Name").SetString("Dev")
+			optSlice.Index(0).Set(opt1)
+
+			opt2 := reflect.New(optType).Elem()
+			opt2.FieldByName("ID").SetString("opt2")
+			opt2.FieldByName("Name").SetString("Prod")
+			optSlice.Index(1).Set(opt2)
+
+			optionsField.Set(optSlice)
+
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	field, err := client.CreateProjectField("proj-id", "Environment", "SINGLE_SELECT", []string{"Dev", "Prod"})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if field == nil {
+		t.Fatal("Expected field to be returned")
+	}
+	if field.DataType != "SINGLE_SELECT" {
+		t.Errorf("Expected data type 'SINGLE_SELECT', got '%s'", field.DataType)
+	}
+	if len(field.Options) != 2 {
+		t.Errorf("Expected 2 options, got %d", len(field.Options))
+	}
+}
+
+func TestCreateProjectField_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("mutation failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	_, err := client.CreateProjectField("proj-id", "TestField", "TEXT", nil)
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to create project field") {
+		t.Errorf("Expected 'failed to create project field' error, got: %v", err)
+	}
+}
+
+func TestCreateProjectV2FieldInput_HasRequiredFields(t *testing.T) {
+	input := CreateProjectV2FieldInput{
+		ProjectID: "proj-id",
+		DataType:  "TEXT",
+		Name:      "TestField",
+	}
+
+	if input.ProjectID != "proj-id" {
+		t.Errorf("Expected ProjectID 'proj-id', got '%s'", input.ProjectID)
+	}
+	if input.DataType != "TEXT" {
+		t.Errorf("Expected DataType 'TEXT', got '%s'", input.DataType)
+	}
+	if input.Name != "TestField" {
+		t.Errorf("Expected Name 'TestField', got '%s'", input.Name)
+	}
+}
+
+func TestProjectV2SingleSelectFieldOptionInput_HasRequiredFields(t *testing.T) {
+	input := ProjectV2SingleSelectFieldOptionInput{
+		Name:        "Option1",
+		Color:       "blue",
+		Description: "First option",
+	}
+
+	if input.Name != "Option1" {
+		t.Errorf("Expected Name 'Option1', got '%s'", input.Name)
+	}
+	if input.Color != "blue" {
+		t.Errorf("Expected Color 'blue', got '%s'", input.Color)
+	}
+	if input.Description != "First option" {
+		t.Errorf("Expected Description 'First option', got '%s'", input.Description)
+	}
+}
