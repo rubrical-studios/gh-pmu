@@ -388,8 +388,8 @@ func (c *Client) CreateProjectField(projectID, name, dataType string, singleSele
 	var mutation struct {
 		CreateProjectV2Field struct {
 			ProjectV2Field struct {
-				TypeName                     string `graphql:"__typename"`
-				ProjectV2Field               struct {
+				TypeName       string `graphql:"__typename"`
+				ProjectV2Field struct {
 					ID   string
 					Name string
 				} `graphql:"... on ProjectV2Field"`
@@ -457,9 +457,9 @@ func (c *Client) CreateProjectField(projectID, name, dataType string, singleSele
 
 // CreateProjectV2FieldInput represents the input for creating a project field
 type CreateProjectV2FieldInput struct {
-	ProjectID           graphql.ID                                `json:"projectId"`
-	DataType            graphql.String                            `json:"dataType"`
-	Name                graphql.String                            `json:"name"`
+	ProjectID           graphql.ID                               `json:"projectId"`
+	DataType            graphql.String                           `json:"dataType"`
+	Name                graphql.String                           `json:"name"`
 	SingleSelectOptions *[]ProjectV2SingleSelectFieldOptionInput `json:"singleSelectOptions,omitempty"`
 }
 
