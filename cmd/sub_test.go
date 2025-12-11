@@ -1082,6 +1082,58 @@ func TestSubListCommand_HelpDocumentsNewFlags(t *testing.T) {
 	}
 }
 
+func TestSubListCommand_HasRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	subCmd, _, err := cmd.Find([]string{"sub", "list"})
+	if err != nil {
+		t.Fatalf("sub list command not found: %v", err)
+	}
+
+	flag := subCmd.Flags().Lookup("repo")
+	if flag == nil {
+		t.Fatal("Expected --repo flag to exist")
+	}
+
+	// Verify short flag
+	if flag.Shorthand != "R" {
+		t.Errorf("Expected --repo shorthand to be 'R', got '%s'", flag.Shorthand)
+	}
+
+	// Verify it's a string flag
+	if flag.Value.Type() != "string" {
+		t.Errorf("Expected --repo to be string, got %s", flag.Value.Type())
+	}
+}
+
+func TestSubListCommand_RepoFlagInHelp(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"sub", "list", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("sub list --help failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify --repo is documented
+	if !strings.Contains(output, "--repo") {
+		t.Error("Expected help to mention --repo flag")
+	}
+	// Verify shorthand is documented
+	if !strings.Contains(output, "-R") {
+		t.Error("Expected help to mention -R shorthand")
+	}
+	// Verify owner/repo format is mentioned
+	if !strings.Contains(output, "owner/repo") {
+		t.Error("Expected help to mention owner/repo format")
+	}
+}
+
 // ============================================================================
 // filterSubIssuesByState Tests
 // ============================================================================

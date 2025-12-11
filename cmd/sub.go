@@ -372,6 +372,7 @@ type subListOptions struct {
 	limit    int
 	web      bool
 	relation string
+	repo     string
 }
 
 func newSubListCommand() *cobra.Command {
@@ -400,7 +401,8 @@ Examples:
   gh pmu sub list 10 --web        # Open parent issue in browser
   gh pmu sub list 10 --relation parent    # Show parent issue
   gh pmu sub list 10 --relation siblings  # Show sibling issues
-  gh pmu sub list 10 --relation all       # Show parent, siblings, and children`,
+  gh pmu sub list 10 --relation all       # Show parent, siblings, and children
+  gh pmu sub list 10 --repo owner/repo    # Specify repository explicitly`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSubList(cmd, args, opts)
@@ -412,6 +414,7 @@ Examples:
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 0, "Maximum number of items to display (0 for no limit)")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open issue in browser")
 	cmd.Flags().StringVar(&opts.relation, "relation", "children", "Relation to show: children, parent, siblings, all")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
 }
@@ -450,17 +453,28 @@ func runSubList(cmd *cobra.Command, args []string, opts *subListOptions) error {
 		return fmt.Errorf("invalid issue: %w", err)
 	}
 
-	// Default to configured repo if not specified
-	if issueOwner == "" || issueRepo == "" {
-		if len(cfg.Repositories) == 0 {
-			return fmt.Errorf("no repository specified and none configured")
-		}
-		parts := strings.Split(cfg.Repositories[0], "/")
+	// Determine default repository (--repo flag takes precedence over config)
+	defaultOwner, defaultRepo := "", ""
+	if opts.repo != "" {
+		parts := strings.Split(opts.repo, "/")
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
 		}
-		issueOwner = parts[0]
-		issueRepo = parts[1]
+		defaultOwner, defaultRepo = parts[0], parts[1]
+	} else if len(cfg.Repositories) > 0 {
+		parts := strings.Split(cfg.Repositories[0], "/")
+		if len(parts) == 2 {
+			defaultOwner, defaultRepo = parts[0], parts[1]
+		}
+	}
+
+	// Apply defaults if not specified in reference
+	if issueOwner == "" || issueRepo == "" {
+		if defaultOwner == "" || defaultRepo == "" {
+			return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
+		}
+		issueOwner = defaultOwner
+		issueRepo = defaultRepo
 	}
 
 	// Create API client
