@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-12-11
+
+### Added
+- `gh pmu field` command - Manage custom project fields
+  - `field create <name>` - Create project fields (text, number, date, single_select)
+  - `field list` - List all fields in the project
+  - Supports single-select fields with custom options via `--option` flag
+  - Auto-updates `.gh-pmu.yml` metadata after field creation
+- `--repo` / `-R` flag to `move` command for explicit repository specification (#265)
+  - Matches behavior of `sub add` and other commands
+  - Enables cross-repo workflows and CI/CD scripting
+
 ## [0.4.5] - 2025-12-10
 
 ### Fixed
@@ -323,7 +335,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.2...v0.4.3

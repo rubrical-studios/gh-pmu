@@ -69,6 +69,7 @@ Project Management:
   move        Update issue project fields
   close       Close issue with optional reason
   board       View project board in terminal
+  field       Manage custom project fields
 
 Sub-Issue Management:
   sub add     Link existing issue as sub-issue

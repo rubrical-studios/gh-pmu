@@ -27,6 +27,7 @@ These commands have no equivalent in the base `gh` CLI:
 | `gh pmu split` | Break an issue into sub-issues from checklist |
 | `gh pmu sub` | Manage sub-issue hierarchy (add/create/list/remove) |
 | `gh pmu triage` | Bulk rule-based issue processing |
+| `gh pmu field` | Create and list project fields |
 
 ## Unique to gh (use alongside gh pmu)
 
@@ -39,7 +40,7 @@ These base `gh` commands complement `gh pmu`:
 | `gh issue develop` | Create linked branches |
 | `gh issue pin/unpin` | Pin issues to repository |
 | `gh issue transfer` | Move issue to another repository |
-| `gh project field-*` | Manage project field definitions |
+| `gh project field-*` | Manage project field definitions (pmu has `field create/list`) |
 | `gh project copy/delete` | Project lifecycle management |
 
 ## When to Use Which
