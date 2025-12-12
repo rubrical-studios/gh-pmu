@@ -24,6 +24,7 @@ type listOptions struct {
 	hasSubIssues bool
 	json         bool
 	web          bool
+	repo         string
 }
 
 func newListCommand() *cobra.Command {
@@ -51,6 +52,7 @@ Use filters to narrow down the results.`,
 	cmd.Flags().BoolVar(&opts.hasSubIssues, "has-sub-issues", false, "Filter to only show parent issues (issues with sub-issues)")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open project board in browser")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Filter by repository (owner/repo format)")
 
 	return cmd
 }
@@ -88,9 +90,23 @@ func runList(cmd *cobra.Command, opts *listOptions) error {
 
 	// Build filter
 	var filter *api.ProjectItemsFilter
-	if len(cfg.Repositories) > 0 {
+
+	// Determine repository filter (--repo flag takes precedence over config)
+	repoFilter := ""
+	if opts.repo != "" {
+		// Validate repo format
+		parts := strings.Split(opts.repo, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
+		}
+		repoFilter = opts.repo
+	} else if len(cfg.Repositories) > 0 {
+		repoFilter = cfg.Repositories[0]
+	}
+
+	if repoFilter != "" {
 		filter = &api.ProjectItemsFilter{
-			Repository: cfg.Repositories[0],
+			Repository: repoFilter,
 		}
 	}
 

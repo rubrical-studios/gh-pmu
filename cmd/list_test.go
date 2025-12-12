@@ -191,6 +191,47 @@ func TestListCommand_HasSubIssuesHelpText(t *testing.T) {
 	}
 }
 
+func TestListCommand_HasRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	listCmd, _, err := cmd.Find([]string{"list"})
+	if err != nil {
+		t.Fatalf("list command not found: %v", err)
+	}
+
+	flag := listCmd.Flags().Lookup("repo")
+	if flag == nil {
+		t.Fatal("Expected --repo flag to exist")
+	}
+	if flag.Shorthand != "R" {
+		t.Errorf("Expected shorthand 'R', got '%s'", flag.Shorthand)
+	}
+	if flag.Value.Type() != "string" {
+		t.Errorf("Expected --repo to be string, got %s", flag.Value.Type())
+	}
+}
+
+func TestListCommand_RepoFlagInHelp(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"list", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("list help failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "--repo") {
+		t.Error("Expected help to mention --repo flag")
+	}
+	if !strings.Contains(output, "owner/repo") {
+		t.Error("Expected help to mention owner/repo format")
+	}
+}
+
 // ============================================================================
 // filterByFieldValue Tests
 // ============================================================================
