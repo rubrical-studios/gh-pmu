@@ -870,6 +870,7 @@ func printSubIssueList(subIssues []api.SubIssue, referenceIssue *api.Issue) {
 
 type subRemoveOptions struct {
 	force bool
+	repo  string
 }
 
 func newSubRemoveCommand() *cobra.Command {
@@ -898,6 +899,7 @@ Examples:
 	}
 
 	cmd.Flags().BoolVarP(&opts.force, "force", "f", false, "Skip confirmation prompts")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Default repository for issues (owner/repo format)")
 
 	return cmd
 }
@@ -924,9 +926,15 @@ func runSubRemove(cmd *cobra.Command, args []string, opts *subRemoveOptions) err
 		return fmt.Errorf("invalid parent issue: %w", err)
 	}
 
-	// Default to configured repo if not specified for parent
+	// Determine default repository (--repo flag takes precedence over config)
 	defaultOwner, defaultRepo := "", ""
-	if len(cfg.Repositories) > 0 {
+	if opts.repo != "" {
+		parts := strings.Split(opts.repo, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
+		}
+		defaultOwner, defaultRepo = parts[0], parts[1]
+	} else if len(cfg.Repositories) > 0 {
 		parts := strings.Split(cfg.Repositories[0], "/")
 		if len(parts) == 2 {
 			defaultOwner, defaultRepo = parts[0], parts[1]

@@ -17,6 +17,7 @@ type splitOptions struct {
 	from   string
 	dryRun bool
 	json   bool
+	repo   string
 }
 
 func newSplitCommand() *cobra.Command {
@@ -54,6 +55,7 @@ Completed items (- [x]) are skipped.`,
 	cmd.Flags().StringVar(&opts.from, "from", "", "Source for tasks: 'body' (issue body) or file path")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be created without making changes")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
 }
@@ -80,16 +82,23 @@ func runSplit(cmd *cobra.Command, args []string, opts *splitOptions) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	if len(cfg.Repositories) == 0 {
-		return fmt.Errorf("no repositories configured in .gh-pmu.yml")
+	// Determine repository (--repo flag takes precedence over config)
+	var owner, repo string
+	if opts.repo != "" {
+		parts := strings.Split(opts.repo, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
+		}
+		owner, repo = parts[0], parts[1]
+	} else if len(cfg.Repositories) > 0 {
+		parts := strings.SplitN(cfg.Repositories[0], "/", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid repository format: %s", cfg.Repositories[0])
+		}
+		owner, repo = parts[0], parts[1]
+	} else {
+		return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
 	}
-
-	// Parse repository
-	repoParts := strings.SplitN(cfg.Repositories[0], "/", 2)
-	if len(repoParts) != 2 {
-		return fmt.Errorf("invalid repository format: %s", cfg.Repositories[0])
-	}
-	owner, repo := repoParts[0], repoParts[1]
 
 	// Create API client
 	client := api.NewClient()

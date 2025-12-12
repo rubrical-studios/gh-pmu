@@ -16,6 +16,7 @@ type closeOptions struct {
 	reason       string
 	comment      string
 	updateStatus bool
+	repo         string
 }
 
 func newCloseCommand() *cobra.Command {
@@ -56,6 +57,7 @@ Examples:
 	cmd.Flags().StringVarP(&opts.reason, "reason", "r", "", "Reason for closing: not_planned, completed")
 	cmd.Flags().StringVarP(&opts.comment, "comment", "c", "", "Leave a closing comment")
 	cmd.Flags().BoolVar(&opts.updateStatus, "update-status", false, "Move issue to 'done' status before closing")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
 }
@@ -91,7 +93,7 @@ func runClose(cmd *cobra.Command, args []string, opts *closeOptions) error {
 
 	// If --update-status, update project status to "done" first
 	if opts.updateStatus {
-		if err := updateStatusToDone(issueNum); err != nil {
+		if err := updateStatusToDone(issueNum, opts.repo); err != nil {
 			// Warn but continue with close
 			fmt.Fprintf(os.Stderr, "Warning: failed to update status: %v\n", err)
 		}
@@ -99,6 +101,15 @@ func runClose(cmd *cobra.Command, args []string, opts *closeOptions) error {
 
 	// Build gh issue close command
 	ghArgs := []string{"issue", "close", strconv.Itoa(issueNum)}
+
+	if opts.repo != "" {
+		// Validate repo format
+		parts := strings.Split(opts.repo, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
+		}
+		ghArgs = append(ghArgs, "-R", opts.repo)
+	}
 
 	if normalizedReason != "" {
 		ghArgs = append(ghArgs, "--reason", normalizedReason)
@@ -117,7 +128,7 @@ func runClose(cmd *cobra.Command, args []string, opts *closeOptions) error {
 }
 
 // updateStatusToDone moves the issue to "done" status in the project
-func updateStatusToDone(issueNum int) error {
+func updateStatusToDone(issueNum int, repoOverride string) error {
 	// Load configuration
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -136,16 +147,23 @@ func updateStatusToDone(issueNum int) error {
 	// Create API client
 	client := api.NewClient()
 
-	// Get repository from config
-	if len(cfg.Repositories) == 0 {
-		return fmt.Errorf("no repository configured")
+	// Determine repository (--repo flag takes precedence over config)
+	var owner, repo string
+	if repoOverride != "" {
+		parts := strings.Split(repoOverride, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", repoOverride)
+		}
+		owner, repo = parts[0], parts[1]
+	} else if len(cfg.Repositories) > 0 {
+		parts := strings.Split(cfg.Repositories[0], "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
+		}
+		owner, repo = parts[0], parts[1]
+	} else {
+		return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
 	}
-	parts := strings.Split(cfg.Repositories[0], "/")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
-	}
-	owner := parts[0]
-	repo := parts[1]
 
 	// Get issue to get its node ID
 	issue, err := client.GetIssue(owner, repo, issueNum)
