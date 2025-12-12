@@ -16,6 +16,8 @@ This document compares `gh pmu` commands with the base GitHub CLI (`gh`) to help
 
 ## Unique to gh pmu
 
+### Unique Commands
+
 These commands have no equivalent in the base `gh` CLI:
 
 | Command | Purpose |
@@ -24,10 +26,35 @@ These commands have no equivalent in the base `gh` CLI:
 | `gh pmu history` | Git commit history with issue reference parsing |
 | `gh pmu init` | Configure project connection per-repo |
 | `gh pmu intake` | Find issues not yet added to the project |
+| `gh pmu move` | Update project fields with recursive sub-issue support |
 | `gh pmu split` | Break an issue into sub-issues from checklist |
 | `gh pmu sub` | Manage sub-issue hierarchy (add/create/list/remove) |
 | `gh pmu triage` | Bulk rule-based issue processing |
 | `gh pmu field` | Create and list project fields |
+
+### Unique Flags
+
+Flags available in `gh pmu` that don't exist in base `gh`:
+
+| Command | Flag | Purpose |
+|---------|------|---------|
+| `list` | `--status` | Filter by project status field |
+| `list` | `--priority` | Filter by project priority field |
+| `list` | `--has-sub-issues` | Show only parent issues |
+| `create` | `--status` | Set project status on create |
+| `create` | `--priority` | Set project priority on create |
+| `create` | `--from-file` | Create issue from YAML/JSON file |
+| `create` | `--interactive` | Prompt for all fields |
+| `close` | `--update-status` | Move to 'done' status before closing |
+| `move` | `--recursive` | Cascade changes to sub-issues |
+| `move` | `--dry-run` | Preview changes without applying |
+| `move` | `--depth` | Limit recursion depth |
+| `move` | `--yes` | Skip confirmation prompt |
+| `sub create` | `--inherit-labels` | Copy labels from parent |
+| `sub create` | `--inherit-milestone` | Copy milestone from parent |
+| `sub create` | `--inherit-assignees` | Copy assignees from parent |
+| `split` | `--from` | Source: 'body' or file path |
+| `split` | `--dry-run` | Preview what would be created |
 
 ## Unique to gh (use alongside gh pmu)
 

@@ -61,6 +61,21 @@ Utilities:  filter, history
 
 Run `gh pmu --help` for full command list.
 
+## Unique Capabilities
+
+Flags and features not available in base `gh` CLI:
+
+| Command | Unique Flags | Purpose |
+|---------|--------------|---------|
+| `list` | `--status`, `--priority`, `--has-sub-issues` | Filter by project fields |
+| `create` | `--status`, `--priority`, `--from-file` | Set project fields on create |
+| `close` | `--update-status` | Move to 'done' before closing |
+| `move` | `--recursive`, `--dry-run`, `--depth` | Cascade updates to sub-issues |
+| `sub create` | `--inherit-labels`, `--inherit-milestone` | Inherit from parent issue |
+| `split` | `--from`, `--dry-run` | Create sub-issues from checklist |
+
+See [gh vs gh pmu](docs/gh-comparison.md) for detailed comparison.
+
 ## Attribution
 
 This project builds upon work from [@yahsan2](https://github.com/yahsan2):

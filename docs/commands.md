@@ -69,11 +69,14 @@ List issues with project metadata.
 # List all issues in project
 gh pmu list
 
-# Filter by status
+# Filter by status (🆕 unique to gh-pmu)
 gh pmu list --status in_progress
 
-# Filter by priority
+# Filter by priority (🆕 unique to gh-pmu)
 gh pmu list --priority p0
+
+# Filter to parent issues only (🆕 unique to gh-pmu)
+gh pmu list --has-sub-issues
 
 # Combine filters
 gh pmu list --status ready --priority p1
@@ -84,6 +87,13 @@ gh pmu list --json
 # Specify repository
 gh pmu list --repo owner/other-repo
 ```
+
+**Flags unique to gh-pmu:**
+| Flag | Purpose |
+|------|---------|
+| `--status` | Filter by project status field |
+| `--priority` | Filter by project priority field |
+| `--has-sub-issues` | Show only parent issues |
 
 **Output:**
 ```
@@ -134,8 +144,14 @@ Create issue with project fields set in one command.
 # Basic creation
 gh pmu create --title "New feature"
 
-# With project fields
+# With project fields (🆕 unique to gh-pmu)
 gh pmu create --title "Fix bug" --status ready --priority p0
+
+# Create from YAML/JSON file (🆕 unique to gh-pmu)
+gh pmu create --from-file issue.yml
+
+# Interactive mode with prompts (🆕 unique to gh-pmu)
+gh pmu create --interactive
 
 # With body
 gh pmu create --title "Add caching" --body "Implement Redis caching for API"
@@ -143,6 +159,14 @@ gh pmu create --title "Add caching" --body "Implement Redis caching for API"
 # With labels
 gh pmu create --title "Security fix" --label bug --label security
 ```
+
+**Flags unique to gh-pmu:**
+| Flag | Purpose |
+|------|---------|
+| `--status` | Set project status field on create |
+| `--priority` | Set project priority field on create |
+| `--from-file` | Create issue from YAML/JSON file |
+| `--interactive` | Prompt for all fields interactively |
 
 **Output:**
 ```
@@ -154,7 +178,7 @@ gh pmu create --title "Security fix" --label bug --label security
 
 ### move
 
-Update issue project fields.
+Update issue project fields. **🆕 This entire command is unique to gh-pmu.**
 
 ```bash
 # Update status
@@ -163,18 +187,42 @@ gh pmu move 42 --status in_review
 # Update multiple fields
 gh pmu move 42 --status done --priority p0
 
-# Recursive update (includes sub-issues)
+# Recursive update - cascade to all sub-issues (🆕 unique)
 gh pmu move 42 --status done --recursive
+
+# Preview changes without applying (🆕 unique)
+gh pmu move 42 --status done --recursive --dry-run
+
+# Limit recursion depth (🆕 unique)
+gh pmu move 42 --status in_progress --recursive --depth 2
+
+# Skip confirmation prompt (🆕 unique)
+gh pmu move 42 --status done --recursive --yes
 
 # Specify repository
 gh pmu move 42 --status done --repo owner/other-repo
 ```
+
+**Flags unique to gh-pmu:**
+| Flag | Purpose |
+|------|---------|
+| `--recursive` | Apply changes to all sub-issues |
+| `--dry-run` | Preview what would change |
+| `--depth` | Limit recursion depth (default 10) |
+| `--yes` | Skip confirmation for recursive ops |
 
 **Output:**
 ```
 ✓ Updated issue #42: Add user authentication
   • Status → In review
 🔗 https://github.com/myorg/app/issues/42
+```
+
+**Recursive output:**
+```
+✓ Updated #42 Epic: Auth → Done
+✓ Updated #43 Login flow → Done
+✓ Updated #44 Password reset → Done
 ```
 
 ### close
@@ -191,9 +239,20 @@ gh pmu close 42 --reason not_planned
 # Close as duplicate
 gh pmu close 42 --reason duplicate
 
+# Update project status to 'done' before closing (🆕 unique to gh-pmu)
+gh pmu close 42 --update-status
+
+# Combine: update status and close with reason
+gh pmu close 42 --reason completed --update-status
+
 # Specify repository
 gh pmu close 42 --repo owner/other-repo
 ```
+
+**Flags unique to gh-pmu:**
+| Flag | Purpose |
+|------|---------|
+| `--update-status` | Move issue to 'done' status before closing |
 
 **Reason aliases:**
 | Alias | GitHub State Reason |
@@ -272,7 +331,7 @@ gh pmu sub add 10 15 --repo owner/other-repo
 
 ### sub create
 
-Create new sub-issue under parent.
+Create new sub-issue under parent. **🆕 This entire command is unique to gh-pmu.**
 
 ```bash
 gh pmu sub create --parent 10 --title "Subtask 1"
@@ -282,7 +341,18 @@ gh pmu sub create --parent 10 --title "Subtask" --status ready --priority p1
 
 # Cross-repository
 gh pmu sub create --parent 10 --title "Backend task" --repo owner/backend
+
+# Control inheritance from parent (🆕 unique flags)
+gh pmu sub create --parent 10 --title "Task" --no-inherit-labels
+gh pmu sub create --parent 10 --title "Task" --inherit-assignees
 ```
+
+**Flags unique to gh-pmu:**
+| Flag | Purpose |
+|------|---------|
+| `--inherit-labels` | Copy labels from parent (default: true) |
+| `--inherit-milestone` | Copy milestone from parent (default: true) |
+| `--inherit-assignees` | Copy assignees from parent (default: false) |
 
 ### sub list
 
@@ -354,14 +424,20 @@ gh pmu triage untracked --interactive
 
 ### split
 
-Create sub-issues from checklist or arguments.
+Create sub-issues from checklist or arguments. **🆕 This entire command is unique to gh-pmu.**
 
 ```bash
-# From checklist in issue body
+# From checklist in issue body (🆕 unique)
 gh pmu split 42 --from body
+
+# From external file (🆕 unique)
+gh pmu split 42 --from tasks.md
 
 # From arguments
 gh pmu split 42 "Task 1" "Task 2" "Task 3"
+
+# Preview without creating (🆕 unique)
+gh pmu split 42 --from body --dry-run
 
 # With status for new sub-issues
 gh pmu split 42 --from body --status ready
@@ -369,6 +445,12 @@ gh pmu split 42 --from body --status ready
 # Specify repository
 gh pmu split 42 --from body --repo owner/other-repo
 ```
+
+**Flags unique to gh-pmu:**
+| Flag | Purpose |
+|------|---------|
+| `--from` | Source: 'body' (issue body) or file path |
+| `--dry-run` | Preview what would be created |
 
 ---
 
