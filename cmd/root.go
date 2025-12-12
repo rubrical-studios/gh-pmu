@@ -33,6 +33,7 @@ Use 'gh pmu <command> --help' for more information about a command.`,
 	cmd.AddCommand(newTriageCommand())
 	cmd.AddCommand(newSplitCommand())
 	cmd.AddCommand(newHistoryCommand())
+	cmd.AddCommand(newFilterCommand())
 
 	return cmd
 }
