@@ -102,11 +102,10 @@ Follow [Keep a Changelog](https://keepachangelog.com/) format:
 
 Review if README needs updates:
 
-- [ ] Version badge updated (if applicable)
-- [ ] New commands documented
-- [ ] New flags documented
 - [ ] Installation instructions current
-- [ ] Examples updated
+- [ ] Quick Start examples work correctly
+- [ ] Feature descriptions accurate
+- [ ] Documentation links valid
 
 **Only update README if there are user-facing changes to document.**
 
@@ -116,22 +115,52 @@ Review if README needs updates:
 
 Check if documentation files need updates based on changes in this release:
 
-### docs/gh-comparison.md
-Compare `gh pmu` commands with base `gh` CLI. Update if:
-- [ ] New commands added to gh pmu
-- [ ] New flags added that overlap with `gh` functionality
-- [ ] Workflow examples need updating
-
 ```bash
 # Quick check: list current gh pmu commands
 go run . --help
-
-# Compare with documented commands in gh-comparison.md
 ```
 
-### Other docs to review
-- [ ] `docs/testing.md` - if test patterns changed
-- [ ] `coverage/README.md` - coverage report auto-updates, verify accuracy
+### docs/commands.md
+Complete command reference. Update if:
+- [ ] New commands added
+- [ ] New flags added to existing commands
+- [ ] Command output format changed
+- [ ] Examples still accurate
+
+### docs/configuration.md
+Configuration file reference. Update if:
+- [ ] New config options added
+- [ ] Field alias format changed
+- [ ] Triage rule syntax changed
+- [ ] Default values changed
+
+### docs/sub-issues.md
+Sub-issue hierarchy guide. Update if:
+- [ ] Sub-issue commands changed
+- [ ] Progress tracking behavior changed
+- [ ] Cross-repo functionality changed
+
+### docs/batch-operations.md
+Intake, triage, split workflows. Update if:
+- [ ] Batch command behavior changed
+- [ ] Triage rule options changed
+- [ ] Split functionality changed
+
+### docs/gh-comparison.md
+Compare `gh pmu` with base `gh` CLI. Update if:
+- [ ] New commands added to gh pmu
+- [ ] New flags that overlap with `gh` functionality
+- [ ] Workflow examples need updating
+
+### docs/development.md
+Development guide. Update if:
+- [ ] Build process changed
+- [ ] Test commands changed
+- [ ] Project structure changed
+
+### Other files to review
+- [ ] `CONTRIBUTING.md` - contribution guidelines current
+- [ ] `coverage/README.md` - auto-updates, verify accuracy
 
 **Only update documentation if changes in this release affect it.**
 
@@ -226,8 +255,15 @@ Before tagging, verify:
 - [ ] Version number confirmed with user
 - [ ] CI passing on main branch
 - [ ] CHANGELOG.md updated with new version
-- [ ] README.md updated (if needed)
-- [ ] docs/gh-comparison.md reviewed (if new commands/flags)
+- [ ] README.md reviewed (if user-facing changes)
+- [ ] Documentation reviewed (if commands/config changed):
+  - [ ] docs/commands.md
+  - [ ] docs/configuration.md
+  - [ ] docs/sub-issues.md
+  - [ ] docs/batch-operations.md
+  - [ ] docs/gh-comparison.md
+  - [ ] docs/development.md
+  - [ ] CONTRIBUTING.md
 - [ ] Release preparation committed and pushed
 - [ ] CI passing on release preparation commit
 - [ ] User confirmed ready to tag
