@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 54.2%**
+**Total Coverage: 53.4%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -28,6 +28,13 @@
 | cmd/field.go:210: | runFieldList | 0.0% |
 | cmd/field.go:232: | runFieldListWithDeps | 87.5% |
 | cmd/field.go:263: | mustGetwd | 75.0% |
+| cmd/filter.go:44: | newFilterCommand | 88.9% |
+| cmd/filter.go:73: | runFilter | 0.0% |
+| cmd/filter.go:188: | hasFieldValue | 100.0% |
+| cmd/filter.go:198: | hasAssignee | 100.0% |
+| cmd/filter.go:208: | hasLabel | 100.0% |
+| cmd/filter.go:218: | outputFilterJSON | 100.0% |
+| cmd/filter.go:225: | outputFilterTable | 30.0% |
 | cmd/history.go:103: | newHistoryCommand | 91.7% |
 | cmd/history.go:146: | runHistory | 0.0% |
 | cmd/history.go:230: | validateHistorySafety | 0.0% |
@@ -65,23 +72,23 @@
 | cmd/intake.go:310: | filterIntakeByLabel | 100.0% |
 | cmd/intake.go:327: | filterIntakeByAssignee | 100.0% |
 | cmd/intake.go:345: | parseApplyFields | 100.0% |
-| cmd/list.go:29: | newListCommand | 92.3% |
-| cmd/list.go:58: | runList | 0.0% |
-| cmd/list.go:149: | filterByFieldValue | 100.0% |
-| cmd/list.go:163: | filterByHasSubIssues | 50.0% |
-| cmd/list.go:189: | getFieldValue | 100.0% |
-| cmd/list.go:199: | outputTable | 100.0% |
-| cmd/list.go:263: | outputJSON | 100.0% |
-| cmd/list.go:300: | filterByAssignee | 100.0% |
-| cmd/list.go:317: | filterByLabel | 100.0% |
-| cmd/list.go:334: | filterBySearch | 100.0% |
-| cmd/list.go:351: | openInBrowser | 0.0% |
+| cmd/list.go:30: | newListCommand | 92.9% |
+| cmd/list.go:60: | runList | 0.0% |
+| cmd/list.go:165: | filterByFieldValue | 100.0% |
+| cmd/list.go:179: | filterByHasSubIssues | 50.0% |
+| cmd/list.go:205: | getFieldValue | 100.0% |
+| cmd/list.go:215: | outputTable | 100.0% |
+| cmd/list.go:279: | outputJSON | 100.0% |
+| cmd/list.go:316: | filterByAssignee | 100.0% |
+| cmd/list.go:333: | filterByLabel | 100.0% |
+| cmd/list.go:350: | filterBySearch | 100.0% |
+| cmd/list.go:367: | openInBrowser | 0.0% |
 | cmd/move.go:33: | newMoveCommand | 100.0% |
 | cmd/move.go:100: | runMove | 16.7% |
 | cmd/move.go:128: | runMoveWithDeps | 91.1% |
 | cmd/move.go:315: | collectSubIssuesRecursive | 91.3% |
 | cmd/root.go:9: | NewRootCommand | 100.0% |
-| cmd/root.go:40: | Execute | 0.0% |
+| cmd/root.go:41: | Execute | 0.0% |
 | cmd/split.go:22: | newSplitCommand | 85.7% |
 | cmd/split.go:61: | runSplit | 0.0% |
 | cmd/split.go:184: | parseChecklist | 100.0% |
@@ -198,4 +205,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-12 for v0.5.1*
+*Generated: 2025-12-12 for v0.5.2*
