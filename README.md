@@ -20,6 +20,12 @@ A GitHub CLI extension for project management and sub-issue hierarchy.
 gh extension install rubrical-studios/gh-pmu
 ```
 
+## Upgrade
+
+```bash
+gh extension upgrade gh-pmu
+```
+
 ## Quick Start
 
 ```bash
