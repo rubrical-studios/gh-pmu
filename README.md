@@ -83,6 +83,7 @@ Batch Operations:
   split       Create sub-issues from checklist or arguments
 
 Utilities:
+  filter      Filter piped issue JSON by project fields
   history     Show git commit history with issue references
 
 Flags:
@@ -215,6 +216,19 @@ gh pmu split 42 --from body
 
 # Split issue from arguments
 gh pmu split 42 "Task 1" "Task 2" "Task 3"
+```
+
+### Utilities
+
+```bash
+# Filter issues from another repo by project status
+gh issue list -R owner/repo --json number,title,state | gh pmu filter --status ready
+
+# Filter with JSON output
+gh issue list -R owner/repo --json number,title --limit 100 | gh pmu filter --status in_progress --json
+
+# Show git history with issue references
+gh pmu history src/
 ```
 
 ## Development

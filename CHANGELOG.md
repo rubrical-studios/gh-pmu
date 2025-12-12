@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-12-12
+
+### Added
+- `--repo` / `-R` flag to `list` command for filtering by repository (#268)
+  - Provides consistency with `move --repo` and `sub list --repo`
+  - Flag takes precedence over config file setting
+- `filter` subcommand for piping and filtering issue data (#267)
+  - Reads JSON from stdin (piped from `gh issue list --json ...`)
+  - Filters by project field values (`--status`, `--priority`)
+  - Additional filters: `--assignee`, `--label`
+  - Output as table (default) or JSON (`--json`)
+  - Example: `gh issue list -R owner/repo --json number,title | gh pmu filter --status ready`
+
 ## [0.5.1] - 2025-12-11
 
 ### Added
