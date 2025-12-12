@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-12-11
+
+### Added
+- `--repo` / `-R` flag to `sub list` command for explicit repository specification (#266)
+  - Follows same pattern as `move --repo` and `sub add --repo`
+  - Enables querying sub-issues from any repository without changing config
+
 ## [0.5.0] - 2025-12-11
 
 ### Added
@@ -335,7 +342,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.3...v0.4.4
