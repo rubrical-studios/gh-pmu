@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 53.4%**
+**Total Coverage: 53.0%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -13,10 +13,10 @@
 | cmd/board.go:265: | outputBoardBox | 85.9% |
 | cmd/board.go:368: | outputBoardSimple | 100.0% |
 | cmd/board.go:390: | outputBoardJSON | 100.0% |
-| cmd/close.go:21: | newCloseCommand | 85.7% |
-| cmd/close.go:64: | normalizeCloseReason | 100.0% |
-| cmd/close.go:79: | runClose | 33.3% |
-| cmd/close.go:120: | updateStatusToDone | 0.0% |
+| cmd/close.go:22: | newCloseCommand | 87.5% |
+| cmd/close.go:66: | normalizeCloseReason | 100.0% |
+| cmd/close.go:81: | runClose | 26.1% |
+| cmd/close.go:131: | updateStatusToDone | 0.0% |
 | cmd/create.go:28: | newCreateCommand | 100.0% |
 | cmd/create.go:71: | runCreate | 44.1% |
 | cmd/create.go:185: | runCreateFromFile | 0.0% |
@@ -89,11 +89,11 @@
 | cmd/move.go:315: | collectSubIssuesRecursive | 91.3% |
 | cmd/root.go:9: | NewRootCommand | 100.0% |
 | cmd/root.go:41: | Execute | 0.0% |
-| cmd/split.go:22: | newSplitCommand | 85.7% |
-| cmd/split.go:61: | runSplit | 0.0% |
-| cmd/split.go:184: | parseChecklist | 100.0% |
-| cmd/split.go:204: | outputSplitJSON | 100.0% |
-| cmd/split.go:221: | outputSplitJSONCreated | 100.0% |
+| cmd/split.go:23: | newSplitCommand | 87.5% |
+| cmd/split.go:63: | runSplit | 0.0% |
+| cmd/split.go:193: | parseChecklist | 100.0% |
+| cmd/split.go:213: | outputSplitJSON | 100.0% |
+| cmd/split.go:230: | outputSplitJSONCreated | 100.0% |
 | cmd/sub.go:14: | newSubCommand | 100.0% |
 | cmd/sub.go:36: | newSubAddCommand | 80.0% |
 | cmd/sub.go:66: | runSubAdd | 0.0% |
@@ -107,8 +107,8 @@
 | cmd/sub.go:713: | outputSubListJSONExtended | 100.0% |
 | cmd/sub.go:784: | outputSubListTableExtended | 90.0% |
 | cmd/sub.go:839: | printSubIssueList | 76.5% |
-| cmd/sub.go:875: | newSubRemoveCommand | 80.0% |
-| cmd/sub.go:905: | runSubRemove | 0.0% |
+| cmd/sub.go:876: | newSubRemoveCommand | 83.3% |
+| cmd/sub.go:907: | runSubRemove | 0.0% |
 | cmd/triage.go:36: | newTriageCommand | 90.9% |
 | cmd/triage.go:83: | runTriage | 0.0% |
 | cmd/triage.go:106: | runTriageWithDeps | 96.6% |
@@ -124,15 +124,15 @@
 | cmd/triage.go:514: | runAdHocTriage | 0.0% |
 | cmd/triage.go:609: | applyAdHocTriageRules | 0.0% |
 | cmd/triage.go:631: | parseTriageApplyFields | 93.3% |
-| cmd/view.go:23: | newViewCommand | 85.7% |
-| cmd/view.go:48: | runView | 0.0% |
-| cmd/view.go:150: | openViewInBrowser | 0.0% |
-| cmd/view.go:210: | outputViewJSON | 100.0% |
-| cmd/view.go:291: | outputViewTable | 100.0% |
-| cmd/view.go:395: | renderProgressBar | 100.0% |
-| cmd/view.go:411: | parseIssueNumber | 100.0% |
-| cmd/view.go:430: | parseIssueReference | 94.7% |
-| cmd/view.go:473: | parseIssueURL | 89.5% |
+| cmd/view.go:24: | newViewCommand | 87.5% |
+| cmd/view.go:50: | runView | 0.0% |
+| cmd/view.go:163: | openViewInBrowser | 0.0% |
+| cmd/view.go:223: | outputViewJSON | 100.0% |
+| cmd/view.go:304: | outputViewTable | 100.0% |
+| cmd/view.go:408: | renderProgressBar | 100.0% |
+| cmd/view.go:424: | parseIssueNumber | 100.0% |
+| cmd/view.go:443: | parseIssueReference | 94.7% |
+| cmd/view.go:486: | parseIssueURL | 89.5% |
 | internal/api/client.go:38: | NewClient | 100.0% |
 | internal/api/client.go:46: | NewClientWithOptions | 93.3% |
 | internal/api/client.go:89: | NewClientWithGraphQL | 100.0% |
@@ -205,4 +205,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-12 for v0.5.2*
+*Generated: 2025-12-12 for v0.5.3*
