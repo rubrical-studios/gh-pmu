@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2025-12-12
+
+### Added
+- `--repo` / `-R` flag to `view` command for explicit repository specification
+- `--repo` / `-R` flag to `close`, `split`, and `sub remove` commands
+  - Completes `--repo` flag support across all commands
+  - Enables consistent cross-repository workflows
+
+### Documentation
+- Restructured README with concise format and linked How-To guides
+- New documentation files: configuration.md, commands.md, sub-issues.md, batch-operations.md, development.md
+- Added CONTRIBUTING.md for contributor guidelines
+- Added "Unique Capabilities" section highlighting gh-pmu specific flags
+
 ## [0.5.2] - 2025-12-12
 
 ### Added
