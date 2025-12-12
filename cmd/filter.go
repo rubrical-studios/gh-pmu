@@ -22,13 +22,13 @@ type filterOptions struct {
 
 // FilterInput represents the expected JSON input format from gh issue list
 type FilterInput struct {
-	Number    int      `json:"number"`
-	Title     string   `json:"title"`
-	State     string   `json:"state"`
-	URL       string   `json:"url"`
-	Body      string   `json:"body"`
-	Labels    []Label  `json:"labels"`
-	Assignees []User   `json:"assignees"`
+	Number    int     `json:"number"`
+	Title     string  `json:"title"`
+	State     string  `json:"state"`
+	URL       string  `json:"url"`
+	Body      string  `json:"body"`
+	Labels    []Label `json:"labels"`
+	Assignees []User  `json:"assignees"`
 }
 
 // Label represents a label in the input JSON
