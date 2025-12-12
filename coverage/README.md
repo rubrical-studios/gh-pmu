@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 54.3%**
+**Total Coverage: 54.2%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -92,16 +92,16 @@
 | cmd/sub.go:66: | runSubAdd | 0.0% |
 | cmd/sub.go:183: | newSubCreateCommand | 94.1% |
 | cmd/sub.go:229: | runSubCreate | 0.0% |
-| cmd/sub.go:377: | newSubListCommand | 88.9% |
-| cmd/sub.go:419: | runSubList | 0.0% |
-| cmd/sub.go:555: | filterSubIssuesByState | 100.0% |
-| cmd/sub.go:598: | outputSubListJSON | 100.0% |
-| cmd/sub.go:635: | outputSubListTable | 100.0% |
-| cmd/sub.go:699: | outputSubListJSONExtended | 100.0% |
-| cmd/sub.go:770: | outputSubListTableExtended | 90.0% |
-| cmd/sub.go:825: | printSubIssueList | 76.5% |
-| cmd/sub.go:861: | newSubRemoveCommand | 80.0% |
-| cmd/sub.go:891: | runSubRemove | 0.0% |
+| cmd/sub.go:378: | newSubListCommand | 90.0% |
+| cmd/sub.go:422: | runSubList | 0.0% |
+| cmd/sub.go:569: | filterSubIssuesByState | 100.0% |
+| cmd/sub.go:612: | outputSubListJSON | 100.0% |
+| cmd/sub.go:649: | outputSubListTable | 100.0% |
+| cmd/sub.go:713: | outputSubListJSONExtended | 100.0% |
+| cmd/sub.go:784: | outputSubListTableExtended | 90.0% |
+| cmd/sub.go:839: | printSubIssueList | 76.5% |
+| cmd/sub.go:875: | newSubRemoveCommand | 80.0% |
+| cmd/sub.go:905: | runSubRemove | 0.0% |
 | cmd/triage.go:36: | newTriageCommand | 90.9% |
 | cmd/triage.go:83: | runTriage | 0.0% |
 | cmd/triage.go:106: | runTriageWithDeps | 96.6% |
@@ -198,4 +198,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-11 for v0.5.0*
+*Generated: 2025-12-12 for v0.5.1*
