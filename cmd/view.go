@@ -18,6 +18,7 @@ type viewOptions struct {
 	json     bool
 	web      bool
 	comments bool
+	repo     string
 }
 
 func newViewCommand() *cobra.Command {
@@ -41,6 +42,7 @@ Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open issue in browser")
 	cmd.Flags().BoolVarP(&opts.comments, "comments", "c", false, "Show issue comments")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
 }
@@ -67,17 +69,28 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 		return err
 	}
 
-	// If owner/repo not specified, use first repo from config
-	if owner == "" || repo == "" {
-		if len(cfg.Repositories) == 0 {
-			return fmt.Errorf("no repository specified and none configured")
-		}
-		parts := strings.Split(cfg.Repositories[0], "/")
+	// Determine default repository (--repo flag takes precedence over config)
+	defaultOwner, defaultRepo := "", ""
+	if opts.repo != "" {
+		parts := strings.Split(opts.repo, "/")
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
 		}
-		owner = parts[0]
-		repo = parts[1]
+		defaultOwner, defaultRepo = parts[0], parts[1]
+	} else if len(cfg.Repositories) > 0 {
+		parts := strings.Split(cfg.Repositories[0], "/")
+		if len(parts) == 2 {
+			defaultOwner, defaultRepo = parts[0], parts[1]
+		}
+	}
+
+	// If owner/repo not specified in issue reference, use default
+	if owner == "" || repo == "" {
+		if defaultOwner == "" || defaultRepo == "" {
+			return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
+		}
+		owner = defaultOwner
+		repo = defaultRepo
 	}
 
 	// Create API client

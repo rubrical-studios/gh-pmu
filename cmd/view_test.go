@@ -91,6 +91,29 @@ func TestViewCommand_HasCommentsFlag(t *testing.T) {
 	}
 }
 
+func TestViewCommand_HasRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	viewCmd, _, err := cmd.Find([]string{"view"})
+	if err != nil {
+		t.Fatalf("view command not found: %v", err)
+	}
+
+	flag := viewCmd.Flags().Lookup("repo")
+	if flag == nil {
+		t.Fatal("Expected --repo flag to exist")
+	}
+
+	// Check shorthand
+	if flag.Shorthand != "R" {
+		t.Errorf("Expected --repo shorthand to be 'R', got %s", flag.Shorthand)
+	}
+
+	// Check type
+	if flag.Value.Type() != "string" {
+		t.Errorf("Expected --repo to be string, got %s", flag.Value.Type())
+	}
+}
+
 func TestViewCommand_AcceptsIssueNumber(t *testing.T) {
 	cmd := NewRootCommand()
 	viewCmd, _, err := cmd.Find([]string{"view"})
