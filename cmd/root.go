@@ -34,6 +34,9 @@ Use 'gh pmu <command> --help' for more information about a command.`,
 	cmd.AddCommand(newSplitCommand())
 	cmd.AddCommand(newHistoryCommand())
 	cmd.AddCommand(newFilterCommand())
+	cmd.AddCommand(newMicrosprintCommand())
+	cmd.AddCommand(newReleaseCommand())
+	cmd.AddCommand(newPatchCommand())
 
 	return cmd
 }
