@@ -994,3 +994,66 @@ func calculateNextVersions(currentVersion string) (*nextVersions, error) {
 		major: fmt.Sprintf("v%d.0.0", major+1),
 	}, nil
 }
+
+// releaseActiveEntry represents an active release for config storage
+type releaseActiveEntry struct {
+	Version      string `yaml:"version"`
+	TrackerIssue int    `yaml:"tracker_issue"`
+	Started      string `yaml:"started"`
+	Track        string `yaml:"track"`
+}
+
+// parseReleaseTitle parses a release title into version and track
+// Examples:
+//
+//	"Release: v1.2.0" -> version="1.2.0", track="stable"
+//	"Release: v1.2.0 (Phoenix)" -> version="1.2.0", track="stable"
+//	"Release: patch/1.1.1" -> version="1.1.1", track="patch"
+//	"Release: beta/2.0.0" -> version="2.0.0", track="beta"
+func parseReleaseTitle(title string) (version, track string) {
+	// Remove "Release: " prefix
+	remainder := strings.TrimPrefix(title, "Release: ")
+
+	// Remove codename suffix if present (e.g., " (Phoenix)")
+	if idx := strings.Index(remainder, " ("); idx != -1 {
+		remainder = remainder[:idx]
+	}
+
+	// Check for track prefix (e.g., "patch/", "beta/")
+	if strings.Contains(remainder, "/") {
+		parts := strings.SplitN(remainder, "/", 2)
+		track = parts[0]
+		version = strings.TrimPrefix(parts[1], "v")
+	} else {
+		// Default track is "stable", version starts with v
+		track = "stable"
+		version = strings.TrimPrefix(remainder, "v")
+	}
+
+	return version, track
+}
+
+// SyncActiveReleases queries open release issues and returns active release entries
+func SyncActiveReleases(client releaseClient, owner, repo string) ([]releaseActiveEntry, error) {
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	var entries []releaseActiveEntry
+	for _, issue := range issues {
+		if !strings.HasPrefix(issue.Title, "Release: ") {
+			continue
+		}
+
+		version, track := parseReleaseTitle(issue.Title)
+		entries = append(entries, releaseActiveEntry{
+			Version:      version,
+			TrackerIssue: issue.Number,
+			Started:      "",
+			Track:        track,
+		})
+	}
+
+	return entries, nil
+}

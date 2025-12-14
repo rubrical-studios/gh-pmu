@@ -281,6 +281,20 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Sync active releases from tracker issues
+	fmt.Fprintln(cmd.OutOrStdout())
+	u.Info("Syncing active releases...")
+	activeReleases, err := syncActiveReleases(client, repoOwner, repoName)
+	if err != nil {
+		u.Warning(fmt.Sprintf("Could not sync releases: %v", err))
+	} else if len(activeReleases) > 0 {
+		for _, r := range activeReleases {
+			u.Success(fmt.Sprintf("Found active release: %s (track: %s, tracker: #%d)", r.Version, r.Track, r.TrackerIssue))
+		}
+	} else {
+		u.Info("No active releases found")
+	}
+
 	// Convert to metadata
 	metadata := &ProjectMetadata{
 		ProjectID: selectedProject.ID,
@@ -310,7 +324,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Write config
 	cwd, _ := os.Getwd()
-	if err := writeConfigWithMetadata(cwd, cfg, metadata); err != nil {
+	if err := writeConfigWithMetadata(cwd, cfg, metadata, activeReleases); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -464,12 +478,25 @@ type TriageApply struct {
 }
 
 // ConfigFileWithMetadata extends ConfigFile with metadata section.
+// ReleaseConfig holds release-related configuration
+type ReleaseConfig struct {
+	Active []ReleaseActiveEntry `yaml:"active,omitempty"`
+}
+
+// ReleaseActiveEntry represents an active release
+type ReleaseActiveEntry struct {
+	Version      string `yaml:"version"`
+	TrackerIssue int    `yaml:"tracker_issue"`
+	Track        string `yaml:"track"`
+}
+
 type ConfigFileWithMetadata struct {
 	Project      ProjectConfig           `yaml:"project"`
 	Repositories []string                `yaml:"repositories"`
 	Defaults     DefaultsConfig          `yaml:"defaults"`
 	Fields       map[string]FieldMapping `yaml:"fields"`
 	Triage       map[string]TriageRule   `yaml:"triage,omitempty"`
+	Release      ReleaseConfig           `yaml:"release,omitempty"`
 	Metadata     MetadataSection         `yaml:"metadata"`
 }
 
@@ -556,7 +583,7 @@ func writeConfig(dir string, cfg *InitConfig) error {
 }
 
 // writeConfigWithMetadata writes the configuration with project metadata.
-func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetadata) error {
+func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetadata, activeReleases []ReleaseActiveEntry) error {
 	// Convert metadata to YAML format
 	var metadataFields []MetadataField
 	for _, f := range metadata.Fields {
@@ -628,6 +655,9 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 				},
 			},
 		},
+		Release: ReleaseConfig{
+			Active: activeReleases,
+		},
 		Metadata: MetadataSection{
 			Project: MetadataProject{
 				ID: metadata.ProjectID,
@@ -647,4 +677,52 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 	}
 
 	return nil
+}
+
+// syncActiveReleases queries open release issues and returns active release entries
+func syncActiveReleases(client *api.Client, owner, repo string) ([]ReleaseActiveEntry, error) {
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	var entries []ReleaseActiveEntry
+	for _, issue := range issues {
+		if !strings.HasPrefix(issue.Title, "Release: ") {
+			continue
+		}
+
+		version, track := parseReleaseTitleForInit(issue.Title)
+		entries = append(entries, ReleaseActiveEntry{
+			Version:      version,
+			TrackerIssue: issue.Number,
+			Track:        track,
+		})
+	}
+
+	return entries, nil
+}
+
+// parseReleaseTitleForInit parses a release title into version and track
+func parseReleaseTitleForInit(title string) (version, track string) {
+	// Remove "Release: " prefix
+	remainder := strings.TrimPrefix(title, "Release: ")
+
+	// Remove codename suffix if present (e.g., " (Phoenix)")
+	if idx := strings.Index(remainder, " ("); idx != -1 {
+		remainder = remainder[:idx]
+	}
+
+	// Check for track prefix (e.g., "patch/", "beta/")
+	if strings.Contains(remainder, "/") {
+		parts := strings.SplitN(remainder, "/", 2)
+		track = parts[0]
+		version = strings.TrimPrefix(parts[1], "v")
+	} else {
+		// Default track is "stable", version starts with v
+		track = "stable"
+		version = strings.TrimPrefix(remainder, "v")
+	}
+
+	return version, track
 }

@@ -271,7 +271,7 @@ func TestWriteConfigWithMetadata_IncludesFields(t *testing.T) {
 		},
 	}
 
-	err := writeConfigWithMetadata(tmpDir, cfg, metadata)
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata, nil)
 	if err != nil {
 		t.Fatalf("writeConfigWithMetadata failed: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestWriteConfigWithMetadata_EmptyMetadata(t *testing.T) {
 		Fields:    []FieldMetadata{},
 	}
 
-	err := writeConfigWithMetadata(tmpDir, cfg, metadata)
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata, nil)
 	if err != nil {
 		t.Fatalf("writeConfigWithMetadata failed with empty fields: %v", err)
 	}
@@ -417,7 +417,7 @@ func TestWriteConfigWithMetadata_FieldOptions(t *testing.T) {
 		},
 	}
 
-	err := writeConfigWithMetadata(tmpDir, cfg, metadata)
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata, nil)
 	if err != nil {
 		t.Fatalf("writeConfigWithMetadata failed: %v", err)
 	}
@@ -531,7 +531,7 @@ func TestWriteConfigWithMetadata_InvalidDirectory(t *testing.T) {
 		Fields:    []FieldMetadata{},
 	}
 
-	err := writeConfigWithMetadata(nonExistentDir, cfg, metadata)
+	err := writeConfigWithMetadata(nonExistentDir, cfg, metadata, nil)
 	if err == nil {
 		t.Error("Expected error when writing to non-existent directory")
 	}
@@ -618,7 +618,7 @@ func TestWriteConfigWithMetadata_NilMetadataPanics(t *testing.T) {
 
 	// This should panic because metadata is nil
 	// Note: In production, metadata is always provided by the caller
-	_ = writeConfigWithMetadata(tmpDir, cfg, nil)
+	_ = writeConfigWithMetadata(tmpDir, cfg, nil, nil)
 }
 
 func TestParseGitRemote_EdgeCases(t *testing.T) {
@@ -669,6 +669,33 @@ func TestParseGitRemote_EdgeCases(t *testing.T) {
 			result := parseGitRemote(tt.remote)
 			if result != tt.expected {
 				t.Errorf("parseGitRemote(%q) = %q, want %q", tt.remote, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestParseReleaseTitleForInit(t *testing.T) {
+	tests := []struct {
+		title       string
+		wantVersion string
+		wantTrack   string
+	}{
+		{"Release: v1.2.0", "1.2.0", "stable"},
+		{"Release: v1.2.0 (Phoenix)", "1.2.0", "stable"},
+		{"Release: patch/1.1.1", "1.1.1", "patch"},
+		{"Release: beta/2.0.0", "2.0.0", "beta"},
+		{"Release: hotfix/1.0.1", "1.0.1", "hotfix"},
+		{"Release: rc/3.0.0", "3.0.0", "rc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			version, track := parseReleaseTitleForInit(tt.title)
+			if version != tt.wantVersion {
+				t.Errorf("version: got %s, want %s", version, tt.wantVersion)
+			}
+			if track != tt.wantTrack {
+				t.Errorf("track: got %s, want %s", track, tt.wantTrack)
 			}
 		})
 	}
