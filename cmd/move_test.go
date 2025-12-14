@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -1293,12 +1294,14 @@ func TestRunMoveWithDeps_MicrosprintExplicitValue(t *testing.T) {
 // AC-005-2: Given `gh pmu move 42 --microsprint current`, Then Microsprint field set to active microsprint name
 func TestRunMoveWithDeps_MicrosprintCurrent(t *testing.T) {
 	mock := setupMockWithIssue(42, "Test Issue", "item-42")
-	// Add active microsprint
+	// Add active microsprint - use today's date so test passes regardless of when it runs
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
 	mock.openIssuesByLabel["microsprint"] = []api.Issue{
 		{
 			ID:     "TRACKER_100",
 			Number: 100,
-			Title:  "Microsprint: 2025-12-13-a",
+			Title:  "Microsprint: " + microsprintName,
 			State:  "OPEN",
 		},
 	}
@@ -1319,13 +1322,13 @@ func TestRunMoveWithDeps_MicrosprintCurrent(t *testing.T) {
 	// Verify Microsprint field was set to active microsprint name
 	found := false
 	for _, update := range mock.fieldUpdates {
-		if update.fieldName == "Microsprint" && update.value == "2025-12-13-a" {
+		if update.fieldName == "Microsprint" && update.value == microsprintName {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected Microsprint field to be set to '2025-12-13-a', updates: %+v", mock.fieldUpdates)
+		t.Errorf("Expected Microsprint field to be set to '%s', updates: %+v", microsprintName, mock.fieldUpdates)
 	}
 }
 
