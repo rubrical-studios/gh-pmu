@@ -212,6 +212,75 @@ func runInit(cmd *cobra.Command, args []string) error {
 		fields = nil
 	}
 
+	// Check and create required fields
+	fmt.Fprintln(cmd.OutOrStdout())
+	u.Info("Checking project fields...")
+	requiredFields := []struct {
+		name     string
+		dataType string
+	}{
+		{"Release", "TEXT"},
+		{"Microsprint", "TEXT"},
+	}
+
+	for _, rf := range requiredFields {
+		exists, err := client.FieldExists(selectedProject.ID, rf.name)
+		if err != nil {
+			u.Warning(fmt.Sprintf("Could not check %s field: %v", rf.name, err))
+			continue
+		}
+		if exists {
+			u.Success(fmt.Sprintf("%s field exists", rf.name))
+		} else {
+			spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s field...", rf.name))
+			spinner.Start()
+			_, err := client.CreateProjectField(selectedProject.ID, rf.name, rf.dataType, nil)
+			spinner.Stop()
+			if err != nil {
+				u.Warning(fmt.Sprintf("Could not create %s field: %v", rf.name, err))
+			} else {
+				u.Success(fmt.Sprintf("Created %s field", rf.name))
+			}
+		}
+	}
+
+	// Refetch fields after potential creation
+	fields, _ = client.GetProjectFields(selectedProject.ID)
+
+	// Check and create required labels
+	fmt.Fprintln(cmd.OutOrStdout())
+	u.Info("Checking repository labels...")
+	repoOwner, repoName := splitRepository(repo)
+	requiredLabels := []struct {
+		name        string
+		color       string
+		description string
+	}{
+		{"release", "0e8a16", "Release tracker issue"},
+		{"microsprint", "1d76db", "Microsprint tracker issue"},
+	}
+
+	for _, rl := range requiredLabels {
+		exists, err := client.LabelExists(repoOwner, repoName, rl.name)
+		if err != nil {
+			u.Warning(fmt.Sprintf("Could not check %s label: %v", rl.name, err))
+			continue
+		}
+		if exists {
+			u.Success(fmt.Sprintf("%s label exists", rl.name))
+		} else {
+			spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s label...", rl.name))
+			spinner.Start()
+			err := client.CreateLabel(repoOwner, repoName, rl.name, rl.color, rl.description)
+			spinner.Stop()
+			if err != nil {
+				u.Warning(fmt.Sprintf("Could not create %s label: %v", rl.name, err))
+			} else {
+				u.Success(fmt.Sprintf("Created %s label", rl.name))
+			}
+		}
+	}
+
 	// Convert to metadata
 	metadata := &ProjectMetadata{
 		ProjectID: selectedProject.ID,

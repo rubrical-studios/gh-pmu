@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	graphql "github.com/cli/shurcooL-graphql"
 )
@@ -923,4 +924,79 @@ func (c *Client) GetIssuesByMicrosprint(owner, repo, microsprintName string) ([]
 	// and filter by the Microsprint field value
 	// For now, return empty slice - the close command doesn't strictly need this
 	return []Issue{}, nil
+}
+
+// LabelExists checks if a label exists in a repository
+func (c *Client) LabelExists(owner, repo, labelName string) (bool, error) {
+	_, err := c.getLabelID(owner, repo, labelName)
+	if err != nil {
+		// Label not found is not an error for this function
+		if strings.Contains(err.Error(), "not found") {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// CreateLabel creates a new label in a repository
+func (c *Client) CreateLabel(owner, repo, name, color, description string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	// Get repository ID first
+	repoID, err := c.getRepositoryID(owner, repo)
+	if err != nil {
+		return fmt.Errorf("failed to get repository ID: %w", err)
+	}
+
+	var mutation struct {
+		CreateLabel struct {
+			Label struct {
+				ID   string
+				Name string
+			}
+		} `graphql:"createLabel(input: $input)"`
+	}
+
+	input := CreateLabelInput{
+		RepositoryID: graphql.ID(repoID),
+		Name:         graphql.String(name),
+		Color:        graphql.String(color),
+		Description:  graphql.String(description),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err = c.gql.Mutate("CreateLabel", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to create label: %w", err)
+	}
+
+	return nil
+}
+
+// CreateLabelInput represents the input for creating a label
+type CreateLabelInput struct {
+	RepositoryID graphql.ID     `json:"repositoryId"`
+	Name         graphql.String `json:"name"`
+	Color        graphql.String `json:"color"`
+	Description  graphql.String `json:"description,omitempty"`
+}
+
+// FieldExists checks if a field exists in a project by name
+func (c *Client) FieldExists(projectID, fieldName string) (bool, error) {
+	fields, err := c.GetProjectFields(projectID)
+	if err != nil {
+		return false, err
+	}
+	for _, f := range fields {
+		if f.Name == fieldName {
+			return true, nil
+		}
+	}
+	return false, nil
 }
