@@ -60,6 +60,7 @@ type releaseClient interface {
 type releaseStartOptions struct {
 	version string
 	name    string
+	track   string
 }
 
 // releaseAddOptions holds the options for the release add command
@@ -198,6 +199,7 @@ with version suggestions based on the latest git tag.`,
 
 	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the release (interactive if omitted)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional codename for the release")
+	cmd.Flags().StringVar(&opts.track, "track", "", "Release track (stable, patch, beta, etc.)")
 
 	return cmd
 }
@@ -383,10 +385,19 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 		return fmt.Errorf("version v%s already released", normalizedVersion)
 	}
 
+	// Determine track (default to stable if not specified)
+	track := opts.track
+	if track == "" {
+		track = cfg.GetDefaultTrack()
+	}
+
+	// Format release field value with track prefix
+	releaseFieldValue := cfg.FormatReleaseFieldValue(normalizedVersion, track)
+
 	// Generate release title (AC-017-1, AC-017-2)
-	title := fmt.Sprintf("Release: v%s", normalizedVersion)
+	title := fmt.Sprintf("Release: %s", releaseFieldValue)
 	if opts.name != "" {
-		title = fmt.Sprintf("Release: v%s (%s)", normalizedVersion, opts.name)
+		title = fmt.Sprintf("Release: %s (%s)", releaseFieldValue, opts.name)
 	}
 
 	// Create tracker issue with release label (AC-017-3)

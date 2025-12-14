@@ -16,6 +16,7 @@ type Config struct {
 	Defaults     Defaults          `yaml:"defaults,omitempty"`
 	Fields       map[string]Field  `yaml:"fields,omitempty"`
 	Triage       map[string]Triage `yaml:"triage,omitempty"`
+	Release      Release           `yaml:"release,omitempty"`
 	Metadata     *Metadata         `yaml:"metadata,omitempty"`
 }
 
@@ -228,4 +229,81 @@ func (c *Config) AddFieldMetadata(field FieldMetadata) {
 
 	// Add new field
 	c.Metadata.Fields = append(c.Metadata.Fields, field)
+}
+
+// Release contains release management configuration
+type Release struct {
+	Tracks map[string]TrackConfig `yaml:"tracks,omitempty"`
+}
+
+// TrackConfig contains configuration for a release track
+type TrackConfig struct {
+	Prefix      string            `yaml:"prefix"`
+	Default     bool              `yaml:"default,omitempty"`
+	Constraints *TrackConstraints `yaml:"constraints,omitempty"`
+}
+
+// TrackConstraints contains constraints for a release track
+type TrackConstraints struct {
+	Version string            `yaml:"version,omitempty"` // e.g., "patch_only"
+	Labels  *LabelConstraints `yaml:"labels,omitempty"`
+}
+
+// LabelConstraints contains label requirements for a track
+type LabelConstraints struct {
+	Required  []string `yaml:"required,omitempty"`
+	Forbidden []string `yaml:"forbidden,omitempty"`
+}
+
+// GetTrackPrefix returns the prefix for a given track name
+// Returns "v" for stable track if not configured
+func (c *Config) GetTrackPrefix(track string) string {
+	if c.Release.Tracks == nil {
+		// Default prefixes when not configured
+		switch track {
+		case "stable", "":
+			return "v"
+		default:
+			return track + "/"
+		}
+	}
+
+	if cfg, ok := c.Release.Tracks[track]; ok {
+		return cfg.Prefix
+	}
+
+	// Default for unconfigured tracks
+	if track == "stable" || track == "" {
+		return "v"
+	}
+	return track + "/"
+}
+
+// GetDefaultTrack returns the default track name
+func (c *Config) GetDefaultTrack() string {
+	if c.Release.Tracks != nil {
+		for name, cfg := range c.Release.Tracks {
+			if cfg.Default {
+				return name
+			}
+		}
+	}
+	return "stable"
+}
+
+// GetTrackConstraints returns constraints for a track, or nil if none
+func (c *Config) GetTrackConstraints(track string) *TrackConstraints {
+	if c.Release.Tracks == nil {
+		return nil
+	}
+	if cfg, ok := c.Release.Tracks[track]; ok {
+		return cfg.Constraints
+	}
+	return nil
+}
+
+// FormatReleaseFieldValue formats a version with the track prefix
+func (c *Config) FormatReleaseFieldValue(version, track string) string {
+	prefix := c.GetTrackPrefix(track)
+	return prefix + version
 }

@@ -699,3 +699,83 @@ func TestConfig_AddFieldMetadata_WithOptions(t *testing.T) {
 		t.Errorf("Expected first option 'Development', got '%s'", cfg.Metadata.Fields[0].Options[0].Name)
 	}
 }
+
+func TestGetTrackPrefix_DefaultStable(t *testing.T) {
+	cfg := &Config{}
+	prefix := cfg.GetTrackPrefix("stable")
+	if prefix != "v" {
+		t.Errorf("expected 'v' for stable track, got '%s'", prefix)
+	}
+}
+
+func TestGetTrackPrefix_DefaultPatch(t *testing.T) {
+	cfg := &Config{}
+	prefix := cfg.GetTrackPrefix("patch")
+	if prefix != "patch/" {
+		t.Errorf("expected 'patch/' for patch track, got '%s'", prefix)
+	}
+}
+
+func TestGetTrackPrefix_Configured(t *testing.T) {
+	cfg := &Config{
+		Release: Release{
+			Tracks: map[string]TrackConfig{
+				"beta": {Prefix: "beta-"},
+			},
+		},
+	}
+	prefix := cfg.GetTrackPrefix("beta")
+	if prefix != "beta-" {
+		t.Errorf("expected 'beta-' for beta track, got '%s'", prefix)
+	}
+}
+
+func TestGetDefaultTrack_NoConfig(t *testing.T) {
+	cfg := &Config{}
+	track := cfg.GetDefaultTrack()
+	if track != "stable" {
+		t.Errorf("expected 'stable' as default track, got '%s'", track)
+	}
+}
+
+func TestGetDefaultTrack_Configured(t *testing.T) {
+	cfg := &Config{
+		Release: Release{
+			Tracks: map[string]TrackConfig{
+				"stable": {Prefix: "v"},
+				"beta":   {Prefix: "beta/", Default: true},
+			},
+		},
+	}
+	track := cfg.GetDefaultTrack()
+	if track != "beta" {
+		t.Errorf("expected 'beta' as default track, got '%s'", track)
+	}
+}
+
+func TestFormatReleaseFieldValue(t *testing.T) {
+	cfg := &Config{
+		Release: Release{
+			Tracks: map[string]TrackConfig{
+				"stable": {Prefix: "v"},
+				"patch":  {Prefix: "patch/"},
+			},
+		},
+	}
+
+	tests := []struct {
+		version string
+		track   string
+		want    string
+	}{
+		{"1.2.0", "stable", "v1.2.0"},
+		{"1.1.1", "patch", "patch/1.1.1"},
+	}
+
+	for _, tt := range tests {
+		result := cfg.FormatReleaseFieldValue(tt.version, tt.track)
+		if result != tt.want {
+			t.Errorf("FormatReleaseFieldValue(%s, %s) = %s, want %s", tt.version, tt.track, result, tt.want)
+		}
+	}
+}
