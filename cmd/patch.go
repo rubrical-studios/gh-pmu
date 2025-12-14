@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -85,6 +86,11 @@ func newPatchCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newPatchStartCommand())
+	cmd.AddCommand(newPatchAddCommand())
+	cmd.AddCommand(newPatchRemoveCommand())
+	cmd.AddCommand(newPatchCurrentCommand())
+	cmd.AddCommand(newPatchCloseCommand())
+	cmd.AddCommand(newPatchListCommand())
 
 	return cmd
 }
@@ -105,6 +111,149 @@ func newPatchStartCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the patch (required)")
 	cmd.MarkFlagRequired("version")
+
+	return cmd
+}
+
+// newPatchAddCommand creates the patch add subcommand
+func newPatchAddCommand() *cobra.Command {
+	opts := &patchAddOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "add <issue-number>",
+		Short: "Add an issue to the current patch",
+		Long:  `Assigns an issue to the active patch by setting its Patch field.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var issueNum int
+			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runPatchAddWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// newPatchRemoveCommand creates the patch remove subcommand
+func newPatchRemoveCommand() *cobra.Command {
+	opts := &patchRemoveOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "remove <issue-number>",
+		Short: "Remove an issue from the current patch",
+		Long:  `Clears the Patch field from an issue.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var issueNum int
+			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runPatchRemoveWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// newPatchCurrentCommand creates the patch current subcommand
+func newPatchCurrentCommand() *cobra.Command {
+	opts := &patchCurrentOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "current",
+		Short: "Show the active patch",
+		Long:  `Displays details about the currently active patch.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runPatchCurrentWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Update tracker issue body with current issue list")
+
+	return cmd
+}
+
+// newPatchCloseCommand creates the patch close subcommand
+func newPatchCloseCommand() *cobra.Command {
+	opts := &patchCloseOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "close",
+		Short: "Close the active patch",
+		Long:  `Closes the active patch, generates artifacts, and optionally creates a git tag.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runPatchCloseWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.tag, "tag", false, "Create a git tag for the patch")
+
+	return cmd
+}
+
+// newPatchListCommand creates the patch list subcommand
+func newPatchListCommand() *cobra.Command {
+	opts := &patchListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all patches",
+		Long:  `Displays a table of all patches sorted by version.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runPatchListWithDeps(cmd, opts, cfg, client)
+		},
+	}
 
 	return cmd
 }

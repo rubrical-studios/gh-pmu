@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -90,6 +91,11 @@ func newReleaseCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newReleaseStartCommand())
+	cmd.AddCommand(newReleaseAddCommand())
+	cmd.AddCommand(newReleaseRemoveCommand())
+	cmd.AddCommand(newReleaseCurrentCommand())
+	cmd.AddCommand(newReleaseCloseCommand())
+	cmd.AddCommand(newReleaseListCommand())
 
 	return cmd
 }
@@ -111,6 +117,149 @@ func newReleaseStartCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the release (required)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional codename for the release")
 	cmd.MarkFlagRequired("version")
+
+	return cmd
+}
+
+// newReleaseAddCommand creates the release add subcommand
+func newReleaseAddCommand() *cobra.Command {
+	opts := &releaseAddOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "add <issue-number>",
+		Short: "Add an issue to the current release",
+		Long:  `Assigns an issue to the active release by setting its Release field.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var issueNum int
+			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runReleaseAddWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// newReleaseRemoveCommand creates the release remove subcommand
+func newReleaseRemoveCommand() *cobra.Command {
+	opts := &releaseRemoveOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "remove <issue-number>",
+		Short: "Remove an issue from the current release",
+		Long:  `Clears the Release field from an issue.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var issueNum int
+			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runReleaseRemoveWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// newReleaseCurrentCommand creates the release current subcommand
+func newReleaseCurrentCommand() *cobra.Command {
+	opts := &releaseCurrentOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "current",
+		Short: "Show the active release",
+		Long:  `Displays details about the currently active release.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runReleaseCurrentWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Update tracker issue body with current issue list")
+
+	return cmd
+}
+
+// newReleaseCloseCommand creates the release close subcommand
+func newReleaseCloseCommand() *cobra.Command {
+	opts := &releaseCloseOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "close",
+		Short: "Close the active release",
+		Long:  `Closes the active release, generates artifacts, and optionally creates a git tag.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runReleaseCloseWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.tag, "tag", false, "Create a git tag for the release")
+
+	return cmd
+}
+
+// newReleaseListCommand creates the release list subcommand
+func newReleaseListCommand() *cobra.Command {
+	opts := &releaseListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all releases",
+		Long:  `Displays a table of all releases sorted by version.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runReleaseListWithDeps(cmd, opts, cfg, client)
+		},
+	}
 
 	return cmd
 }

@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
 	graphql "github.com/cli/shurcooL-graphql"
 )
@@ -669,4 +671,221 @@ func (c *Client) CreateIssueWithOptions(owner, repo, title, body string, labels,
 			Name:  repo,
 		},
 	}, nil
+}
+
+// CloseIssue closes an issue by its ID
+func (c *Client) CloseIssue(issueID string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		CloseIssue struct {
+			Issue struct {
+				ID string
+			}
+		} `graphql:"closeIssue(input: $input)"`
+	}
+
+	input := struct {
+		IssueID graphql.ID `json:"issueId"`
+	}{
+		IssueID: graphql.ID(issueID),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("CloseIssue", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to close issue: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateIssueBody updates the body of an issue
+func (c *Client) UpdateIssueBody(issueID, body string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		UpdateIssue struct {
+			Issue struct {
+				ID string
+			}
+		} `graphql:"updateIssue(input: $input)"`
+	}
+
+	input := struct {
+		ID   graphql.ID     `json:"id"`
+		Body graphql.String `json:"body"`
+	}{
+		ID:   graphql.ID(issueID),
+		Body: graphql.String(body),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("UpdateIssue", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue body: %w", err)
+	}
+
+	return nil
+}
+
+// GetIssueByNumber returns an issue by its number (alias for GetIssue)
+func (c *Client) GetIssueByNumber(owner, repo string, number int) (*Issue, error) {
+	return c.GetIssue(owner, repo, number)
+}
+
+// GetProjectItemID returns the project item ID for an issue in a project
+func (c *Client) GetProjectItemID(projectID, issueID string) (string, error) {
+	if c.gql == nil {
+		return "", fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Node struct {
+			ProjectV2 struct {
+				Items struct {
+					Nodes []struct {
+						ID      string
+						Content struct {
+							Issue struct {
+								ID string
+							} `graphql:"... on Issue"`
+						}
+					}
+					PageInfo struct {
+						HasNextPage bool
+						EndCursor   string
+					}
+				} `graphql:"items(first: 100)"`
+			} `graphql:"... on ProjectV2"`
+		} `graphql:"node(id: $projectId)"`
+	}
+
+	variables := map[string]interface{}{
+		"projectId": graphql.ID(projectID),
+	}
+
+	err := c.gql.Query("GetProjectItems", &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to get project items: %w", err)
+	}
+
+	for _, item := range query.Node.ProjectV2.Items.Nodes {
+		if item.Content.Issue.ID == issueID {
+			return item.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("issue not found in project")
+}
+
+// GetProjectItemFieldValue returns the value of a field on a project item
+func (c *Client) GetProjectItemFieldValue(projectID, itemID, fieldName string) (string, error) {
+	if c.gql == nil {
+		return "", fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Node struct {
+			ProjectV2Item struct {
+				FieldValues struct {
+					Nodes []struct {
+						ProjectV2ItemFieldTextValue struct {
+							Text  string
+							Field struct {
+								Name string
+							} `graphql:"field"`
+						} `graphql:"... on ProjectV2ItemFieldTextValue"`
+						ProjectV2ItemFieldSingleSelectValue struct {
+							Name  string
+							Field struct {
+								Name string
+							} `graphql:"field"`
+						} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
+					}
+				} `graphql:"fieldValues(first: 20)"`
+			} `graphql:"... on ProjectV2Item"`
+		} `graphql:"node(id: $itemId)"`
+	}
+
+	variables := map[string]interface{}{
+		"itemId": graphql.ID(itemID),
+	}
+
+	err := c.gql.Query("GetProjectItemFieldValue", &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to get field value: %w", err)
+	}
+
+	for _, fv := range query.Node.ProjectV2Item.FieldValues.Nodes {
+		if fv.ProjectV2ItemFieldTextValue.Field.Name == fieldName {
+			return fv.ProjectV2ItemFieldTextValue.Text, nil
+		}
+		if fv.ProjectV2ItemFieldSingleSelectValue.Field.Name == fieldName {
+			return fv.ProjectV2ItemFieldSingleSelectValue.Name, nil
+		}
+	}
+
+	return "", nil
+}
+
+// GetIssuesByRelease returns issues that have a specific release field value
+func (c *Client) GetIssuesByRelease(owner, repo, releaseVersion string) ([]Issue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	issues, err := c.GetRepositoryIssues(owner, repo, "OPEN")
+	if err != nil {
+		return nil, err
+	}
+
+	return issues, nil
+}
+
+// GetIssuesByPatch returns issues that have a specific patch field value
+func (c *Client) GetIssuesByPatch(owner, repo, patchVersion string) ([]Issue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	issues, err := c.GetRepositoryIssues(owner, repo, "OPEN")
+	if err != nil {
+		return nil, err
+	}
+
+	return issues, nil
+}
+
+// WriteFile writes content to a file path
+func (c *Client) WriteFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// MkdirAll creates a directory and all parents
+func (c *Client) MkdirAll(path string) error {
+	return os.MkdirAll(path, 0755)
+}
+
+// GitAdd stages files to git
+func (c *Client) GitAdd(paths ...string) error {
+	args := append([]string{"add"}, paths...)
+	cmd := exec.Command("git", args...)
+	return cmd.Run()
+}
+
+// GitTag creates an annotated git tag
+func (c *Client) GitTag(tag, message string) error {
+	cmd := exec.Command("git", "tag", "-a", tag, "-m", message)
+	return cmd.Run()
 }
