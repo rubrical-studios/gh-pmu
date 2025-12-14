@@ -80,9 +80,9 @@ func detectFromFrameworkConfigJson(dir string) (string, error) {
 
 // CommandRestrictionError represents an error when a command is not applicable for a framework
 type CommandRestrictionError struct {
-	Framework   string
-	Command     string
-	Suggestion  string
+	Framework  string
+	Command    string
+	Suggestion string
 }
 
 func (e *CommandRestrictionError) Error() string {

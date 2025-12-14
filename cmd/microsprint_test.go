@@ -37,22 +37,22 @@ type mockMicrosprintClient struct {
 	gitCommitCalls       []gitCommitCall
 
 	// Error injection
-	createIssueErr            error
-	getAuthUserErr            error
-	getOpenIssuesErr          error
-	getClosedIssuesErr        error
-	addToProjectErr           error
-	setFieldErr               error
-	getProjectErr             error
-	closeIssueErr             error
-	getIssueErr               error
-	getProjectItemErr         error
-	getProjectItemFieldErr    error
-	getMicrosprintIssuesErr   error
-	writeFileErr              error
-	mkdirErr                  error
-	gitAddErr                 error
-	gitCommitErr              error
+	createIssueErr          error
+	getAuthUserErr          error
+	getOpenIssuesErr        error
+	getClosedIssuesErr      error
+	addToProjectErr         error
+	setFieldErr             error
+	getProjectErr           error
+	closeIssueErr           error
+	getIssueErr             error
+	getProjectItemErr       error
+	getProjectItemFieldErr  error
+	getMicrosprintIssuesErr error
+	writeFileErr            error
+	mkdirErr                error
+	gitAddErr               error
+	gitCommitErr            error
 }
 
 type createIssueCall struct {

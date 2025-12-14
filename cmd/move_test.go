@@ -24,13 +24,13 @@ type mockMoveClient struct {
 	openIssuesByLabel map[string][]api.Issue // label -> issues
 
 	// Error injection
-	getIssueErr              error
-	getProjectErr            error
-	getProjectItemsErr       error
-	getSubIssuesErr          error
-	setProjectItemErr        error
-	setProjectItemErrFor     map[string]error // itemID -> error
-	getOpenIssuesByLabelErr  error
+	getIssueErr             error
+	getProjectErr           error
+	getProjectItemsErr      error
+	getSubIssuesErr         error
+	setProjectItemErr       error
+	setProjectItemErrFor    map[string]error // itemID -> error
+	getOpenIssuesByLabelErr error
 }
 
 type fieldUpdate struct {
