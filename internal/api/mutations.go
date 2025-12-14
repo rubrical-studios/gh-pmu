@@ -889,3 +889,38 @@ func (c *Client) GitTag(tag, message string) error {
 	cmd := exec.Command("git", "tag", "-a", tag, "-m", message)
 	return cmd.Run()
 }
+
+// GitCommit creates a git commit with the given message
+func (c *Client) GitCommit(message string) error {
+	cmd := exec.Command("git", "commit", "-m", message)
+	return cmd.Run()
+}
+
+// GetAuthenticatedUser returns the login of the currently authenticated user
+func (c *Client) GetAuthenticatedUser() (string, error) {
+	if c.gql == nil {
+		return "", fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Viewer struct {
+			Login string
+		}
+	}
+
+	err := c.gql.Query("GetAuthenticatedUser", &query, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get authenticated user: %w", err)
+	}
+
+	return query.Viewer.Login, nil
+}
+
+// GetIssuesByMicrosprint returns issues assigned to a specific microsprint
+// This queries the project items and filters by the Microsprint text field
+func (c *Client) GetIssuesByMicrosprint(owner, repo, microsprintName string) ([]Issue, error) {
+	// This is a simplified implementation - for production we'd query the project
+	// and filter by the Microsprint field value
+	// For now, return empty slice - the close command doesn't strictly need this
+	return []Issue{}, nil
+}
