@@ -19,13 +19,17 @@ type mockMoveClient struct {
 	subIssues    map[string][]api.SubIssue // "owner/repo#number" -> SubIssues
 	fieldUpdates []fieldUpdate             // track field updates for verification
 
+	// Microsprint support
+	openIssuesByLabel map[string][]api.Issue // label -> issues
+
 	// Error injection
-	getIssueErr          error
-	getProjectErr        error
-	getProjectItemsErr   error
-	getSubIssuesErr      error
-	setProjectItemErr    error
-	setProjectItemErrFor map[string]error // itemID -> error
+	getIssueErr              error
+	getProjectErr            error
+	getProjectItemsErr       error
+	getSubIssuesErr          error
+	setProjectItemErr        error
+	setProjectItemErrFor     map[string]error // itemID -> error
+	getOpenIssuesByLabelErr  error
 }
 
 type fieldUpdate struct {
@@ -39,6 +43,7 @@ func newMockMoveClient() *mockMoveClient {
 	return &mockMoveClient{
 		issues:               make(map[string]*api.Issue),
 		subIssues:            make(map[string][]api.SubIssue),
+		openIssuesByLabel:    make(map[string][]api.Issue),
 		setProjectItemErrFor: make(map[string]error),
 	}
 }
@@ -97,6 +102,13 @@ func (m *mockMoveClient) SetProjectItemField(projectID, itemID, fieldName, value
 	return nil
 }
 
+func (m *mockMoveClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+	if m.getOpenIssuesByLabelErr != nil {
+		return nil, m.getOpenIssuesByLabelErr
+	}
+	return m.openIssuesByLabel[label], nil
+}
+
 // Test helpers
 
 func testMoveConfig() *config.Config {
@@ -122,6 +134,9 @@ func testMoveConfig() *config.Config {
 					"medium": "Medium",
 					"low":    "Low",
 				},
+			},
+			"microsprint": {
+				Field: "Microsprint",
 			},
 		},
 	}
@@ -1238,5 +1253,105 @@ func TestCollectSubIssuesRecursive_MaxDepthZero(t *testing.T) {
 
 	if len(result) != 0 {
 		t.Errorf("Expected 0 sub-issues with maxDepth=0, got %d", len(result))
+	}
+}
+
+// =============================================================================
+// REQ-005: Integration with Move Command
+// =============================================================================
+
+// AC-005-1: Given `gh pmu move 42 --microsprint 2025-12-13-a`, Then Microsprint field set to specified value
+func TestRunMoveWithDeps_MicrosprintExplicitValue(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{microsprint: "2025-12-13-a"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Microsprint field was set
+	found := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Microsprint" && update.value == "2025-12-13-a" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected Microsprint field to be set to '2025-12-13-a', updates: %+v", mock.fieldUpdates)
+	}
+}
+
+// AC-005-2: Given `gh pmu move 42 --microsprint current`, Then Microsprint field set to active microsprint name
+func TestRunMoveWithDeps_MicrosprintCurrent(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	// Add active microsprint
+	mock.openIssuesByLabel["microsprint"] = []api.Issue{
+		{
+			ID:     "TRACKER_100",
+			Number: 100,
+			Title:  "Microsprint: 2025-12-13-a",
+			State:  "OPEN",
+		},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{microsprint: "current"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Microsprint field was set to active microsprint name
+	found := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Microsprint" && update.value == "2025-12-13-a" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected Microsprint field to be set to '2025-12-13-a', updates: %+v", mock.fieldUpdates)
+	}
+}
+
+// AC-005-3: Given `--microsprint current` with no active microsprint, Then error with suggestion to run `microsprint start`
+func TestRunMoveWithDeps_MicrosprintCurrentNoActive(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	// No active microsprint
+	mock.openIssuesByLabel["microsprint"] = []api.Issue{}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{microsprint: "current"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err == nil {
+		t.Fatal("Expected error when no active microsprint")
+	}
+
+	if !strings.Contains(err.Error(), "no active microsprint") {
+		t.Errorf("Expected error to mention 'no active microsprint', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "microsprint start") {
+		t.Errorf("Expected error to suggest 'microsprint start', got: %v", err)
 	}
 }

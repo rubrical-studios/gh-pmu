@@ -19,6 +19,8 @@ type microsprintClient interface {
 	GetAuthenticatedUser() (string, error)
 	// GetOpenIssuesByLabel returns open issues with a specific label
 	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
+	// GetClosedIssuesByLabel returns closed issues with a specific label
+	GetClosedIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
 	// AddIssueToProject adds an issue to a project and returns the item ID
 	AddIssueToProject(projectID, issueID string) (string, error)
 	// SetProjectItemField sets a field value on a project item
@@ -73,6 +75,11 @@ type microsprintCurrentOptions struct {
 	refresh bool
 }
 
+// microsprintListOptions holds the options for the microsprint list command
+type microsprintListOptions struct {
+	// No options needed for basic list
+}
+
 // parseOwnerRepo extracts owner and repo from the first configured repository
 func parseOwnerRepo(cfg *config.Config) (string, string, error) {
 	if len(cfg.Repositories) == 0 {
@@ -95,6 +102,28 @@ func findActiveMicrosprint(issues []api.Issue) *api.Issue {
 		if strings.HasPrefix(issues[i].Title, prefix) {
 			return &issues[i]
 		}
+	}
+	return nil
+}
+
+// countActiveMicrosprints counts how many active microsprints exist for today
+func countActiveMicrosprints(issues []api.Issue) int {
+	today := time.Now().Format("2006-01-02")
+	prefix := "Microsprint: " + today + "-"
+
+	count := 0
+	for _, issue := range issues {
+		if strings.HasPrefix(issue.Title, prefix) {
+			count++
+		}
+	}
+	return count
+}
+
+// checkMultipleActiveMicrosprints returns an error if more than one active microsprint exists
+func checkMultipleActiveMicrosprints(issues []api.Issue) error {
+	if countActiveMicrosprints(issues) > 1 {
+		return fmt.Errorf("Multiple active microsprints detected. Run 'gh pmu microsprint resolve' to fix")
 	}
 	return nil
 }
@@ -284,10 +313,15 @@ func runMicrosprintCloseWithDeps(cmd *cobra.Command, opts *microsprintCloseOptio
 		return fmt.Errorf("failed to get microsprint issues: %w", err)
 	}
 
+	// Check for multiple active microsprints (REQ-013)
+	if err := checkMultipleActiveMicrosprints(issues); err != nil {
+		return err
+	}
+
 	// Find active tracker issue for today
 	activeTracker := findActiveMicrosprint(issues)
 	if activeTracker == nil {
-		return fmt.Errorf("no active microsprint found")
+		return fmt.Errorf("no active microsprint. Run 'gh pmu microsprint start' first")
 	}
 
 	// Close the tracker issue
@@ -313,10 +347,15 @@ func runMicrosprintAddWithDeps(cmd *cobra.Command, opts *microsprintAddOptions, 
 		return fmt.Errorf("failed to get microsprint issues: %w", err)
 	}
 
+	// Check for multiple active microsprints (REQ-013)
+	if err := checkMultipleActiveMicrosprints(issues); err != nil {
+		return err
+	}
+
 	// Find active tracker issue for today
 	activeTracker := findActiveMicrosprint(issues)
 	if activeTracker == nil {
-		return fmt.Errorf("no active microsprint found")
+		return fmt.Errorf("no active microsprint. Run 'gh pmu microsprint start' first")
 	}
 
 	// Extract microsprint name from title (e.g., "Microsprint: 2025-12-13-a" -> "2025-12-13-a")
@@ -371,10 +410,15 @@ func runMicrosprintRemoveWithDeps(cmd *cobra.Command, opts *microsprintRemoveOpt
 		return fmt.Errorf("failed to get microsprint issues: %w", err)
 	}
 
+	// Check for multiple active microsprints (REQ-013)
+	if err := checkMultipleActiveMicrosprints(issues); err != nil {
+		return err
+	}
+
 	// Find active tracker issue for today
 	activeTracker := findActiveMicrosprint(issues)
 	if activeTracker == nil {
-		return fmt.Errorf("no active microsprint found")
+		return fmt.Errorf("no active microsprint. Run 'gh pmu microsprint start' first")
 	}
 
 	// Extract microsprint name from title
@@ -442,6 +486,11 @@ func runMicrosprintCurrentWithDeps(cmd *cobra.Command, opts *microsprintCurrentO
 		return fmt.Errorf("failed to get microsprint issues: %w", err)
 	}
 
+	// Check for multiple active microsprints (REQ-013)
+	if err := checkMultipleActiveMicrosprints(issues); err != nil {
+		return err
+	}
+
 	// Find active tracker issue for today
 	activeTracker := findActiveMicrosprint(issues)
 	if activeTracker == nil {
@@ -507,7 +556,7 @@ func runMicrosprintCloseArtifactsWithDeps(cmd *cobra.Command, opts *microsprintC
 	// Find active tracker issue for today
 	activeTracker := findActiveMicrosprint(issues)
 	if activeTracker == nil {
-		return fmt.Errorf("no active microsprint found")
+		return fmt.Errorf("no active microsprint. Run 'gh pmu microsprint start' first")
 	}
 
 	// Extract microsprint name from title
@@ -578,12 +627,18 @@ func generateReviewContent(microsprintName string, issues []api.Issue) string {
 	var body strings.Builder
 	body.WriteString(fmt.Sprintf("# Microsprint Review: %s\n\n", microsprintName))
 	body.WriteString("## Issues\n\n")
-	for _, issue := range issues {
-		status := "open"
-		if issue.State == "CLOSED" {
-			status = "closed"
+
+	// Handle empty microsprint (REQ-016)
+	if len(issues) == 0 {
+		body.WriteString("No issues completed in this microsprint.\n")
+	} else {
+		for _, issue := range issues {
+			status := "open"
+			if issue.State == "CLOSED" {
+				status = "closed"
+			}
+			body.WriteString(fmt.Sprintf("- #%d %s (%s)\n", issue.Number, issue.Title, status))
 		}
-		body.WriteString(fmt.Sprintf("- #%d %s (%s)\n", issue.Number, issue.Title, status))
 	}
 	return body.String()
 }
@@ -612,4 +667,80 @@ func generateTrackerCloseBody(issues []api.Issue, artifactDir string) string {
 	body.WriteString(fmt.Sprintf("- [review.md](%s/review.md)\n", artifactDir))
 	body.WriteString(fmt.Sprintf("- [retro.md](%s/retro.md)\n", artifactDir))
 	return body.String()
+}
+
+// runMicrosprintListWithDeps is the testable entry point for microsprint list
+// It receives all dependencies as parameters for easy mocking in tests
+func runMicrosprintListWithDeps(cmd *cobra.Command, opts *microsprintListOptions, cfg *config.Config, client microsprintClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get both open and closed microsprint issues
+	openIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
+	if err != nil {
+		return fmt.Errorf("failed to get open microsprint issues: %w", err)
+	}
+
+	closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "microsprint")
+	if err != nil {
+		return fmt.Errorf("failed to get closed microsprint issues: %w", err)
+	}
+
+	// Filter for valid tracker issues and combine
+	var allTrackers []api.Issue
+	for _, issue := range openIssues {
+		if strings.HasPrefix(issue.Title, "Microsprint: ") {
+			allTrackers = append(allTrackers, issue)
+		}
+	}
+	for _, issue := range closedIssues {
+		if strings.HasPrefix(issue.Title, "Microsprint: ") {
+			allTrackers = append(allTrackers, issue)
+		}
+	}
+
+	// Handle no microsprints found
+	if len(allTrackers) == 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "No microsprints found\n")
+		return nil
+	}
+
+	// Sort by microsprint name (date) descending
+	sortMicrosprintsByDateDesc(allTrackers)
+
+	// Print table header
+	fmt.Fprintf(cmd.OutOrStdout(), "%-20s  %-10s  %-10s\n", "MICROSPRINT", "TRACKER", "STATUS")
+	fmt.Fprintf(cmd.OutOrStdout(), "%-20s  %-10s  %-10s\n", "--------------------", "----------", "----------")
+
+	// Print each microsprint
+	for _, tracker := range allTrackers {
+		name := strings.TrimPrefix(tracker.Title, "Microsprint: ")
+		trackerNum := fmt.Sprintf("#%d", tracker.Number)
+		status := "Active"
+		if tracker.State == "CLOSED" {
+			status = "Closed"
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%-20s  %-10s  %-10s\n", name, trackerNum, status)
+	}
+
+	return nil
+}
+
+// sortMicrosprintsByDateDesc sorts microsprint issues by their date in descending order
+func sortMicrosprintsByDateDesc(issues []api.Issue) {
+	// Simple bubble sort for now (microsprints list is typically small)
+	for i := 0; i < len(issues)-1; i++ {
+		for j := i + 1; j < len(issues); j++ {
+			// Extract date portion from title: "Microsprint: YYYY-MM-DD-x"
+			nameI := strings.TrimPrefix(issues[i].Title, "Microsprint: ")
+			nameJ := strings.TrimPrefix(issues[j].Title, "Microsprint: ")
+
+			// Compare - larger (more recent) date should come first
+			if nameI < nameJ {
+				issues[i], issues[j] = issues[j], issues[i]
+			}
+		}
+	}
 }

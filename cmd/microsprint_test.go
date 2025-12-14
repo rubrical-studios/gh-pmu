@@ -17,6 +17,7 @@ type mockMicrosprintClient struct {
 	createdIssue          *api.Issue
 	authenticatedUser     string
 	openIssues            []api.Issue
+	closedIssues          []api.Issue
 	project               *api.Project
 	addedItemID           string
 	issueByNumber         *api.Issue
@@ -39,6 +40,7 @@ type mockMicrosprintClient struct {
 	createIssueErr            error
 	getAuthUserErr            error
 	getOpenIssuesErr          error
+	getClosedIssuesErr        error
 	addToProjectErr           error
 	setFieldErr               error
 	getProjectErr             error
@@ -117,6 +119,13 @@ func (m *mockMicrosprintClient) GetOpenIssuesByLabel(owner, repo, label string) 
 		return nil, m.getOpenIssuesErr
 	}
 	return m.openIssues, nil
+}
+
+func (m *mockMicrosprintClient) GetClosedIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+	if m.getClosedIssuesErr != nil {
+		return nil, m.getClosedIssuesErr
+	}
+	return m.closedIssues, nil
 }
 
 func (m *mockMicrosprintClient) AddIssueToProject(projectID, issueID string) (string, error) {
@@ -249,6 +258,19 @@ func setupMockForStart() *mockMicrosprintClient {
 			Title:  "Test Project",
 		},
 		addedItemID: "ITEM_456",
+	}
+}
+
+func setupMockForMicrosprint() *mockMicrosprintClient {
+	return &mockMicrosprintClient{
+		authenticatedUser: "testuser",
+		openIssues:        []api.Issue{},
+		closedIssues:      []api.Issue{},
+		project: &api.Project{
+			ID:     "PROJECT_1",
+			Number: 1,
+			Title:  "Test Project",
+		},
 	}
 }
 
@@ -1444,5 +1466,317 @@ func TestRunMicrosprintCloseArtifactsWithDeps_UpdatesTrackerAndCloses(t *testing
 
 	if mock.closeIssueCalls[0].issueID != "TRACKER_123" {
 		t.Errorf("Expected to close TRACKER_123, got %s", mock.closeIssueCalls[0].issueID)
+	}
+}
+
+// =============================================================================
+// REQ-008: List Microsprint History
+// =============================================================================
+
+// AC-008-1: Given `microsprint list`, Then table displayed with: Microsprint, Tracker#, Issues, Done, Duration, Status
+func TestRunMicrosprintListWithDeps_DisplaysTable(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_100",
+			Number: 100,
+			Title:  "Microsprint: 2025-12-13-a",
+			State:  "OPEN",
+		},
+	}
+	mock.closedIssues = []api.Issue{
+		{
+			ID:     "TRACKER_99",
+			Number: 99,
+			Title:  "Microsprint: 2025-12-12-a",
+			State:  "CLOSED",
+		},
+	}
+
+	cfg := testMicrosprintConfig()
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{}
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify headers
+	if !strings.Contains(output, "MICROSPRINT") {
+		t.Errorf("Expected output to contain 'MICROSPRINT' header, got '%s'", output)
+	}
+	if !strings.Contains(output, "TRACKER") {
+		t.Errorf("Expected output to contain 'TRACKER' header, got '%s'", output)
+	}
+	if !strings.Contains(output, "STATUS") {
+		t.Errorf("Expected output to contain 'STATUS' header, got '%s'", output)
+	}
+
+	// Verify microsprint data
+	if !strings.Contains(output, "2025-12-13-a") {
+		t.Errorf("Expected output to contain '2025-12-13-a', got '%s'", output)
+	}
+	if !strings.Contains(output, "2025-12-12-a") {
+		t.Errorf("Expected output to contain '2025-12-12-a', got '%s'", output)
+	}
+}
+
+// AC-008-2: Given multiple microsprints, Then sorted by date descending (most recent first)
+func TestRunMicrosprintListWithDeps_SortedByDateDescending(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	mock.openIssues = []api.Issue{}
+	mock.closedIssues = []api.Issue{
+		{
+			ID:     "TRACKER_1",
+			Number: 1,
+			Title:  "Microsprint: 2025-12-10-a",
+			State:  "CLOSED",
+		},
+		{
+			ID:     "TRACKER_3",
+			Number: 3,
+			Title:  "Microsprint: 2025-12-12-a",
+			State:  "CLOSED",
+		},
+		{
+			ID:     "TRACKER_2",
+			Number: 2,
+			Title:  "Microsprint: 2025-12-11-a",
+			State:  "CLOSED",
+		},
+	}
+
+	cfg := testMicrosprintConfig()
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{}
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// 2025-12-12 should appear before 2025-12-11, which should appear before 2025-12-10
+	pos12 := strings.Index(output, "2025-12-12-a")
+	pos11 := strings.Index(output, "2025-12-11-a")
+	pos10 := strings.Index(output, "2025-12-10-a")
+
+	if pos12 > pos11 {
+		t.Errorf("Expected 2025-12-12-a to appear before 2025-12-11-a (descending order)")
+	}
+	if pos11 > pos10 {
+		t.Errorf("Expected 2025-12-11-a to appear before 2025-12-10-a (descending order)")
+	}
+}
+
+// Test no microsprints shows message
+func TestRunMicrosprintListWithDeps_NoMicrosprints(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	mock.openIssues = []api.Issue{}
+	mock.closedIssues = []api.Issue{}
+
+	cfg := testMicrosprintConfig()
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{}
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No microsprints found") {
+		t.Errorf("Expected output to contain 'No microsprints found', got '%s'", output)
+	}
+}
+
+// =============================================================================
+// REQ-013: Multiple Active Detection
+// =============================================================================
+
+// AC-013-1: Given 2+ open tracker issues, When running `microsprint add`, Then error
+func TestRunMicrosprintAddWithDeps_MultipleActiveError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	today := time.Now().Format("2006-01-02")
+	// Two active microsprints for today
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_100",
+			Number: 100,
+			Title:  "Microsprint: " + today + "-a",
+			State:  "OPEN",
+		},
+		{
+			ID:     "TRACKER_101",
+			Number: 101,
+			Title:  "Microsprint: " + today + "-b",
+			State:  "OPEN",
+		},
+	}
+
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintAddOptions{issueNumber: 42}
+
+	// ACT
+	err := runMicrosprintAddWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when multiple active microsprints exist")
+	}
+	if !strings.Contains(err.Error(), "Multiple active microsprints") {
+		t.Errorf("Expected error to mention 'Multiple active microsprints', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "microsprint resolve") {
+		t.Errorf("Expected error to suggest 'microsprint resolve', got: %v", err)
+	}
+}
+
+// AC-013-2: Given 2+ open tracker issues, When running `microsprint close`, Then error
+func TestRunMicrosprintCloseWithDeps_MultipleActiveError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	today := time.Now().Format("2006-01-02")
+	// Two active microsprints for today
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_100",
+			Number: 100,
+			Title:  "Microsprint: " + today + "-a",
+			State:  "OPEN",
+		},
+		{
+			ID:     "TRACKER_101",
+			Number: 101,
+			Title:  "Microsprint: " + today + "-b",
+			State:  "OPEN",
+		},
+	}
+
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{}
+
+	// ACT
+	err := runMicrosprintCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when multiple active microsprints exist")
+	}
+	if !strings.Contains(err.Error(), "Multiple active microsprints") {
+		t.Errorf("Expected error to mention 'Multiple active microsprints', got: %v", err)
+	}
+}
+
+// =============================================================================
+// REQ-016: Empty Microsprint Close
+// =============================================================================
+
+// AC-016-1: Given active microsprint with 0 issues, Then review.md generated with "No issues completed"
+func TestGenerateReviewContent_EmptyMicrosprint(t *testing.T) {
+	// ACT
+	content := generateReviewContent("2025-12-13-a", []api.Issue{})
+
+	// ASSERT
+	if !strings.Contains(content, "No issues completed") {
+		t.Errorf("Expected content to contain 'No issues completed', got: %s", content)
+	}
+}
+
+// =============================================================================
+// REQ-012: Tracker Naming Validation
+// =============================================================================
+
+// AC-012-1: Given issue with `microsprint` label but incorrect title, Then ignored
+func TestFindActiveMicrosprint_IgnoresNonTrackerIssues(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	issues := []api.Issue{
+		{
+			ID:     "RANDOM_1",
+			Number: 1,
+			Title:  "Random Issue with microsprint label",
+			State:  "OPEN",
+		},
+		{
+			ID:     "TRACKER_2",
+			Number: 2,
+			Title:  "Microsprint: " + today + "-a",
+			State:  "OPEN",
+		},
+	}
+
+	// ACT
+	result := findActiveMicrosprint(issues)
+
+	// ASSERT
+	if result == nil {
+		t.Fatal("Expected to find tracker issue")
+	}
+	if result.Number != 2 {
+		t.Errorf("Expected to find issue #2, got #%d", result.Number)
+	}
+}
+
+// AC-012-2: Given issue with correct title pattern, Then recognized as tracker
+func TestFindActiveMicrosprint_RecognizesTrackerIssue(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	issues := []api.Issue{
+		{
+			ID:     "TRACKER_1",
+			Number: 1,
+			Title:  "Microsprint: " + today + "-a",
+			State:  "OPEN",
+		},
+	}
+
+	// ACT
+	result := findActiveMicrosprint(issues)
+
+	// ASSERT
+	if result == nil {
+		t.Fatal("Expected to find tracker issue")
+	}
+	if result.Number != 1 {
+		t.Errorf("Expected issue #1, got #%d", result.Number)
+	}
+}
+
+// AC-012-2: Also recognizes tracker with custom name suffix
+func TestFindActiveMicrosprint_RecognizesTrackerWithCustomName(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	issues := []api.Issue{
+		{
+			ID:     "TRACKER_1",
+			Number: 1,
+			Title:  "Microsprint: " + today + "-a-auth-refactor",
+			State:  "OPEN",
+		},
+	}
+
+	// ACT
+	result := findActiveMicrosprint(issues)
+
+	// ASSERT
+	if result == nil {
+		t.Fatal("Expected to find tracker issue with custom name")
 	}
 }

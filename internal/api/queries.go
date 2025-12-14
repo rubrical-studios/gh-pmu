@@ -567,6 +567,132 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 	return issues, nil
 }
 
+// GetOpenIssuesByLabel fetches open issues with a specific label
+func (c *Client) GetOpenIssuesByLabel(owner, repo, label string) ([]Issue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Repository struct {
+			Issues struct {
+				Nodes []struct {
+					ID     string
+					Number int
+					Title  string
+					State  string
+					URL    string `graphql:"url"`
+					Labels struct {
+						Nodes []struct {
+							Name string
+						}
+					} `graphql:"labels(first: 10)"`
+				}
+				PageInfo struct {
+					HasNextPage bool
+					EndCursor   string
+				}
+			} `graphql:"issues(first: 100, states: [OPEN], labels: [$label])"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]interface{}{
+		"owner": graphql.String(owner),
+		"repo":  graphql.String(repo),
+		"label": graphql.String(label),
+	}
+
+	err := c.gql.Query("GetOpenIssuesByLabel", &query, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issues with label %s from %s/%s: %w", label, owner, repo, err)
+	}
+
+	var issues []Issue
+	for _, node := range query.Repository.Issues.Nodes {
+		var labels []Label
+		for _, l := range node.Labels.Nodes {
+			labels = append(labels, Label{Name: l.Name})
+		}
+		issues = append(issues, Issue{
+			ID:     node.ID,
+			Number: node.Number,
+			Title:  node.Title,
+			State:  node.State,
+			URL:    node.URL,
+			Labels: labels,
+			Repository: Repository{
+				Owner: owner,
+				Name:  repo,
+			},
+		})
+	}
+
+	return issues, nil
+}
+
+// GetClosedIssuesByLabel fetches closed issues with a specific label
+func (c *Client) GetClosedIssuesByLabel(owner, repo, label string) ([]Issue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Repository struct {
+			Issues struct {
+				Nodes []struct {
+					ID     string
+					Number int
+					Title  string
+					State  string
+					URL    string `graphql:"url"`
+					Labels struct {
+						Nodes []struct {
+							Name string
+						}
+					} `graphql:"labels(first: 10)"`
+				}
+				PageInfo struct {
+					HasNextPage bool
+					EndCursor   string
+				}
+			} `graphql:"issues(first: 100, states: [CLOSED], labels: [$label])"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]interface{}{
+		"owner": graphql.String(owner),
+		"repo":  graphql.String(repo),
+		"label": graphql.String(label),
+	}
+
+	err := c.gql.Query("GetClosedIssuesByLabel", &query, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get closed issues with label %s from %s/%s: %w", label, owner, repo, err)
+	}
+
+	var issues []Issue
+	for _, node := range query.Repository.Issues.Nodes {
+		var labels []Label
+		for _, l := range node.Labels.Nodes {
+			labels = append(labels, Label{Name: l.Name})
+		}
+		issues = append(issues, Issue{
+			ID:     node.ID,
+			Number: node.Number,
+			Title:  node.Title,
+			State:  node.State,
+			URL:    node.URL,
+			Labels: labels,
+			Repository: Repository{
+				Owner: owner,
+				Name:  repo,
+			},
+		})
+	}
+
+	return issues, nil
+}
+
 // GetParentIssue fetches the parent issue for a given sub-issue
 func (c *Client) GetParentIssue(owner, repo string, number int) (*Issue, error) {
 	if c.gql == nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -17,6 +18,7 @@ type createOptions struct {
 	body        string
 	status      string
 	priority    string
+	microsprint string
 	labels      []string
 	assignees   []string
 	milestone   string
@@ -47,6 +49,7 @@ any specified field values (status, priority) are set.`,
 	cmd.Flags().StringVarP(&opts.body, "body", "b", "", "Issue body")
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field (e.g., backlog, in_progress)")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field (e.g., p0, p1, p2)")
+	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "M", "", "Set microsprint field (use 'current' for active microsprint)")
 	cmd.Flags().StringArrayVarP(&opts.labels, "label", "l", nil, "Add labels (can be specified multiple times)")
 	cmd.Flags().StringArrayVarP(&opts.assignees, "assignee", "a", nil, "Assign users (can be specified multiple times)")
 	cmd.Flags().StringVarP(&opts.milestone, "milestone", "m", "", "Set milestone (title or number)")
@@ -175,6 +178,26 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 		}
 	}
 
+	// Set microsprint field
+	if opts.microsprint != "" {
+		microsprintValue := opts.microsprint
+		if opts.microsprint == "current" {
+			// Resolve "current" to active microsprint name
+			microsprintIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
+			if err != nil {
+				return fmt.Errorf("failed to get microsprint issues: %w", err)
+			}
+			activeTracker := findActiveMicrosprintForCreate(microsprintIssues)
+			if activeTracker == nil {
+				return fmt.Errorf("no active microsprint found. Run 'gh pmu microsprint start' to create one")
+			}
+			microsprintValue = strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
+		}
+		if err := client.SetProjectItemField(project.ID, itemID, "Microsprint", microsprintValue); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint: %v\n", err)
+		}
+	}
+
 	// Output the result
 	fmt.Printf("Created issue #%d: %s\n", issue.Number, issue.Title)
 	fmt.Printf("%s\n", issue.URL)
@@ -283,5 +306,19 @@ func runCreateFromFile(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 	fmt.Printf("Created issue #%d: %s\n", issue.Number, issue.Title)
 	fmt.Printf("%s\n", issue.URL)
 
+	return nil
+}
+
+// findActiveMicrosprintForCreate finds today's active microsprint tracker from a list of issues
+// Returns nil if no active microsprint is found for today
+func findActiveMicrosprintForCreate(issues []api.Issue) *api.Issue {
+	today := time.Now().Format("2006-01-02")
+	prefix := "Microsprint: " + today + "-"
+
+	for i := range issues {
+		if strings.HasPrefix(issues[i].Title, prefix) {
+			return &issues[i]
+		}
+	}
 	return nil
 }

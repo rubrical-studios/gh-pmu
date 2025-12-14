@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -11,13 +12,14 @@ import (
 )
 
 type moveOptions struct {
-	status    string
-	priority  string
-	recursive bool
-	depth     int
-	dryRun    bool
-	yes       bool   // skip confirmation
-	repo      string // repository override (owner/repo format)
+	status      string
+	priority    string
+	microsprint string
+	recursive   bool
+	depth       int
+	dryRun      bool
+	yes         bool   // skip confirmation
+	repo        string // repository override (owner/repo format)
 }
 
 // moveClient defines the interface for API methods used by move functions.
@@ -28,6 +30,7 @@ type moveClient interface {
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
 	GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error)
 	SetProjectItemField(projectID, itemID, fieldName, value string) error
+	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
 }
 
 func newMoveCommand() *cobra.Command {
@@ -78,6 +81,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field")
+	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Set microsprint field (use 'current' for active microsprint)")
 	cmd.Flags().BoolVarP(&opts.recursive, "recursive", "r", false, "Apply changes to all sub-issues recursively")
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
@@ -99,8 +103,8 @@ type issueInfo struct {
 
 func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 	// Validate at least one flag is provided
-	if opts.status == "" && opts.priority == "" {
-		return fmt.Errorf("at least one of --status or --priority is required")
+	if opts.status == "" && opts.priority == "" && opts.microsprint == "" {
+		return fmt.Errorf("at least one of --status, --priority, or --microsprint is required")
 	}
 
 	// Load configuration
@@ -211,6 +215,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	// Resolve field values
 	statusValue := ""
 	priorityValue := ""
+	microsprintValue := ""
 	var changeDescriptions []string
 
 	if opts.status != "" {
@@ -220,6 +225,23 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	if opts.priority != "" {
 		priorityValue = cfg.ResolveFieldValue("priority", opts.priority)
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority → %s", priorityValue))
+	}
+	if opts.microsprint != "" {
+		if opts.microsprint == "current" {
+			// Resolve "current" to active microsprint name
+			microsprintIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
+			if err != nil {
+				return fmt.Errorf("failed to get microsprint issues: %w", err)
+			}
+			activeTracker := findActiveMicrosprintForMove(microsprintIssues)
+			if activeTracker == nil {
+				return fmt.Errorf("no active microsprint found. Run 'gh pmu microsprint start' to create one")
+			}
+			microsprintValue = strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
+		} else {
+			microsprintValue = opts.microsprint
+		}
+		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Microsprint → %s", microsprintValue))
 	}
 
 	// Show what will be updated
@@ -284,6 +306,14 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		if priorityValue != "" {
 			if err := client.SetProjectItemField(project.ID, info.ItemID, "Priority", priorityValue); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set priority for #%d: %v\n", info.Number, err)
+				continue
+			}
+		}
+
+		// Update microsprint if provided
+		if microsprintValue != "" {
+			if err := client.SetProjectItemField(project.ID, info.ItemID, "Microsprint", microsprintValue); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
 				continue
 			}
 		}
@@ -358,4 +388,18 @@ func collectSubIssuesRecursive(client moveClient, owner, repo string, number int
 	}
 
 	return result, nil
+}
+
+// findActiveMicrosprintForMove finds today's active microsprint tracker from a list of issues
+// Returns nil if no active microsprint is found for today
+func findActiveMicrosprintForMove(issues []api.Issue) *api.Issue {
+	today := time.Now().Format("2006-01-02")
+	prefix := "Microsprint: " + today + "-"
+
+	for i := range issues {
+		if strings.HasPrefix(issues[i].Title, prefix) {
+			return &issues[i]
+		}
+	}
+	return nil
 }

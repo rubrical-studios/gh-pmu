@@ -178,6 +178,26 @@ func TestCreateCommand_HasInteractiveFlag(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// REQ-006: Integration with Create Command
+// =============================================================================
+
+func TestCreateCommand_HasMicrosprintFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	createCmd, _, err := cmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("create command not found: %v", err)
+	}
+
+	flag := createCmd.Flags().Lookup("microsprint")
+	if flag == nil {
+		t.Fatal("Expected --microsprint flag to exist")
+	}
+	if flag.Shorthand != "M" {
+		t.Errorf("Expected shorthand 'M', got '%s'", flag.Shorthand)
+	}
+}
+
 func TestCreateCommand_RequiresTitleInNonInteractiveMode(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetArgs([]string{"create", "--body", "test body"})
