@@ -109,8 +109,16 @@ func newReleaseStartCommand() *cobra.Command {
 		Short: "Start a new release",
 		Long:  `Creates a tracker issue for a new release.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Wire up real implementation
-			return nil
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runReleaseStartWithDeps(cmd, opts, cfg, client)
 		},
 	}
 
