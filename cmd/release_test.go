@@ -1402,3 +1402,70 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 		t.Errorf("Expected output to contain 'No releases found', got '%s'", output)
 	}
 }
+
+func TestCalculateNextVersions(t *testing.T) {
+	tests := []struct {
+		name           string
+		currentVersion string
+		wantPatch      string
+		wantMinor      string
+		wantMajor      string
+		wantErr        bool
+	}{
+		{
+			name:           "standard version",
+			currentVersion: "v1.2.3",
+			wantPatch:      "v1.2.4",
+			wantMinor:      "v1.3.0",
+			wantMajor:      "v2.0.0",
+		},
+		{
+			name:           "without v prefix",
+			currentVersion: "1.2.3",
+			wantPatch:      "v1.2.4",
+			wantMinor:      "v1.3.0",
+			wantMajor:      "v2.0.0",
+		},
+		{
+			name:           "zero version",
+			currentVersion: "v0.0.0",
+			wantPatch:      "v0.0.1",
+			wantMinor:      "v0.1.0",
+			wantMajor:      "v1.0.0",
+		},
+		{
+			name:           "invalid format",
+			currentVersion: "invalid",
+			wantErr:        true,
+		},
+		{
+			name:           "incomplete version",
+			currentVersion: "v1.2",
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			versions, err := calculateNextVersions(tt.currentVersion)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if versions.patch != tt.wantPatch {
+				t.Errorf("patch: got %s, want %s", versions.patch, tt.wantPatch)
+			}
+			if versions.minor != tt.wantMinor {
+				t.Errorf("minor: got %s, want %s", versions.minor, tt.wantMinor)
+			}
+			if versions.major != tt.wantMajor {
+				t.Errorf("major: got %s, want %s", versions.major, tt.wantMajor)
+			}
+		})
+	}
+}

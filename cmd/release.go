@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -107,7 +111,10 @@ func newReleaseStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start a new release",
-		Long:  `Creates a tracker issue for a new release.`,
+		Long: `Creates a tracker issue for a new release.
+
+If --version is not provided, an interactive menu will be shown
+with version suggestions based on the latest git tag.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -117,14 +124,80 @@ func newReleaseStartCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to load configuration: %w", err)
 			}
+
+			// Interactive mode when version not provided
+			if opts.version == "" {
+				u := ui.New(cmd.OutOrStdout())
+				reader := bufio.NewReader(cmd.InOrStdin())
+
+				// Get latest git tag
+				latestTag, err := getLatestGitTag()
+				if err != nil {
+					u.Warning("No git tags found, please enter version manually")
+					fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Version", ""))
+					input, _ := reader.ReadString('\n')
+					opts.version = strings.TrimSpace(input)
+					if opts.version == "" {
+						return fmt.Errorf("version is required")
+					}
+				} else {
+					// Calculate next versions
+					versions, err := calculateNextVersions(latestTag)
+					if err != nil {
+						return fmt.Errorf("failed to parse latest tag %s: %w", latestTag, err)
+					}
+
+					u.Info(fmt.Sprintf("Last release: %s (from git tag)", latestTag))
+					fmt.Fprintln(cmd.OutOrStdout())
+
+					// Show version menu
+					menuOptions := []string{
+						fmt.Sprintf("Patch  → %s", versions.patch),
+						fmt.Sprintf("Minor  → %s", versions.minor),
+						fmt.Sprintf("Major  → %s", versions.major),
+						"Custom",
+					}
+					u.PrintMenu(menuOptions, false)
+
+					fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Choice [1-4]", "1"))
+					choiceInput, _ := reader.ReadString('\n')
+					choiceInput = strings.TrimSpace(choiceInput)
+					if choiceInput == "" {
+						choiceInput = "1"
+					}
+
+					choice, err := strconv.Atoi(choiceInput)
+					if err != nil || choice < 1 || choice > 4 {
+						return fmt.Errorf("invalid selection: %s", choiceInput)
+					}
+
+					switch choice {
+					case 1:
+						opts.version = versions.patch
+					case 2:
+						opts.version = versions.minor
+					case 3:
+						opts.version = versions.major
+					case 4:
+						fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Version", ""))
+						input, _ := reader.ReadString('\n')
+						opts.version = strings.TrimSpace(input)
+						if opts.version == "" {
+							return fmt.Errorf("version is required")
+						}
+					}
+				}
+				u.Success(fmt.Sprintf("Selected version: %s", opts.version))
+				fmt.Fprintln(cmd.OutOrStdout())
+			}
+
 			client := api.NewClient()
 			return runReleaseStartWithDeps(cmd, opts, cfg, client)
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the release (required)")
+	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the release (interactive if omitted)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional codename for the release")
-	_ = cmd.MarkFlagRequired("version")
 
 	return cmd
 }
@@ -874,4 +947,50 @@ func compareVersions(v1, v2 string) int {
 		}
 	}
 	return 0
+}
+
+// getLatestGitTag returns the latest git tag using git describe
+func getLatestGitTag() (string, error) {
+	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("no git tags found: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// nextVersions contains calculated next version options
+type nextVersions struct {
+	patch string
+	minor string
+	major string
+}
+
+// calculateNextVersions computes the next patch, minor, and major versions
+func calculateNextVersions(currentVersion string) (*nextVersions, error) {
+	// Strip 'v' prefix for parsing
+	version := strings.TrimPrefix(currentVersion, "v")
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid version format: %s", currentVersion)
+	}
+
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid major version: %s", parts[0])
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid minor version: %s", parts[1])
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("invalid patch version: %s", parts[2])
+	}
+
+	return &nextVersions{
+		patch: fmt.Sprintf("v%d.%d.%d", major, minor, patch+1),
+		minor: fmt.Sprintf("v%d.%d.0", major, minor+1),
+		major: fmt.Sprintf("v%d.0.0", major+1),
+	}, nil
 }
