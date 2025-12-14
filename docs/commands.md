@@ -32,6 +32,11 @@ Utilities:
   filter      Filter piped issue JSON by project fields
   history     Show git commit history with issue references
 
+Workflow Commands:
+  microsprint Manage microsprints for AI-assisted development
+  release     Manage releases for version-based deployment
+  patch       Manage patches for hotfix deployment
+
 Flags:
   -h, --help      help for gh-pmu
   -v, --version   version for gh-pmu
@@ -491,6 +496,90 @@ gh pmu history --limit 20
 abc1234 feat: Add login endpoint (#42)
 def5678 fix: Handle null user (#43)
 ghi9012 docs: Update API reference
+```
+
+---
+
+## Workflow Commands
+
+Commands for managing development workflows at different cadences.
+
+### microsprint
+
+Manage microsprints for AI-assisted development (hour-scale work batches).
+
+```bash
+# Start a new microsprint
+gh pmu microsprint start
+gh pmu microsprint start --name "auth"   # With optional suffix
+
+# Add/remove issues from current microsprint
+gh pmu microsprint add 42
+gh pmu microsprint remove 42
+
+# View current microsprint
+gh pmu microsprint current
+gh pmu microsprint current --refresh     # Update tracker issue body
+
+# Close microsprint with artifacts
+gh pmu microsprint close                 # Interactive retrospective prompts
+gh pmu microsprint close --skip-retro    # Skip prompts, generate empty template
+gh pmu microsprint close --commit        # Auto-commit artifacts
+
+# List microsprint history
+gh pmu microsprint list
+
+# Resolve multiple active microsprints
+gh pmu microsprint resolve
+```
+
+**Artifacts generated on close:**
+- `Microsprints/{name}/review.md` - Issue summary
+- `Microsprints/{name}/retro.md` - Retrospective notes
+
+### release
+
+Manage releases for version-based deployment (IDPF-Structured projects).
+
+```bash
+# Start a new release
+gh pmu release start --version 1.2.0
+gh pmu release start --version 1.2.0 --name "Phoenix"
+
+# Manage issues in release
+gh pmu release add 42
+gh pmu release remove 42
+
+# View current release
+gh pmu release current
+
+# Close release
+gh pmu release close
+
+# List release history
+gh pmu release list
+```
+
+### patch
+
+Manage patches for hotfix deployment (IDPF-LTS projects).
+
+```bash
+# Start a new patch
+gh pmu patch start --version 1.2.1
+
+# Manage issues in patch
+gh pmu patch add 42
+gh pmu patch remove 42
+
+# View current patch
+gh pmu patch current
+
+# Close patch
+gh pmu patch close
+
+# List patch history
+gh pmu patch list
 ```
 
 ---

@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-12-14
+
+### Added
+- `gh pmu microsprint` command group for AI-assisted development workflows
+  - `microsprint start` - Start a new microsprint with auto-generated naming (YYYY-MM-DD-a pattern)
+  - `microsprint add <issue>` - Add issue to current microsprint via Text field
+  - `microsprint remove <issue>` - Remove issue from microsprint
+  - `microsprint current` - Show current active microsprint details
+  - `microsprint close` - Close microsprint with artifact generation (review.md, retro.md)
+  - `microsprint list` - List microsprint history (open and closed)
+  - `microsprint resolve` - Resolve multiple active microsprint conflicts
+- Interactive retrospective prompts during `microsprint close`
+  - Prompts for: What Went Well, What Could Be Improved, Action Items
+  - `--skip-retro` flag to generate empty template without prompts
+  - `--commit` flag to auto-commit generated artifacts
+- Team-wide microsprint model with multi-user support
+  - Join/Work without/Cancel prompts when another user has active microsprint
+  - Confirmation prompt before closing another user's microsprint
+- `gh pmu release` command group for version-based deployment workflows (IDPF-Structured)
+  - `release start --version` - Start a new release with semver validation
+  - `release add/remove <issue>` - Manage issues in release
+  - `release current` - Show current release details
+  - `release close` - Close release with artifact generation
+  - `release list` - List release history
+- `gh pmu patch` command group for hotfix deployment workflows (IDPF-LTS)
+  - Same subcommand structure as release command
+- Integration with existing `move` and `create` commands via `--microsprint` flag
+- Artifact generation in `Microsprints/{name}/` directory
+
+### Fixed
+- Dynamic date handling in microsprint tests for reliable CI across timezones
+
+### Documentation
+- Added upgrade instructions to README
+
 ## [0.5.3] - 2025-12-12
 
 ### Added
