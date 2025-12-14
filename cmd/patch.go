@@ -110,7 +110,7 @@ func newPatchStartCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the patch (required)")
-	cmd.MarkFlagRequired("version")
+	_ = cmd.MarkFlagRequired("version")
 
 	return cmd
 }

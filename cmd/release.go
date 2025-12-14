@@ -116,7 +116,7 @@ func newReleaseStartCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the release (required)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional codename for the release")
-	cmd.MarkFlagRequired("version")
+	_ = cmd.MarkFlagRequired("version")
 
 	return cmd
 }
@@ -856,10 +856,10 @@ func compareVersions(v1, v2 string) int {
 	for i := 0; i < 3; i++ {
 		var n1, n2 int
 		if i < len(parts1) {
-			fmt.Sscanf(parts1[i], "%d", &n1)
+			_, _ = fmt.Sscanf(parts1[i], "%d", &n1)
 		}
 		if i < len(parts2) {
-			fmt.Sscanf(parts2[i], "%d", &n2)
+			_, _ = fmt.Sscanf(parts2[i], "%d", &n2)
 		}
 		if n1 != n2 {
 			return n1 - n2
