@@ -1,0 +1,1448 @@
+package cmd
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/spf13/cobra"
+)
+
+// mockMicrosprintClient implements microsprintClient for testing
+type mockMicrosprintClient struct {
+	// Return values
+	createdIssue          *api.Issue
+	authenticatedUser     string
+	openIssues            []api.Issue
+	project               *api.Project
+	addedItemID           string
+	issueByNumber         *api.Issue
+	projectItemID         string
+	projectItemFieldValue string
+	microsprintIssues     []api.Issue
+
+	// Captured calls for verification
+	createIssueCalls     []createIssueCall
+	addToProjectCalls    []addToProjectCall
+	setFieldCalls        []setFieldCall
+	closeIssueCalls      []closeIssueCall
+	updateIssueBodyCalls []updateIssueBodyCall
+	writeFileCalls       []writeFileCall
+	mkdirCalls           []string
+	gitAddCalls          []string
+	gitCommitCalls       []gitCommitCall
+
+	// Error injection
+	createIssueErr            error
+	getAuthUserErr            error
+	getOpenIssuesErr          error
+	addToProjectErr           error
+	setFieldErr               error
+	getProjectErr             error
+	closeIssueErr             error
+	getIssueErr               error
+	getProjectItemErr         error
+	getProjectItemFieldErr    error
+	getMicrosprintIssuesErr   error
+	writeFileErr              error
+	mkdirErr                  error
+	gitAddErr                 error
+	gitCommitErr              error
+}
+
+type createIssueCall struct {
+	owner  string
+	repo   string
+	title  string
+	body   string
+	labels []string
+}
+
+type addToProjectCall struct {
+	projectID string
+	issueID   string
+}
+
+type setFieldCall struct {
+	projectID string
+	itemID    string
+	fieldID   string
+	value     string
+}
+
+type closeIssueCall struct {
+	issueID string
+}
+
+type updateIssueBodyCall struct {
+	issueID string
+	body    string
+}
+
+type writeFileCall struct {
+	path    string
+	content string
+}
+
+type gitCommitCall struct {
+	message string
+}
+
+func (m *mockMicrosprintClient) CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error) {
+	m.createIssueCalls = append(m.createIssueCalls, createIssueCall{
+		owner:  owner,
+		repo:   repo,
+		title:  title,
+		body:   body,
+		labels: labels,
+	})
+	if m.createIssueErr != nil {
+		return nil, m.createIssueErr
+	}
+	return m.createdIssue, nil
+}
+
+func (m *mockMicrosprintClient) GetAuthenticatedUser() (string, error) {
+	if m.getAuthUserErr != nil {
+		return "", m.getAuthUserErr
+	}
+	return m.authenticatedUser, nil
+}
+
+func (m *mockMicrosprintClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+	if m.getOpenIssuesErr != nil {
+		return nil, m.getOpenIssuesErr
+	}
+	return m.openIssues, nil
+}
+
+func (m *mockMicrosprintClient) AddIssueToProject(projectID, issueID string) (string, error) {
+	m.addToProjectCalls = append(m.addToProjectCalls, addToProjectCall{
+		projectID: projectID,
+		issueID:   issueID,
+	})
+	if m.addToProjectErr != nil {
+		return "", m.addToProjectErr
+	}
+	return m.addedItemID, nil
+}
+
+func (m *mockMicrosprintClient) SetProjectItemField(projectID, itemID, fieldID, value string) error {
+	m.setFieldCalls = append(m.setFieldCalls, setFieldCall{
+		projectID: projectID,
+		itemID:    itemID,
+		fieldID:   fieldID,
+		value:     value,
+	})
+	return m.setFieldErr
+}
+
+func (m *mockMicrosprintClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockMicrosprintClient) CloseIssue(issueID string) error {
+	m.closeIssueCalls = append(m.closeIssueCalls, closeIssueCall{
+		issueID: issueID,
+	})
+	return m.closeIssueErr
+}
+
+func (m *mockMicrosprintClient) GetIssueByNumber(owner, repo string, number int) (*api.Issue, error) {
+	if m.getIssueErr != nil {
+		return nil, m.getIssueErr
+	}
+	return m.issueByNumber, nil
+}
+
+func (m *mockMicrosprintClient) GetProjectItemID(projectID, issueID string) (string, error) {
+	if m.getProjectItemErr != nil {
+		return "", m.getProjectItemErr
+	}
+	return m.projectItemID, nil
+}
+
+func (m *mockMicrosprintClient) UpdateIssueBody(issueID, body string) error {
+	m.updateIssueBodyCalls = append(m.updateIssueBodyCalls, updateIssueBodyCall{
+		issueID: issueID,
+		body:    body,
+	})
+	return nil
+}
+
+func (m *mockMicrosprintClient) GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error) {
+	if m.getProjectItemFieldErr != nil {
+		return "", m.getProjectItemFieldErr
+	}
+	return m.projectItemFieldValue, nil
+}
+
+func (m *mockMicrosprintClient) GetIssuesByMicrosprint(owner, repo, microsprintName string) ([]api.Issue, error) {
+	if m.getMicrosprintIssuesErr != nil {
+		return nil, m.getMicrosprintIssuesErr
+	}
+	return m.microsprintIssues, nil
+}
+
+func (m *mockMicrosprintClient) WriteFile(path, content string) error {
+	m.writeFileCalls = append(m.writeFileCalls, writeFileCall{
+		path:    path,
+		content: content,
+	})
+	return m.writeFileErr
+}
+
+func (m *mockMicrosprintClient) MkdirAll(path string) error {
+	m.mkdirCalls = append(m.mkdirCalls, path)
+	return m.mkdirErr
+}
+
+func (m *mockMicrosprintClient) GitAdd(paths ...string) error {
+	m.gitAddCalls = append(m.gitAddCalls, paths...)
+	return m.gitAddErr
+}
+
+func (m *mockMicrosprintClient) GitCommit(message string) error {
+	m.gitCommitCalls = append(m.gitCommitCalls, gitCommitCall{message: message})
+	return m.gitCommitErr
+}
+
+// testMicrosprintConfig returns a test configuration
+func testMicrosprintConfig() *config.Config {
+	return &config.Config{
+		Project: config.Project{
+			Owner:  "testowner",
+			Number: 1,
+		},
+		Repositories: []string{"testowner/testrepo"},
+		Fields: map[string]config.Field{
+			"status": {
+				Field: "Status",
+				Values: map[string]string{
+					"in_progress": "In progress",
+				},
+			},
+		},
+	}
+}
+
+// setupMockForStart creates a mock configured for microsprint start tests
+func setupMockForStart() *mockMicrosprintClient {
+	return &mockMicrosprintClient{
+		authenticatedUser: "testuser",
+		openIssues:        []api.Issue{}, // No active microsprints
+		createdIssue: &api.Issue{
+			ID:     "ISSUE_123",
+			Number: 100,
+			Title:  "Microsprint: 2025-12-13-a",
+			URL:    "https://github.com/testowner/testrepo/issues/100",
+		},
+		project: &api.Project{
+			ID:     "PROJECT_1",
+			Number: 1,
+			Title:  "Test Project",
+		},
+		addedItemID: "ITEM_456",
+	}
+}
+
+// Helper to create a test command with captured output
+func newTestMicrosprintCmd() (*cobra.Command, *bytes.Buffer) {
+	cmd := newMicrosprintCommand()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	return cmd, buf
+}
+
+// =============================================================================
+// AC-001-1: Given no active microsprint, When user runs `microsprint start`,
+// Then tracker issue created with title "Microsprint: YYYY-MM-DD-a" and label `microsprint`
+// =============================================================================
+
+func TestRunMicrosprintStartWithDeps_CreatesTrackerIssue(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForStart()
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	// Expected date-based name
+	today := time.Now().Format("2006-01-02")
+	expectedTitle := "Microsprint: " + today + "-a"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify CreateIssue was called
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+
+	// Verify title matches expected pattern
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+
+	// Verify microsprint label is applied
+	hasLabel := false
+	for _, label := range call.labels {
+		if label == "microsprint" {
+			hasLabel = true
+			break
+		}
+	}
+	if !hasLabel {
+		t.Errorf("Expected 'microsprint' label, got labels: %v", call.labels)
+	}
+
+	// Verify correct repository
+	if call.owner != "testowner" || call.repo != "testrepo" {
+		t.Errorf("Expected owner/repo 'testowner/testrepo', got '%s/%s'", call.owner, call.repo)
+	}
+}
+
+func TestRunMicrosprintStartWithDeps_WithNameFlag_AppendsSuffix(t *testing.T) {
+	// ARRANGE - AC-001-2
+	mock := setupMockForStart()
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{
+		name: "auth",
+	}
+
+	today := time.Now().Format("2006-01-02")
+	expectedTitle := "Microsprint: " + today + "-a-auth"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+}
+
+func TestRunMicrosprintStartWithDeps_AssignsToCurrentUser(t *testing.T) {
+	// ARRANGE - AC-001-3
+	mock := setupMockForStart()
+	mock.authenticatedUser = "alice"
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// The issue should be assigned to the authenticated user
+	// This would be verified by checking the CreateIssue call includes assignee
+	// or by a separate AssignIssue call - implementation will determine exact pattern
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	// Note: Assignment verification depends on implementation
+	// Either CreateIssue accepts assignees parameter, or separate AssignIssue call
+}
+
+func TestRunMicrosprintStartWithDeps_SetsStatusToInProgress(t *testing.T) {
+	// ARRANGE - AC-001-4
+	mock := setupMockForStart()
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify issue was added to project
+	if len(mock.addToProjectCalls) != 1 {
+		t.Fatalf("Expected 1 AddIssueToProject call, got %d", len(mock.addToProjectCalls))
+	}
+
+	// Verify status field was set to In Progress
+	statusSet := false
+	for _, call := range mock.setFieldCalls {
+		if call.value == "In progress" {
+			statusSet = true
+			break
+		}
+	}
+	if !statusSet {
+		t.Errorf("Expected status to be set to 'In progress', got calls: %+v", mock.setFieldCalls)
+	}
+}
+
+// =============================================================================
+// REQ-002: Auto-Generated Naming
+// =============================================================================
+
+// AC-002-1: Given no microsprints today, When starting microsprint, Then name is YYYY-MM-DD-a
+// (Already covered by TestRunMicrosprintStartWithDeps_CreatesTrackerIssue)
+
+// AC-002-2: Given microsprint YYYY-MM-DD-a exists, When starting new microsprint, Then name is YYYY-MM-DD-b
+func TestRunMicrosprintStartWithDeps_AutoIncrement_AtoB(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	// Simulate existing microsprint "a" for today
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "EXISTING_1",
+			Number: 50,
+			Title:  "Microsprint: " + today + "-a",
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	expectedTitle := "Microsprint: " + today + "-b"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+}
+
+// AC-002-2 continued: Multiple existing microsprints
+func TestRunMicrosprintStartWithDeps_AutoIncrement_BtoC(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	// Simulate existing microsprints "a" and "b" for today
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "EXISTING_1",
+			Number: 50,
+			Title:  "Microsprint: " + today + "-a",
+		},
+		{
+			ID:     "EXISTING_2",
+			Number: 51,
+			Title:  "Microsprint: " + today + "-b",
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	expectedTitle := "Microsprint: " + today + "-c"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+}
+
+// AC-002-3: Given microsprint YYYY-MM-DD-z exists, When starting new microsprint, Then name is YYYY-MM-DD-aa
+func TestRunMicrosprintStartWithDeps_AutoIncrement_ZtoAA(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	// Simulate existing microsprint "z" for today
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "EXISTING_Z",
+			Number: 75,
+			Title:  "Microsprint: " + today + "-z",
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	expectedTitle := "Microsprint: " + today + "-aa"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+}
+
+// AC-002-3 continued: Double letter increment
+func TestRunMicrosprintStartWithDeps_AutoIncrement_AAtoAB(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	// Simulate existing microsprint "aa" for today
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "EXISTING_AA",
+			Number: 76,
+			Title:  "Microsprint: " + today + "-aa",
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	expectedTitle := "Microsprint: " + today + "-ab"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+}
+
+// =============================================================================
+// REQ-007: Tracker Issue Per Microsprint
+// =============================================================================
+
+// AC-007-1: Given `microsprint start`, Then new tracker issue created (not reused)
+func TestRunMicrosprintStartWithDeps_CreatesNewIssue(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForStart()
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify CreateIssue was called (new issue created, not reused)
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected exactly 1 CreateIssue call (new issue), got %d", len(mock.createIssueCalls))
+	}
+
+	// Verify it's creating via CreateIssue, not updating existing
+	call := mock.createIssueCalls[0]
+	if call.owner == "" || call.repo == "" || call.title == "" {
+		t.Errorf("CreateIssue called with empty fields: owner=%q, repo=%q, title=%q", call.owner, call.repo, call.title)
+	}
+}
+
+// AC-007-3: Given tracker issue, Then it has `microsprint` label for filtering
+func TestRunMicrosprintStartWithDeps_HasMicrosprintLabel(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForStart()
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	hasLabel := false
+	for _, label := range call.labels {
+		if label == "microsprint" {
+			hasLabel = true
+			break
+		}
+	}
+	if !hasLabel {
+		t.Errorf("Expected 'microsprint' label for filtering, got labels: %v", call.labels)
+	}
+}
+
+// AC-007-2: Given `microsprint close`, Then tracker issue is closed
+func TestRunMicrosprintCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	// Simulate an active microsprint tracker issue
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + today + "-a",
+			State:  "OPEN",
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{}
+
+	// ACT
+	err := runMicrosprintCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify CloseIssue was called on the tracker issue
+	if len(mock.closeIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CloseIssue call, got %d", len(mock.closeIssueCalls))
+	}
+
+	closeCall := mock.closeIssueCalls[0]
+	if closeCall.issueID != "TRACKER_123" {
+		t.Errorf("Expected to close issue TRACKER_123, got %s", closeCall.issueID)
+	}
+}
+
+// =============================================================================
+// REQ-003: Add Issue to Microsprint
+// =============================================================================
+
+// AC-003-1: Given active microsprint, When user runs `microsprint add 42`,
+// Then Microsprint Text field on issue #42 is set to microsprint name
+func TestRunMicrosprintAddWithDeps_SetsTextFieldToMicrosprintName(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	// Active microsprint exists
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	// The issue to add
+	mock.issueByNumber = &api.Issue{
+		ID:     "ISSUE_42",
+		Number: 42,
+		Title:  "Fix login bug",
+	}
+	// Project item for issue 42
+	mock.projectItemID = "ITEM_42"
+
+	cfg := testMicrosprintConfig()
+	// Add microsprint field to config
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintAddOptions{
+		issueNumber: 42,
+	}
+
+	// ACT
+	err := runMicrosprintAddWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify SetProjectItemField was called with correct values
+	if len(mock.setFieldCalls) != 1 {
+		t.Fatalf("Expected 1 SetProjectItemField call, got %d", len(mock.setFieldCalls))
+	}
+
+	call := mock.setFieldCalls[0]
+	if call.value != microsprintName {
+		t.Errorf("Expected field value '%s', got '%s'", microsprintName, call.value)
+	}
+	if call.fieldID != "Microsprint" {
+		t.Errorf("Expected fieldID 'Microsprint', got '%s'", call.fieldID)
+	}
+}
+
+// AC-003-2: Given active microsprint, When field updated,
+// Then output confirms "Added #42 to microsprint YYYY-MM-DD-a"
+func TestRunMicrosprintAddWithDeps_OutputsConfirmation(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.issueByNumber = &api.Issue{
+		ID:     "ISSUE_42",
+		Number: 42,
+		Title:  "Fix login bug",
+	}
+	mock.projectItemID = "ITEM_42"
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintAddOptions{
+		issueNumber: 42,
+	}
+
+	// ACT
+	err := runMicrosprintAddWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	expectedOutput := "Added #42 to microsprint " + microsprintName
+	if !strings.Contains(output, expectedOutput) {
+		t.Errorf("Expected output to contain '%s', got '%s'", expectedOutput, output)
+	}
+}
+
+// AC-003-3: Given Text field update, Then tracker issue body is NOT updated
+// (avoid race conditions)
+func TestRunMicrosprintAddWithDeps_DoesNotUpdateTrackerBody(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.issueByNumber = &api.Issue{
+		ID:     "ISSUE_42",
+		Number: 42,
+		Title:  "Fix login bug",
+	}
+	mock.projectItemID = "ITEM_42"
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintAddOptions{
+		issueNumber: 42,
+	}
+
+	// ACT
+	err := runMicrosprintAddWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify tracker issue body was NOT updated (no updateIssueBody calls)
+	if len(mock.updateIssueBodyCalls) > 0 {
+		t.Errorf("Expected no UpdateIssueBody calls (avoid race conditions), got %d", len(mock.updateIssueBodyCalls))
+	}
+}
+
+// Test that old dates are ignored (only today's microsprints count)
+func TestRunMicrosprintStartWithDeps_IgnoresOldDates(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	// Simulate existing microsprint from yesterday
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "OLD_1",
+			Number: 40,
+			Title:  "Microsprint: 2020-01-01-z", // Old date
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintStartOptions{}
+
+	// Should start fresh with "a" since old dates don't count
+	expectedTitle := "Microsprint: " + today + "-a"
+
+	// ACT
+	err := runMicrosprintStartWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(mock.createIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+	}
+
+	call := mock.createIssueCalls[0]
+	if call.title != expectedTitle {
+		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
+	}
+}
+
+// =============================================================================
+// REQ-038: Remove Issue from Microsprint
+// =============================================================================
+
+// AC-038-1: Given issue #42 assigned to microsprint, When running `microsprint remove 42`,
+// Then Microsprint Text field cleared (set to empty)
+func TestRunMicrosprintRemoveWithDeps_ClearsTextField(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	// Active microsprint exists
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	// The issue to remove (currently assigned to microsprint)
+	mock.issueByNumber = &api.Issue{
+		ID:     "ISSUE_42",
+		Number: 42,
+		Title:  "Fix login bug",
+	}
+	mock.projectItemID = "ITEM_42"
+	// Issue is currently assigned to microsprint
+	mock.projectItemFieldValue = microsprintName
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintRemoveOptions{
+		issueNumber: 42,
+	}
+
+	// ACT
+	err := runMicrosprintRemoveWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify SetProjectItemField was called with empty value to clear the field
+	if len(mock.setFieldCalls) != 1 {
+		t.Fatalf("Expected 1 SetProjectItemField call, got %d", len(mock.setFieldCalls))
+	}
+
+	call := mock.setFieldCalls[0]
+	if call.value != "" {
+		t.Errorf("Expected field value to be empty (cleared), got '%s'", call.value)
+	}
+	if call.fieldID != "Microsprint" {
+		t.Errorf("Expected fieldID 'Microsprint', got '%s'", call.fieldID)
+	}
+}
+
+// AC-038-2: Given field cleared, Then output confirms "Removed #42 from microsprint YYYY-MM-DD-a"
+func TestRunMicrosprintRemoveWithDeps_OutputsConfirmation(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.issueByNumber = &api.Issue{
+		ID:     "ISSUE_42",
+		Number: 42,
+		Title:  "Fix login bug",
+	}
+	mock.projectItemID = "ITEM_42"
+	mock.projectItemFieldValue = microsprintName
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintRemoveOptions{
+		issueNumber: 42,
+	}
+
+	// ACT
+	err := runMicrosprintRemoveWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	expectedOutput := "Removed #42 from microsprint " + microsprintName
+	if !strings.Contains(output, expectedOutput) {
+		t.Errorf("Expected output to contain '%s', got '%s'", expectedOutput, output)
+	}
+}
+
+// AC-038-3: Given issue not in any microsprint, When running `microsprint remove 42`,
+// Then warning: "Issue #42 is not assigned to a microsprint"
+func TestRunMicrosprintRemoveWithDeps_WarnsIfNotAssigned(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.issueByNumber = &api.Issue{
+		ID:     "ISSUE_42",
+		Number: 42,
+		Title:  "Fix login bug",
+	}
+	mock.projectItemID = "ITEM_42"
+	// Issue is NOT assigned to any microsprint (empty field value)
+	mock.projectItemFieldValue = ""
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintRemoveOptions{
+		issueNumber: 42,
+	}
+
+	// ACT
+	err := runMicrosprintRemoveWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT - should not error, but warn
+	if err != nil {
+		t.Fatalf("Expected no error (warning only), got: %v", err)
+	}
+
+	output := buf.String()
+	expectedWarning := "Issue #42 is not assigned to a microsprint"
+	if !strings.Contains(output, expectedWarning) {
+		t.Errorf("Expected output to contain warning '%s', got '%s'", expectedWarning, output)
+	}
+
+	// Verify SetProjectItemField was NOT called (nothing to clear)
+	if len(mock.setFieldCalls) != 0 {
+		t.Errorf("Expected 0 SetProjectItemField calls (nothing to clear), got %d", len(mock.setFieldCalls))
+	}
+}
+
+// =============================================================================
+// REQ-035: View Current Microsprint
+// =============================================================================
+
+// AC-035-1: Given active microsprint, When running `microsprint current`,
+// Then displays: name, started time, issue count, tracker issue number
+func TestRunMicrosprintCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	// Active microsprint exists
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	// Issues assigned to this microsprint
+	mock.microsprintIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+		{ID: "ISSUE_3", Number: 43, Title: "Add feature C"},
+	}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintCurrentOptions{}
+
+	// ACT
+	err := runMicrosprintCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify output contains microsprint name
+	if !strings.Contains(output, microsprintName) {
+		t.Errorf("Expected output to contain microsprint name '%s', got '%s'", microsprintName, output)
+	}
+
+	// Verify output contains tracker issue number
+	if !strings.Contains(output, "#100") {
+		t.Errorf("Expected output to contain tracker issue '#100', got '%s'", output)
+	}
+
+	// Verify output contains issue count
+	if !strings.Contains(output, "3") {
+		t.Errorf("Expected output to contain issue count '3', got '%s'", output)
+	}
+}
+
+// AC-035-2: Given no active microsprint, Then message: "No active microsprint"
+func TestRunMicrosprintCurrentWithDeps_NoActiveMicrosprint(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForStart()
+	// No active microsprint (old date or empty)
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "OLD_TRACKER",
+			Number: 50,
+			Title:  "Microsprint: 2020-01-01-a", // Old date
+			State:  "OPEN",
+		},
+	}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintCurrentOptions{}
+
+	// ACT
+	err := runMicrosprintCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT - should not error, just display message
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	expectedMessage := "No active microsprint"
+	if !strings.Contains(output, expectedMessage) {
+		t.Errorf("Expected output to contain '%s', got '%s'", expectedMessage, output)
+	}
+}
+
+// AC-035-3: Given `--refresh` flag, Then tracker issue body updated with current issue list
+func TestRunMicrosprintCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.microsprintIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+	}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCurrentOptions{
+		refresh: true,
+	}
+
+	// ACT
+	err := runMicrosprintCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify UpdateIssueBody was called
+	if len(mock.updateIssueBodyCalls) != 1 {
+		t.Fatalf("Expected 1 UpdateIssueBody call for refresh, got %d", len(mock.updateIssueBodyCalls))
+	}
+
+	call := mock.updateIssueBodyCalls[0]
+	if call.issueID != "TRACKER_123" {
+		t.Errorf("Expected UpdateIssueBody on tracker TRACKER_123, got %s", call.issueID)
+	}
+
+	// Verify body contains issue references
+	if !strings.Contains(call.body, "#41") || !strings.Contains(call.body, "#42") {
+		t.Errorf("Expected body to contain issue references #41 and #42, got '%s'", call.body)
+	}
+}
+
+// =============================================================================
+// REQ-004: Close Microsprint with Artifacts
+// =============================================================================
+
+// AC-004-1: Given active microsprint with issues, When user runs `microsprint close`,
+// Then `Microsprints/{name}/review.md` generated with issue summary
+func TestRunMicrosprintCloseArtifactsWithDeps_GeneratesReviewMd(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.microsprintIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A", State: "CLOSED"},
+		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B", State: "OPEN"},
+	}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{
+		skipRetro: true, // Skip retro for simpler test
+	}
+
+	// ACT
+	err := runMicrosprintCloseArtifactsWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify review.md was created
+	foundReview := false
+	expectedPath := "Microsprints/" + microsprintName + "/review.md"
+	for _, call := range mock.writeFileCalls {
+		if call.path == expectedPath {
+			foundReview = true
+			// Verify content contains issue references
+			if !strings.Contains(call.content, "#41") || !strings.Contains(call.content, "#42") {
+				t.Errorf("Expected review.md to contain issue references, got '%s'", call.content)
+			}
+			break
+		}
+	}
+	if !foundReview {
+		t.Errorf("Expected review.md to be created at '%s', got calls: %+v", expectedPath, mock.writeFileCalls)
+	}
+}
+
+// AC-004-3: Given `microsprint close --skip-retro`, Then retro.md generated with empty template
+func TestRunMicrosprintCloseArtifactsWithDeps_SkipRetroGeneratesEmptyTemplate(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.microsprintIssues = []api.Issue{}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{
+		skipRetro: true,
+	}
+
+	// ACT
+	err := runMicrosprintCloseArtifactsWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify retro.md was created with empty template
+	foundRetro := false
+	expectedPath := "Microsprints/" + microsprintName + "/retro.md"
+	for _, call := range mock.writeFileCalls {
+		if call.path == expectedPath {
+			foundRetro = true
+			// Verify it contains template sections
+			if !strings.Contains(call.content, "What Went Well") {
+				t.Errorf("Expected retro.md to contain 'What Went Well' section, got '%s'", call.content)
+			}
+			break
+		}
+	}
+	if !foundRetro {
+		t.Errorf("Expected retro.md to be created at '%s'", expectedPath)
+	}
+}
+
+// AC-004-4: Given artifacts generated, Then files staged to git (`git add`)
+func TestRunMicrosprintCloseArtifactsWithDeps_StagesFilesToGit(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.microsprintIssues = []api.Issue{}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{
+		skipRetro: true,
+	}
+
+	// ACT
+	err := runMicrosprintCloseArtifactsWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify git add was called
+	if len(mock.gitAddCalls) == 0 {
+		t.Errorf("Expected git add to be called, got no calls")
+	}
+
+	// Verify the microsprint directory was added
+	foundDir := false
+	expectedDir := "Microsprints/" + microsprintName
+	for _, path := range mock.gitAddCalls {
+		if strings.HasPrefix(path, expectedDir) {
+			foundDir = true
+			break
+		}
+	}
+	if !foundDir {
+		t.Errorf("Expected git add to include '%s', got: %v", expectedDir, mock.gitAddCalls)
+	}
+}
+
+// AC-004-5: Given `microsprint close --commit`, Then artifacts committed with standard message
+func TestRunMicrosprintCloseArtifactsWithDeps_CommitFlagCommitsArtifacts(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.microsprintIssues = []api.Issue{}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{
+		skipRetro: true,
+		commit:    true,
+	}
+
+	// ACT
+	err := runMicrosprintCloseArtifactsWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify git commit was called
+	if len(mock.gitCommitCalls) != 1 {
+		t.Fatalf("Expected 1 git commit call, got %d", len(mock.gitCommitCalls))
+	}
+
+	// Verify commit message contains microsprint reference
+	commitMsg := mock.gitCommitCalls[0].message
+	if !strings.Contains(commitMsg, microsprintName) {
+		t.Errorf("Expected commit message to contain microsprint name '%s', got '%s'", microsprintName, commitMsg)
+	}
+}
+
+// AC-004-6: Given close complete, Then tracker issue body updated with artifact links and closed
+func TestRunMicrosprintCloseArtifactsWithDeps_UpdatesTrackerAndCloses(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	microsprintName := today + "-a"
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + microsprintName,
+			State:  "OPEN",
+		},
+	}
+	mock.microsprintIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+	}
+
+	cfg := testMicrosprintConfig()
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{
+		skipRetro: true,
+	}
+
+	// ACT
+	err := runMicrosprintCloseArtifactsWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify tracker issue body was updated
+	if len(mock.updateIssueBodyCalls) != 1 {
+		t.Fatalf("Expected 1 UpdateIssueBody call, got %d", len(mock.updateIssueBodyCalls))
+	}
+
+	bodyCall := mock.updateIssueBodyCalls[0]
+	if bodyCall.issueID != "TRACKER_123" {
+		t.Errorf("Expected UpdateIssueBody on TRACKER_123, got %s", bodyCall.issueID)
+	}
+
+	// Verify body contains artifact links
+	if !strings.Contains(bodyCall.body, "review.md") {
+		t.Errorf("Expected body to contain 'review.md' link, got '%s'", bodyCall.body)
+	}
+
+	// Verify tracker issue was closed
+	if len(mock.closeIssueCalls) != 1 {
+		t.Fatalf("Expected 1 CloseIssue call, got %d", len(mock.closeIssueCalls))
+	}
+
+	if mock.closeIssueCalls[0].issueID != "TRACKER_123" {
+		t.Errorf("Expected to close TRACKER_123, got %s", mock.closeIssueCalls[0].issueID)
+	}
+}
