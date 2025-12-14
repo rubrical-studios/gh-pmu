@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,6 +139,12 @@ func newMicrosprintCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newMicrosprintStartCommand())
+	cmd.AddCommand(newMicrosprintAddCommand())
+	cmd.AddCommand(newMicrosprintRemoveCommand())
+	cmd.AddCommand(newMicrosprintCurrentCommand())
+	cmd.AddCommand(newMicrosprintCloseCommand())
+	cmd.AddCommand(newMicrosprintListCommand())
+	cmd.AddCommand(newMicrosprintResolveCommand())
 
 	return cmd
 }
@@ -150,14 +158,410 @@ func newMicrosprintStartCommand() *cobra.Command {
 		Short: "Start a new microsprint",
 		Long:  `Creates a tracker issue for a new microsprint.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO: Wire up real implementation
-			return nil
+			return runMicrosprintStart(cmd, opts)
 		},
 	}
 
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional name suffix for the microsprint")
 
 	return cmd
+}
+
+// runMicrosprintStart loads config and client, then calls the testable implementation
+func runMicrosprintStart(cmd *cobra.Command, opts *microsprintStartOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	return runMicrosprintStartWithDeps(cmd, opts, cfg, client)
+}
+
+// newMicrosprintAddCommand creates the microsprint add subcommand
+func newMicrosprintAddCommand() *cobra.Command {
+	opts := &microsprintAddOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "add <issue-number>",
+		Short: "Add an issue to the current microsprint",
+		Long:  `Assigns an issue to the active microsprint by setting its Microsprint field.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			issueNum, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+			return runMicrosprintAdd(cmd, opts)
+		},
+	}
+
+	return cmd
+}
+
+// runMicrosprintAdd loads config and client, then calls the testable implementation
+func runMicrosprintAdd(cmd *cobra.Command, opts *microsprintAddOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	return runMicrosprintAddWithDeps(cmd, opts, cfg, client)
+}
+
+// newMicrosprintRemoveCommand creates the microsprint remove subcommand
+func newMicrosprintRemoveCommand() *cobra.Command {
+	opts := &microsprintRemoveOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "remove <issue-number>",
+		Short: "Remove an issue from its microsprint",
+		Long:  `Clears the Microsprint field for an issue.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			issueNum, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+			return runMicrosprintRemove(cmd, opts)
+		},
+	}
+
+	return cmd
+}
+
+// runMicrosprintRemove loads config and client, then calls the testable implementation
+func runMicrosprintRemove(cmd *cobra.Command, opts *microsprintRemoveOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	return runMicrosprintRemoveWithDeps(cmd, opts, cfg, client)
+}
+
+// newMicrosprintCurrentCommand creates the microsprint current subcommand
+func newMicrosprintCurrentCommand() *cobra.Command {
+	opts := &microsprintCurrentOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "current",
+		Short: "Show the current active microsprint",
+		Long:  `Displays details about the active microsprint.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runMicrosprintCurrent(cmd, opts)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Update tracker issue body with current issue list")
+
+	return cmd
+}
+
+// runMicrosprintCurrent loads config and client, then calls the testable implementation
+func runMicrosprintCurrent(cmd *cobra.Command, opts *microsprintCurrentOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	return runMicrosprintCurrentWithDeps(cmd, opts, cfg, client)
+}
+
+// newMicrosprintCloseCommand creates the microsprint close subcommand
+func newMicrosprintCloseCommand() *cobra.Command {
+	opts := &microsprintCloseOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "close",
+		Short: "Close the current microsprint",
+		Long:  `Closes the active microsprint, generates artifacts, and closes the tracker issue.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runMicrosprintClose(cmd, opts)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.skipRetro, "skip-retro", false, "Skip retrospective prompts and generate empty template")
+	cmd.Flags().BoolVar(&opts.commit, "commit", false, "Automatically commit generated artifacts")
+
+	return cmd
+}
+
+// runMicrosprintClose loads config and client, then calls the testable implementation
+func runMicrosprintClose(cmd *cobra.Command, opts *microsprintCloseOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	// Use artifacts version which generates review.md and retro.md
+	return runMicrosprintCloseArtifactsWithDeps(cmd, opts, cfg, client)
+}
+
+// newMicrosprintListCommand creates the microsprint list subcommand
+func newMicrosprintListCommand() *cobra.Command {
+	opts := &microsprintListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List microsprint history",
+		Long:  `Shows all microsprints, both open and closed.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runMicrosprintList(cmd, opts)
+		},
+	}
+
+	return cmd
+}
+
+// runMicrosprintList loads config and client, then calls the testable implementation
+func runMicrosprintList(cmd *cobra.Command, opts *microsprintListOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	return runMicrosprintListWithDeps(cmd, opts, cfg, client)
+}
+
+// newMicrosprintResolveCommand creates the microsprint resolve subcommand (REQ-014)
+func newMicrosprintResolveCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "resolve",
+		Short: "Resolve multiple active microsprints",
+		Long:  `When multiple active microsprints exist for today, prompts user to resolve the conflict.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runMicrosprintResolve(cmd)
+		},
+	}
+
+	return cmd
+}
+
+// runMicrosprintResolve loads config and client, then calls the testable implementation
+func runMicrosprintResolve(cmd *cobra.Command) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+	}
+
+	client := api.NewClient()
+	return runMicrosprintResolveWithDeps(cmd, cfg, client)
+}
+
+// runMicrosprintResolveWithDeps is the testable entry point for microsprint resolve (REQ-014)
+func runMicrosprintResolveWithDeps(cmd *cobra.Command, cfg *config.Config, client microsprintClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get open microsprint issues
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
+	if err != nil {
+		return fmt.Errorf("failed to get microsprint issues: %w", err)
+	}
+
+	// Find active tracker issues for today
+	today := time.Now().Format("2006-01-02")
+	prefix := "Microsprint: " + today + "-"
+
+	var activeTrackers []api.Issue
+	for _, issue := range issues {
+		if strings.HasPrefix(issue.Title, prefix) {
+			activeTrackers = append(activeTrackers, issue)
+		}
+	}
+
+	// AC-014-4: No conflict if only 1 or no active microsprints
+	if len(activeTrackers) <= 1 {
+		fmt.Fprintf(cmd.OutOrStdout(), "No conflict to resolve\n")
+		return nil
+	}
+
+	// AC-014-1: Prompt user for resolution
+	fmt.Fprintf(cmd.OutOrStdout(), "Multiple active microsprints detected:\n\n")
+	for i, tracker := range activeTrackers {
+		name := strings.TrimPrefix(tracker.Title, "Microsprint: ")
+		fmt.Fprintf(cmd.OutOrStdout(), "  %d. #%d - %s\n", i+1, tracker.Number, name)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "\nOptions:\n")
+	fmt.Fprintf(cmd.OutOrStdout(), "  1. Keep #%d (%s)\n", activeTrackers[0].Number, strings.TrimPrefix(activeTrackers[0].Title, "Microsprint: "))
+	if len(activeTrackers) > 1 {
+		fmt.Fprintf(cmd.OutOrStdout(), "  2. Keep #%d (%s)\n", activeTrackers[1].Number, strings.TrimPrefix(activeTrackers[1].Title, "Microsprint: "))
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "  3. Close both (start new microsprint)\n")
+	fmt.Fprintf(cmd.OutOrStdout(), "  4. Abandon both\n")
+	fmt.Fprintf(cmd.OutOrStdout(), "\nSelect option [1/2/3/4]: ")
+
+	var response string
+	_, _ = fmt.Scanln(&response)
+	response = strings.TrimSpace(response)
+
+	switch response {
+	case "1":
+		// AC-014-2: Keep #1, close #2 and reassign issues
+		keepTracker := activeTrackers[0]
+		closeTracker := activeTrackers[1]
+		keepName := strings.TrimPrefix(keepTracker.Title, "Microsprint: ")
+		closeName := strings.TrimPrefix(closeTracker.Title, "Microsprint: ")
+
+		// Get project for reassignment
+		project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+		if err != nil {
+			return fmt.Errorf("failed to get project: %w", err)
+		}
+
+		// Get microsprint field config
+		microsprintField, ok := cfg.Fields["microsprint"]
+		if !ok {
+			return fmt.Errorf("microsprint field not configured")
+		}
+
+		// Get issues from the tracker being closed
+		closedIssues, err := client.GetIssuesByMicrosprint(owner, repo, closeName)
+		if err != nil {
+			return fmt.Errorf("failed to get issues for %s: %w", closeName, err)
+		}
+
+		// Reassign issues to kept microsprint
+		for _, issue := range closedIssues {
+			itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+			if err != nil {
+				continue
+			}
+			// Set microsprint field to the kept one
+			_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, keepName)
+		}
+
+		// Close the other tracker
+		err = client.CloseIssue(closeTracker.ID)
+		if err != nil {
+			return fmt.Errorf("failed to close tracker #%d: %w", closeTracker.Number, err)
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "Kept #%d (%s), closed #%d (%s)\n", keepTracker.Number, keepName, closeTracker.Number, closeName)
+		if len(closedIssues) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "Reassigned %d issues to %s\n", len(closedIssues), keepName)
+		}
+
+	case "2":
+		if len(activeTrackers) < 2 {
+			return fmt.Errorf("only one active microsprint exists")
+		}
+		// AC-014-2: Keep #2, close #1 and reassign issues
+		keepTracker := activeTrackers[1]
+		closeTracker := activeTrackers[0]
+		keepName := strings.TrimPrefix(keepTracker.Title, "Microsprint: ")
+		closeName := strings.TrimPrefix(closeTracker.Title, "Microsprint: ")
+
+		// Get project for reassignment
+		project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+		if err != nil {
+			return fmt.Errorf("failed to get project: %w", err)
+		}
+
+		// Get microsprint field config
+		microsprintField, ok := cfg.Fields["microsprint"]
+		if !ok {
+			return fmt.Errorf("microsprint field not configured")
+		}
+
+		// Get issues from the tracker being closed
+		closedIssues, err := client.GetIssuesByMicrosprint(owner, repo, closeName)
+		if err != nil {
+			return fmt.Errorf("failed to get issues for %s: %w", closeName, err)
+		}
+
+		// Reassign issues to kept microsprint
+		for _, issue := range closedIssues {
+			itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+			if err != nil {
+				continue
+			}
+			_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, keepName)
+		}
+
+		// Close the other tracker
+		err = client.CloseIssue(closeTracker.ID)
+		if err != nil {
+			return fmt.Errorf("failed to close tracker #%d: %w", closeTracker.Number, err)
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "Kept #%d (%s), closed #%d (%s)\n", keepTracker.Number, keepName, closeTracker.Number, closeName)
+		if len(closedIssues) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "Reassigned %d issues to %s\n", len(closedIssues), keepName)
+		}
+
+	case "3":
+		// Close both and start new microsprint
+		for _, tracker := range activeTrackers {
+			err = client.CloseIssue(tracker.ID)
+			if err != nil {
+				return fmt.Errorf("failed to close tracker #%d: %w", tracker.Number, err)
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Closed all active microsprints.\n")
+		fmt.Fprintf(cmd.OutOrStdout(), "Run 'gh pmu microsprint start' to begin a new microsprint.\n")
+
+	case "4":
+		// AC-014-3: Abandon both without reassignment
+		for _, tracker := range activeTrackers {
+			err = client.CloseIssue(tracker.ID)
+			if err != nil {
+				return fmt.Errorf("failed to close tracker #%d: %w", tracker.Number, err)
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Abandoned all active microsprints (issues not reassigned).\n")
+
+	default:
+		return fmt.Errorf("invalid option: %s", response)
+	}
+
+	return nil
 }
 
 // runMicrosprintStartWithDeps is the testable entry point for microsprint start
@@ -175,6 +579,46 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 	existingIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
 	if err != nil {
 		return fmt.Errorf("failed to get existing microsprints: %w", err)
+	}
+
+	// REQ-009: Team-Wide Model - Check for active microsprint by another user
+	activeTracker := findActiveMicrosprint(existingIssues)
+	if activeTracker != nil && activeTracker.Author.Login != "" {
+		currentUser, err := client.GetAuthenticatedUser()
+		if err != nil {
+			return fmt.Errorf("failed to get current user: %w", err)
+		}
+
+		// Check if the active microsprint was started by someone else
+		if activeTracker.Author.Login != currentUser {
+			fmt.Fprintf(cmd.OutOrStdout(), "Microsprint active: %s (started by %s)\n\n", activeTracker.Title, activeTracker.Author.Login)
+			fmt.Fprintf(cmd.OutOrStdout(), "Options:\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "  1. Join - Continue working with this microsprint\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "  2. Work without - Work without microsprint assignment\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "  3. Cancel - Abort\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "\nSelect option [1/2/3]: ")
+
+			var response string
+			_, _ = fmt.Scanln(&response)
+			response = strings.TrimSpace(response)
+
+			switch response {
+			case "1", "join", "Join":
+				// Join - just inform and exit
+				microsprintName := strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
+				fmt.Fprintf(cmd.OutOrStdout(), "Joined microsprint: %s\n", microsprintName)
+				fmt.Fprintf(cmd.OutOrStdout(), "Use 'gh pmu microsprint add <issue>' to add issues.\n")
+				return nil
+			case "2", "work", "Work":
+				// Work without - exit without creating
+				fmt.Fprintf(cmd.OutOrStdout(), "Working without microsprint assignment.\n")
+				return nil
+			default:
+				// Cancel
+				fmt.Fprintf(cmd.OutOrStdout(), "Cancelled.\n")
+				return nil
+			}
+		}
 	}
 
 	suffix := getNextMicrosprintSuffix(today, existingIssues)
@@ -324,11 +768,33 @@ func runMicrosprintCloseWithDeps(cmd *cobra.Command, opts *microsprintCloseOptio
 		return fmt.Errorf("no active microsprint. Run 'gh pmu microsprint start' first")
 	}
 
+	// REQ-009 AC-009-4: Confirm before closing microsprint started by another user
+	if activeTracker.Author.Login != "" {
+		currentUser, err := client.GetAuthenticatedUser()
+		if err != nil {
+			return fmt.Errorf("failed to get current user: %w", err)
+		}
+
+		if activeTracker.Author.Login != currentUser {
+			fmt.Fprintf(cmd.OutOrStdout(), "Close microsprint started by %s? [y/N]: ", activeTracker.Author.Login)
+			var response string
+			_, _ = fmt.Scanln(&response)
+			response = strings.ToLower(strings.TrimSpace(response))
+			if response != "y" && response != "yes" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Cancelled.\n")
+				return nil
+			}
+		}
+	}
+
 	// Close the tracker issue
 	err = client.CloseIssue(activeTracker.ID)
 	if err != nil {
 		return fmt.Errorf("failed to close tracker issue: %w", err)
 	}
+
+	microsprintName := strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
+	fmt.Fprintf(cmd.OutOrStdout(), "Closed microsprint: %s\n", microsprintName)
 
 	return nil
 }
@@ -583,9 +1049,16 @@ func runMicrosprintCloseArtifactsWithDeps(cmd *cobra.Command, opts *microsprintC
 		return fmt.Errorf("failed to write review.md: %w", err)
 	}
 
-	// Generate retro.md with empty template when --skip-retro (AC-004-3)
+	// Generate retro.md - prompt user unless --skip-retro (REQ-011)
 	retroPath := artifactDir + "/retro.md"
-	retroContent := generateRetroTemplate(microsprintName)
+	var retroContent string
+	if opts.skipRetro {
+		// AC-011-3: Generate empty template without prompts when --skip-retro
+		retroContent = generateRetroTemplate(microsprintName)
+	} else {
+		// AC-011-1, AC-011-2: Prompt for retrospective input
+		retroContent = promptAndGenerateRetro(cmd, microsprintName)
+	}
 	err = client.WriteFile(retroPath, retroContent)
 	if err != nil {
 		return fmt.Errorf("failed to write retro.md: %w", err)
@@ -654,6 +1127,123 @@ func generateRetroTemplate(microsprintName string) string {
 	body.WriteString("## Action Items\n\n")
 	body.WriteString("- \n")
 	return body.String()
+}
+
+// promptAndGenerateRetro prompts user for retrospective input and generates content (REQ-011)
+func promptAndGenerateRetro(cmd *cobra.Command, microsprintName string) string {
+	out := cmd.OutOrStdout()
+	in := cmd.InOrStdin()
+
+	fmt.Fprintf(out, "\n=== Microsprint Retrospective: %s ===\n\n", microsprintName)
+
+	// AC-011-1: Prompt for What Went Well
+	fmt.Fprintf(out, "What Went Well? (press Enter twice to finish):\n")
+	wentWell := readMultilineInput(in)
+
+	// AC-011-1: Prompt for What Could Be Improved
+	fmt.Fprintf(out, "\nWhat Could Be Improved? (press Enter twice to finish):\n")
+	couldImprove := readMultilineInput(in)
+
+	// AC-011-1: Prompt for Action Items
+	fmt.Fprintf(out, "\nAction Items (press Enter twice to finish):\n")
+	actionItems := readMultilineInput(in)
+
+	// AC-011-2: Generate retro.md with responses
+	var body strings.Builder
+	body.WriteString(fmt.Sprintf("# Microsprint Retrospective: %s\n\n", microsprintName))
+	body.WriteString("## What Went Well\n\n")
+	if wentWell == "" {
+		body.WriteString("- \n\n")
+	} else {
+		body.WriteString(formatAsBullets(wentWell))
+		body.WriteString("\n")
+	}
+	body.WriteString("## What Could Be Improved\n\n")
+	if couldImprove == "" {
+		body.WriteString("- \n\n")
+	} else {
+		body.WriteString(formatAsBullets(couldImprove))
+		body.WriteString("\n")
+	}
+	body.WriteString("## Action Items\n\n")
+	if actionItems == "" {
+		body.WriteString("- \n")
+	} else {
+		body.WriteString(formatAsBullets(actionItems))
+	}
+	return body.String()
+}
+
+// readMultilineInput reads input until two consecutive newlines
+func readMultilineInput(in interface{}) string {
+	reader, ok := in.(interface{ Read([]byte) (int, error) })
+	if !ok {
+		return ""
+	}
+
+	var lines []string
+	buf := make([]byte, 1024)
+	var currentLine strings.Builder
+	emptyLineCount := 0
+
+	for {
+		n, err := reader.Read(buf)
+		if err != nil || n == 0 {
+			break
+		}
+
+		for i := 0; i < n; i++ {
+			c := buf[i]
+			if c == '\n' {
+				line := strings.TrimSpace(currentLine.String())
+				if line == "" {
+					emptyLineCount++
+					if emptyLineCount >= 1 && len(lines) > 0 {
+						// End input after blank line following content
+						return strings.Join(lines, "\n")
+					}
+				} else {
+					emptyLineCount = 0
+					lines = append(lines, line)
+				}
+				currentLine.Reset()
+			} else if c != '\r' {
+				currentLine.WriteByte(c)
+			}
+		}
+	}
+
+	// Handle any remaining content
+	if currentLine.Len() > 0 {
+		line := strings.TrimSpace(currentLine.String())
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// formatAsBullets formats input lines as markdown bullet points
+func formatAsBullets(input string) string {
+	if input == "" {
+		return "- \n"
+	}
+
+	var result strings.Builder
+	lines := strings.Split(input, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			// Check if already starts with bullet
+			if !strings.HasPrefix(line, "- ") && !strings.HasPrefix(line, "* ") {
+				result.WriteString("- ")
+			}
+			result.WriteString(line)
+			result.WriteString("\n")
+		}
+	}
+	return result.String()
 }
 
 // generateTrackerCloseBody creates the tracker issue body for close with artifact links
