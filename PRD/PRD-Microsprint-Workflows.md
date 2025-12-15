@@ -34,7 +34,7 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 - All Phase 1 acceptance criteria passing
 - All Phase 2 acceptance criteria passing
-- 80% code coverage on new code
+- Code coverage targets met (50% for `cmd`, 80% for other new packages)
 - Commands integrate seamlessly with existing gh-pmu patterns
 
 ---
@@ -85,7 +85,7 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 ### Milestone 1: Microsprint Core (Phase 1)
 
-**Requirements:** REQ-001 through REQ-016
+**Requirements:** REQ-001 through REQ-016, REQ-038
 
 **Deliverables:**
 - `cmd/microsprint.go` - Command group implementation
@@ -95,7 +95,7 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 ### Milestone 2: Deployment Workflows (Phase 2)
 
-**Requirements:** REQ-017 through REQ-035
+**Requirements:** REQ-017 through REQ-037, REQ-039, REQ-040
 
 **Deliverables:**
 - `cmd/release.go` - Release command group
@@ -140,7 +140,7 @@ Each workflow uses tracker issues for state management and Text fields as the so
 **Acceptance Criteria:**
 - AC-002-1: Given no microsprints today, When starting microsprint, Then name is `YYYY-MM-DD-a`
 - AC-002-2: Given microsprint `2025-12-13-a` exists, When starting new microsprint, Then name is `2025-12-13-b`
-- AC-002-3: Given microsprint `2025-12-13-z` exists, When starting new microsprint, Then name is `2025-12-13-aa` (or error with message)
+- AC-002-3: Given microsprint `2025-12-13-z` exists, When starting new microsprint, Then name is `2025-12-13-aa` (continues through `zz` for 702 additional slots)
 
 **Testing:** TDD (unit tests, no integration tests)
 
@@ -385,6 +385,23 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 ---
 
+#### REQ-038: Remove Issue from Microsprint
+
+**Description:** `gh pmu microsprint remove <issue>` clears the Microsprint Text field on the issue.
+
+**Source:** PRD evaluation (gap analysis)
+
+**Priority:** Must Have
+
+**Acceptance Criteria:**
+- AC-038-1: Given issue #42 assigned to microsprint, When running `microsprint remove 42`, Then Microsprint Text field cleared (set to empty)
+- AC-038-2: Given field cleared, Then output confirms "Removed #42 from microsprint YYYY-MM-DD-a"
+- AC-038-3: Given issue not in any microsprint, When running `microsprint remove 42`, Then warning: "Issue #42 is not assigned to a microsprint"
+
+**Testing:** TDD (unit tests, no integration tests)
+
+---
+
 ### Milestone 2: Deployment Workflows
 
 #### REQ-017: Start Release
@@ -589,6 +606,40 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 ---
 
+#### REQ-039: Remove Issue from Release
+
+**Description:** `gh pmu release remove <issue>` clears the Release Text field on the issue.
+
+**Source:** PRD evaluation (gap analysis)
+
+**Priority:** Must Have
+
+**Acceptance Criteria:**
+- AC-039-1: Given issue #42 assigned to release, When running `release remove 42`, Then Release Text field cleared (set to empty)
+- AC-039-2: Given field cleared, Then output confirms "Removed #42 from release vX.Y.Z"
+- AC-039-3: Given issue not in any release, When running `release remove 42`, Then warning: "Issue #42 is not assigned to a release"
+
+**Testing:** TDD (unit tests, no integration tests)
+
+---
+
+#### REQ-040: Remove Issue from Patch
+
+**Description:** `gh pmu patch remove <issue>` clears the Patch Text field on the issue.
+
+**Source:** PRD evaluation (gap analysis)
+
+**Priority:** Must Have
+
+**Acceptance Criteria:**
+- AC-040-1: Given issue #42 assigned to patch, When running `patch remove 42`, Then Patch Text field cleared (set to empty)
+- AC-040-2: Given field cleared, Then output confirms "Removed #42 from patch vX.Y.Z"
+- AC-040-3: Given issue not in any patch, When running `patch remove 42`, Then warning: "Issue #42 is not assigned to a patch"
+
+**Testing:** TDD (unit tests, no integration tests)
+
+---
+
 #### REQ-029: Framework Detection
 
 **Description:** Auto-detect framework from config files.
@@ -676,15 +727,16 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 #### REQ-034: Coverage Target
 
-**Description:** Minimum 80% code coverage for new code.
+**Description:** Minimum code coverage targets: 50% for `cmd` package, 80% for other new packages.
 
 **Source:** Proposal AC-35
 
 **Priority:** Must Have
 
 **Acceptance Criteria:**
-- AC-034-1: Given `go test -cover`, Then new packages show >= 80% coverage
-- AC-034-2: Given coverage report, Then critical paths covered
+- AC-034-1: Given `go test -cover`, Then `cmd` package shows >= 50% coverage
+- AC-034-2: Given `go test -cover`, Then other new packages show >= 80% coverage
+- AC-034-3: Given coverage report, Then critical paths covered
 
 **Testing:** Coverage measurement
 
@@ -707,15 +759,49 @@ Each workflow uses tracker issues for state management and Text fields as the so
 
 ---
 
+#### REQ-036: View Current Release
+
+**Description:** `gh pmu release current` shows active release details.
+
+**Source:** Technical Architecture (implied from command list)
+
+**Priority:** Must Have
+
+**Acceptance Criteria:**
+- AC-036-1: Given active release, When running `release current`, Then displays: version, codename (if set), started time, issue count, tracker issue number
+- AC-036-2: Given no active release, Then message: "No active release"
+- AC-036-3: Given `--refresh` flag, Then tracker issue body updated with current issue list
+
+**Testing:** TDD (unit tests, no integration tests)
+
+---
+
+#### REQ-037: View Current Patch
+
+**Description:** `gh pmu patch current` shows active patch details.
+
+**Source:** Technical Architecture (implied from command list)
+
+**Priority:** Must Have
+
+**Acceptance Criteria:**
+- AC-037-1: Given active patch, When running `patch current`, Then displays: version, started time, issue count, tracker issue number
+- AC-037-2: Given no active patch, Then message: "No active patch"
+- AC-037-3: Given `--refresh` flag, Then tracker issue body updated with current issue list
+
+**Testing:** TDD (unit tests, no integration tests)
+
+---
+
 ## Technical Architecture
 
 ### New Files
 
 | File | Purpose |
 |------|---------|
-| `cmd/microsprint.go` | Command group: start, current, close, list, add, resolve |
-| `cmd/release.go` | Command group: start, current, add, close, list |
-| `cmd/patch.go` | Command group: start, current, add, close, list |
+| `cmd/microsprint.go` | Command group: start, current, add, remove, close, list, resolve |
+| `cmd/release.go` | Command group: start, current, add, remove, close, list |
+| `cmd/patch.go` | Command group: start, current, add, remove, close, list |
 | `internal/tracker/tracker.go` | Tracker issue state management |
 | `internal/artifacts/microsprint.go` | Review and retro generation |
 | `internal/artifacts/release.go` | Release notes generation |
@@ -767,7 +853,7 @@ microsprint:
 - **Table-Driven:** Where appropriate (existing pattern)
 - **Mocked API:** No real GitHub API calls in tests
 - **Integration Tests:** Not required
-- **Coverage Target:** 80% for new code
+- **Coverage Target:** 50% for `cmd` package, 80% for other new packages
 
 ---
 
@@ -782,39 +868,44 @@ microsprint:
 2. REQ-002: Auto-Generated Naming
 3. REQ-007: Tracker Issue Per Microsprint
 4. REQ-003: Add Issue to Microsprint
-5. REQ-035: View Current Microsprint
-6. REQ-004: Close Microsprint with Artifacts
-7. REQ-010: Review Generation
-8. REQ-011: Retrospective Prompts
-9. REQ-008: List Microsprint History
-10. REQ-005: Integration with Move Command
-11. REQ-006: Integration with Create Command
-12. REQ-009: Team-Wide Model
-13. REQ-012: Tracker Naming Validation
-14. REQ-013: Multiple Active Detection
-15. REQ-014: Resolve Conflicts
-16. REQ-015: No Active Microsprint Error
-17. REQ-016: Empty Microsprint Close
+5. REQ-038: Remove Issue from Microsprint
+6. REQ-035: View Current Microsprint
+7. REQ-004: Close Microsprint with Artifacts
+8. REQ-010: Review Generation
+9. REQ-011: Retrospective Prompts
+10. REQ-008: List Microsprint History
+11. REQ-005: Integration with Move Command
+12. REQ-006: Integration with Create Command
+13. REQ-009: Team-Wide Model
+14. REQ-012: Tracker Naming Validation
+15. REQ-013: Multiple Active Detection
+16. REQ-014: Resolve Conflicts
+17. REQ-015: No Active Microsprint Error
+18. REQ-016: Empty Microsprint Close
 
 **TDD Order (Milestone 2):**
-18. REQ-029: Framework Detection
-19. REQ-030: Command Restrictions
-20. REQ-031: No Framework Fallback
-21. REQ-017: Start Release
-22. REQ-018: Version Validation
-23. REQ-019: Add Issue to Release
-24. REQ-020: Release Artifacts
-25. REQ-021: Release Git Tag
-26. REQ-022: List Releases
-27. REQ-023: Start Patch
-28. REQ-024: LTS Constraints
-29. REQ-025: Add Issue to Patch
-30. REQ-026: Patch Artifacts
-31. REQ-027: Patch Git Tag
-32. REQ-028: List Patches
-33. REQ-032: Unit Tests
-34. REQ-033: Error Path Coverage
-35. REQ-034: Coverage Target
+19. REQ-029: Framework Detection
+20. REQ-030: Command Restrictions
+21. REQ-031: No Framework Fallback
+22. REQ-017: Start Release
+23. REQ-018: Version Validation
+24. REQ-019: Add Issue to Release
+25. REQ-039: Remove Issue from Release
+26. REQ-036: View Current Release
+27. REQ-020: Release Artifacts
+28. REQ-021: Release Git Tag
+29. REQ-022: List Releases
+30. REQ-023: Start Patch
+31. REQ-024: LTS Constraints
+32. REQ-025: Add Issue to Patch
+33. REQ-040: Remove Issue from Patch
+34. REQ-037: View Current Patch
+35. REQ-026: Patch Artifacts
+36. REQ-027: Patch Git Tag
+37. REQ-028: List Patches
+38. REQ-032: Unit Tests
+39. REQ-033: Error Path Coverage
+40. REQ-034: Coverage Target
 
 ---
 

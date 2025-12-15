@@ -4,32 +4,55 @@ This command guides you through preparing a new release for gh-pmu.
 
 ---
 
-## Step 1: Analyze Changes Since Last Release
+## Pre-Step: Verify Config File
 
-Run these commands to understand what changed:
+**IMPORTANT:** Before starting, ensure `.gh-pmu.yml` is clean (not modified by tests).
 
 ```bash
-# Get the latest release tag
-git tag --sort=-v:refname | head -1
-
-# View commits since last release
-git log $(git tag --sort=-v:refname | head -1)..HEAD --oneline
-
-# Count by type
-git log $(git tag --sort=-v:refname | head -1)..HEAD --oneline | grep -c "^[a-f0-9]* feat"
-git log $(git tag --sort=-v:refname | head -1)..HEAD --oneline | grep -c "^[a-f0-9]* fix"
+node .claude/scripts/verify-config.js
 ```
+
+If dirty, fix with:
+```bash
+node .claude/scripts/verify-config.js --fix
+```
+
+---
+
+## Step 1: Analyze Changes Since Last Release
+
+Run the analysis script:
+
+```bash
+node .claude/scripts/analyze-commits.js
+```
+
+This outputs JSON with:
+- `lastTag`: The most recent version tag
+- `commits`: Array of parsed commits with type, scope, message, breaking flag
+- `summary`: Counts by type (feat, fix, docs, etc.) and breaking changes
 
 **Report to user:**
 - Number of commits since last release
 - Breakdown by type (feat/fix/docs/chore)
-- Any breaking changes (look for `!:` or `BREAKING CHANGE`)
+- Any breaking changes (look for `breaking: true`)
 
 ---
 
 ## Step 2: Recommend Version Number
 
-Based on [Semantic Versioning](https://semver.org/):
+Run the version recommendation script:
+
+```bash
+node .claude/scripts/recommend-version.js
+```
+
+Or pipe from analyze-commits:
+```bash
+node .claude/scripts/analyze-commits.js | node .claude/scripts/recommend-version.js
+```
+
+This applies [Semantic Versioning](https://semver.org/):
 
 | Change Type | Version Bump | Example |
 |-------------|--------------|---------|
@@ -45,20 +68,21 @@ Based on [Semantic Versioning](https://semver.org/):
 
 **CRITICAL: Do not proceed until CI passes.**
 
-```bash
-# Check latest workflow run status
-gh run list --limit 1
+Run the CI waiting script:
 
-# If in progress, wait and check again
-gh run list --limit 1 --json status,conclusion,name
+```bash
+node .claude/scripts/wait-for-ci.js
 ```
 
-**CI Wait Logic:**
-1. Check if any workflow is running
-2. If `status: "in_progress"`, inform user and wait
-3. Poll every 30 seconds until complete
-4. If `conclusion: "failure"`, STOP and report the failure
-5. Only proceed if `conclusion: "success"`
+Options:
+- `--timeout <seconds>` - Max wait time (default: 300)
+- `--interval <seconds>` - Polling interval (default: 30)
+
+The script will:
+1. Find the latest workflow run
+2. Poll with exponential backoff until complete
+3. Output job-by-job status
+4. Exit 0 on success, 1 on failure
 
 **Report CI status to user before continuing.**
 
@@ -196,54 +220,27 @@ git push origin vX.Y.Z
 
 **CRITICAL: The release is NOT complete until all CI jobs finish successfully.**
 
-Pushing a tag triggers the release workflow. You MUST monitor it to completion:
+Run the release monitoring script:
 
 ```bash
-# Get the run ID for the tag push
-gh run list --limit 1 --json databaseId,status,headBranch
-
-# Monitor job progress
-gh run view <run-id> --json status,conclusion,jobs
+node .claude/scripts/monitor-release.js --tag vX.Y.Z
 ```
 
-**Required Monitoring:**
-1. Poll every 30 seconds until `status: "completed"`
-2. Verify ALL jobs pass:
-   - test (all matrix combinations)
-   - lint
-   - build (all matrix combinations)
-   - **release** (GoReleaser - creates binaries)
-   - **coverage** (updates coverage report)
-3. If ANY job fails, report immediately and stop
-4. Verify release assets were uploaded:
-   ```bash
-   gh release view vX.Y.Z --json tagName,assets
-   ```
+Options:
+- `--timeout <seconds>` - Max wait time (default: 600)
+- `--interval <seconds>` - Polling interval (default: 30)
 
-**Only after verifying:**
-- All jobs completed successfully
-- Release assets are uploaded (binaries for all platforms)
-- Coverage report was committed
+The script will:
+1. Find and monitor the tag-triggered workflow
+2. Poll until all jobs complete
+3. Verify release assets are uploaded:
+   - darwin-amd64, darwin-arm64
+   - linux-amd64, linux-arm64
+   - windows-amd64.exe, windows-arm64.exe
+   - checksums.txt
+4. Exit 0 only when release is complete with all assets
 
-**THEN report to user:**
-```
-✅ Release vX.Y.Z complete!
-
-CI Pipeline:
-  ✅ test (1.22, 1.23)
-  ✅ lint
-  ✅ build (ubuntu, macos × go 1.22, 1.23)
-  ✅ release (GoReleaser)
-  ✅ coverage report updated
-
-Assets uploaded:
-  • darwin-amd64, darwin-arm64
-  • linux-amd64, linux-arm64
-  • windows-amd64.exe, windows-arm64.exe
-  • checksums.txt
-
-https://github.com/rubrical-studios/gh-pmu/releases/tag/vX.Y.Z
-```
+**Report the output to user when complete.**
 
 ---
 
@@ -251,6 +248,7 @@ https://github.com/rubrical-studios/gh-pmu/releases/tag/vX.Y.Z
 
 Before tagging, verify:
 
+- [ ] Config file clean (`node .claude/scripts/verify-config.js`)
 - [ ] All commits analyzed and categorized
 - [ ] Version number confirmed with user
 - [ ] CI passing on main branch
