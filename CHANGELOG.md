@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2025-12-15
+
+### Added
+- Multiple issue support for `move` command (#343)
+  - Accept multiple issue numbers: `gh pmu move 42 43 44 --status done`
+  - Sequential processing to avoid API rate limits
+  - Graceful error handling - individual failures don't stop remaining issues
+  - Summary output for bulk operations
+
+### Fixed
+- Add retry logic for transient HTTP errors in release scripts
+
+
 ## [0.7.2] - 2025-12-15
 
 ### Fixed

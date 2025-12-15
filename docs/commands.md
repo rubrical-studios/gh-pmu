@@ -213,6 +213,12 @@ gh pmu move 42 --status in_review
 # Update multiple fields
 gh pmu move 42 --status done --priority p0
 
+# Move multiple issues at once (🆕 unique)
+gh pmu move 42 43 44 --status done
+
+# Recursive update
+gh pmu move 42 --status done --priority p0
+
 # Recursive update - cascade to all sub-issues (🆕 unique)
 gh pmu move 42 --status done --recursive
 
