@@ -1,6 +1,10 @@
 package api
 
 import (
+	"fmt"
+	"os/exec"
+	"strings"
+
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
@@ -100,4 +104,14 @@ func joinFeatures(features []string) string {
 		result += "," + features[i]
 	}
 	return result
+}
+
+// GetLatestGitTag returns the latest git tag using git describe
+func (c *Client) GetLatestGitTag() (string, error) {
+	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("no git tags found: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
 }

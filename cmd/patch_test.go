@@ -33,6 +33,10 @@ type mockPatchClient struct {
 	closeIssueCalls      []closeIssueCall
 	gitTagCalls          []gitTagCall
 
+	// Git tag return value
+	latestGitTag       string
+	latestGitTagErr    error
+
 	// Error injection
 	createIssueErr         error
 	getOpenIssuesErr       error
@@ -172,6 +176,13 @@ func (m *mockPatchClient) GitTag(tag, message string) error {
 	return nil
 }
 
+func (m *mockPatchClient) GetLatestGitTag() (string, error) {
+	if m.latestGitTagErr != nil {
+		return "", m.latestGitTagErr
+	}
+	return m.latestGitTag, nil
+}
+
 // testPatchConfig returns a test configuration for patch tests
 func testPatchConfig() *config.Config {
 	return &config.Config{
@@ -206,7 +217,8 @@ func setupMockForPatch() *mockPatchClient {
 			Number: 1,
 			Title:  "Test Project",
 		},
-		addedItemID: "ITEM_456",
+		addedItemID:   "ITEM_456",
+		latestGitTag:  "v1.1.4", // Makes 1.1.5 a valid patch increment
 	}
 }
 

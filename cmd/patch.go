@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,16 +47,20 @@ type patchClient interface {
 	CloseIssue(issueID string) error
 	// GitTag creates an annotated git tag
 	GitTag(tag, message string) error
+	// GetLatestGitTag returns the most recent git tag
+	GetLatestGitTag() (string, error)
 }
 
 // patchStartOptions holds the options for the patch start command
 type patchStartOptions struct {
 	version string
+	name    string
 }
 
 // patchAddOptions holds the options for the patch add command
 type patchAddOptions struct {
 	issueNumber int
+	force       bool
 }
 
 // patchRemoveOptions holds the options for the patch remove command
@@ -122,7 +127,11 @@ func newPatchAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <issue-number>",
 		Short: "Add an issue to the current patch",
-		Long:  `Assigns an issue to the active patch by setting its Patch field.`,
+		Long: `Assigns an issue to the active patch by setting its Patch field.
+
+Validates label constraints:
+- Error if issue has breaking-change label
+- Warning if issue does not have bug/fix/hotfix label`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var issueNum int
@@ -143,6 +152,8 @@ func newPatchAddCommand() *cobra.Command {
 			return runPatchAddWithDeps(cmd, opts, cfg, client)
 		},
 	}
+
+	cmd.Flags().BoolVar(&opts.force, "force", false, "Add issue even with label warnings")
 
 	return cmd
 }
@@ -266,6 +277,14 @@ func runPatchStartWithDeps(cmd *cobra.Command, opts *patchStartOptions, cfg *con
 		return err
 	}
 
+	// Validate this is a PATCH increment only
+	latestTag, err := client.GetLatestGitTag()
+	if err == nil {
+		if !isPatchIncrement(latestTag, opts.version) {
+			return fmt.Errorf("patch releases must be PATCH increments only (e.g., %s -> X.Y.Z+1)", latestTag)
+		}
+	}
+
 	owner, repo, err := parseOwnerRepo(cfg)
 	if err != nil {
 		return err
@@ -359,6 +378,30 @@ func isDuplicatePatchVersion(version string, closedIssues []api.Issue) bool {
 	}
 	return false
 }
+// isPatchIncrement checks if newVersion is a valid patch increment from baseVersion
+func isPatchIncrement(baseVersion, newVersion string) bool {
+	base := strings.TrimPrefix(baseVersion, "v")
+	new := strings.TrimPrefix(newVersion, "v")
+
+	baseParts := strings.Split(base, ".")
+	newParts := strings.Split(new, ".")
+
+	if len(baseParts) != 3 || len(newParts) != 3 {
+		return false
+	}
+
+	baseMajor, _ := strconv.Atoi(baseParts[0])
+	baseMinor, _ := strconv.Atoi(baseParts[1])
+	basePatch, _ := strconv.Atoi(baseParts[2])
+
+	newMajor, _ := strconv.Atoi(newParts[0])
+	newMinor, _ := strconv.Atoi(newParts[1])
+	newPatch, _ := strconv.Atoi(newParts[2])
+
+	// Major and minor must match, patch must be greater
+	return newMajor == baseMajor && newMinor == baseMinor && newPatch > basePatch
+}
+
 
 // runPatchAddWithDeps is the testable entry point for patch add
 func runPatchAddWithDeps(cmd *cobra.Command, opts *patchAddOptions, cfg *config.Config, client patchClient) error {
@@ -394,8 +437,8 @@ func runPatchAddWithDeps(cmd *cobra.Command, opts *patchAddOptions, cfg *config.
 		return fmt.Errorf("Breaking changes not allowed in patches")
 	}
 
-	// AC-024-1: Warn if not labeled bug/hotfix
-	showWarning := !hasLabelName(issue.Labels, "bug") && !hasLabelName(issue.Labels, "hotfix")
+	// AC-024-1: Warn if not labeled bug/fix/hotfix
+	hasBugLabel := hasLabelName(issue.Labels, "bug") || hasLabelName(issue.Labels, "fix") || hasLabelName(issue.Labels, "hotfix")
 
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
@@ -421,7 +464,7 @@ func runPatchAddWithDeps(cmd *cobra.Command, opts *patchAddOptions, cfg *config.
 	}
 
 	// Show warning if applicable (AC-024-1)
-	if showWarning {
+	if !hasBugLabel && !opts.force {
 		fmt.Fprintf(cmd.OutOrStdout(), "Warning: Issue #%d is not labeled bug/hotfix\n", opts.issueNumber)
 	}
 
