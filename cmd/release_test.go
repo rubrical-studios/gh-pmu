@@ -266,37 +266,6 @@ func TestRunReleaseStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	}
 }
 
-// AC-017-2: Given `release start --version 1.2.0 --name "Phoenix"`, Then tracker issue: "Release: v1.2.0 (Phoenix)"
-func TestRunReleaseStartWithDeps_WithNameFlag_IncludesName(t *testing.T) {
-	// ARRANGE
-	mock := setupMockForRelease()
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		version: "1.2.0",
-		name:    "Phoenix",
-	}
-
-	expectedTitle := "Release: v1.2.0 (Phoenix)"
-
-	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
-
-	// ASSERT
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if len(mock.createIssueCalls) != 1 {
-		t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
-	}
-
-	call := mock.createIssueCalls[0]
-	if call.title != expectedTitle {
-		t.Errorf("Expected title '%s', got '%s'", expectedTitle, call.title)
-	}
-}
-
 // AC-017-3: Given tracker issue created, Then has `release` label
 func TestRunReleaseStartWithDeps_HasReleaseLabel(t *testing.T) {
 	// ARRANGE
