@@ -91,7 +91,7 @@ type releaseListOptions struct {
 func newReleaseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "release",
-		Short: "Manage releases for structured development",
+		Short: "Manage releases for IDPF-Structured development",
 		Long:  `Release commands for version-based deployment workflows.`,
 	}
 

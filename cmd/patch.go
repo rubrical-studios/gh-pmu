@@ -85,7 +85,7 @@ type patchListOptions struct {
 func newPatchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "patch",
-		Short: "Manage patches for LTS workflows",
+		Short: "Manage patches for IDPF-LTS patch/hotfix development",
 		Long:  `Patch commands for long-term support and maintenance releases.`,
 	}
 

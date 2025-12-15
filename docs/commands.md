@@ -33,9 +33,9 @@ Utilities:
   history     Show git commit history with issue references
 
 Workflow Commands:
-  microsprint Manage microsprints for AI-assisted development
-  release     Manage releases for version-based deployment
-  patch       Manage patches for hotfix deployment
+  microsprint Manage microsprints for IDPF-Agile development
+  release     Manage releases for IDPF-Structured development
+  patch       Manage patches for IDPF-LTS patch/hotfix development
 
 Flags:
   -h, --help      help for gh-pmu
@@ -527,7 +527,7 @@ Commands for managing development workflows at different cadences.
 
 ### microsprint
 
-Manage microsprints for AI-assisted development (hour-scale work batches).
+Manage microsprints for IDPF-Agile development (hour-scale work batches).
 
 ```bash
 # Start a new microsprint
@@ -560,7 +560,7 @@ gh pmu microsprint resolve
 
 ### release
 
-Manage releases for version-based deployment (IDPF-Structured projects).
+Manage releases for IDPF-Structured development (version-based deployment).
 
 ```bash
 # Start a new release (interactive version prompt)
@@ -588,7 +588,7 @@ gh pmu release list
 
 ### patch
 
-Manage patches for hotfix deployment (IDPF-LTS projects).
+Manage patches for IDPF-LTS patch/hotfix development.
 
 ```bash
 # Start a new patch

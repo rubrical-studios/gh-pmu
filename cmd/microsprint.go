@@ -134,7 +134,7 @@ func checkMultipleActiveMicrosprints(issues []api.Issue) error {
 func newMicrosprintCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "microsprint",
-		Short: "Manage microsprints for AI-assisted development",
+		Short: "Manage microsprints for IDPF-Agile development",
 		Long:  `Microsprint commands for hour-scale work batches.`,
 	}
 
