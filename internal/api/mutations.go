@@ -404,7 +404,7 @@ func (c *Client) CreateProjectField(projectID, name, dataType string, singleSele
 						Name string
 					}
 				} `graphql:"... on ProjectV2SingleSelectField"`
-			}
+			} `graphql:"projectV2Field"`
 		} `graphql:"createProjectV2Field(input: $input)"`
 	}
 
