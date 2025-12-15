@@ -542,9 +542,10 @@ gh pmu microsprint resolve
 Manage releases for version-based deployment (IDPF-Structured projects).
 
 ```bash
-# Start a new release
-gh pmu release start --version 1.2.0
-gh pmu release start --version 1.2.0 --name "Phoenix"
+# Start a new release (interactive version prompt)
+gh pmu release start
+gh pmu release start --version 1.2.0           # Skip prompt
+gh pmu release start --version 1.2.0 --track lts  # Specify track
 
 # Manage issues in release
 gh pmu release add 42
@@ -553,12 +554,16 @@ gh pmu release remove 42
 # View current release
 gh pmu release current
 
-# Close release
+# Close release (generates artifacts)
 gh pmu release close
 
 # List release history
 gh pmu release list
 ```
+
+**Notes:**
+- Interactive version prompt shows latest git tag for reference
+- Artifact directory controlled by track prefix (see [configuration](configuration.md#release-configuration))
 
 ### patch
 
@@ -568,8 +573,11 @@ Manage patches for hotfix deployment (IDPF-LTS projects).
 # Start a new patch
 gh pmu patch start --version 1.2.1
 
-# Manage issues in patch
+# Add issue to patch (with validation)
 gh pmu patch add 42
+gh pmu patch add 42 --force              # Skip validation warnings
+
+# Remove issue from patch
 gh pmu patch remove 42
 
 # View current patch
@@ -581,6 +589,11 @@ gh pmu patch close
 # List patch history
 gh pmu patch list
 ```
+
+**Validation (patch add):**
+- **Error** if issue has `breaking-change` label (incompatible with patches)
+- **Warning** if issue lacks `bug`/`fix`/`hotfix` label
+- Validates version is a valid patch increment from latest git tag
 
 ---
 

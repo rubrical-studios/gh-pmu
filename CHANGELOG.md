@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2025-12-15
+
+### Added
+- **Release track configuration** - Configure track prefix for release artifacts (#321)
+  - `release.tracks[].prefix` in `.gh-pmu.yml` for artifact directory naming
+  - Supports both versioned (`v1.2.0/`) and prefixed (`main-v1.2.0/`) directory structures
+- **Configurable artifact generation** - Control what artifacts are generated during release close (#323)
+  - `release.artifacts.directory` - Custom base directory (default: "Releases")
+  - `release.artifacts.release_notes` - Toggle release-notes.md generation
+  - `release.artifacts.changelog` - Toggle changelog.md generation
+- **Patch version validation** - Validate patch versions and enforce label constraints (#322)
+  - Error if issue has `breaking-change` label (incompatible with patch releases)
+  - Warning if issue lacks `bug`/`fix`/`hotfix` label
+  - Validates version is a valid patch increment from latest git tag
+- **Init command enhancements** - Improved project initialization workflow
+  - Auto-create `Release` and `Microsprint` project fields if missing
+  - Auto-create `release` and `microsprint` repository labels if missing
+  - Sync active releases from existing tracker issues to `release.active[]`
+- **Interactive version selection** - Prompt for version during `release start`
+  - Shows latest git tag for reference
+  - Validates semver format before proceeding
+
+### Fixed
+- Remove unused `name` field from `patchStartOptions` struct
+- Fix ineffectual assignment to `fields` in init command
+
 ## [0.6.0] - 2025-12-14
 
 ### Added
@@ -404,7 +430,11 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.3...v0.6.0
+[0.5.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.2...v0.5.3
+[0.5.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/rubrical-studios/gh-pmu/compare/v0.4.4...v0.4.5

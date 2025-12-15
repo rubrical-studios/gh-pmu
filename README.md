@@ -12,6 +12,8 @@ A GitHub CLI extension for project management and sub-issue hierarchy.
 
 📊 **Board View** - Terminal Kanban board visualization
 
+🚀 **Workflow Commands** - Release, patch, and microsprint management with artifact generation
+
 🔄 **Cross-Repository** - Work with sub-issues across multiple repositories
 
 ## Installation
@@ -62,6 +64,7 @@ gh pmu sub create --parent 42 --title "Subtask"
 Project:    init, list, view, create, move, close, board, field
 Sub-Issues: sub add, sub create, sub list, sub remove
 Batch:      intake, triage, split
+Workflows:  release, patch, microsprint
 Utilities:  filter, history
 ```
 
