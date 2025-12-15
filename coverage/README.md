@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 52.9%**
+**Total Coverage: 52.7%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -17,10 +17,15 @@
 | cmd/close.go:66: | normalizeCloseReason | 100.0% |
 | cmd/close.go:81: | runClose | 26.1% |
 | cmd/close.go:131: | updateStatusToDone | 0.0% |
-| cmd/create.go:30: | newCreateCommand | 100.0% |
-| cmd/create.go:74: | runCreate | 36.6% |
-| cmd/create.go:208: | runCreateFromFile | 0.0% |
-| cmd/create.go:314: | findActiveMicrosprintForCreate | 0.0% |
+| cmd/create.go:39: | newCreateCommand | 100.0% |
+| cmd/create.go:87: | runCreate | 38.7% |
+| cmd/create.go:261: | runCreateFromFile | 0.0% |
+| cmd/create.go:367: | findActiveMicrosprintForCreate | 0.0% |
+| cmd/create.go:380: | readBodyFile | 87.5% |
+| cmd/create.go:399: | openEditorForBody | 0.0% |
+| cmd/create.go:450: | loadIssueTemplate | 0.0% |
+| cmd/create.go:485: | extractTemplateBody | 92.9% |
+| cmd/create.go:511: | decodeBase64Content | 0.0% |
 | cmd/field.go:27: | newFieldCommand | 100.0% |
 | cmd/field.go:42: | newFieldCreateCommand | 85.7% |
 | cmd/field.go:81: | newFieldListCommand | 100.0% |
@@ -332,4 +337,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-15 for v0.7.0*
+*Generated: 2025-12-15 for v0.7.1*
