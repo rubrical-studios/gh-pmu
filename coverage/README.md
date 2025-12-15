@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 52.7%**
+**Total Coverage: 52.8%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -130,10 +130,10 @@
 | cmd/microsprint.go:1264: | runMicrosprintListWithDeps | 90.0% |
 | cmd/microsprint.go:1322: | sortMicrosprintsByDateDesc | 100.0% |
 | cmd/move.go:36: | newMoveCommand | 100.0% |
-| cmd/move.go:104: | runMove | 16.7% |
-| cmd/move.go:132: | runMoveWithDeps | 89.7% |
-| cmd/move.go:345: | collectSubIssuesRecursive | 91.3% |
-| cmd/move.go:395: | findActiveMicrosprintForMove | 100.0% |
+| cmd/move.go:107: | runMove | 16.7% |
+| cmd/move.go:136: | runMoveWithDeps | 87.0% |
+| cmd/move.go:377: | collectSubIssuesRecursive | 91.3% |
+| cmd/move.go:427: | findActiveMicrosprintForMove | 100.0% |
 | cmd/patch.go:85: | newPatchCommand | 100.0% |
 | cmd/patch.go:103: | newPatchStartCommand | 83.3% |
 | cmd/patch.go:123: | newPatchAddCommand | 25.0% |
@@ -337,4 +337,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-15 for v0.7.2*
+*Generated: 2025-12-15 for v0.7.3*
