@@ -337,4 +337,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-15 for v0.7.1*
+*Generated: 2025-12-15 for v0.7.2*
