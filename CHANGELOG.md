@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2025-12-15
+
+### Fixed
+- Correct GraphQL field name for `CreateProjectV2Field` mutation
+
 ## [0.7.1] - 2025-12-15
 
 ### Added
@@ -440,7 +445,9 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.3...v0.6.0
 [0.5.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.5.2...v0.5.3
