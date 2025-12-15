@@ -54,7 +54,6 @@ type patchClient interface {
 // patchStartOptions holds the options for the patch start command
 type patchStartOptions struct {
 	version string
-	name    string
 }
 
 // patchAddOptions holds the options for the patch add command

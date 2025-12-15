@@ -204,12 +204,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(cmd.OutOrStdout())
 	spinner = ui.NewSpinner(cmd.OutOrStdout(), "Fetching project fields...")
 	spinner.Start()
-	fields, err := client.GetProjectFields(selectedProject.ID)
+	_, err = client.GetProjectFields(selectedProject.ID)
 	spinner.Stop()
 
 	if err != nil {
 		u.Warning(fmt.Sprintf("Could not fetch project fields: %v", err))
-		fields = nil
 	}
 
 	// Check and create required fields
@@ -245,7 +244,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Refetch fields after potential creation
-	fields, _ = client.GetProjectFields(selectedProject.ID)
+	fields, _ := client.GetProjectFields(selectedProject.ID)
 
 	// Check and create required labels
 	fmt.Fprintln(cmd.OutOrStdout())
