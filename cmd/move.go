@@ -39,12 +39,12 @@ func newMoveCommand() *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "move <issue-number>",
-		Short: "Update project fields for an issue",
-		Long: `Update project field values for an issue.
+		Use:   "move <issue-number>...",
+		Short: "Update project fields for one or more issues",
+		Long: `Update project field values for one or more issues.
 
-Changes the status, priority, or other project fields for an issue
-that is already in the configured project.
+Changes the status, priority, or other project fields for issues
+that are already in the configured project.
 
 Field values are resolved through config aliases, so you can use
 shorthand values like "in_progress" which will be mapped to "In Progress".
@@ -55,6 +55,9 @@ the issue tree and apply the same changes to all descendants.
 Examples:
   # Move a single issue to "In Progress"
   gh pmu move 42 --status in_progress
+
+  # Move multiple issues at once
+  gh pmu move 42 43 44 --status done
 
   # Set both status and priority
   gh pmu move 42 --status done --priority p1
@@ -73,7 +76,7 @@ Examples:
 
   # Specify repository explicitly
   gh pmu move 42 --status done --repo owner/repo`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMove(cmd, args, opts)
 		},
@@ -129,13 +132,8 @@ func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 }
 
 // runMoveWithDeps is the testable implementation of runMove
+// runMoveWithDeps is the testable implementation of runMove
 func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *config.Config, client moveClient) error {
-	// Parse issue reference
-	owner, repo, number, err := parseIssueReference(args[0])
-	if err != nil {
-		return err
-	}
-
 	// Determine default repository (--repo flag takes precedence over config)
 	defaultOwner, defaultRepo := "", ""
 	if opts.repo != "" {
@@ -151,35 +149,20 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		}
 	}
 
-	// If owner/repo not specified in issue reference, use default
-	if owner == "" || repo == "" {
-		if defaultOwner == "" || defaultRepo == "" {
-			return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
-		}
-		owner = defaultOwner
-		repo = defaultRepo
-	}
-
-	// Get issue to verify it exists
-	issue, err := client.GetIssue(owner, repo, number)
-	if err != nil {
-		return fmt.Errorf("failed to get issue: %w", err)
-	}
-
-	// Get project
+	// Get project (once for all issues)
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Find the project item ID for this issue
+	// Get project items (once for all issues)
 	items, err := client.GetProjectItems(project.ID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
 
 	// Build a map of issue numbers to item IDs for quick lookup
-	itemIDMap := make(map[string]string) // "owner/repo#number" -> itemID
+	itemIDMap := make(map[string]string)
 	for _, item := range items {
 		if item.Issue != nil {
 			key := fmt.Sprintf("%s/%s#%d", item.Issue.Repository.Owner, item.Issue.Repository.Name, item.Issue.Number)
@@ -187,32 +170,71 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		}
 	}
 
-	rootKey := fmt.Sprintf("%s/%s#%d", owner, repo, number)
-	rootItemID, inProject := itemIDMap[rootKey]
-	if !inProject {
-		return fmt.Errorf("issue #%d is not in the project", number)
-	}
+	// Collect all issues to update from all args
+	var issuesToUpdate []issueInfo
+	var collectionErrors []string
+	hasErrors := false
 
-	// Collect all issues to update
-	issuesToUpdate := []issueInfo{{
-		Owner:  owner,
-		Repo:   repo,
-		Number: number,
-		Title:  issue.Title,
-		ItemID: rootItemID,
-		Depth:  0,
-	}}
-
-	// If recursive, collect all sub-issues
-	if opts.recursive {
-		subIssues, err := collectSubIssuesRecursive(client, owner, repo, number, itemIDMap, 1, opts.depth)
+	for _, arg := range args {
+		owner, repo, number, err := parseIssueReference(arg)
 		if err != nil {
-			return fmt.Errorf("failed to collect sub-issues: %w", err)
+			collectionErrors = append(collectionErrors, fmt.Sprintf("#%s: %v", arg, err))
+			hasErrors = true
+			continue
 		}
-		issuesToUpdate = append(issuesToUpdate, subIssues...)
+
+		if owner == "" || repo == "" {
+			if defaultOwner == "" || defaultRepo == "" {
+				collectionErrors = append(collectionErrors, fmt.Sprintf("#%d: no repository specified", number))
+				hasErrors = true
+				continue
+			}
+			owner = defaultOwner
+			repo = defaultRepo
+		}
+
+		issue, err := client.GetIssue(owner, repo, number)
+		if err != nil {
+			collectionErrors = append(collectionErrors, fmt.Sprintf("#%d: %v", number, err))
+			hasErrors = true
+			continue
+		}
+
+		rootKey := fmt.Sprintf("%s/%s#%d", owner, repo, number)
+		rootItemID, inProject := itemIDMap[rootKey]
+		if !inProject {
+			collectionErrors = append(collectionErrors, fmt.Sprintf("#%d: not in project", number))
+			hasErrors = true
+			continue
+		}
+
+		issuesToUpdate = append(issuesToUpdate, issueInfo{
+			Owner:  owner,
+			Repo:   repo,
+			Number: number,
+			Title:  issue.Title,
+			ItemID: rootItemID,
+			Depth:  0,
+		})
+
+		if opts.recursive {
+			subIssues, err := collectSubIssuesRecursive(client, owner, repo, number, itemIDMap, 1, opts.depth)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to collect sub-issues for #%d: %v\n", number, err)
+			} else {
+				issuesToUpdate = append(issuesToUpdate, subIssues...)
+			}
+		}
 	}
 
-	// Resolve field values
+	for _, errMsg := range collectionErrors {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
+	}
+
+	if len(issuesToUpdate) == 0 {
+		return fmt.Errorf("no valid issues to update")
+	}
+
 	statusValue := ""
 	priorityValue := ""
 	microsprintValue := ""
@@ -220,32 +242,34 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 
 	if opts.status != "" {
 		statusValue = cfg.ResolveFieldValue("status", opts.status)
-		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Status → %s", statusValue))
+		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Status -> %s", statusValue))
 	}
 	if opts.priority != "" {
 		priorityValue = cfg.ResolveFieldValue("priority", opts.priority)
-		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority → %s", priorityValue))
+		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority -> %s", priorityValue))
 	}
 	if opts.microsprint != "" {
 		if opts.microsprint == "current" {
-			// Resolve "current" to active microsprint name
-			microsprintIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
+			firstOwner := issuesToUpdate[0].Owner
+			firstRepo := issuesToUpdate[0].Repo
+			microsprintIssues, err := client.GetOpenIssuesByLabel(firstOwner, firstRepo, "microsprint")
 			if err != nil {
 				return fmt.Errorf("failed to get microsprint issues: %w", err)
 			}
 			activeTracker := findActiveMicrosprintForMove(microsprintIssues)
 			if activeTracker == nil {
-				return fmt.Errorf("no active microsprint found. Run 'gh pmu microsprint start' to create one")
+				return fmt.Errorf("no active microsprint found")
 			}
 			microsprintValue = strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
 		} else {
 			microsprintValue = opts.microsprint
 		}
-		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Microsprint → %s", microsprintValue))
+		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Microsprint -> %s", microsprintValue))
 	}
 
-	// Show what will be updated
-	if opts.recursive || opts.dryRun {
+	multiIssueMode := len(args) > 1 || opts.recursive
+
+	if multiIssueMode || opts.dryRun {
 		if opts.dryRun {
 			fmt.Println("Dry run - no changes will be made")
 			fmt.Println()
@@ -255,22 +279,21 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		for _, info := range issuesToUpdate {
 			indent := strings.Repeat("  ", info.Depth)
 			if info.ItemID != "" {
-				fmt.Printf("%s• #%d - %s\n", indent, info.Number, info.Title)
+				fmt.Printf("%s* #%d - %s\n", indent, info.Number, info.Title)
 			} else {
-				fmt.Printf("%s• #%d - %s (not in project, will skip)\n", indent, info.Number, info.Title)
+				fmt.Printf("%s* #%d - %s (not in project, will skip)\n", indent, info.Number, info.Title)
 			}
 		}
 
 		fmt.Println("\nChanges to apply:")
 		for _, desc := range changeDescriptions {
-			fmt.Printf("  • %s\n", desc)
+			fmt.Printf("  * %s\n", desc)
 		}
 
 		if opts.dryRun {
 			return nil
 		}
 
-		// Prompt for confirmation unless --yes is provided
 		if !opts.yes {
 			fmt.Printf("\nProceed with updating %d issues? [y/N]: ", len(issuesToUpdate))
 			var response string
@@ -284,9 +307,9 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		fmt.Println()
 	}
 
-	// Apply updates
 	updatedCount := 0
 	skippedCount := 0
+	errorCount := 0
 
 	for _, info := range issuesToUpdate {
 		if info.ItemID == "" {
@@ -294,54 +317,63 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			continue
 		}
 
-		// Update status if provided
+		updateFailed := false
+
 		if statusValue != "" {
 			if err := client.SetProjectItemField(project.ID, info.ItemID, "Status", statusValue); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set status for #%d: %v\n", info.Number, err)
-				continue
+				updateFailed = true
 			}
 		}
 
-		// Update priority if provided
-		if priorityValue != "" {
+		if priorityValue != "" && !updateFailed {
 			if err := client.SetProjectItemField(project.ID, info.ItemID, "Priority", priorityValue); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set priority for #%d: %v\n", info.Number, err)
-				continue
+				updateFailed = true
 			}
 		}
 
-		// Update microsprint if provided
-		if microsprintValue != "" {
+		if microsprintValue != "" && !updateFailed {
 			if err := client.SetProjectItemField(project.ID, info.ItemID, "Microsprint", microsprintValue); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
-				continue
+				updateFailed = true
 			}
+		}
+
+		if updateFailed {
+			errorCount++
+			hasErrors = true
+			continue
 		}
 
 		updatedCount++
-		if !opts.recursive {
-			// Single issue - show detailed output
-			fmt.Printf("✓ Updated issue #%d: %s\n", info.Number, info.Title)
+		if !multiIssueMode {
+			fmt.Printf("Updated issue #%d: %s\n", info.Number, info.Title)
 			for _, desc := range changeDescriptions {
-				fmt.Printf("  • %s\n", desc)
+				fmt.Printf("  * %s\n", desc)
 			}
-			fmt.Printf("🔗 https://github.com/%s/%s/issues/%d\n", info.Owner, info.Repo, info.Number)
+			fmt.Printf("https://github.com/%s/%s/issues/%d\n", info.Owner, info.Repo, info.Number)
 		}
 	}
 
-	// Summary for recursive operations
-	if opts.recursive {
-		fmt.Printf("✓ Updated %d issues", updatedCount)
+	if multiIssueMode {
+		fmt.Printf("Updated %d issues", updatedCount)
 		if skippedCount > 0 {
 			fmt.Printf(" (%d skipped - not in project)", skippedCount)
 		}
+		if errorCount > 0 {
+			fmt.Printf(" (%d failed)", errorCount)
+		}
 		fmt.Println()
+	}
+
+	if hasErrors {
+		return fmt.Errorf("some issues could not be updated")
 	}
 
 	return nil
 }
 
-// collectSubIssuesRecursive recursively collects all sub-issues up to maxDepth
 func collectSubIssuesRecursive(client moveClient, owner, repo string, number int, itemIDMap map[string]string, currentDepth, maxDepth int) ([]issueInfo, error) {
 	if currentDepth > maxDepth {
 		return nil, nil

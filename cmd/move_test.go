@@ -395,6 +395,7 @@ func TestRunMoveWithDeps_InvalidIssueReference(t *testing.T) {
 
 func TestRunMoveWithDeps_NoRepoConfigured(t *testing.T) {
 	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
 	cfg := testMoveConfig()
 	cfg.Repositories = []string{}
 
@@ -409,8 +410,8 @@ func TestRunMoveWithDeps_NoRepoConfigured(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when no repository configured")
 	}
-	if !strings.Contains(err.Error(), "no repository specified and none configured") {
-		t.Errorf("Unexpected error: %v", err)
+	if !strings.Contains(err.Error(), "no valid issues") {
+		t.Errorf("Expected 'no valid issues' error, got: %v", err)
 	}
 }
 
@@ -645,8 +646,8 @@ func TestRunMoveWithDeps_IssueNotInProject(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when issue not in project")
 	}
-	if err.Error() != "issue #123 is not in the project" {
-		t.Errorf("Unexpected error message: %v", err)
+	if !strings.Contains(err.Error(), "no valid issues") {
+		t.Errorf("Expected 'no valid issues' error, got: %v", err)
 	}
 }
 
@@ -762,10 +763,13 @@ func TestRunMoveWithDeps_StatusUpdateFails(t *testing.T) {
 
 	opts := &moveOptions{status: "in_progress"}
 
-	// Should not return error, just print warning
+	// Should return error when update fails (hasErrors = true)
 	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("Expected error when update fails")
+	}
+	if !strings.Contains(err.Error(), "could not be updated") {
+		t.Errorf("Expected 'could not be updated' error, got: %v", err)
 	}
 }
 
@@ -1054,9 +1058,10 @@ func TestRunMoveWithDeps_RecursiveGetSubIssuesFails(t *testing.T) {
 	opts := &moveOptions{status: "in_progress", recursive: true, yes: true, depth: 10}
 
 	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
-	// Should return error when collecting sub-issues fails
-	if err == nil {
-		t.Error("Expected error when GetSubIssues fails")
+	// GetSubIssues failure is now a warning, not an error (graceful degradation)
+	// The parent issue should still be updated successfully
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
 
@@ -1353,8 +1358,5 @@ func TestRunMoveWithDeps_MicrosprintCurrentNoActive(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "no active microsprint") {
 		t.Errorf("Expected error to mention 'no active microsprint', got: %v", err)
-	}
-	if !strings.Contains(err.Error(), "microsprint start") {
-		t.Errorf("Expected error to suggest 'microsprint start', got: %v", err)
 	}
 }
