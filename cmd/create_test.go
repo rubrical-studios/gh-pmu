@@ -726,3 +726,317 @@ defaults:
 		t.Errorf("Expected to pass config validation with defaults, got: %v", err)
 	}
 }
+
+// ============================================================================
+// Issue #325: Additional gh issue create options
+// ============================================================================
+
+func TestCreateCommand_HasBodyFileFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	createCmd, _, err := cmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("create command not found: %v", err)
+	}
+
+	flag := createCmd.Flags().Lookup("body-file")
+	if flag == nil {
+		t.Fatal("Expected --body-file flag to exist")
+	}
+	if flag.Shorthand != "F" {
+		t.Errorf("Expected shorthand 'F', got '%s'", flag.Shorthand)
+	}
+}
+
+func TestCreateCommand_HasEditorFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	createCmd, _, err := cmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("create command not found: %v", err)
+	}
+
+	flag := createCmd.Flags().Lookup("editor")
+	if flag == nil {
+		t.Fatal("Expected --editor flag to exist")
+	}
+	if flag.Shorthand != "e" {
+		t.Errorf("Expected shorthand 'e', got '%s'", flag.Shorthand)
+	}
+	if flag.Value.Type() != "bool" {
+		t.Errorf("Expected --editor to be bool, got %s", flag.Value.Type())
+	}
+}
+
+func TestCreateCommand_HasTemplateFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	createCmd, _, err := cmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("create command not found: %v", err)
+	}
+
+	flag := createCmd.Flags().Lookup("template")
+	if flag == nil {
+		t.Fatal("Expected --template flag to exist")
+	}
+	if flag.Shorthand != "T" {
+		t.Errorf("Expected shorthand 'T', got '%s'", flag.Shorthand)
+	}
+}
+
+func TestCreateCommand_HasWebFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	createCmd, _, err := cmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("create command not found: %v", err)
+	}
+
+	flag := createCmd.Flags().Lookup("web")
+	if flag == nil {
+		t.Fatal("Expected --web flag to exist")
+	}
+	if flag.Shorthand != "w" {
+		t.Errorf("Expected shorthand 'w', got '%s'", flag.Shorthand)
+	}
+	if flag.Value.Type() != "bool" {
+		t.Errorf("Expected --web to be bool, got %s", flag.Value.Type())
+	}
+}
+
+// ============================================================================
+// readBodyFile Tests
+// ============================================================================
+
+func TestReadBodyFile_ReadsFileContent(t *testing.T) {
+	// Create a temp file with content
+	tmpfile, err := os.CreateTemp("", "body-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	content := "This is the issue body.\n\nWith multiple lines."
+	if _, err := tmpfile.WriteString(content); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+
+	// Read it back
+	result, err := readBodyFile(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("readBodyFile failed: %v", err)
+	}
+
+	if result != content {
+		t.Errorf("Expected %q, got %q", content, result)
+	}
+}
+
+func TestReadBodyFile_FileNotFound(t *testing.T) {
+	_, err := readBodyFile("/nonexistent/path/to/file.md")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+}
+
+// ============================================================================
+// extractTemplateBody Tests
+// ============================================================================
+
+func TestExtractTemplateBody_NoFrontmatter(t *testing.T) {
+	content := "This is the template body.\n\nWith multiple lines."
+	result := extractTemplateBody(content)
+	if result != content {
+		t.Errorf("Expected %q, got %q", content, result)
+	}
+}
+
+func TestExtractTemplateBody_WithYAMLFrontmatter(t *testing.T) {
+	content := `---
+name: Bug Report
+about: Create a report to help us improve
+---
+
+## Description
+Describe the bug here.
+
+## Steps to Reproduce
+1. Step 1
+2. Step 2`
+
+	expected := `## Description
+Describe the bug here.
+
+## Steps to Reproduce
+1. Step 1
+2. Step 2`
+
+	result := extractTemplateBody(content)
+	if result != expected {
+		t.Errorf("Expected:\n%q\n\nGot:\n%q", expected, result)
+	}
+}
+
+func TestExtractTemplateBody_EmptyContent(t *testing.T) {
+	result := extractTemplateBody("")
+	if result != "" {
+		t.Errorf("Expected empty string, got %q", result)
+	}
+}
+
+func TestExtractTemplateBody_OnlyFrontmatter(t *testing.T) {
+	content := `---
+name: Bug Report
+about: Create a report
+---`
+
+	result := extractTemplateBody(content)
+	if result != "" {
+		t.Errorf("Expected empty string, got %q", result)
+	}
+}
+
+// ============================================================================
+// Mutual Exclusivity Tests
+// ============================================================================
+
+func TestRunCreate_BodyAndBodyFileMutuallyExclusive(t *testing.T) {
+	// ARRANGE: Valid config
+	config := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, config)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create a temp body file
+	tmpfile, err := os.CreateTemp(dir, "body-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpfile.WriteString("Body from file")
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"create",
+		"--title", "Test Issue",
+		"--body", "Body from flag",
+		"--body-file", tmpfile.Name(),
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err = cmd.Execute()
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when using --body and --body-file together")
+	}
+	if !strings.Contains(err.Error(), "cannot use --body and --body-file together") {
+		t.Errorf("Expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunCreate_TemplateWithBodyFlagError(t *testing.T) {
+	// ARRANGE: Valid config
+	config := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, config)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"create",
+		"--title", "Test Issue",
+		"--body", "Body from flag",
+		"--template", "bug",
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when using --template with --body")
+	}
+	if !strings.Contains(err.Error(), "cannot use --template with --body") {
+		t.Errorf("Expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunCreate_BodyFileReadsContent(t *testing.T) {
+	// ARRANGE: Valid config with body file
+	config := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, config)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create a temp body file
+	tmpfile, err := os.CreateTemp(dir, "body-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tmpfile.WriteString("Body content from file")
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"create",
+		"--title", "Test Issue",
+		"--body-file", tmpfile.Name(),
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err = cmd.Execute()
+
+	// ASSERT: Should reach API call phase (past body file reading)
+	if err == nil {
+		t.Skip("Skipping: API call succeeded (authenticated environment)")
+	}
+
+	// Verify we didn't get a body file reading error
+	errStr := err.Error()
+	if strings.Contains(errStr, "failed to read body file") {
+		t.Errorf("Expected to successfully read body file, got: %v", err)
+	}
+}

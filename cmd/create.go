@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -16,6 +21,10 @@ import (
 type createOptions struct {
 	title       string
 	body        string
+	bodyFile    string
+	editor      bool
+	template    string
+	web         bool
 	status      string
 	priority    string
 	microsprint string
@@ -47,6 +56,10 @@ any specified field values (status, priority) are set.`,
 
 	cmd.Flags().StringVarP(&opts.title, "title", "t", "", "Issue title (required for non-interactive mode)")
 	cmd.Flags().StringVarP(&opts.body, "body", "b", "", "Issue body")
+	cmd.Flags().StringVarP(&opts.bodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
+	cmd.Flags().BoolVarP(&opts.editor, "editor", "e", false, "Open editor to write the body")
+	cmd.Flags().StringVarP(&opts.template, "template", "T", "", "Template name to use as starting body text")
+	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open the browser after creating the issue")
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field (e.g., backlog, in_progress)")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field (e.g., p0, p1, p2)")
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "M", "", "Set microsprint field (use 'current' for active microsprint)")
@@ -121,6 +134,39 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 	// Handle non-interactive mode
 	title := opts.title
 	body := opts.body
+
+	// Process --body-file: read body from file
+	if opts.bodyFile != "" {
+		if body != "" {
+			return fmt.Errorf("cannot use --body and --body-file together")
+		}
+		content, err := readBodyFile(opts.bodyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read body file: %w", err)
+		}
+		body = content
+	}
+
+	// Process --template: load issue template
+	if opts.template != "" {
+		if body != "" {
+			return fmt.Errorf("cannot use --template with --body or --body-file")
+		}
+		content, err := loadIssueTemplate(owner, repo, opts.template)
+		if err != nil {
+			return fmt.Errorf("failed to load template: %w", err)
+		}
+		body = content
+	}
+
+	// Process --editor: open editor for body
+	if opts.editor {
+		content, err := openEditorForBody(body)
+		if err != nil {
+			return fmt.Errorf("failed to open editor: %w", err)
+		}
+		body = content
+	}
 
 	if title == "" {
 		return fmt.Errorf("--title is required (use --interactive for prompted mode)")
@@ -201,6 +247,13 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 	// Output the result
 	fmt.Printf("Created issue #%d: %s\n", issue.Number, issue.Title)
 	fmt.Printf("%s\n", issue.URL)
+
+	// Process --web: open browser
+	if opts.web {
+		if err := openInBrowser(issue.URL); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to open browser: %v\n", err)
+		}
+	}
 
 	return nil
 }
@@ -321,4 +374,146 @@ func findActiveMicrosprintForCreate(issues []api.Issue) *api.Issue {
 		}
 	}
 	return nil
+}
+
+// readBodyFile reads the body content from a file or stdin
+func readBodyFile(path string) (string, error) {
+	var content []byte
+	var err error
+
+	if path == "-" {
+		// Read from stdin
+		content, err = io.ReadAll(os.Stdin)
+	} else {
+		content, err = os.ReadFile(path)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(content), nil
+}
+
+// openEditorForBody opens the user's preferred editor and returns the edited content
+func openEditorForBody(initialContent string) (string, error) {
+	// Get editor from environment
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = os.Getenv("VISUAL")
+	}
+	if editor == "" {
+		// Platform-specific defaults
+		if runtime.GOOS == "windows" {
+			editor = "notepad"
+		} else {
+			editor = "vi"
+		}
+	}
+
+	// Create a temporary file
+	tmpfile, err := os.CreateTemp("", "gh-pmu-issue-*.md")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	// Write initial content
+	if initialContent != "" {
+		if _, err := tmpfile.WriteString(initialContent); err != nil {
+			tmpfile.Close()
+			return "", fmt.Errorf("failed to write initial content: %w", err)
+		}
+	}
+	tmpfile.Close()
+
+	// Open editor
+	cmd := exec.Command(editor, tmpfile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("editor exited with error: %w", err)
+	}
+
+	// Read the edited content
+	content, err := os.ReadFile(tmpfile.Name())
+	if err != nil {
+		return "", fmt.Errorf("failed to read edited content: %w", err)
+	}
+
+	return string(content), nil
+}
+
+// loadIssueTemplate loads an issue template from the repository
+func loadIssueTemplate(owner, repo, templateName string) (string, error) {
+	// First, try to find it locally in .github/ISSUE_TEMPLATE/
+	localPaths := []string{
+		filepath.Join(".github", "ISSUE_TEMPLATE", templateName+".md"),
+		filepath.Join(".github", "ISSUE_TEMPLATE", templateName+".yml"),
+		filepath.Join(".github", "ISSUE_TEMPLATE", templateName+".yaml"),
+		filepath.Join(".github", "ISSUE_TEMPLATE", templateName),
+	}
+
+	for _, path := range localPaths {
+		if content, err := os.ReadFile(path); err == nil {
+			return extractTemplateBody(string(content)), nil
+		}
+	}
+
+	// Fall back to fetching from GitHub
+	cmd := exec.Command("gh", "api",
+		fmt.Sprintf("/repos/%s/%s/contents/.github/ISSUE_TEMPLATE/%s.md", owner, repo, templateName),
+		"--jq", ".content",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("template '%s' not found", templateName)
+	}
+
+	// Decode base64 content
+	decoded, err := decodeBase64Content(strings.TrimSpace(string(output)))
+	if err != nil {
+		return "", fmt.Errorf("failed to decode template: %w", err)
+	}
+
+	return extractTemplateBody(decoded), nil
+}
+
+// extractTemplateBody extracts the body from a template file, handling YAML frontmatter
+func extractTemplateBody(content string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) == 0 {
+		return content
+	}
+
+	// Check for YAML frontmatter
+	if strings.TrimSpace(lines[0]) == "---" {
+		inFrontmatter := true
+		var bodyLines []string
+		for i := 1; i < len(lines); i++ {
+			if strings.TrimSpace(lines[i]) == "---" && inFrontmatter {
+				inFrontmatter = false
+				continue
+			}
+			if !inFrontmatter {
+				bodyLines = append(bodyLines, lines[i])
+			}
+		}
+		return strings.TrimSpace(strings.Join(bodyLines, "\n"))
+	}
+
+	return content
+}
+
+// decodeBase64Content decodes base64 encoded content from GitHub API
+func decodeBase64Content(encoded string) (string, error) {
+	// Remove newlines that GitHub API includes
+	encoded = strings.ReplaceAll(encoded, "\n", "")
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
 }
