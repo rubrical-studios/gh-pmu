@@ -161,6 +161,18 @@ gh pmu create --interactive
 # With body
 gh pmu create --title "Add caching" --body "Implement Redis caching for API"
 
+# With body from file
+gh pmu create --title "Add caching" --body-file description.md
+
+# Open editor to compose body
+gh pmu create --title "Add caching" --editor
+
+# Use issue template
+gh pmu create --title "Bug report" --template bug
+
+# Open in browser after creation
+gh pmu create --title "New feature" --web
+
 # With labels
 gh pmu create --title "Security fix" --label bug --label security
 ```
@@ -170,8 +182,17 @@ gh pmu create --title "Security fix" --label bug --label security
 |------|---------|
 | `--status` | Set project status field on create |
 | `--priority` | Set project priority field on create |
+| `--microsprint` | Assign to microsprint (use 'current' for active) |
 | `--from-file` | Create issue from YAML/JSON file |
 | `--interactive` | Prompt for all fields interactively |
+
+**Flags matching `gh issue create`:**
+| Flag | Purpose |
+|------|---------|
+| `--body-file` / `-F` | Read body text from file (use "-" for stdin) |
+| `--editor` / `-e` | Open editor to compose body |
+| `--template` / `-T` | Use issue template from `.github/ISSUE_TEMPLATE/` |
+| `--web` / `-w` | Open browser after creating issue |
 
 **Output:**
 ```

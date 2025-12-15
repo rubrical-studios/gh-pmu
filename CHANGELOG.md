@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2025-12-15
+
+### Added
+- Additional `gh issue create` options in `gh pmu create` command (#325)
+  - `--body-file` / `-F` - Read body text from file (use "-" for stdin)
+  - `--editor` / `-e` - Open editor to compose body
+  - `--template` / `-T` - Use issue template from `.github/ISSUE_TEMPLATE/`
+  - `--web` / `-w` - Open browser after creating issue
+- Mutual exclusivity validation for body input options
+
 ## [0.7.0] - 2025-12-15
 
 ### Added

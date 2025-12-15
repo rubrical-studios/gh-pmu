@@ -920,7 +920,9 @@ repositories:
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	tmpfile.WriteString("Body from file")
+	if _, err := tmpfile.WriteString("Body from file"); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
 	tmpfile.Close()
 	defer os.Remove(tmpfile.Name())
 
@@ -1011,7 +1013,9 @@ repositories:
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	tmpfile.WriteString("Body content from file")
+	if _, err := tmpfile.WriteString("Body content from file"); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
 	tmpfile.Close()
 	defer os.Remove(tmpfile.Name())
 
