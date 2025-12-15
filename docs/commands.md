@@ -631,6 +631,7 @@ These flags work with most commands:
 ## See Also
 
 - [Configuration Guide](configuration.md) - Setup and field aliases
+- [Workflows Guide](workflows.md) - Microsprint, release, and patch
 - [Sub-Issues Guide](sub-issues.md) - Hierarchy management
 - [Batch Operations](batch-operations.md) - Intake, triage, split
 - [gh vs gh pmu](gh-comparison.md) - When to use which

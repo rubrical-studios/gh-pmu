@@ -31,6 +31,9 @@ These commands have no equivalent in the base `gh` CLI:
 | `gh pmu sub` | Manage sub-issue hierarchy (add/create/list/remove) |
 | `gh pmu triage` | Bulk rule-based issue processing |
 | `gh pmu field` | Create and list project fields |
+| `gh pmu microsprint` | AI-assisted development workflow (hour-scale batches) |
+| `gh pmu release` | Version-based deployment workflow |
+| `gh pmu patch` | Hotfix deployment workflow with validation |
 
 ### Unique Flags
 
@@ -43,12 +46,14 @@ Flags available in `gh pmu` that don't exist in base `gh`:
 | `list` | `--has-sub-issues` | Show only parent issues |
 | `create` | `--status` | Set project status on create |
 | `create` | `--priority` | Set project priority on create |
+| `create` | `--microsprint` | Assign to microsprint (use 'current') |
 | `create` | `--from-file` | Create issue from YAML/JSON file |
 | `create` | `--interactive` | Prompt for all fields |
 | `close` | `--update-status` | Move to 'done' status before closing |
 | `move` | `--recursive` | Cascade changes to sub-issues |
 | `move` | `--dry-run` | Preview changes without applying |
 | `move` | `--depth` | Limit recursion depth |
+| `move` | `--microsprint` | Assign to microsprint |
 | `move` | `--yes` | Skip confirmation prompt |
 | `sub create` | `--inherit-labels` | Copy labels from parent |
 | `sub create` | `--inherit-milestone` | Copy milestone from parent |

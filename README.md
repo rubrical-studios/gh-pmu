@@ -45,6 +45,16 @@ gh pmu move 42 --status in_progress
 
 # Create sub-issue
 gh pmu sub create --parent 42 --title "Subtask"
+
+# Start a microsprint (AI-assisted development workflow)
+gh pmu microsprint start
+gh pmu microsprint add 42
+gh pmu microsprint close --commit
+
+# Start a release (version-based deployment)
+gh pmu release start --version 1.2.0
+gh pmu release add 42
+gh pmu release close
 ```
 
 ## Documentation
@@ -55,6 +65,7 @@ gh pmu sub create --parent 42 --title "Subtask"
 | [Commands](docs/commands.md) | Complete command reference with examples |
 | [Sub-Issues](docs/sub-issues.md) | Parent-child hierarchies, epics, progress tracking |
 | [Batch Operations](docs/batch-operations.md) | Intake, triage, and split workflows |
+| [Workflows](docs/workflows.md) | Microsprint, release, and patch management |
 | [gh vs gh pmu](docs/gh-comparison.md) | When to use each CLI |
 | [Development](docs/development.md) | Building, testing, contributing |
 
@@ -77,11 +88,14 @@ Flags and features not available in base `gh` CLI:
 | Command | Unique Flags | Purpose |
 |---------|--------------|---------|
 | `list` | `--status`, `--priority`, `--has-sub-issues` | Filter by project fields |
-| `create` | `--status`, `--priority`, `--from-file` | Set project fields on create |
+| `create` | `--status`, `--priority`, `--microsprint`, `--from-file` | Set project fields on create |
 | `close` | `--update-status` | Move to 'done' before closing |
-| `move` | `--recursive`, `--dry-run`, `--depth` | Cascade updates to sub-issues |
+| `move` | `--recursive`, `--dry-run`, `--depth`, `--microsprint` | Cascade updates to sub-issues |
 | `sub create` | `--inherit-labels`, `--inherit-milestone` | Inherit from parent issue |
 | `split` | `--from`, `--dry-run` | Create sub-issues from checklist |
+| `microsprint` | `start`, `add`, `close`, `--skip-retro`, `--commit` | AI-assisted development batches |
+| `release` | `start --version`, `add`, `close` | Version-based deployment workflow |
+| `patch` | `start --version`, `add`, `close`, `--tag` | Hotfix deployment workflow |
 
 See [gh vs gh pmu](docs/gh-comparison.md) for detailed comparison.
 
