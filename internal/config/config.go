@@ -233,7 +233,15 @@ func (c *Config) AddFieldMetadata(field FieldMetadata) {
 
 // Release contains release management configuration
 type Release struct {
-	Tracks map[string]TrackConfig `yaml:"tracks,omitempty"`
+	Tracks    map[string]TrackConfig `yaml:"tracks,omitempty"`
+	Artifacts *ArtifactConfig        `yaml:"artifacts,omitempty"`
+}
+
+// ArtifactConfig contains configuration for release artifacts
+type ArtifactConfig struct {
+	Directory     string          `yaml:"directory,omitempty"`     // Base directory (default: "Releases")
+	ReleaseNotes  bool            `yaml:"release_notes,omitempty"` // Generate release-notes.md (default: true)
+	Changelog     bool            `yaml:"changelog,omitempty"`     // Generate changelog.md (default: true)
 }
 
 // TrackConfig contains configuration for a release track
@@ -306,4 +314,39 @@ func (c *Config) GetTrackConstraints(track string) *TrackConstraints {
 func (c *Config) FormatReleaseFieldValue(version, track string) string {
 	prefix := c.GetTrackPrefix(track)
 	return prefix + version
+}
+
+// GetArtifactDirectory returns the base artifact directory
+func (c *Config) GetArtifactDirectory() string {
+	if c.Release.Artifacts != nil && c.Release.Artifacts.Directory != "" {
+		return c.Release.Artifacts.Directory
+	}
+	return "Releases"
+}
+
+// GetArtifactPath returns the full artifact path for a release
+// For stable: Releases/v1.0.0
+// For other tracks: Releases/patch/v1.1.1
+func (c *Config) GetArtifactPath(version, track string) string {
+	baseDir := c.GetArtifactDirectory()
+	if track == "stable" || track == "" {
+		return fmt.Sprintf("%s/%s", baseDir, version)
+	}
+	return fmt.Sprintf("%s/%s/%s", baseDir, track, version)
+}
+
+// ShouldGenerateReleaseNotes returns whether release notes should be generated
+func (c *Config) ShouldGenerateReleaseNotes() bool {
+	if c.Release.Artifacts == nil {
+		return true // Default to true
+	}
+	return c.Release.Artifacts.ReleaseNotes
+}
+
+// ShouldGenerateChangelog returns whether changelog should be generated
+func (c *Config) ShouldGenerateChangelog() bool {
+	if c.Release.Artifacts == nil {
+		return true // Default to true
+	}
+	return c.Release.Artifacts.Changelog
 }

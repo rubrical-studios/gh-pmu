@@ -705,33 +705,43 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		return fmt.Errorf("failed to get release issues: %w", err)
 	}
 
-	// Create artifact directory
-	artifactDir := fmt.Sprintf("Releases/%s", releaseVersion)
+	// Create artifact directory (configurable via release.artifacts.directory)
+	artifactDir := fmt.Sprintf("%s/%s", cfg.GetArtifactDirectory(), releaseVersion)
 	err = client.MkdirAll(artifactDir)
 	if err != nil {
 		return fmt.Errorf("failed to create artifact directory: %w", err)
 	}
 
+	var artifactPaths []string
+
 	// Generate and write release-notes.md (AC-020-1, AC-020-2)
-	releaseNotesPath := fmt.Sprintf("%s/release-notes.md", artifactDir)
-	releaseNotesContent := generateReleaseNotesContent(releaseVersion, codename, activeRelease.Number, releaseIssues)
-	err = client.WriteFile(releaseNotesPath, releaseNotesContent)
-	if err != nil {
-		return fmt.Errorf("failed to write release-notes.md: %w", err)
+	if cfg.ShouldGenerateReleaseNotes() {
+		releaseNotesPath := fmt.Sprintf("%s/release-notes.md", artifactDir)
+		releaseNotesContent := generateReleaseNotesContent(releaseVersion, codename, activeRelease.Number, releaseIssues)
+		err = client.WriteFile(releaseNotesPath, releaseNotesContent)
+		if err != nil {
+			return fmt.Errorf("failed to write release-notes.md: %w", err)
+		}
+		artifactPaths = append(artifactPaths, releaseNotesPath)
 	}
 
 	// Generate and write changelog.md (AC-020-3)
-	changelogPath := fmt.Sprintf("%s/changelog.md", artifactDir)
-	changelogContent := generateChangelogContent(releaseVersion, releaseIssues)
-	err = client.WriteFile(changelogPath, changelogContent)
-	if err != nil {
-		return fmt.Errorf("failed to write changelog.md: %w", err)
+	if cfg.ShouldGenerateChangelog() {
+		changelogPath := fmt.Sprintf("%s/changelog.md", artifactDir)
+		changelogContent := generateChangelogContent(releaseVersion, releaseIssues)
+		err = client.WriteFile(changelogPath, changelogContent)
+		if err != nil {
+			return fmt.Errorf("failed to write changelog.md: %w", err)
+		}
+		artifactPaths = append(artifactPaths, changelogPath)
 	}
 
 	// Stage artifacts to git (AC-020-4)
-	err = client.GitAdd(releaseNotesPath, changelogPath)
-	if err != nil {
-		return fmt.Errorf("failed to stage artifacts: %w", err)
+	if len(artifactPaths) > 0 {
+		err = client.GitAdd(artifactPaths...)
+		if err != nil {
+			return fmt.Errorf("failed to stage artifacts: %w", err)
+		}
 	}
 
 	// Create git tag if requested (AC-021-1)

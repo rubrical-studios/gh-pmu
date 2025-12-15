@@ -779,3 +779,141 @@ func TestFormatReleaseFieldValue(t *testing.T) {
 		}
 	}
 }
+
+// TestGetArtifactDirectory tests artifact directory configuration
+func TestGetArtifactDirectory(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected string
+	}{
+		{
+			name:     "default directory when nil",
+			cfg:      &Config{},
+			expected: "Releases",
+		},
+		{
+			name: "custom directory",
+			cfg: &Config{
+				Release: Release{
+					Artifacts: &ArtifactConfig{
+						Directory: "dist/releases",
+					},
+				},
+			},
+			expected: "dist/releases",
+		},
+		{
+			name: "default when empty string",
+			cfg: &Config{
+				Release: Release{
+					Artifacts: &ArtifactConfig{
+						Directory: "",
+					},
+				},
+			},
+			expected: "Releases",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cfg.GetArtifactDirectory()
+			if result != tt.expected {
+				t.Errorf("GetArtifactDirectory() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestShouldGenerateReleaseNotes tests release notes generation config
+func TestShouldGenerateReleaseNotes(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "default true when nil",
+			cfg:      &Config{},
+			expected: true,
+		},
+		{
+			name: "explicit true",
+			cfg: &Config{
+				Release: Release{
+					Artifacts: &ArtifactConfig{
+						ReleaseNotes: true,
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "explicit false",
+			cfg: &Config{
+				Release: Release{
+					Artifacts: &ArtifactConfig{
+						ReleaseNotes: false,
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cfg.ShouldGenerateReleaseNotes()
+			if result != tt.expected {
+				t.Errorf("ShouldGenerateReleaseNotes() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestShouldGenerateChangelog tests changelog generation config
+func TestShouldGenerateChangelog(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "default true when nil",
+			cfg:      &Config{},
+			expected: true,
+		},
+		{
+			name: "explicit true",
+			cfg: &Config{
+				Release: Release{
+					Artifacts: &ArtifactConfig{
+						Changelog: true,
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "explicit false",
+			cfg: &Config{
+				Release: Release{
+					Artifacts: &ArtifactConfig{
+						Changelog: false,
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cfg.ShouldGenerateChangelog()
+			if result != tt.expected {
+				t.Errorf("ShouldGenerateChangelog() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}

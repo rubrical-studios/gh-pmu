@@ -801,13 +801,13 @@ func TestRunPatchCloseWithDeps_GeneratesPatchNotes(t *testing.T) {
 
 	found := false
 	for _, call := range mock.writeFileCalls {
-		if strings.Contains(call.path, "Patches/v1.1.5/patch-notes.md") {
+		if strings.Contains(call.path, "Releases/patch/v1.1.5/patch-notes.md") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("Expected WriteFile call for Patches/v1.1.5/patch-notes.md, got calls: %+v", mock.writeFileCalls)
+		t.Errorf("Expected WriteFile call for Releases/patch/v1.1.5/patch-notes.md, got calls: %+v", mock.writeFileCalls)
 	}
 }
 
