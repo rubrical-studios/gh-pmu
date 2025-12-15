@@ -34,8 +34,8 @@ type mockPatchClient struct {
 	gitTagCalls          []gitTagCall
 
 	// Git tag return value
-	latestGitTag       string
-	latestGitTagErr    error
+	latestGitTag    string
+	latestGitTagErr error
 
 	// Error injection
 	createIssueErr         error
@@ -217,8 +217,8 @@ func setupMockForPatch() *mockPatchClient {
 			Number: 1,
 			Title:  "Test Project",
 		},
-		addedItemID:   "ITEM_456",
-		latestGitTag:  "v1.1.4", // Makes 1.1.5 a valid patch increment
+		addedItemID:  "ITEM_456",
+		latestGitTag: "v1.1.4", // Makes 1.1.5 a valid patch increment
 	}
 }
 

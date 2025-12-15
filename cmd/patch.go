@@ -132,7 +132,7 @@ func newPatchAddCommand() *cobra.Command {
 Validates label constraints:
 - Error if issue has breaking-change label
 - Warning if issue does not have bug/fix/hotfix label`,
-		Args:  cobra.ExactArgs(1),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var issueNum int
 			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
@@ -378,6 +378,7 @@ func isDuplicatePatchVersion(version string, closedIssues []api.Issue) bool {
 	}
 	return false
 }
+
 // isPatchIncrement checks if newVersion is a valid patch increment from baseVersion
 func isPatchIncrement(baseVersion, newVersion string) bool {
 	base := strings.TrimPrefix(baseVersion, "v")
@@ -401,7 +402,6 @@ func isPatchIncrement(baseVersion, newVersion string) bool {
 	// Major and minor must match, patch must be greater
 	return newMajor == baseMajor && newMinor == baseMinor && newPatch > basePatch
 }
-
 
 // runPatchAddWithDeps is the testable entry point for patch add
 func runPatchAddWithDeps(cmd *cobra.Command, opts *patchAddOptions, cfg *config.Config, client patchClient) error {

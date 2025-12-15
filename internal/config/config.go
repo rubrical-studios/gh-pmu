@@ -239,9 +239,9 @@ type Release struct {
 
 // ArtifactConfig contains configuration for release artifacts
 type ArtifactConfig struct {
-	Directory     string          `yaml:"directory,omitempty"`     // Base directory (default: "Releases")
-	ReleaseNotes  bool            `yaml:"release_notes,omitempty"` // Generate release-notes.md (default: true)
-	Changelog     bool            `yaml:"changelog,omitempty"`     // Generate changelog.md (default: true)
+	Directory    string `yaml:"directory,omitempty"`     // Base directory (default: "Releases")
+	ReleaseNotes bool   `yaml:"release_notes,omitempty"` // Generate release-notes.md (default: true)
+	Changelog    bool   `yaml:"changelog,omitempty"`     // Generate changelog.md (default: true)
 }
 
 // TrackConfig contains configuration for a release track
