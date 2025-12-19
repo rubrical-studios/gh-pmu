@@ -1,6 +1,6 @@
 # Coverage Report
 
-**Total Coverage: 52.8%**
+**Total Coverage: 52.9%**
 
 | File | Function | Coverage |
 |------|----------|----------|
@@ -157,35 +157,35 @@
 | cmd/patch.go:767: | runPatchListWithDeps | 88.0% |
 | cmd/patch.go:823: | extractPatchInfo | 100.0% |
 | cmd/patch.go:833: | sortPatchesByVersionDesc | 100.0% |
-| cmd/release.go:91: | newReleaseCommand | 100.0% |
-| cmd/release.go:109: | newReleaseStartCommand | 11.8% |
-| cmd/release.go:208: | newReleaseAddCommand | 20.0% |
-| cmd/release.go:240: | newReleaseRemoveCommand | 20.0% |
-| cmd/release.go:272: | newReleaseCurrentCommand | 33.3% |
-| cmd/release.go:299: | newReleaseCloseCommand | 33.3% |
-| cmd/release.go:326: | newReleaseListCommand | 27.3% |
-| cmd/release.go:352: | runReleaseStartWithDeps | 82.2% |
-| cmd/release.go:444: | findActiveRelease | 100.0% |
-| cmd/release.go:455: | validateVersion | 100.0% |
-| cmd/release.go:463: | normalizeVersion | 100.0% |
-| cmd/release.go:468: | isDuplicateVersion | 100.0% |
-| cmd/release.go:481: | runReleaseAddWithDeps | 74.1% |
-| cmd/release.go:539: | extractReleaseVersion | 100.0% |
-| cmd/release.go:551: | runReleaseRemoveWithDeps | 72.7% |
-| cmd/release.go:622: | runReleaseCurrentWithDeps | 83.3% |
-| cmd/release.go:669: | generateReleaseTrackerBody | 100.0% |
-| cmd/release.go:680: | runReleaseCloseWithDeps | 82.0% |
-| cmd/release.go:774: | extractReleaseCodename | 100.0% |
-| cmd/release.go:784: | generateReleaseNotesContent | 100.0% |
-| cmd/release.go:851: | generateChangelogContent | 100.0% |
-| cmd/release.go:864: | runReleaseListWithDeps | 89.3% |
-| cmd/release.go:925: | extractReleaseInfo | 100.0% |
-| cmd/release.go:937: | sortReleasesByVersionDesc | 100.0% |
-| cmd/release.go:950: | compareVersions | 92.3% |
-| cmd/release.go:974: | getLatestGitTag | 0.0% |
-| cmd/release.go:991: | calculateNextVersions | 78.6% |
-| cmd/release.go:1034: | parseReleaseTitle | 0.0% |
-| cmd/release.go:1058: | SyncActiveReleases | 0.0% |
+| cmd/release.go:89: | newReleaseCommand | 100.0% |
+| cmd/release.go:107: | newReleaseStartCommand | 8.2% |
+| cmd/release.go:204: | newReleaseAddCommand | 20.0% |
+| cmd/release.go:236: | newReleaseRemoveCommand | 20.0% |
+| cmd/release.go:268: | newReleaseCurrentCommand | 33.3% |
+| cmd/release.go:295: | newReleaseCloseCommand | 33.3% |
+| cmd/release.go:322: | newReleaseListCommand | 27.3% |
+| cmd/release.go:348: | runReleaseStartWithDeps | 80.5% |
+| cmd/release.go:434: | findActiveRelease | 100.0% |
+| cmd/release.go:445: | validateVersion | 100.0% |
+| cmd/release.go:453: | normalizeVersion | 100.0% |
+| cmd/release.go:458: | isDuplicateVersion | 100.0% |
+| cmd/release.go:471: | runReleaseAddWithDeps | 74.1% |
+| cmd/release.go:529: | extractReleaseVersion | 100.0% |
+| cmd/release.go:541: | runReleaseRemoveWithDeps | 72.7% |
+| cmd/release.go:612: | runReleaseCurrentWithDeps | 83.3% |
+| cmd/release.go:659: | generateReleaseTrackerBody | 100.0% |
+| cmd/release.go:670: | runReleaseCloseWithDeps | 82.0% |
+| cmd/release.go:764: | extractReleaseCodename | 100.0% |
+| cmd/release.go:774: | generateReleaseNotesContent | 100.0% |
+| cmd/release.go:841: | generateChangelogContent | 100.0% |
+| cmd/release.go:854: | runReleaseListWithDeps | 89.3% |
+| cmd/release.go:915: | extractReleaseInfo | 100.0% |
+| cmd/release.go:927: | sortReleasesByVersionDesc | 100.0% |
+| cmd/release.go:940: | compareVersions | 92.3% |
+| cmd/release.go:964: | getLatestGitTag | 0.0% |
+| cmd/release.go:981: | calculateNextVersions | 78.6% |
+| cmd/release.go:1024: | parseReleaseTitle | 0.0% |
+| cmd/release.go:1048: | SyncActiveReleases | 0.0% |
 | cmd/root.go:9: | NewRootCommand | 100.0% |
 | cmd/root.go:44: | Execute | 0.0% |
 | cmd/split.go:23: | newSplitCommand | 87.5% |
@@ -267,14 +267,14 @@
 | internal/api/mutations.go:858: | GetIssuesByPatch | 0.0% |
 | internal/api/mutations.go:872: | WriteFile | 0.0% |
 | internal/api/mutations.go:877: | MkdirAll | 0.0% |
-| internal/api/mutations.go:882: | GitAdd | 0.0% |
-| internal/api/mutations.go:889: | GitTag | 0.0% |
-| internal/api/mutations.go:895: | GitCommit | 0.0% |
-| internal/api/mutations.go:901: | GetAuthenticatedUser | 0.0% |
-| internal/api/mutations.go:922: | GetIssuesByMicrosprint | 0.0% |
-| internal/api/mutations.go:930: | LabelExists | 0.0% |
-| internal/api/mutations.go:943: | CreateLabel | 0.0% |
-| internal/api/mutations.go:991: | FieldExists | 0.0% |
+| internal/api/mutations.go:882: | GitAdd | 83.3% |
+| internal/api/mutations.go:893: | GitTag | 80.0% |
+| internal/api/mutations.go:903: | GitCommit | 80.0% |
+| internal/api/mutations.go:913: | GetAuthenticatedUser | 0.0% |
+| internal/api/mutations.go:934: | GetIssuesByMicrosprint | 0.0% |
+| internal/api/mutations.go:942: | LabelExists | 0.0% |
+| internal/api/mutations.go:955: | CreateLabel | 0.0% |
+| internal/api/mutations.go:1003: | FieldExists | 0.0% |
 | internal/api/queries.go:10: | GetProject | 100.0% |
 | internal/api/queries.go:30: | getUserProject | 100.0% |
 | internal/api/queries.go:66: | getOrgProject | 100.0% |
@@ -337,4 +337,4 @@
 | internal/ui/ui.go:388: | max | 100.0% |
 | main.go:9: | main | 0.0% |
 
-*Generated: 2025-12-15 for v0.7.3*
+*Generated: 2025-12-19 for v0.7.4*
