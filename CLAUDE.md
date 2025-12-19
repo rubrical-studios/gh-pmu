@@ -51,14 +51,12 @@ Load detailed documentation when needed:
 
 <!-- Add your project-specific instructions below this line -->
 
+⚠️Use absolute project paths for temp files.
+
 On session startup:
 
 1. display a random quote, then
 2. paint a pretty ascii picture 
 
 <!-- These will be preserved during framework updates -->
-
----
-
-**End of Claude Code Instructions**
 

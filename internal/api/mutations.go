@@ -882,19 +882,31 @@ func (c *Client) MkdirAll(path string) error {
 func (c *Client) GitAdd(paths ...string) error {
 	args := append([]string{"add"}, paths...)
 	cmd := exec.Command("git", args...)
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git add failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // GitTag creates an annotated git tag
 func (c *Client) GitTag(tag, message string) error {
 	cmd := exec.Command("git", "tag", "-a", tag, "-m", message)
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git tag failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // GitCommit creates a git commit with the given message
 func (c *Client) GitCommit(message string) error {
 	cmd := exec.Command("git", "commit", "-m", message)
-	return cmd.Run()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git commit failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 // GetAuthenticatedUser returns the login of the currently authenticated user

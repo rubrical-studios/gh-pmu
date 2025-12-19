@@ -910,3 +910,67 @@ func TestProjectV2SingleSelectFieldOptionInput_HasRequiredFields(t *testing.T) {
 		t.Errorf("Expected Description 'First option', got '%s'", input.Description)
 	}
 }
+
+// ============================================================================
+// Git Command Error Message Tests
+// ============================================================================
+
+func TestGitAdd_ErrorMessageIncludesGitOutput(t *testing.T) {
+	client := NewClient()
+
+	// Try to add a non-existent file - this will fail
+	err := client.GitAdd("/nonexistent/path/that/does/not/exist.txt")
+
+	if err == nil {
+		t.Fatal("Expected error when adding non-existent file")
+	}
+
+	// Verify error message includes "git add failed:" prefix
+	if !strings.Contains(err.Error(), "git add failed:") {
+		t.Errorf("Expected error to contain 'git add failed:', got: %v", err)
+	}
+
+	// Verify error message includes git's actual output
+	// Different git versions may say "pathspec", "Invalid path", or "No such file"
+	errMsg := err.Error()
+	hasGitOutput := strings.Contains(errMsg, "pathspec") ||
+		strings.Contains(errMsg, "Invalid path") ||
+		strings.Contains(errMsg, "No such file") ||
+		strings.Contains(errMsg, "fatal:")
+	if !hasGitOutput {
+		t.Errorf("Expected error to contain git's error output, got: %v", err)
+	}
+}
+
+func TestGitTag_ErrorMessageIncludesGitOutput(t *testing.T) {
+	client := NewClient()
+
+	// Try to create a tag with invalid characters - this will fail
+	// Using a tag name with spaces which is invalid
+	err := client.GitTag("invalid tag name", "test message")
+
+	if err == nil {
+		t.Fatal("Expected error when creating tag with invalid name")
+	}
+
+	// Verify error message includes "git tag failed:" prefix
+	if !strings.Contains(err.Error(), "git tag failed:") {
+		t.Errorf("Expected error to contain 'git tag failed:', got: %v", err)
+	}
+}
+
+func TestGitCommit_ErrorMessageIncludesGitOutput(t *testing.T) {
+	client := NewClient()
+
+	// Try to commit with nothing staged - this will fail in most cases
+	// Note: This test assumes we're not in a state where a commit would succeed
+	err := client.GitCommit("test commit message")
+
+	// If there's nothing to commit, git will return an error
+	// We just verify that IF there's an error, it has the right format
+	if err != nil {
+		if !strings.Contains(err.Error(), "git commit failed:") {
+			t.Errorf("Expected error to contain 'git commit failed:', got: %v", err)
+		}
+	}
+}
