@@ -2,8 +2,9 @@
 
 **Issue:** #326
 **Date:** 2025-12-14
-**Status:** PRD Generated
-**PRD:** [PRD/PRD-Prepare-Release-Scripts.md](../PRD/PRD-Prepare-Release-Scripts.md)
+**Status:** ✅ Implemented
+**PRD:** [PRD/Implemented/PRD-Prepare-Release-Scripts.md](../../PRD/Implemented/PRD-Prepare-Release-Scripts.md)
+**Implemented:** 2025-12-14
 
 ---
 
@@ -343,12 +344,25 @@ Run: `node .claude/scripts/verify-config.js`
 
 ## Acceptance Criteria
 
-- [ ] Scripts output valid JSON for machine consumption
-- [ ] Scripts support `--help` flag
-- [ ] Scripts exit with appropriate codes (0=success, 1=failure)
-- [ ] Scripts work standalone (no Claude required)
-- [ ] `/prepare-release.md` updated to reference scripts
-- [ ] `.gh-pmu.yml` verification added to workflow
+- [x] Scripts output valid JSON for machine consumption
+- [x] Scripts support `--help` flag
+- [x] Scripts exit with appropriate codes (0=success, 1=failure)
+- [x] Scripts work standalone (no Claude required)
+- [x] `/prepare-release.md` updated to reference scripts
+- [x] `.gh-pmu.yml` verification added to workflow
+
+### Implementation Notes (2025-12-14)
+
+All 6 scripts implemented in `.claude/scripts/`:
+- `verify-config.js` (2.9 KB) - Config file validation
+- `analyze-commits.js` (3.9 KB) - Commit parsing/categorization
+- `recommend-version.js` (5.2 KB) - Semver bump recommendation
+- `wait-for-ci.js` (4.5 KB) - CI polling with backoff
+- `monitor-release.js` (9.1 KB) - Release pipeline monitoring
+- `generate-changelog.js` (6.0 KB) - Changelog generation
+
+Shared libraries in `.claude/scripts/lib/`:
+- `git.js`, `gh.js`, `poll.js`, `output.js`
 
 ---
 
