@@ -10,7 +10,7 @@
 
 Two changes to simplify gh pmu:
 
-1. **Unified Release Command:** Consolidate `release` and `patch` command groups into a single `release` command with a `--branch` flag. The branch name determines release type, validation rules, and artifact paths. This eliminates redundant code while preserving semantic versioning discipline.
+1. **Unified Release Command:** Consolidate `release` and `patch` command groups into a single `release` command with a `--branch` flag. The branch name is used literally (no parsing). This eliminates redundant code and simplifies the API.
 
 2. **Extended `move` Command:** Add `--release`, `--microsprint`, and `--backlog` flags to move issues between releases and sprints. Supports the framework-level `Transfer-Issue` command in IDPF-Agile.
 
@@ -61,55 +61,11 @@ gh pmu release start --branch "hotfix/v1.9.2"
 gh pmu release start --branch "hotfix-auth-bypass"
 ```
 
-Branch names are not validated - users choose their own naming conventions.
-
-### Branch Name Parsing
-
-```
---branch "track/vX.Y.Z"           ->  track=track, version=X.Y.Z
---branch "track/vX.Y.Z-suffix"    ->  track=track, version=X.Y.Z-suffix
-```
-
-| Input | Track | Version | Creates Tag |
-|-------|-------|---------|-------------|
-| `release/v2.0.0` | `release` | `2.0.0` | Yes |
-| `release/v2.0.0-beta.1` | `release` | `2.0.0-beta.1` | Yes |
-| `patch/v1.9.1` | `patch` | `1.9.1` | Yes |
-| `hotfix/v1.9.2` | `hotfix` | `1.9.2` | Yes |
-
-### Track-Based Behavior
-
-| Track | Label Validation | Artifact Path |
-|-------|------------------|---------------|
-| `release` (default) | None | `Releases/{branch}/` |
-| `patch/*` | Block `breaking-change`, warn if no `bug/fix/hotfix` | `Releases/{branch}/` |
-| `hotfix*` | Block `breaking-change`, warn if no `bug/fix/hotfix` | `Releases/{branch}/` |
-
-### Validation Rules by Track
-
-```go
-type trackConfig struct {
-    blockLabels  []string  // Error if present
-    warnLabels   []string  // Warn if ALL missing
-}
-
-var tracks = map[string]trackConfig{
-    "release": {
-        blockLabels: nil,
-        warnLabels:  nil,
-    },
-    "patch": {
-        blockLabels: []string{"breaking-change"},
-        warnLabels:  []string{"bug", "fix", "hotfix"},
-    },
-    "hotfix": {
-        blockLabels: []string{"breaking-change"},
-        warnLabels:  []string{"bug", "fix", "hotfix"},
-    },
-}
-```
-
-All tracks create git branches on start and tags on close (with `--tag` flag).
+Branch names are not validated or parsed - users choose their own naming conventions. The `--branch` value is used literally for:
+- Git branch name
+- Tracker issue title
+- Release field value
+- Artifact directory path
 
 ---
 
@@ -144,10 +100,9 @@ All tracks create git branches on start and tags on close (with `--tag` flag).
 ### Phase 1: Add `--branch` Flag (Non-Breaking)
 
 1. Add `--branch` flag to `release start`
-2. Implement branch parsing and track detection
-3. Add track-based validation to `release add`
-4. Update artifact paths based on track
-5. Deprecation warning when using `patch` commands
+2. Use branch value literally (no parsing)
+3. Create git branch on start
+4. Deprecation warning when using `patch` commands
 
 ### Phase 2: Remove `patch` Commands (Breaking)
 
@@ -175,23 +130,6 @@ type releaseStartOptions struct {
 }
 ```
 
-### Branch Parsing Function
-
-```go
-func parseBranch(branch string) (track, version string, err error) {
-    // Handle "prefix/version" format
-    if strings.Contains(branch, "/") {
-        parts := strings.SplitN(branch, "/", 2)
-        track = parts[0]
-        version = strings.TrimPrefix(parts[1], "v")
-        return track, version, nil
-    }
-
-    // Handle bare name (hotfix)
-    return "hotfix", branch, nil
-}
-```
-
 ### Git Branch Creation
 
 ```go
@@ -208,52 +146,39 @@ func (c *Client) CreateBranch(name string) error {
 
 ```bash
 gh pmu release start --branch "release/v2.0.0"
-# Creates: branch release/v2.0.0, tracker "Release: v2.0.0"
+# Creates: git branch "release/v2.0.0", tracker "Release: release/v2.0.0"
 
 gh pmu release add 123
-# No validation, sets Release field to "v2.0.0"
+# Sets Release field to "release/v2.0.0"
 
 gh pmu release close --tag
-# Creates: tag v2.0.0, artifacts in Releases/v2.0.0/
+# Creates: tag v2.0.0, artifacts in Releases/release/v2.0.0/
 ```
 
 ### Patch Workflow
 
 ```bash
 gh pmu release start --branch "patch/v1.9.1"
-# Creates: branch patch/v1.9.1, tracker "Release: patch/v1.9.1"
+# Creates: git branch "patch/v1.9.1", tracker "Release: patch/v1.9.1"
 
 gh pmu release add 456
-# Validates: blocks breaking-change, warns if no bug/fix/hotfix label
+# Sets Release field to "patch/v1.9.1"
 
 gh pmu release close --tag
 # Creates: tag v1.9.1, artifacts in Releases/patch/v1.9.1/
 ```
 
-### Emergency Hotfix (Versioned)
-
-```bash
-gh pmu release start --branch "hotfix/v1.9.2"
-# Creates: branch hotfix/v1.9.2, tracker "Release: hotfix/v1.9.2"
-
-gh pmu release add 789
-# Validates: blocks breaking-change, warns if no bug/fix/hotfix label
-
-gh pmu release close --tag
-# Creates: tag v1.9.2, artifacts in Releases/hotfix/v1.9.2/
-```
-
-### Emergency Hotfix (Named)
+### Hotfix Workflow
 
 ```bash
 gh pmu release start --branch "hotfix-auth-bypass"
-# Creates: branch hotfix-auth-bypass, tracker "Release: hotfix-auth-bypass"
+# Creates: git branch "hotfix-auth-bypass", tracker "Release: hotfix-auth-bypass"
 
 gh pmu release add 789
-# Validates: blocks breaking-change, warns if no bug/fix/hotfix label
+# Sets Release field to "hotfix-auth-bypass"
 
 gh pmu release close
-# No tag (no version), artifacts in Releases/hotfix-auth-bypass/
+# No tag, artifacts in Releases/hotfix-auth-bypass/
 ```
 
 ---
@@ -279,35 +204,15 @@ This is a **breaking change** release:
 
 ---
 
-## Configuration
-
-### .gh-pmu.yml Extensions
-
-```yaml
-tracks:
-  patch:
-    prefix: "patch/"
-    block_labels: ["breaking-change"]
-    warn_labels: ["bug", "fix", "hotfix"]
-    create_tag: true
-  hotfix:
-    prefix: "hotfix-"
-    block_labels: ["breaking-change"]
-    warn_labels: ["bug", "fix", "hotfix"]
-    create_tag: false
-  beta:
-    prefix: "beta/"
-    create_tag: true
-```
-
----
-
 ## Decisions
 
 | Question | Decision |
 |----------|----------|
 | Interactive mode | **No** - Require `--branch` flag |
 | `--version` flag | **Remove** - Only `--branch` flag, cleaner API |
+| `--track` flag | **Remove** - Already done (#345) |
+| Branch parsing | **None** - Branch value used literally, no track detection |
+| Track-based validation | **Remove** - No automatic label validation |
 | Git branch creation | **Always** - `git checkout -b {branch}` on start |
 | Branch validation | **None** - User controls naming, conventions in docs |
 
@@ -317,33 +222,13 @@ tracks:
 
 No validation enforced. Recommended conventions documented in `docs/workflows.md`:
 
-### Recommended Formats
-
 | Type | Branch Pattern | Tag Pattern | Example |
 |------|----------------|-------------|---------|
 | Release | `release/vX.Y.Z` | `vX.Y.Z` | `release/v2.0.0` |
 | Pre-release | `release/vX.Y.Z-suffix` | `vX.Y.Z-suffix` | `release/v2.0.0-beta.1` |
 | Patch | `patch/vX.Y.Z` | `vX.Y.Z` | `patch/v1.9.1` |
-| Hotfix | `hotfix/vX.Y.Z` | `vX.Y.Z` | `hotfix/v1.9.2` |
+| Hotfix (versioned) | `hotfix/vX.Y.Z` | `vX.Y.Z` | `hotfix/v1.9.2` |
 | Hotfix (named) | `hotfix-name` | - | `hotfix-auth-bypass` |
-
-### Track Detection from Branch
-
-Track is derived from branch prefix for label validation:
-
-```go
-func parseTrack(branch string) string {
-    if strings.HasPrefix(branch, "patch/") {
-        return "patch"
-    }
-    if strings.HasPrefix(branch, "hotfix") {
-        return "hotfix"
-    }
-    return "release"  // default
-}
-```
-
-Only `patch` and `hotfix` tracks apply label validation (block `breaking-change`, warn if no `bug/fix/hotfix`).
 
 ---
 
@@ -425,13 +310,14 @@ type moveOptions struct {
 
 ## Prerequisites
 
-- #347 - Capture stderr in git subprocess calls (required for good error messages when `git checkout -b` fails)
+- ~~#347 - Capture stderr in git subprocess calls~~ ✅ Done (commit `00db4b4`)
+- #345 - Remove --name and --track flags ✅ Done (code complete, docs pending)
 
 ---
 
 ## References
 
-- Current `patch` implementation: `cmd/patch.go`
+- Current `patch` implementation: `cmd/patch.go` (~850 lines to remove)
 - Current `release` implementation: `cmd/release.go`
-- Track parsing: `cmd/release.go:1017-1045` (`parseReleaseTitle`)
 - Commit removing `--track`: `cc82a48`
+- Commit removing `--name`: (part of #345)

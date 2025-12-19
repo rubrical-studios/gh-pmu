@@ -100,10 +100,6 @@ gh pmu release start
 
 # Specify version directly
 gh pmu release start --version 1.2.0
-
-# Specify release track
-gh pmu release start --version 1.2.0 --track main
-gh pmu release start --version 1.2.0 --track lts
 ```
 
 A tracker issue is created with the `release` label.

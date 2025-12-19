@@ -572,7 +572,6 @@ Manage releases for IDPF-Structured development (version-based deployment).
 # Start a new release (interactive version prompt)
 gh pmu release start
 gh pmu release start --version 1.2.0           # Skip prompt
-gh pmu release start --version 1.2.0 --track lts  # Specify track
 
 # Manage issues in release
 gh pmu release add 42

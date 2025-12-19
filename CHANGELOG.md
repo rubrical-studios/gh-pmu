@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Remove `--name` and `--track` flags from `release start` command (#345)
+  - Simplifies release command interface
+  - Interactive mode still available for version selection
+
+### Fixed
+- Improve git command error messages (#347)
+  - `GitAdd`, `GitTag`, `GitCommit` now capture and return stderr on failure
+  - Users see actual git error messages instead of generic "exit status 1"
+
 ## [0.7.3] - 2025-12-15
 
 ### Added
