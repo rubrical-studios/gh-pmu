@@ -304,11 +304,72 @@ $ gh pmu init
 ? Project owner: rubrical-studios
 ? Project number: 11
 ? Repository: rubrical-studios/gh-pmu
+? Are you using the IDPF framework? (y/n): y
+
+Scanning for active releases...
+  Found 2 active releases:
+    - release/v2.0.0 (12 issues)
+    - patch/v1.9.1 (3 issues)
+
+✓ Configuration saved to .gh-pmu.yml
+✓ Release and Microsprint fields created
+✓ Active releases synced to config
+```
+
+**Non-IDPF flow:**
+```
+$ gh pmu init
+
+? Project owner: rubrical-studios
+? Project number: 11
+? Repository: rubrical-studios/gh-pmu
 ? Are you using the IDPF framework? (y/n): n
 
 ✓ Configuration saved to .gh-pmu.yml
   Note: IDPF workflow constraints disabled.
   Release and Microsprint fields not created.
+```
+
+### Active Release Discovery
+
+When `framework: IDPF`, init scans for active releases:
+
+```go
+func discoverActiveReleases(client *api.Client, owner, repo string) ([]Release, error) {
+    // Find open issues with "release" label
+    issues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+    if err != nil {
+        return nil, err
+    }
+
+    var releases []Release
+    for _, issue := range issues {
+        // Parse release name from title: "Release: release/v2.0.0"
+        if name := parseReleaseName(issue.Title); name != "" {
+            releases = append(releases, Release{
+                Name:       name,
+                TrackerID:  issue.ID,
+                IssueCount: countIssuesInRelease(name),
+            })
+        }
+    }
+    return releases, nil
+}
+```
+
+**Stored in `.gh-pmu.yml`:**
+
+```yaml
+project:
+  owner: rubrical-studios
+  number: 11
+framework: IDPF
+releases:
+  active:
+    - name: release/v2.0.0
+      tracker: 350
+    - name: patch/v1.9.1
+      tracker: 355
 ```
 
 ---
@@ -354,6 +415,14 @@ if opts.noRelease {
 - [ ] When `framework: none`, skip creating Release field
 - [ ] When `framework: none`, skip creating Microsprint field
 - [ ] All validation rules bypassed when `framework: none`
+
+### Active Release Discovery (IDPF only)
+- [ ] `gh pmu init` scans for open issues with "release" label
+- [ ] Parses release name from issue title ("Release: release/v2.0.0")
+- [ ] Counts issues assigned to each release
+- [ ] Displays found releases during init
+- [ ] Stores active releases in `releases.active[]` in `.gh-pmu.yml`
+- [ ] Each release entry includes name and tracker issue number
 
 ### Status Transition Validation (IDPF only)
 - [ ] `gh pmu move --status` validates transitions before executing
