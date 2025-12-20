@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
-	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -54,11 +52,13 @@ type releaseClient interface {
 	CloseIssue(issueID string) error
 	// GitTag creates an annotated git tag
 	GitTag(tag, message string) error
+	// GitCheckoutNewBranch creates and checks out a new git branch
+	GitCheckoutNewBranch(branch string) error
 }
 
 // releaseStartOptions holds the options for the release start command
 type releaseStartOptions struct {
-	version string
+	branch string
 }
 
 // releaseAddOptions holds the options for the release add command
@@ -110,10 +110,16 @@ func newReleaseStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start a new release",
-		Long: `Creates a tracker issue for a new release.
+		Long: `Creates a tracker issue for a new release and creates the git branch.
 
-If --version is not provided, an interactive menu will be shown
-with version suggestions based on the latest git tag.`,
+The --branch flag is required and specifies the branch name to create.
+The branch name is used literally for the tracker title, Release field,
+and artifact directory.
+
+Examples:
+  gh pmu release start --branch release/v2.0.0
+  gh pmu release start --branch patch/v1.9.1
+  gh pmu release start --branch hotfix-auth-bypass`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -124,78 +130,13 @@ with version suggestions based on the latest git tag.`,
 				return fmt.Errorf("failed to load configuration: %w", err)
 			}
 
-			// Interactive mode when version not provided
-			if opts.version == "" {
-				u := ui.New(cmd.OutOrStdout())
-				reader := bufio.NewReader(cmd.InOrStdin())
-
-				// Get latest git tag
-				latestTag, err := getLatestGitTag()
-				if err != nil {
-					u.Warning("No git tags found, please enter version manually")
-					fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Version", ""))
-					input, _ := reader.ReadString('\n')
-					opts.version = strings.TrimSpace(input)
-					if opts.version == "" {
-						return fmt.Errorf("version is required")
-					}
-				} else {
-					// Calculate next versions
-					versions, err := calculateNextVersions(latestTag)
-					if err != nil {
-						return fmt.Errorf("failed to parse latest tag %s: %w", latestTag, err)
-					}
-
-					u.Info(fmt.Sprintf("Last release: %s (from git tag)", latestTag))
-					fmt.Fprintln(cmd.OutOrStdout())
-
-					// Show version menu
-					menuOptions := []string{
-						fmt.Sprintf("Patch  → %s", versions.patch),
-						fmt.Sprintf("Minor  → %s", versions.minor),
-						fmt.Sprintf("Major  → %s", versions.major),
-						"Custom",
-					}
-					u.PrintMenu(menuOptions, false)
-
-					fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Choice [1-4]", "1"))
-					choiceInput, _ := reader.ReadString('\n')
-					choiceInput = strings.TrimSpace(choiceInput)
-					if choiceInput == "" {
-						choiceInput = "1"
-					}
-
-					choice, err := strconv.Atoi(choiceInput)
-					if err != nil || choice < 1 || choice > 4 {
-						return fmt.Errorf("invalid selection: %s", choiceInput)
-					}
-
-					switch choice {
-					case 1:
-						opts.version = versions.patch
-					case 2:
-						opts.version = versions.minor
-					case 3:
-						opts.version = versions.major
-					case 4:
-						fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Version", ""))
-						input, _ := reader.ReadString('\n')
-						opts.version = strings.TrimSpace(input)
-						if opts.version == "" {
-							return fmt.Errorf("version is required")
-						}
-					}
-				}
-				u.Success(fmt.Sprintf("Selected version: %s", opts.version))
-				fmt.Fprintln(cmd.OutOrStdout())
-			}
-
 			client := api.NewClient()
 			return runReleaseStartWithDeps(cmd, opts, cfg, client)
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.version, "version", "", "Version number for the release (interactive if omitted)")
+	cmd.Flags().StringVar(&opts.branch, "branch", "", "Branch name for the release (required)")
+	_ = cmd.MarkFlagRequired("branch")
 
 	return cmd
 }
@@ -346,20 +287,12 @@ func newReleaseListCommand() *cobra.Command {
 // runReleaseStartWithDeps is the testable entry point for release start
 // It receives all dependencies as parameters for easy mocking in tests
 func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg *config.Config, client releaseClient) error {
-	// Validate version format (AC-018-1, AC-018-2, AC-018-3)
-	if err := validateVersion(opts.version); err != nil {
-		return err
-	}
-
 	owner, repo, err := parseOwnerRepo(cfg)
 	if err != nil {
 		return err
 	}
 
-	// Normalize version (strip v prefix for comparison)
-	normalizedVersion := normalizeVersion(opts.version)
-
-	// Check for existing active release (AC-017-4)
+	// Check for existing active release
 	existingIssues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
 	if err != nil {
 		return fmt.Errorf("failed to get existing releases: %w", err)
@@ -371,26 +304,16 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 		return fmt.Errorf("active release exists: %s", activeRelease.Title)
 	}
 
-	// Check for duplicate version in closed releases (AC-018-4)
-	closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "release")
+	// Create the git branch
+	err = client.GitCheckoutNewBranch(opts.branch)
 	if err != nil {
-		return fmt.Errorf("failed to get closed releases: %w", err)
+		return fmt.Errorf("failed to create branch: %w", err)
 	}
 
-	if isDuplicateVersion(normalizedVersion, closedIssues) {
-		return fmt.Errorf("version v%s already released", normalizedVersion)
-	}
+	// Use branch name for tracker title and Release field
+	title := fmt.Sprintf("Release: %s", opts.branch)
 
-	// Get default track from config
-	track := cfg.GetDefaultTrack()
-
-	// Format release field value with track prefix
-	releaseFieldValue := cfg.FormatReleaseFieldValue(normalizedVersion, track)
-
-	// Generate release title (AC-017-1, AC-017-2)
-	title := fmt.Sprintf("Release: %s", releaseFieldValue)
-
-	// Create tracker issue with release label (AC-017-3)
+	// Create tracker issue with release label
 	labels := []string{"release"}
 	issue, err := client.CreateIssue(owner, repo, title, "", labels)
 	if err != nil {
@@ -423,6 +346,7 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 	}
 
 	// Output confirmation
+	fmt.Fprintf(cmd.OutOrStdout(), "Created branch: %s\n", opts.branch)
 	fmt.Fprintf(cmd.OutOrStdout(), "Started release: %s\n", title)
 	fmt.Fprintf(cmd.OutOrStdout(), "Tracker issue: #%d\n", issue.Number)
 
@@ -433,7 +357,7 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 // Returns nil if no active release is found
 func findActiveRelease(issues []api.Issue) *api.Issue {
 	for i := range issues {
-		if strings.HasPrefix(issues[i].Title, "Release: v") {
+		if strings.HasPrefix(issues[i].Title, "Release: ") {
 			return &issues[i]
 		}
 	}

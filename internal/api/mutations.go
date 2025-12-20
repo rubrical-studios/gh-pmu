@@ -909,6 +909,16 @@ func (c *Client) GitCommit(message string) error {
 	return nil
 }
 
+// GitCheckoutNewBranch creates and checks out a new git branch
+func (c *Client) GitCheckoutNewBranch(branch string) error {
+	cmd := exec.Command("git", "checkout", "-b", branch)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git checkout -b failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 // GetAuthenticatedUser returns the login of the currently authenticated user
 func (c *Client) GetAuthenticatedUser() (string, error) {
 	if c.gql == nil {

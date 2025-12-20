@@ -182,6 +182,10 @@ func (m *mockReleaseClient) GitTag(tag, message string) error {
 	return nil
 }
 
+func (m *mockReleaseClient) GitCheckoutNewBranch(branch string) error {
+	return nil
+}
+
 // testReleaseConfig returns a test configuration for release tests
 func testReleaseConfig() *config.Config {
 	return &config.Config{
@@ -233,17 +237,17 @@ func newTestReleaseCmd() (*cobra.Command, *bytes.Buffer) {
 // REQ-017: Start Release
 // =============================================================================
 
-// AC-017-1: Given `release start --version 1.2.0`, Then tracker issue created: "Release: v1.2.0"
+// AC-017-1: Given `release start --branch release/v1.2.0`, Then tracker issue created: "Release: release/v1.2.0"
 func TestRunReleaseStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForRelease()
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
-		version: "1.2.0",
+		branch: "release/v1.2.0",
 	}
 
-	expectedTitle := "Release: v1.2.0"
+	expectedTitle := "Release: release/v1.2.0"
 
 	// ACT
 	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
@@ -273,7 +277,7 @@ func TestRunReleaseStartWithDeps_HasReleaseLabel(t *testing.T) {
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
-		version: "1.2.0",
+		branch: "release/v1.2.0",
 	}
 
 	// ACT
@@ -310,14 +314,14 @@ func TestRunReleaseStartWithDeps_ActiveReleaseExists_ReturnsError(t *testing.T) 
 		{
 			ID:     "EXISTING_RELEASE",
 			Number: 50,
-			Title:  "Release: v1.1.0",
+			Title:  "Release: release/v1.1.0",
 			State:  "OPEN",
 		},
 	}
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
-		version: "1.2.0",
+		branch: "release/v1.2.0",
 	}
 
 	// ACT
@@ -341,7 +345,7 @@ func TestRunReleaseStartWithDeps_AddsToProjectAndSetsStatus(t *testing.T) {
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
-		version: "1.2.0",
+		branch: "release/v1.2.0",
 	}
 
 	// ACT
@@ -432,60 +436,39 @@ func TestValidateVersion_VPrefixAllowed(t *testing.T) {
 	}
 }
 
-// AC-018-4: Given closed release v1.2.0 exists, When starting v1.2.0, Then error: "Version v1.2.0 already released"
-func TestRunReleaseStartWithDeps_DuplicateVersion_ReturnsError(t *testing.T) {
-	// ARRANGE
-	mock := setupMockForRelease()
-	// Add method to get closed issues
-	mock.closedIssues = []api.Issue{
-		{
-			ID:     "CLOSED_RELEASE",
-			Number: 40,
-			Title:  "Release: v1.2.0",
-			State:  "CLOSED",
-		},
-	}
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		version: "1.2.0",
+// Test that branch names are used literally
+func TestRunReleaseStartWithDeps_BranchNameUsedLiterally(t *testing.T) {
+	testCases := []struct {
+		branch        string
+		expectedTitle string
+	}{
+		{"release/v1.2.0", "Release: release/v1.2.0"},
+		{"patch/v1.1.1", "Release: patch/v1.1.1"},
+		{"hotfix-auth-bypass", "Release: hotfix-auth-bypass"},
 	}
 
-	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+	for _, tc := range testCases {
+		t.Run(tc.branch, func(t *testing.T) {
+			mock := setupMockForRelease()
+			cfg := testReleaseConfig()
+			cmd, _ := newTestReleaseCmd()
+			opts := &releaseStartOptions{
+				branch: tc.branch,
+			}
 
-	// ASSERT
-	if err == nil {
-		t.Fatalf("Expected error for duplicate version, got nil")
-	}
+			err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+			if err != nil {
+				t.Fatalf("Expected no error, got: %v", err)
+			}
 
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "already released") {
-		t.Errorf("Expected error to mention 'already released', got: %s", errMsg)
-	}
-}
+			if len(mock.createIssueCalls) != 1 {
+				t.Fatalf("Expected 1 CreateIssue call, got %d", len(mock.createIssueCalls))
+			}
 
-// Test that version validation is called during release start
-func TestRunReleaseStartWithDeps_InvalidVersion_ReturnsError(t *testing.T) {
-	// ARRANGE
-	mock := setupMockForRelease()
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		version: "1.2", // Invalid - missing patch version
-	}
-
-	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
-
-	// ASSERT
-	if err == nil {
-		t.Fatalf("Expected error for invalid version, got nil")
-	}
-
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "Invalid version format") {
-		t.Errorf("Expected error to mention 'Invalid version format', got: %s", errMsg)
+			if mock.createIssueCalls[0].title != tc.expectedTitle {
+				t.Errorf("Expected title '%s', got '%s'", tc.expectedTitle, mock.createIssueCalls[0].title)
+			}
+		})
 	}
 }
 
