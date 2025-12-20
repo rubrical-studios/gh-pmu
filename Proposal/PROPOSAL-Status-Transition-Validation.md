@@ -370,7 +370,18 @@ releases:
       tracker: 350
     - name: patch/v1.9.1
       tracker: 355
+  history:
+    - name: release/v1.0.0
+      tracker: 280
+      closed: 2025-12-01
+    - name: patch/v1.0.1
+      tracker: 295
+      closed: 2025-12-10
 ```
+
+**Lifecycle:**
+- `release start --branch X` → adds to `active[]`
+- `release close` → removes from `active[]`, adds to `history[]`
 
 ---
 
@@ -423,6 +434,12 @@ if opts.noRelease {
 - [ ] Displays found releases during init
 - [ ] Stores active releases in `releases.active[]` in `.gh-pmu.yml`
 - [ ] Each release entry includes name and tracker issue number
+
+### Release Lifecycle Config Sync
+- [ ] `gh pmu release start` adds release to `releases.active[]`
+- [ ] `gh pmu release close` removes release from `releases.active[]`
+- [ ] `gh pmu release close` adds release to `releases.history[]` (optional record)
+- [ ] Config file updated atomically with release operations
 
 ### Status Transition Validation (IDPF only)
 - [ ] `gh pmu move --status` validates transitions before executing
