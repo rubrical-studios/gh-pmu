@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,6 +11,37 @@ import (
 	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
+
+// setupFieldTestDir creates a temp directory with a .gh-pmu.yml config file
+// and changes to that directory. Returns cleanup function to restore original dir.
+func setupFieldTestDir(t *testing.T, cfg *config.Config) func() {
+	t.Helper()
+
+	// Save original directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	// Create temp directory
+	tempDir := t.TempDir()
+
+	// Save config to temp directory
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if err := cfg.Save(configPath); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+
+	// Change to temp directory
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir to temp dir: %v", err)
+	}
+
+	// Return cleanup function
+	return func() {
+		_ = os.Chdir(originalDir)
+	}
+}
 
 // mockFieldClient implements fieldClient interface for testing
 type mockFieldClient struct {
@@ -131,6 +164,10 @@ func TestRunFieldCreate_TextFieldSuccess(t *testing.T) {
 		Repositories: []string{"test-owner/test-repo"},
 	}
 
+	// Setup temp directory with config to avoid polluting repo root
+	cleanup := setupFieldTestDir(t, cfg)
+	defer cleanup()
+
 	opts := &fieldCreateOptions{
 		fieldType: "text",
 		yes:       true, // Skip confirmation
@@ -167,6 +204,10 @@ func TestRunFieldCreate_FieldAlreadyExists(t *testing.T) {
 		},
 		Repositories: []string{"test-owner/test-repo"},
 	}
+
+	// Setup temp directory with config to avoid polluting repo root
+	cleanup := setupFieldTestDir(t, cfg)
+	defer cleanup()
 
 	opts := &fieldCreateOptions{
 		fieldType: "text",
@@ -209,6 +250,10 @@ func TestRunFieldCreate_SingleSelectWithOptions(t *testing.T) {
 		},
 		Repositories: []string{"test-owner/test-repo"},
 	}
+
+	// Setup temp directory with config to avoid polluting repo root
+	cleanup := setupFieldTestDir(t, cfg)
+	defer cleanup()
 
 	opts := &fieldCreateOptions{
 		fieldType: "single_select",
