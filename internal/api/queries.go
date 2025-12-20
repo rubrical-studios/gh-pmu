@@ -2,9 +2,19 @@ package api
 
 import (
 	"fmt"
+	"math"
 
 	graphql "github.com/cli/shurcooL-graphql"
 )
+
+// safeGraphQLInt safely converts an int to graphql.Int with bounds checking.
+// Returns an error if the value exceeds int32 range.
+func safeGraphQLInt(n int) (graphql.Int, error) {
+	if n > math.MaxInt32 || n < math.MinInt32 {
+		return 0, fmt.Errorf("integer value %d exceeds int32 range", n)
+	}
+	return graphql.Int(n), nil
+}
 
 // GetProject fetches a project by owner and number
 func (c *Client) GetProject(owner string, number int) (*Project, error) {
@@ -40,12 +50,17 @@ func (c *Client) getUserProject(owner string, number int) (*Project, error) {
 		} `graphql:"user(login: $owner)"`
 	}
 
-	variables := map[string]interface{}{
-		"owner":  graphql.String(owner),
-		"number": graphql.Int(number),
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, err
 	}
 
-	err := c.gql.Query("GetUserProject", &query, variables)
+	variables := map[string]interface{}{
+		"owner":  graphql.String(owner),
+		"number": gqlNumber,
+	}
+
+	err = c.gql.Query("GetUserProject", &query, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -76,12 +91,17 @@ func (c *Client) getOrgProject(owner string, number int) (*Project, error) {
 		} `graphql:"organization(login: $owner)"`
 	}
 
-	variables := map[string]interface{}{
-		"owner":  graphql.String(owner),
-		"number": graphql.Int(number),
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, err
 	}
 
-	err := c.gql.Query("GetOrgProject", &query, variables)
+	variables := map[string]interface{}{
+		"owner":  graphql.String(owner),
+		"number": gqlNumber,
+	}
+
+	err = c.gql.Query("GetOrgProject", &query, variables)
 	if err != nil {
 		return nil, err
 	}
@@ -208,13 +228,18 @@ func (c *Client) GetIssue(owner, repo string, number int) (*Issue, error) {
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, err
+	}
+
 	variables := map[string]interface{}{
 		"owner":  graphql.String(owner),
 		"repo":   graphql.String(repo),
-		"number": graphql.Int(number),
+		"number": gqlNumber,
 	}
 
-	err := c.gql.Query("GetIssue", &query, variables)
+	err = c.gql.Query("GetIssue", &query, variables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue %s/%s#%d: %w", owner, repo, number, err)
 	}
@@ -472,13 +497,18 @@ func (c *Client) GetSubIssues(owner, repo string, number int) ([]SubIssue, error
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, err
+	}
+
 	variables := map[string]interface{}{
 		"owner":  graphql.String(owner),
 		"repo":   graphql.String(repo),
-		"number": graphql.Int(number),
+		"number": gqlNumber,
 	}
 
-	err := c.gql.Query("GetSubIssues", &query, variables)
+	err = c.gql.Query("GetSubIssues", &query, variables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sub-issues for %s/%s#%d: %w", owner, repo, number, err)
 	}
@@ -713,13 +743,18 @@ func (c *Client) GetParentIssue(owner, repo string, number int) (*Issue, error) 
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, err
+	}
+
 	variables := map[string]interface{}{
 		"owner":  graphql.String(owner),
 		"repo":   graphql.String(repo),
-		"number": graphql.Int(number),
+		"number": gqlNumber,
 	}
 
-	err := c.gql.Query("GetParentIssue", &query, variables)
+	err = c.gql.Query("GetParentIssue", &query, variables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent issue for %s/%s#%d: %w", owner, repo, number, err)
 	}
@@ -839,13 +874,18 @@ func (c *Client) GetIssueComments(owner, repo string, number int) ([]Comment, er
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, err
+	}
+
 	variables := map[string]interface{}{
 		"owner":  graphql.String(owner),
 		"repo":   graphql.String(repo),
-		"number": graphql.Int(number),
+		"number": gqlNumber,
 	}
 
-	err := c.gql.Query("GetIssueComments", &query, variables)
+	err = c.gql.Query("GetIssueComments", &query, variables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get comments for %s/%s#%d: %w", owner, repo, number, err)
 	}
