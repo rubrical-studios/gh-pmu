@@ -415,13 +415,13 @@ func TestSubCreateOptions_Defaults(t *testing.T) {
 		t.Fatalf("sub create command not found: %v", err)
 	}
 
-	// Check inherit-labels default (should be true)
+	// Check inherit-labels default (should be false - sub-issues should not inherit parent labels)
 	inheritLabels := subCmd.Flags().Lookup("inherit-labels")
 	if inheritLabels == nil {
 		t.Fatal("Expected --inherit-labels flag to exist")
 	}
-	if inheritLabels.DefValue != "true" {
-		t.Errorf("Expected --inherit-labels default to be 'true', got '%s'", inheritLabels.DefValue)
+	if inheritLabels.DefValue != "false" {
+		t.Errorf("Expected --inherit-labels default to be 'false', got '%s'", inheritLabels.DefValue)
 	}
 
 	// Check inherit-assignees default (should be false)

@@ -182,7 +182,7 @@ type subCreateOptions struct {
 
 func newSubCreateCommand() *cobra.Command {
 	opts := &subCreateOptions{
-		inheritLabels:    true,
+		inheritLabels:    false,
 		inheritAssign:    false,
 		inheritMilestone: true,
 	}
@@ -195,13 +195,13 @@ func newSubCreateCommand() *cobra.Command {
 By default, the new issue is created in the same repository as the parent.
 Use --repo to create the sub-issue in a different repository.
 
-By default, the new issue inherits labels and milestone from the parent
-(only when created in the same repository).
+Labels from config defaults are applied. Use --inherit-labels to also inherit
+labels from the parent issue (same repository only).
 
 Examples:
   gh pmu sub create --parent 10 --title "Implement feature X"
   gh pmu sub create --parent #10 --title "Task" --body "Description"
-  gh pmu sub create -p 10 -t "Task" --no-inherit-labels
+  gh pmu sub create -p 10 -t "Task" --inherit-labels
   gh pmu sub create --parent owner/repo1#10 --repo owner/repo2 --title "Cross-repo task"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSubCreate(cmd, opts)
@@ -216,7 +216,7 @@ Examples:
 	cmd.Flags().StringArrayVarP(&opts.assignees, "assignee", "a", nil, "Assign users to the sub-issue (can be specified multiple times)")
 	cmd.Flags().StringVarP(&opts.milestone, "milestone", "m", "", "Set milestone (title or number)")
 	cmd.Flags().IntVar(&opts.project, "project", 0, "Add to project (project number)")
-	cmd.Flags().BoolVar(&opts.inheritLabels, "inherit-labels", true, "Inherit labels from parent (same repo only)")
+	cmd.Flags().BoolVar(&opts.inheritLabels, "inherit-labels", false, "Inherit labels from parent (same repo only)")
 	cmd.Flags().BoolVar(&opts.inheritAssign, "inherit-assignees", false, "Inherit assignees from parent (same repo only)")
 	cmd.Flags().BoolVar(&opts.inheritMilestone, "inherit-milestone", true, "Inherit milestone from parent (same repo only)")
 
@@ -286,11 +286,23 @@ func runSubCreate(cmd *cobra.Command, opts *subCreateOptions) error {
 		return fmt.Errorf("failed to get parent issue #%d: %w", parentNumber, err)
 	}
 
-	// Build labels list
-	var labels []string
-	// Add explicitly specified labels first
-	labels = append(labels, opts.labels...)
-	// Then add inherited labels if same repo
+	// Build labels list: config defaults + explicit flags + optional inherited
+	labels := append([]string{}, cfg.Defaults.Labels...)
+	// Add explicitly specified labels
+	for _, l := range opts.labels {
+		// Avoid duplicates
+		isDupe := false
+		for _, existing := range labels {
+			if existing == l {
+				isDupe = true
+				break
+			}
+		}
+		if !isDupe {
+			labels = append(labels, l)
+		}
+	}
+	// Then add inherited labels if same repo and flag set
 	if !isCrossRepo && opts.inheritLabels && len(parentIssue.Labels) > 0 {
 		for _, l := range parentIssue.Labels {
 			// Avoid duplicates
