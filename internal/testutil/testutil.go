@@ -20,29 +20,31 @@ import (
 )
 
 var (
-	repoRoot     string
-	repoRootOnce sync.Once
+	testConfigDir     string
+	testConfigDirOnce sync.Once
 )
 
-// getRepoRoot finds the repository root by looking for .gh-pmu.yml
-func getRepoRoot() string {
-	repoRootOnce.Do(func() {
-		// Start from current directory and walk up
+// getTestConfigDir finds the testdata/integration directory for test configs.
+// This ensures integration tests use the test config, not the repo root config.
+func getTestConfigDir() string {
+	testConfigDirOnce.Do(func() {
+		// Start from current directory and walk up to find repo root
 		dir, err := os.Getwd()
 		if err != nil {
 			return
 		}
 
 		for {
-			// Check for .gh-pmu.yml (the config file at repo root)
-			if _, err := os.Stat(filepath.Join(dir, ".gh-pmu.yml")); err == nil {
-				repoRoot = dir
-				return
-			}
-
-			// Check for go.mod as fallback
+			// Check for go.mod (repo root marker)
 			if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-				repoRoot = dir
+				// Found repo root, use testdata/integration config
+				testDir := filepath.Join(dir, "testdata", "integration")
+				if _, err := os.Stat(filepath.Join(testDir, ".gh-pmu.yml")); err == nil {
+					testConfigDir = testDir
+					return
+				}
+				// Fallback to repo root if testdata config doesn't exist
+				testConfigDir = dir
 				return
 			}
 
@@ -55,7 +57,7 @@ func getRepoRoot() string {
 			dir = parent
 		}
 	})
-	return repoRoot
+	return testConfigDir
 }
 
 // TestEnv holds environment configuration for integration tests
@@ -232,9 +234,9 @@ func RunCommand(t *testing.T, args ...string) *CommandResult {
 
 	cmd := exec.Command("gh", fullArgs...)
 
-	// Set working directory to repo root so gh pmu can find config
-	if root := getRepoRoot(); root != "" {
-		cmd.Dir = root
+	// Set working directory to test config dir so gh pmu uses test config
+	if testDir := getTestConfigDir(); testDir != "" {
+		cmd.Dir = testDir
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -267,9 +269,9 @@ func RunCommandWithEnv(t *testing.T, env map[string]string, args ...string) *Com
 
 	cmd := exec.Command("gh", fullArgs...)
 
-	// Set working directory to repo root so gh pmu can find config
-	if root := getRepoRoot(); root != "" {
-		cmd.Dir = root
+	// Set working directory to test config dir so gh pmu uses test config
+	if testDir := getTestConfigDir(); testDir != "" {
+		cmd.Dir = testDir
 	}
 
 	// Copy current environment and add custom variables

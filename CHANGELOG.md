@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2025-12-19
+
 ### Added
 - `--release` flag to `move` command - set Release field directly (#349)
 - `--microsprint` flag to `move` command with `--sprint` alias (#349)
@@ -23,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migration: `gh pmu patch start --version 1.9.1` → `gh pmu release start --branch patch/v1.9.1`
   - Migration: `gh pmu patch add 42` → `gh pmu release add 42`
   - Migration: `gh pmu patch close --tag` → `gh pmu release close --tag`
+
+### Fixed
+- Sub-issues no longer inherit parent labels by default (#359)
 
 ## [0.7.4] - 2025-12-19
 
@@ -487,7 +492,10 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.5...HEAD
+[0.7.5]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.4...v0.7.5
+[0.7.4]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.3...v0.7.4
+[0.7.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.6.0...v0.7.0
