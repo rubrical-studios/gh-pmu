@@ -1360,3 +1360,254 @@ func TestRunMoveWithDeps_MicrosprintCurrentNoActive(t *testing.T) {
 		t.Errorf("Expected error to mention 'no active microsprint', got: %v", err)
 	}
 }
+
+// =============================================================================
+// REQ-006: Release Flag Tests
+// =============================================================================
+
+func TestMoveCommand_HasReleaseFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	moveCmd, _, err := cmd.Find([]string{"move"})
+	if err != nil {
+		t.Fatalf("move command not found: %v", err)
+	}
+
+	flag := moveCmd.Flags().Lookup("release")
+	if flag == nil {
+		t.Fatal("Expected --release flag to exist")
+	}
+}
+
+func TestRunMoveWithDeps_ReleaseExplicitValue(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{release: "v1.2.0"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Release field was set
+	found := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Release" && update.value == "v1.2.0" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected Release field to be set to 'v1.2.0', updates: %+v", mock.fieldUpdates)
+	}
+}
+
+func TestRunMoveWithDeps_ReleaseCurrent(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	// Add active release
+	mock.openIssuesByLabel["release"] = []api.Issue{
+		{
+			ID:     "TRACKER_200",
+			Number: 200,
+			Title:  "Release: v1.3.0",
+			State:  "OPEN",
+		},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{release: "current"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Release field was set to active release name
+	found := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Release" && update.value == "v1.3.0" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected Release field to be set to 'v1.3.0', updates: %+v", mock.fieldUpdates)
+	}
+}
+
+func TestRunMoveWithDeps_ReleaseCurrentNoActive(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	// No active release
+	mock.openIssuesByLabel["release"] = []api.Issue{}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{release: "current"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err == nil {
+		t.Fatal("Expected error when no active release")
+	}
+
+	if !strings.Contains(err.Error(), "no active release") {
+		t.Errorf("Expected error to mention 'no active release', got: %v", err)
+	}
+}
+
+// =============================================================================
+// REQ-007: Backlog Flag Tests
+// =============================================================================
+
+func TestMoveCommand_HasBacklogFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	moveCmd, _, err := cmd.Find([]string{"move"})
+	if err != nil {
+		t.Fatalf("move command not found: %v", err)
+	}
+
+	flag := moveCmd.Flags().Lookup("backlog")
+	if flag == nil {
+		t.Fatal("Expected --backlog flag to exist")
+	}
+}
+
+func TestMoveCommand_HasSprintAlias(t *testing.T) {
+	cmd := NewRootCommand()
+	moveCmd, _, err := cmd.Find([]string{"move"})
+	if err != nil {
+		t.Fatalf("move command not found: %v", err)
+	}
+
+	flag := moveCmd.Flags().Lookup("sprint")
+	if flag == nil {
+		t.Fatal("Expected --sprint alias to exist")
+	}
+}
+
+func TestRunMoveWithDeps_BacklogClearsFields(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{backlog: true}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify both Microsprint and Release fields were cleared (set to empty)
+	microsprintCleared := false
+	releaseCleared := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Microsprint" && update.value == "" {
+			microsprintCleared = true
+		}
+		if update.fieldName == "Release" && update.value == "" {
+			releaseCleared = true
+		}
+	}
+	if !microsprintCleared {
+		t.Error("Expected Microsprint field to be cleared")
+	}
+	if !releaseCleared {
+		t.Error("Expected Release field to be cleared")
+	}
+}
+
+func TestRunMove_BacklogCannotCombineWithRelease(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"move", "42", "--backlog", "--release", "v1.0"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Expected error when combining --backlog with --release")
+	}
+
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Errorf("Expected error about combining flags, got: %v", err)
+	}
+}
+
+func TestRunMove_BacklogCannotCombineWithMicrosprint(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"move", "42", "--backlog", "--microsprint", "2025-01-01-a"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Expected error when combining --backlog with --microsprint")
+	}
+
+	if !strings.Contains(err.Error(), "cannot be combined") {
+		t.Errorf("Expected error about combining flags, got: %v", err)
+	}
+}
+
+func TestRunMoveWithDeps_BacklogWithStatus(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// --backlog can be combined with --status
+	opts := &moveOptions{backlog: true, status: "todo"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Status was set and Microsprint/Release were cleared
+	statusSet := false
+	microsprintCleared := false
+	releaseCleared := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Status" && update.value == "Todo" {
+			statusSet = true
+		}
+		if update.fieldName == "Microsprint" && update.value == "" {
+			microsprintCleared = true
+		}
+		if update.fieldName == "Release" && update.value == "" {
+			releaseCleared = true
+		}
+	}
+	if !statusSet {
+		t.Error("Expected Status field to be set")
+	}
+	if !microsprintCleared {
+		t.Error("Expected Microsprint field to be cleared")
+	}
+	if !releaseCleared {
+		t.Error("Expected Release field to be cleared")
+	}
+}

@@ -15,6 +15,8 @@ type moveOptions struct {
 	status      string
 	priority    string
 	microsprint string
+	release     string
+	backlog     bool
 	recursive   bool
 	depth       int
 	dryRun      bool
@@ -62,6 +64,18 @@ Examples:
   # Set both status and priority
   gh pmu move 42 --status done --priority p1
 
+  # Add issue to the current active release
+  gh pmu move 42 --release current
+
+  # Add issue to a specific release
+  gh pmu move 42 --release v1.2.0
+
+  # Add issue to the current active microsprint
+  gh pmu move 42 --microsprint current
+
+  # Return an issue to backlog (clears release and microsprint)
+  gh pmu move 42 --backlog
+
   # Recursively update an epic and all its sub-issues
   gh pmu move 10 --status in_progress --recursive
 
@@ -85,6 +99,10 @@ Examples:
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field")
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Set microsprint field (use 'current' for active microsprint)")
+	cmd.Flags().StringVar(&opts.microsprint, "sprint", "", "Alias for --microsprint")
+	cmd.MarkFlagsMutuallyExclusive("microsprint", "sprint") // Can't use both at once
+	cmd.Flags().StringVar(&opts.release, "release", "", "Set release field (use 'current' for active release)")
+	cmd.Flags().BoolVar(&opts.backlog, "backlog", false, "Clear release and microsprint fields (return to backlog)")
 	cmd.Flags().BoolVarP(&opts.recursive, "recursive", "r", false, "Apply changes to all sub-issues recursively")
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
@@ -106,8 +124,13 @@ type issueInfo struct {
 
 func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 	// Validate at least one flag is provided
-	if opts.status == "" && opts.priority == "" && opts.microsprint == "" {
-		return fmt.Errorf("at least one of --status, --priority, or --microsprint is required")
+	if opts.status == "" && opts.priority == "" && opts.microsprint == "" && opts.release == "" && !opts.backlog {
+		return fmt.Errorf("at least one of --status, --priority, --microsprint, --release, or --backlog is required")
+	}
+
+	// Validate --backlog cannot be combined with --release or --microsprint
+	if opts.backlog && (opts.release != "" || opts.microsprint != "") {
+		return fmt.Errorf("--backlog cannot be combined with --release or --microsprint")
 	}
 
 	// Load configuration
@@ -238,6 +261,9 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	statusValue := ""
 	priorityValue := ""
 	microsprintValue := ""
+	releaseValue := ""
+	clearMicrosprint := false
+	clearRelease := false
 	var changeDescriptions []string
 
 	if opts.status != "" {
@@ -247,6 +273,13 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	if opts.priority != "" {
 		priorityValue = cfg.ResolveFieldValue("priority", opts.priority)
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority -> %s", priorityValue))
+	}
+	if opts.backlog {
+		// --backlog clears both release and microsprint
+		clearMicrosprint = true
+		clearRelease = true
+		changeDescriptions = append(changeDescriptions, "Microsprint -> (cleared)")
+		changeDescriptions = append(changeDescriptions, "Release -> (cleared)")
 	}
 	if opts.microsprint != "" {
 		if opts.microsprint == "current" {
@@ -265,6 +298,24 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			microsprintValue = opts.microsprint
 		}
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Microsprint -> %s", microsprintValue))
+	}
+	if opts.release != "" {
+		if opts.release == "current" {
+			firstOwner := issuesToUpdate[0].Owner
+			firstRepo := issuesToUpdate[0].Repo
+			releaseIssues, err := client.GetOpenIssuesByLabel(firstOwner, firstRepo, "release")
+			if err != nil {
+				return fmt.Errorf("failed to get release issues: %w", err)
+			}
+			activeTracker := findActiveReleaseForMove(releaseIssues)
+			if activeTracker == nil {
+				return fmt.Errorf("no active release found")
+			}
+			releaseValue = strings.TrimPrefix(activeTracker.Title, "Release: ")
+		} else {
+			releaseValue = opts.release
+		}
+		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Release -> %s", releaseValue))
 	}
 
 	multiIssueMode := len(args) > 1 || opts.recursive
@@ -336,6 +387,27 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		if microsprintValue != "" && !updateFailed {
 			if err := client.SetProjectItemField(project.ID, info.ItemID, "Microsprint", microsprintValue); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
+				updateFailed = true
+			}
+		}
+
+		if releaseValue != "" && !updateFailed {
+			if err := client.SetProjectItemField(project.ID, info.ItemID, "Release", releaseValue); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to set release for #%d: %v\n", info.Number, err)
+				updateFailed = true
+			}
+		}
+
+		if clearMicrosprint && !updateFailed {
+			if err := client.SetProjectItemField(project.ID, info.ItemID, "Microsprint", ""); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to clear microsprint for #%d: %v\n", info.Number, err)
+				updateFailed = true
+			}
+		}
+
+		if clearRelease && !updateFailed {
+			if err := client.SetProjectItemField(project.ID, info.ItemID, "Release", ""); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to clear release for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
@@ -428,6 +500,18 @@ func findActiveMicrosprintForMove(issues []api.Issue) *api.Issue {
 	today := time.Now().Format("2006-01-02")
 	prefix := "Microsprint: " + today + "-"
 
+	for i := range issues {
+		if strings.HasPrefix(issues[i].Title, prefix) {
+			return &issues[i]
+		}
+	}
+	return nil
+}
+
+// findActiveReleaseForMove finds the active release tracker from a list of issues
+// Returns the first open release issue found (there should only be one active at a time)
+func findActiveReleaseForMove(issues []api.Issue) *api.Issue {
+	prefix := "Release: "
 	for i := range issues {
 		if strings.HasPrefix(issues[i].Title, prefix) {
 			return &issues[i]
