@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -371,23 +370,6 @@ func validateVersion(version string) error {
 		return fmt.Errorf("Invalid version format. Use semver: X.Y.Z")
 	}
 	return nil
-}
-
-// normalizeVersion strips the v prefix from a version string if present
-func normalizeVersion(version string) string {
-	return strings.TrimPrefix(version, "v")
-}
-
-// isDuplicateVersion checks if a version already exists in the list of closed releases
-func isDuplicateVersion(version string, closedIssues []api.Issue) bool {
-	targetTitle := fmt.Sprintf("Release: v%s", version)
-	for _, issue := range closedIssues {
-		// Check if the title starts with the target (may have codename suffix)
-		if strings.HasPrefix(issue.Title, targetTitle) {
-			return true
-		}
-	}
-	return false
 }
 
 // runReleaseAddWithDeps is the testable entry point for release add
@@ -882,16 +864,6 @@ func compareVersions(v1, v2 string) int {
 		}
 	}
 	return 0
-}
-
-// getLatestGitTag returns the latest git tag using git describe
-func getLatestGitTag() (string, error) {
-	cmd := exec.Command("git", "describe", "--tags", "--abbrev=0")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("no git tags found: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
 }
 
 // nextVersions contains calculated next version options
