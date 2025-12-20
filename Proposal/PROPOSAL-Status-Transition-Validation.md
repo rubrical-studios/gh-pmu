@@ -381,8 +381,41 @@ gh issue list --label release --state closed
 - `release start --branch X` → adds to `active[]`
 - `release close` → removes from `active[]`, closes tracker issue
 - `release close --tag` → same as above + creates git tag
+- `release reopen <name>` → reopens tracker issue, adds back to `active[]`
+
+**Close Verification:**
+
+`release close` requires confirmation before executing:
+
+```
+$ gh pmu release close
+
+Closing release: release/v2.0.0
+  Tracker issue: #350
+  Issues in release: 12 (8 done, 4 in_progress)
+  Tag: (none - use --tag to create)
+
+⚠️  4 issues are not done. Close anyway? (y/n): n
+Aborted.
+```
+
+Use `--yes` to skip confirmation (for scripts):
+```bash
+gh pmu release close --yes
+gh pmu release close --tag --yes
+```
 
 **Abandoned releases:** Use `release close` without `--tag` to close a release that won't ship (cancelled, abandoned, superseded).
+
+**Reopening releases:**
+```bash
+# Reopen an accidentally closed or resumed release
+gh pmu release reopen release/v2.0.0
+
+# This will:
+# 1. Reopen the tracker issue (#350)
+# 2. Add release back to releases.active[]
+```
 
 ---
 
@@ -439,7 +472,11 @@ if opts.noRelease {
 ### Release Lifecycle Config Sync
 - [ ] `gh pmu release start` adds release to `releases.active[]`
 - [ ] `gh pmu release close` removes release from `releases.active[]`
+- [ ] `gh pmu release close` shows confirmation with release summary (issues count, done/not done)
+- [ ] `gh pmu release close` warns if issues are not done
+- [ ] `gh pmu release close --yes` skips confirmation
 - [ ] `gh pmu release close` (without `--tag`) closes tracker issue for abandoned releases
+- [ ] `gh pmu release reopen <name>` reopens tracker issue and adds to `releases.active[]`
 - [ ] Config file updated atomically with release operations
 
 ### Status Transition Validation (IDPF only)
