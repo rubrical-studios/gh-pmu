@@ -7,8 +7,6 @@ repositories:
 defaults:
     priority: p2
     status: backlog
-    labels:
-        - pm-tracked
 fields:
     priority:
         field: Priority
