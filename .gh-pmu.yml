@@ -28,16 +28,6 @@ triage:
         apply: {}
         interactive:
             estimate: true
-    tracked:
-        query: is:issue is:open -label:pm-tracked
-        apply:
-            labels:
-                - pm-tracked
-            fields:
-                priority: p1
-                status: backlog
-        interactive:
-            status: true
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -62,6 +52,8 @@ metadata:
               id: df73e18b
             - name: Done
               id: "98236657"
+            - name: Notes
+              id: db9f4455
         - name: Labels
           id: PVTF_lAHOAATLPs4BJeuXzg5oVBA
           data_type: LABELS
