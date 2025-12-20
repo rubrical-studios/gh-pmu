@@ -35,7 +35,6 @@ Utilities:
 Workflow Commands:
   microsprint Manage microsprints for IDPF-Agile development
   release     Manage releases for IDPF-Structured development
-  patch       Manage patches for IDPF-LTS patch/hotfix development
 
 Flags:
   -h, --help      help for gh-pmu
@@ -566,12 +565,17 @@ gh pmu microsprint resolve
 
 ### release
 
-Manage releases for IDPF-Structured development (version-based deployment).
+Manage releases for IDPF-Structured development (branch-based deployment).
 
 ```bash
-# Start a new release (interactive version prompt)
-gh pmu release start
-gh pmu release start --version 1.2.0           # Skip prompt
+# Start a new release (creates git branch and tracker issue)
+gh pmu release start --branch release/v2.0.0
+
+# Start a patch release
+gh pmu release start --branch patch/v1.9.1
+
+# Start a hotfix
+gh pmu release start --branch hotfix-auth-bypass
 
 # Manage issues in release
 gh pmu release add 42
@@ -588,38 +592,9 @@ gh pmu release list
 ```
 
 **Notes:**
-- Interactive version prompt shows latest git tag for reference
-- Artifact directory controlled by track prefix (see [configuration](configuration.md#release-configuration))
-
-### patch
-
-Manage patches for IDPF-LTS patch/hotfix development.
-
-```bash
-# Start a new patch
-gh pmu patch start --version 1.2.1
-
-# Add issue to patch (with validation)
-gh pmu patch add 42
-gh pmu patch add 42 --force              # Skip validation warnings
-
-# Remove issue from patch
-gh pmu patch remove 42
-
-# View current patch
-gh pmu patch current
-
-# Close patch
-gh pmu patch close
-
-# List patch history
-gh pmu patch list
-```
-
-**Validation (patch add):**
-- **Error** if issue has `breaking-change` label (incompatible with patches)
-- **Warning** if issue lacks `bug`/`fix`/`hotfix` label
-- Validates version is a valid patch increment from latest git tag
+- The `--branch` flag is required and specifies the branch name to create
+- Branch name is used for tracker title, Release field, and artifact directory
+- Supports any branch naming convention: `release/v2.0.0`, `patch/v1.9.1`, `hotfix-auth-bypass`
 
 ---
 

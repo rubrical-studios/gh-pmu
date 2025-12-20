@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--release` flag to `move` command - set Release field directly (#349)
+- `--microsprint` flag to `move` command with `--sprint` alias (#349)
+- `--backlog` flag to `move` command - clear Release and Microsprint fields (#349)
+
+### Changed
+- **BREAKING**: `release start` now requires `--branch` flag instead of `--version` (#346, #348)
+  - Migration: `--version 2.0.0` → `--branch release/v2.0.0`
+  - Branch name used literally for tracker title, Release field, and artifact directory
+  - Supports any branch convention: `release/v2.0.0`, `patch/v1.9.1`, `hotfix-auth-bypass`
+
+### Removed
+- **BREAKING**: Removed entire `patch` command group (~1750 lines) (#346, #348)
+  - Migration: `gh pmu patch start --version 1.9.1` → `gh pmu release start --branch patch/v1.9.1`
+  - Migration: `gh pmu patch add 42` → `gh pmu release add 42`
+  - Migration: `gh pmu patch close --tag` → `gh pmu release close --tag`
+
 ## [0.7.4] - 2025-12-19
 
 ### Changed

@@ -1,12 +1,11 @@
 # Workflow Commands
 
-gh-pmu provides three workflow command groups for managing development at different cadences:
+gh-pmu provides workflow command groups for managing development at different cadences:
 
 | Workflow | Cadence | Use Case |
 |----------|---------|----------|
 | `microsprint` | Hours | AI-assisted development batches, rapid iteration |
-| `release` | Days/Weeks | Version-based deployment, feature releases |
-| `patch` | Hours/Days | Hotfix deployment, urgent bug fixes |
+| `release` | Days/Weeks | Branch-based deployment, feature releases, patches, hotfixes |
 
 ## Microsprint
 
@@ -90,19 +89,22 @@ gh pmu microsprint resolve
 
 ## Release
 
-Releases are version-based deployment workflows for feature releases. They follow semantic versioning and generate deployment artifacts.
+Releases are branch-based deployment workflows for feature releases, patches, and hotfixes. The branch name is used literally for all release artifacts.
 
 ### Starting a Release
 
 ```bash
-# Interactive version prompt (shows latest git tag)
-gh pmu release start
+# Start a feature release
+gh pmu release start --branch release/v2.0.0
 
-# Specify version directly
-gh pmu release start --version 1.2.0
+# Start a patch release
+gh pmu release start --branch patch/v1.9.1
+
+# Start a hotfix
+gh pmu release start --branch hotfix-auth-bypass
 ```
 
-A tracker issue is created with the `release` label.
+The command creates the git branch and a tracker issue with the `release` label.
 
 ### Managing Issues
 
@@ -137,76 +139,15 @@ gh pmu release close
 
 **Generated artifacts** (configurable):
 ```
-Releases/{version}/
+Releases/{branch}/
   release-notes.md    # Summary of included issues
   changelog.md        # Changes for this version
 ```
 
-### Release Tracks
-
-Configure different release tracks for multi-branch projects:
-
-```yaml
-# .gh-pmu.yml
-release:
-  tracks:
-    - name: main
-      prefix: ""           # Artifacts: Releases/v1.2.0/
-    - name: lts
-      prefix: "lts-"       # Artifacts: Releases/lts-v1.2.0/
-```
-
----
-
-## Patch
-
-Patches are hotfix deployment workflows for urgent bug fixes. They include validation to ensure patches only contain appropriate changes.
-
-### Starting a Patch
-
-```bash
-# Start patch with version
-gh pmu patch start --version 1.2.1
-```
-
-Version must be a valid patch increment from the latest git tag.
-
-### Managing Issues
-
-```bash
-# Add issue to patch (with validation)
-gh pmu patch add 42
-
-# Skip validation warnings
-gh pmu patch add 42 --force
-
-# Remove issue from patch
-gh pmu patch remove 42
-```
-
-**Validation rules:**
-- **Error**: Issue has `breaking-change` label (incompatible with patches)
-- **Warning**: Issue lacks `bug`, `fix`, or `hotfix` label
-
-### Viewing Status
-
-```bash
-# Show current patch details
-gh pmu patch current
-
-# List all patches
-gh pmu patch list
-```
-
-### Closing a Patch
-
-```bash
-# Close patch and generate artifacts
-gh pmu patch close
-
-# Close and create git tag
-gh pmu patch close --tag
-```
+Examples:
+- `Releases/release/v2.0.0/`
+- `Releases/patch/v1.9.1/`
+- `Releases/hotfix-auth-bypass/`
 
 ---
 
@@ -229,7 +170,6 @@ Workflows use labels for tracker issues:
 |-------|---------|
 | `microsprint` | Microsprint tracker issues |
 | `release` | Release tracker issues |
-| `patch` | Patch tracker issues |
 
 Run `gh pmu init` to auto-create these labels.
 
@@ -279,7 +219,6 @@ gh pmu create --title "New feature" --microsprint current
 # See what workflows are active
 gh pmu microsprint current
 gh pmu release current
-gh pmu patch current
 ```
 
 ---
