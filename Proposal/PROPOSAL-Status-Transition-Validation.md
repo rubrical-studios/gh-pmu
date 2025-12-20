@@ -370,18 +370,19 @@ releases:
       tracker: 350
     - name: patch/v1.9.1
       tracker: 355
-  history:
-    - name: release/v1.0.0
-      tracker: 280
-      closed: 2025-12-01
-    - name: patch/v1.0.1
-      tracker: 295
-      closed: 2025-12-10
+```
+
+**Note:** Release history is NOT stored locally. Query GitHub for closed releases:
+```bash
+gh issue list --label release --state closed
 ```
 
 **Lifecycle:**
 - `release start --branch X` → adds to `active[]`
-- `release close` → removes from `active[]`, adds to `history[]`
+- `release close` → removes from `active[]`, closes tracker issue
+- `release close --tag` → same as above + creates git tag
+
+**Abandoned releases:** Use `release close` without `--tag` to close a release that won't ship (cancelled, abandoned, superseded).
 
 ---
 
@@ -438,7 +439,7 @@ if opts.noRelease {
 ### Release Lifecycle Config Sync
 - [ ] `gh pmu release start` adds release to `releases.active[]`
 - [ ] `gh pmu release close` removes release from `releases.active[]`
-- [ ] `gh pmu release close` adds release to `releases.history[]` (optional record)
+- [ ] `gh pmu release close` (without `--tag`) closes tracker issue for abandoned releases
 - [ ] Config file updated atomically with release operations
 
 ### Status Transition Validation (IDPF only)
