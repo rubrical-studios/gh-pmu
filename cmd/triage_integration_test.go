@@ -110,7 +110,7 @@ func TestRunTriage_Integration_AddLabel(t *testing.T) {
 	// Run ad-hoc triage to add label
 	result := testutil.RunCommand(t, "triage",
 		"--query", fmt.Sprintf("is:issue is:open %s", title),
-		"--apply", "label:pm-tracked",
+		"--apply", "label:bug",
 	)
 
 	testutil.AssertExitCode(t, result, 0)
@@ -118,7 +118,7 @@ func TestRunTriage_Integration_AddLabel(t *testing.T) {
 	// Verify the label was added
 	viewResult := testutil.RunCommand(t, "view", fmt.Sprintf("%d", issueNum), "--json")
 	testutil.AssertExitCode(t, viewResult, 0)
-	testutil.AssertContains(t, viewResult.Stdout, "pm-tracked")
+	testutil.AssertContains(t, viewResult.Stdout, "bug")
 }
 
 // TestRunTriage_Integration_ConfigNotFound tests error when config doesn't exist

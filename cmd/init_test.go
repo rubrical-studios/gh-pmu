@@ -162,11 +162,6 @@ func TestWriteConfig_IncludesTriageAndLabels(t *testing.T) {
 		t.Error("Config should have project name")
 	}
 
-	// Should have default labels
-	if !bytes.Contains(content, []byte("pm-tracked")) {
-		t.Error("Config should have pm-tracked label in defaults")
-	}
-
 	// Should have triage section
 	if !bytes.Contains(content, []byte("triage:")) {
 		t.Error("Config should have triage section")
@@ -175,11 +170,6 @@ func TestWriteConfig_IncludesTriageAndLabels(t *testing.T) {
 	// Should have estimate triage rule
 	if !bytes.Contains(content, []byte("estimate:")) {
 		t.Error("Config should have estimate triage rule")
-	}
-
-	// Should have tracked triage rule
-	if !bytes.Contains(content, []byte("tracked:")) {
-		t.Error("Config should have tracked triage rule")
 	}
 }
 

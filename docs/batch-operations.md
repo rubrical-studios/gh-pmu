@@ -52,8 +52,6 @@ Issues are added with defaults from `.gh-pmu.yml`:
 defaults:
   priority: p2
   status: backlog
-  labels:
-    - pm-tracked
 ```
 
 ## Triage
@@ -66,16 +64,6 @@ Add triage rules to `.gh-pmu.yml`:
 
 ```yaml
 triage:
-  # Rule: Add untracked issues to backlog
-  untracked:
-    query: "is:issue is:open -label:pm-tracked"
-    apply:
-      labels:
-        - pm-tracked
-      fields:
-        status: backlog
-        priority: p2
-
   # Rule: Flag stale issues
   stale:
     query: "is:issue is:open updated:<2024-06-01"
@@ -98,31 +86,12 @@ triage:
 
 **Preview (dry run):**
 ```bash
-gh pmu triage untracked --dry-run
-```
-
-**Output:**
-```
-Rule: untracked
-Query: is:issue is:open -label:pm-tracked
-
-Would update 5 issues:
-  #50 New feature request
-      + label: pm-tracked
-      + status: backlog
-      + priority: p2
-  #51 Bug report
-      + label: pm-tracked
-      + status: backlog
-      + priority: p2
-  ...
-
-Run with --apply to make changes.
+gh pmu triage stale --dry-run
 ```
 
 **Apply changes:**
 ```bash
-gh pmu triage untracked --apply
+gh pmu triage stale --apply
 ```
 
 **Interactive mode:**
@@ -152,9 +121,6 @@ Prompts for each issue:
 
 **Query examples:**
 ```yaml
-# Issues without a label
-query: "is:issue is:open -label:pm-tracked"
-
 # Old issues
 query: "is:issue is:open updated:<2024-01-01"
 

@@ -85,7 +85,7 @@ func TestRunSubCreate_Integration_InheritLabels(t *testing.T) {
 	parentTitle := fmt.Sprintf("Test SubCreate Parent - InheritLabels - %d", subCreateTestID())
 	parentResult := testutil.RunCommand(t, "create",
 		"--title", parentTitle,
-		"--label", "pm-tracked",
+		"--label", "bug",
 	)
 	testutil.AssertExitCode(t, parentResult, 0)
 
@@ -106,7 +106,7 @@ func TestRunSubCreate_Integration_InheritLabels(t *testing.T) {
 
 	// Verify labels were inherited (check output mentions labels)
 	// The output shows "Labels:" if labels were applied
-	testutil.AssertContains(t, result.Stdout, "pm-tracked")
+	testutil.AssertContains(t, result.Stdout, "bug")
 }
 
 // TestRunSubCreate_Integration_NoInheritLabels tests --inherit-labels=false
@@ -117,7 +117,7 @@ func TestRunSubCreate_Integration_NoInheritLabels(t *testing.T) {
 	parentTitle := fmt.Sprintf("Test SubCreate Parent - NoInheritLabels - %d", subCreateTestID())
 	parentResult := testutil.RunCommand(t, "create",
 		"--title", parentTitle,
-		"--label", "pm-tracked",
+		"--label", "bug",
 	)
 	testutil.AssertExitCode(t, parentResult, 0)
 

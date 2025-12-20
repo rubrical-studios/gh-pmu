@@ -42,7 +42,7 @@ defaults:
   priority: p2           # Default priority alias
   status: backlog        # Default status alias
   labels:
-    - pm-tracked         # Labels added to all new issues
+    - enhancement        # Labels added to all new issues (optional)
 ```
 
 ### Field Aliases
@@ -85,12 +85,12 @@ triage:
   # Rule name
   untracked:
     # GitHub search query
-    query: "is:issue is:open -label:pm-tracked"
+    query: "is:issue is:open -label:triaged"
 
     # Fields/labels to apply automatically
     apply:
       labels:
-        - pm-tracked
+        - triaged
       fields:
         status: backlog
         priority: p2
@@ -187,8 +187,6 @@ repositories:
 defaults:
   priority: p2
   status: backlog
-  labels:
-    - pm-tracked
 
 fields:
   priority:
@@ -215,13 +213,11 @@ fields:
       xl: XL
 
 triage:
-  untracked:
-    query: "is:issue is:open -label:pm-tracked"
-    apply:
-      labels:
-        - pm-tracked
-      fields:
-        status: backlog
+  estimate:
+    query: "is:issue is:open -has:estimate"
+    apply: {}
+    interactive:
+      estimate: true
 
 metadata:
   # ... auto-generated ...

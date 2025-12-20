@@ -68,10 +68,10 @@ func TestRunCreate_Integration_Labels(t *testing.T) {
 	title := fmt.Sprintf("Test Issue - Labels - %d", testUniqueID())
 
 	// Note: The label must exist in the test repo
-	// We use pm-tracked which should exist from config defaults
+	// We use "bug" which is a standard GitHub label
 	result := testutil.RunCommand(t, "create",
 		"--title", title,
-		"--label", "pm-tracked",
+		"--label", "bug",
 	)
 
 	testutil.AssertExitCode(t, result, 0)
@@ -95,7 +95,7 @@ func TestRunCreate_Integration_ConfigDefaults(t *testing.T) {
 	title := fmt.Sprintf("Test Issue - ConfigDefaults - %d", testUniqueID())
 
 	// Create without explicit status/priority - should use config defaults
-	// Config has: status: backlog, priority: p2, labels: [pm-tracked]
+	// Config has: status: backlog, priority: p2
 	result := testutil.RunCommand(t, "create", "--title", title)
 
 	testutil.AssertExitCode(t, result, 0)

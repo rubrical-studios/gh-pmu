@@ -284,9 +284,9 @@ func TestMatchesTriageQuery(t *testing.T) {
 			name: "combined query - label and state",
 			issue: api.Issue{
 				State:  "OPEN",
-				Labels: []api.Label{{Name: "pm-tracked"}},
+				Labels: []api.Label{{Name: "triaged"}},
 			},
-			query:  "is:open -label:pm-tracked",
+			query:  "is:open -label:triaged",
 			expect: false,
 		},
 		{
@@ -320,10 +320,10 @@ func TestDescribeActions(t *testing.T) {
 			name: "labels only",
 			triage: config.Triage{
 				Apply: config.TriageApply{
-					Labels: []string{"pm-tracked", "bug"},
+					Labels: []string{"triaged", "bug"},
 				},
 			},
-			expect: "labels: pm-tracked, bug",
+			expect: "labels: triaged, bug",
 		},
 		{
 			name: "fields only",
@@ -338,11 +338,11 @@ func TestDescribeActions(t *testing.T) {
 			name: "labels and fields combined",
 			triage: config.Triage{
 				Apply: config.TriageApply{
-					Labels: []string{"pm-tracked"},
+					Labels: []string{"triaged"},
 					Fields: map[string]string{"priority": "p1"},
 				},
 			},
-			expect: "labels: pm-tracked; priority: p1",
+			expect: "labels: triaged; priority: p1",
 		},
 		{
 			name: "interactive only",
@@ -383,10 +383,10 @@ func TestDescribeTriageActions(t *testing.T) {
 			cfg:  &config.Config{},
 			triage: config.Triage{
 				Apply: config.TriageApply{
-					Labels: []string{"pm-tracked", "bug"},
+					Labels: []string{"triaged", "bug"},
 				},
 			},
-			contains: []string{"Add labels:", "pm-tracked, bug"},
+			contains: []string{"Add labels:", "triaged, bug"},
 		},
 		{
 			name: "shows fields to set",
@@ -438,9 +438,9 @@ func TestListTriageConfigs(t *testing.T) {
 		cfg := &config.Config{
 			Triage: map[string]config.Triage{
 				"tracked": {
-					Query: "is:open -label:pm-tracked",
+					Query: "is:open -label:triaged",
 					Apply: config.TriageApply{
-						Labels: []string{"pm-tracked"},
+						Labels: []string{"triaged"},
 					},
 				},
 				"estimate": {
@@ -464,9 +464,9 @@ func TestListTriageConfigs(t *testing.T) {
 		cfg := &config.Config{
 			Triage: map[string]config.Triage{
 				"tracked": {
-					Query: "is:open -label:pm-tracked",
+					Query: "is:open -label:triaged",
 					Apply: config.TriageApply{
-						Labels: []string{"pm-tracked"},
+						Labels: []string{"triaged"},
 					},
 				},
 			},
@@ -757,7 +757,7 @@ func TestApplyTriageRules(t *testing.T) {
 		issue := &api.Issue{ID: "issue-1", Number: 1}
 		triage := &config.Triage{
 			Apply: config.TriageApply{
-				Labels: []string{"pm-tracked"},
+				Labels: []string{"triaged"},
 				Fields: map[string]string{"status": "backlog"},
 			},
 		}
@@ -771,8 +771,8 @@ func TestApplyTriageRules(t *testing.T) {
 			t.Error("expected AddIssueToProject to be called")
 		}
 
-		if len(mock.addLabelCalls) != 1 || mock.addLabelCalls[0] != "pm-tracked" {
-			t.Errorf("expected label 'pm-tracked' to be added, got %v", mock.addLabelCalls)
+		if len(mock.addLabelCalls) != 1 || mock.addLabelCalls[0] != "triaged" {
+			t.Errorf("expected label 'triaged' to be added, got %v", mock.addLabelCalls)
 		}
 
 		if len(mock.setFieldCalls) != 1 {
@@ -980,9 +980,9 @@ func TestRunTriageWithDeps(t *testing.T) {
 			Repositories: []string{"test-owner/test-repo"},
 			Triage: map[string]config.Triage{
 				"tracked": {
-					Query: "is:open -label:pm-tracked",
+					Query: "is:open -label:triaged",
 					Apply: config.TriageApply{
-						Labels: []string{"pm-tracked"},
+						Labels: []string{"triaged"},
 					},
 				},
 			},
@@ -1176,8 +1176,8 @@ func TestRunTriageWithDeps(t *testing.T) {
 		if !mock.addToProjectCalled {
 			t.Error("expected AddIssueToProject to be called")
 		}
-		if len(mock.addLabelCalls) != 1 || mock.addLabelCalls[0] != "pm-tracked" {
-			t.Errorf("expected label 'pm-tracked' to be added, got %v", mock.addLabelCalls)
+		if len(mock.addLabelCalls) != 1 || mock.addLabelCalls[0] != "triaged" {
+			t.Errorf("expected label 'triaged' to be added, got %v", mock.addLabelCalls)
 		}
 	})
 

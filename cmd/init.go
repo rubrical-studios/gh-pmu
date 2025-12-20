@@ -522,7 +522,6 @@ func writeConfig(dir string, cfg *InitConfig) error {
 		Defaults: DefaultsConfig{
 			Priority: "p2",
 			Status:   "backlog",
-			Labels:   []string{"pm-tracked"},
 		},
 		Fields: map[string]FieldMapping{
 			"priority": {
@@ -550,19 +549,6 @@ func writeConfig(dir string, cfg *InitConfig) error {
 				Apply: TriageApply{},
 				Interactive: map[string]bool{
 					"estimate": true,
-				},
-			},
-			"tracked": {
-				Query: "is:issue is:open -label:pm-tracked",
-				Apply: TriageApply{
-					Labels: []string{"pm-tracked"},
-					Fields: map[string]string{
-						"priority": "p1",
-						"status":   "backlog",
-					},
-				},
-				Interactive: map[string]bool{
-					"status": true,
 				},
 			},
 		},
@@ -610,7 +596,6 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 		Defaults: DefaultsConfig{
 			Priority: "p2",
 			Status:   "backlog",
-			Labels:   []string{"pm-tracked"},
 		},
 		Fields: map[string]FieldMapping{
 			"priority": {
@@ -638,19 +623,6 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 				Apply: TriageApply{},
 				Interactive: map[string]bool{
 					"estimate": true,
-				},
-			},
-			"tracked": {
-				Query: "is:issue is:open -label:pm-tracked",
-				Apply: TriageApply{
-					Labels: []string{"pm-tracked"},
-					Fields: map[string]string{
-						"priority": "p1",
-						"status":   "backlog",
-					},
-				},
-				Interactive: map[string]bool{
-					"status": true,
 				},
 			},
 		},

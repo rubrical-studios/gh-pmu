@@ -277,7 +277,7 @@ func TestLabelMerging_EmptyDefaults(t *testing.T) {
 }
 
 func TestLabelMerging_WithDefaults(t *testing.T) {
-	configLabels := []string{"pm-tracked"}
+	configLabels := []string{"enhancement"}
 	cliLabels := []string{"bug", "urgent"}
 
 	// Simulate the merging logic from runCreate
@@ -287,13 +287,13 @@ func TestLabelMerging_WithDefaults(t *testing.T) {
 	if len(labels) != 3 {
 		t.Errorf("Expected 3 labels, got %d", len(labels))
 	}
-	if labels[0] != "pm-tracked" {
-		t.Errorf("Expected first label 'pm-tracked', got %q", labels[0])
+	if labels[0] != "enhancement" {
+		t.Errorf("Expected first label 'enhancement', got %q", labels[0])
 	}
 }
 
 func TestLabelMerging_NoCLILabels(t *testing.T) {
-	configLabels := []string{"pm-tracked", "auto-created"}
+	configLabels := []string{"enhancement", "auto-created"}
 	var cliLabels []string
 
 	// Simulate the merging logic from runCreate
@@ -692,7 +692,7 @@ repositories:
   - "owner/repo"
 defaults:
   labels:
-    - "pm-tracked"
+    - "enhancement"
     - "auto-created"
   status: "todo"
   priority: "p2"
