@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -96,59 +97,41 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 	// Create API client
 	client := api.NewClient()
 
-	// Fetch issue
-	issue, err := client.GetIssue(owner, repo, number)
+	// For --web flag, only need basic issue info
+	if opts.web {
+		issue, err := client.GetIssue(owner, repo, number)
+		if err != nil {
+			return fmt.Errorf("failed to get issue: %w", err)
+		}
+		return openViewInBrowser(issue.URL)
+	}
+
+	// Fetch issue with project field values in a single query (optimized)
+	issue, fieldValues, err := client.GetIssueWithProjectFields(owner, repo, number)
 	if err != nil {
 		return fmt.Errorf("failed to get issue: %w", err)
 	}
 
-	// Handle --web flag: open issue in browser
-	if opts.web {
-		return openViewInBrowser(issue.URL)
-	}
+	// Fetch sub-issues and parent issue in parallel
+	var subIssues []api.SubIssue
+	var parentIssue *api.Issue
+	var wg sync.WaitGroup
 
-	// Fetch project items to get field values for this issue
-	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
-	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
-	}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		subIssues, _ = client.GetSubIssues(owner, repo, number)
+	}()
+	go func() {
+		defer wg.Done()
+		parentIssue, _ = client.GetParentIssue(owner, repo, number)
+	}()
+	wg.Wait()
 
-	items, err := client.GetProjectItems(project.ID, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get project items: %w", err)
-	}
-
-	// Find this issue in project items to get field values
-	var fieldValues []api.FieldValue
-	for _, item := range items {
-		if item.Issue != nil && item.Issue.Number == number {
-			fieldValues = item.FieldValues
-			break
-		}
-	}
-
-	// Fetch sub-issues (if any)
-	subIssues, err := client.GetSubIssues(owner, repo, number)
-	if err != nil {
-		// Non-fatal - issue might not have sub-issues or API might not support it
-		subIssues = nil
-	}
-
-	// Fetch parent issue (if this is a sub-issue)
-	parentIssue, err := client.GetParentIssue(owner, repo, number)
-	if err != nil {
-		// Non-fatal - issue might not be a sub-issue
-		parentIssue = nil
-	}
-
-	// Fetch comments if requested
+	// Fetch comments if requested (not parallelized - only when needed)
 	var comments []api.Comment
 	if opts.comments {
-		comments, err = client.GetIssueComments(owner, repo, number)
-		if err != nil {
-			// Non-fatal - continue without comments
-			comments = nil
-		}
+		comments, _ = client.GetIssueComments(owner, repo, number)
 	}
 
 	// Output

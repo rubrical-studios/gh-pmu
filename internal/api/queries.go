@@ -273,6 +273,138 @@ func (c *Client) GetIssue(owner, repo string, number int) (*Issue, error) {
 	return issue, nil
 }
 
+// GetIssueWithProjectFields fetches an issue and its project field values in a single query.
+// This is more efficient than calling GetIssue + GetProjectItems when you only need one issue.
+func (c *Client) GetIssueWithProjectFields(owner, repo string, number int) (*Issue, []FieldValue, error) {
+	if c.gql == nil {
+		return nil, nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Repository struct {
+			Issue struct {
+				ID     string
+				Number int
+				Title  string
+				Body   string
+				State  string
+				URL    string `graphql:"url"`
+				Author struct {
+					Login string
+				}
+				Assignees struct {
+					Nodes []struct {
+						Login string
+					}
+				} `graphql:"assignees(first: 10)"`
+				Labels struct {
+					Nodes []struct {
+						Name  string
+						Color string
+					}
+				} `graphql:"labels(first: 20)"`
+				Milestone struct {
+					Title string
+				}
+				ProjectItems struct {
+					Nodes []struct {
+						FieldValues struct {
+							Nodes []struct {
+								TypeName string `graphql:"__typename"`
+								// Single select field value
+								ProjectV2ItemFieldSingleSelectValue struct {
+									Name  string
+									Field struct {
+										ProjectV2SingleSelectField struct {
+											Name string
+										} `graphql:"... on ProjectV2SingleSelectField"`
+									}
+								} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
+								// Text field value
+								ProjectV2ItemFieldTextValue struct {
+									Text  string
+									Field struct {
+										ProjectV2Field struct {
+											Name string
+										} `graphql:"... on ProjectV2Field"`
+									}
+								} `graphql:"... on ProjectV2ItemFieldTextValue"`
+							}
+						} `graphql:"fieldValues(first: 20)"`
+					}
+				} `graphql:"projectItems(first: 10)"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	variables := map[string]interface{}{
+		"owner":  graphql.String(owner),
+		"repo":   graphql.String(repo),
+		"number": gqlNumber,
+	}
+
+	err = c.gql.Query("GetIssueWithProjectFields", &query, variables)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get issue %s/%s#%d: %w", owner, repo, number, err)
+	}
+
+	issue := &Issue{
+		ID:     query.Repository.Issue.ID,
+		Number: query.Repository.Issue.Number,
+		Title:  query.Repository.Issue.Title,
+		Body:   query.Repository.Issue.Body,
+		State:  query.Repository.Issue.State,
+		URL:    query.Repository.Issue.URL,
+		Repository: Repository{
+			Owner: owner,
+			Name:  repo,
+		},
+		Author: Actor{Login: query.Repository.Issue.Author.Login},
+	}
+
+	for _, a := range query.Repository.Issue.Assignees.Nodes {
+		issue.Assignees = append(issue.Assignees, Actor{Login: a.Login})
+	}
+
+	for _, l := range query.Repository.Issue.Labels.Nodes {
+		issue.Labels = append(issue.Labels, Label{Name: l.Name, Color: l.Color})
+	}
+
+	if query.Repository.Issue.Milestone.Title != "" {
+		issue.Milestone = &Milestone{Title: query.Repository.Issue.Milestone.Title}
+	}
+
+	// Extract field values from project items
+	var fieldValues []FieldValue
+	for _, projectItem := range query.Repository.Issue.ProjectItems.Nodes {
+		for _, fv := range projectItem.FieldValues.Nodes {
+			switch fv.TypeName {
+			case "ProjectV2ItemFieldSingleSelectValue":
+				if fv.ProjectV2ItemFieldSingleSelectValue.Name != "" {
+					fieldValues = append(fieldValues, FieldValue{
+						Field: fv.ProjectV2ItemFieldSingleSelectValue.Field.ProjectV2SingleSelectField.Name,
+						Value: fv.ProjectV2ItemFieldSingleSelectValue.Name,
+					})
+				}
+			case "ProjectV2ItemFieldTextValue":
+				if fv.ProjectV2ItemFieldTextValue.Text != "" {
+					fieldValues = append(fieldValues, FieldValue{
+						Field: fv.ProjectV2ItemFieldTextValue.Field.ProjectV2Field.Name,
+						Value: fv.ProjectV2ItemFieldTextValue.Text,
+					})
+				}
+			}
+		}
+	}
+
+	return issue, fieldValues, nil
+}
+
 // ProjectItemsFilter allows filtering project items
 type ProjectItemsFilter struct {
 	Repository string // Filter by repository (owner/repo format)
