@@ -1044,3 +1044,138 @@ repositories:
 		t.Errorf("Expected to successfully read body file, got: %v", err)
 	}
 }
+
+// ============================================================================
+// REQ-370: Create Validation Tests
+// ============================================================================
+
+func TestValidateCreateOptions_ReadyWithoutRelease(t *testing.T) {
+	err := validateCreateOptions("Ready", "Issue body content", "")
+	if err == nil {
+		t.Fatal("Expected error for Ready status without release")
+	}
+
+	if !strings.Contains(err.Error(), "--release") {
+		t.Errorf("Expected error to mention --release flag, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_InProgressWithoutRelease(t *testing.T) {
+	err := validateCreateOptions("In Progress", "Issue body content", "")
+	if err == nil {
+		t.Fatal("Expected error for In Progress status without release")
+	}
+}
+
+func TestValidateCreateOptions_ReadyWithRelease(t *testing.T) {
+	err := validateCreateOptions("Ready", "Issue body content", "v1.0.0")
+	if err != nil {
+		t.Errorf("Expected no error for Ready with release, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_InReviewWithoutBody(t *testing.T) {
+	err := validateCreateOptions("In Review", "", "")
+	if err == nil {
+		t.Fatal("Expected error for In Review without body")
+	}
+
+	if !strings.Contains(err.Error(), "without body") {
+		t.Errorf("Expected error about body content, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_DoneWithoutBody(t *testing.T) {
+	err := validateCreateOptions("Done", "", "")
+	if err == nil {
+		t.Fatal("Expected error for Done without body")
+	}
+}
+
+func TestValidateCreateOptions_DoneWithBodyWithoutRelease(t *testing.T) {
+	err := validateCreateOptions("Done", "Issue completed", "")
+	if err == nil {
+		t.Fatal("Expected error for Done without release")
+	}
+
+	if !strings.Contains(err.Error(), "--release") {
+		t.Errorf("Expected error about release, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_DoneWithBodyWithRelease(t *testing.T) {
+	err := validateCreateOptions("Done", "Issue completed", "v1.0.0")
+	if err != nil {
+		t.Errorf("Expected no error for Done with body and release, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_DoneWithUncheckedBoxes(t *testing.T) {
+	body := `Task list:
+- [x] First task
+- [ ] Unchecked task`
+
+	err := validateCreateOptions("Done", body, "")
+	if err == nil {
+		t.Fatal("Expected error for Done with unchecked boxes")
+	}
+
+	if !strings.Contains(err.Error(), "unchecked") {
+		t.Errorf("Expected error about unchecked boxes, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_DoneWithAllChecked(t *testing.T) {
+	body := `Task list:
+- [x] First task
+- [x] Second task`
+
+	err := validateCreateOptions("Done", body, "v1.0.0")
+	if err != nil {
+		t.Errorf("Expected no error for Done with all checked and release, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_InReviewWithoutRelease(t *testing.T) {
+	err := validateCreateOptions("In Review", "Issue body", "")
+	if err == nil {
+		t.Fatal("Expected error for In Review without release")
+	}
+
+	if !strings.Contains(err.Error(), "--release") {
+		t.Errorf("Expected error about release, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_InReviewWithRelease(t *testing.T) {
+	err := validateCreateOptions("In Review", "Issue body", "v1.0.0")
+	if err != nil {
+		t.Errorf("Expected no error for In Review with body and release, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_BacklogNoRequirements(t *testing.T) {
+	// Backlog has no validation requirements
+	err := validateCreateOptions("Backlog", "", "")
+	if err != nil {
+		t.Errorf("Expected no error for Backlog, got: %v", err)
+	}
+}
+
+func TestValidateCreateOptions_CaseInsensitive(t *testing.T) {
+	// Test various case combinations
+	err := validateCreateOptions("READY", "body", "")
+	if err == nil {
+		t.Error("Expected error for READY without release")
+	}
+
+	err = validateCreateOptions("ready", "body", "v1.0")
+	if err != nil {
+		t.Errorf("Expected no error for ready with release, got: %v", err)
+	}
+
+	err = validateCreateOptions("in_progress", "body", "")
+	if err == nil {
+		t.Error("Expected error for in_progress without release")
+	}
+}

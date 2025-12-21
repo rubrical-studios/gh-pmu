@@ -53,7 +53,8 @@ type microsprintClient interface {
 
 // microsprintStartOptions holds the options for the microsprint start command
 type microsprintStartOptions struct {
-	name string
+	name    string
+	release string
 }
 
 // microsprintCloseOptions holds the options for the microsprint close command
@@ -156,13 +157,17 @@ func newMicrosprintStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start a new microsprint",
-		Long:  `Creates a tracker issue for a new microsprint.`,
+		Long: `Creates a tracker issue for a new microsprint.
+
+For IDPF projects, microsprints require a release context to ensure
+all issues in a sprint share the same release.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMicrosprintStart(cmd, opts)
 		},
 	}
 
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional name suffix for the microsprint")
+	cmd.Flags().StringVar(&opts.release, "release", "", "Release context for the microsprint (required for IDPF)")
 
 	return cmd
 }
@@ -572,6 +577,11 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 		return err
 	}
 
+	// IDPF: Require release context for microsprints
+	if cfg.IsIDPF() && opts.release == "" {
+		return fmt.Errorf("microsprint requires a release context\nUse: gh pmu microsprint start --release <release-name>")
+	}
+
 	// Generate microsprint name: YYYY-MM-DD-{suffix}
 	today := time.Now().Format("2006-01-02")
 
@@ -629,9 +639,20 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 		title = fmt.Sprintf("%s-%s", title, opts.name)
 	}
 
+	// IDPF: Append release context to title
+	if opts.release != "" {
+		title = fmt.Sprintf("%s [%s]", title, opts.release)
+	}
+
+	// Create body with release metadata if IDPF
+	body := ""
+	if opts.release != "" {
+		body = fmt.Sprintf("<!-- release: %s -->\n\n## Release Context\n\nThis microsprint is targeting **%s**.\n", opts.release, opts.release)
+	}
+
 	// Create tracker issue with microsprint label
 	labels := []string{"microsprint"}
-	issue, err := client.CreateIssue(owner, repo, title, "", labels)
+	issue, err := client.CreateIssue(owner, repo, title, body, labels)
 	if err != nil {
 		return fmt.Errorf("failed to create tracker issue: %w", err)
 	}
@@ -661,11 +682,38 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 		}
 	}
 
+	// IDPF: Set release field on tracker issue
+	if opts.release != "" {
+		releaseField, ok := cfg.Fields["release"]
+		if ok {
+			err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, opts.release)
+			if err != nil {
+				return fmt.Errorf("failed to set release: %w", err)
+			}
+		}
+	}
+
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "Started microsprint: %s\n", title)
 	fmt.Fprintf(cmd.OutOrStdout(), "Tracker issue: #%d\n", issue.Number)
+	if opts.release != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Release context: %s\n", opts.release)
+	}
 
 	return nil
+}
+
+// extractReleaseFromMicrosprintTitle extracts the release from a microsprint title
+// Title format: "Microsprint: 2025-12-20-a-name [release/v2.0.0]"
+// Returns empty string if no release context found
+func extractReleaseFromMicrosprintTitle(title string) string {
+	// Look for "[...]" at the end of the title
+	start := strings.LastIndex(title, "[")
+	end := strings.LastIndex(title, "]")
+	if start > 0 && end > start {
+		return strings.TrimSpace(title[start+1 : end])
+	}
+	return ""
 }
 
 // getNextMicrosprintSuffix determines the next available suffix for today's date
@@ -677,8 +725,17 @@ func getNextMicrosprintSuffix(today string, existingIssues []api.Issue) string {
 	var suffixes []string
 	for _, issue := range existingIssues {
 		if strings.HasPrefix(issue.Title, prefix) {
-			// Extract suffix: everything after the prefix, up to the next dash (if custom name)
+			// Extract suffix: everything after the prefix, up to the next dash, space, or bracket
+			// Examples:
+			//   "a-auth [v1.0]" -> "a"
+			//   "a [v1.0]" -> "a"
+			//   "a-auth" -> "a"
+			//   "a" -> "a"
 			rest := strings.TrimPrefix(issue.Title, prefix)
+			// Handle release brackets: "a [release/v1.0]" -> "a"
+			if idx := strings.Index(rest, " ["); idx >= 0 {
+				rest = rest[:idx]
+			}
 			// Handle custom names: "a-auth" -> "a"
 			if idx := strings.Index(rest, "-"); idx > 0 {
 				rest = rest[:idx]
@@ -854,6 +911,19 @@ func runMicrosprintAddWithDeps(cmd *cobra.Command, opts *microsprintAddOptions, 
 	err = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, microsprintName)
 	if err != nil {
 		return fmt.Errorf("failed to set microsprint field: %w", err)
+	}
+
+	// IDPF: Auto-assign microsprint's release to added issues
+	if cfg.IsIDPF() {
+		// Extract release from microsprint tracker title: "Microsprint: 2025-12-20-a [release/v2.0.0]"
+		releaseVersion := extractReleaseFromMicrosprintTitle(activeTracker.Title)
+		if releaseVersion != "" {
+			if releaseField, ok := cfg.Fields["release"]; ok {
+				if err := client.SetProjectItemField(project.ID, itemID, releaseField.Field, releaseVersion); err == nil {
+					// Silent - don't print unless there's a mismatch
+				}
+			}
+		}
 	}
 
 	// Output confirmation (AC-003-2)

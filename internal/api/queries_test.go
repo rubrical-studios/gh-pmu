@@ -1318,6 +1318,71 @@ func TestGetProjectItems_WithAssignees(t *testing.T) {
 	}
 }
 
+func TestGetProjectItems_WithLabels(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItems" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+
+				nodeType := nodes.Type().Elem()
+				newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+				newNode := reflect.New(nodeType).Elem()
+
+				newNode.FieldByName("ID").SetString("item-1")
+				content := newNode.FieldByName("Content")
+				content.FieldByName("TypeName").SetString("Issue")
+				issue := content.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("issue-1")
+				issue.FieldByName("Number").SetInt(1)
+				issue.FieldByName("Title").SetString("Test")
+				issue.FieldByName("State").SetString("OPEN")
+				repo := issue.FieldByName("Repository")
+				repo.FieldByName("NameWithOwner").SetString("owner/repo")
+
+				// Set labels
+				labels := issue.FieldByName("Labels")
+				labelNodes := labels.FieldByName("Nodes")
+				labelNodeType := labelNodes.Type().Elem()
+				newLabelNodes := reflect.MakeSlice(labelNodes.Type(), 2, 2)
+				label1 := reflect.New(labelNodeType).Elem()
+				label1.FieldByName("Name").SetString("epic")
+				label2 := reflect.New(labelNodeType).Elem()
+				label2.FieldByName("Name").SetString("bug")
+				newLabelNodes.Index(0).Set(label1)
+				newLabelNodes.Index(1).Set(label2)
+				labelNodes.Set(newLabelNodes)
+
+				newNodes.Index(0).Set(newNode)
+				nodes.Set(newNodes)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItems("proj-id", nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(items))
+	}
+	if len(items[0].Issue.Labels) != 2 {
+		t.Fatalf("Expected 2 labels, got %d", len(items[0].Issue.Labels))
+	}
+	if items[0].Issue.Labels[0].Name != "epic" {
+		t.Errorf("Expected first label 'epic', got '%s'", items[0].Issue.Labels[0].Name)
+	}
+	if items[0].Issue.Labels[1].Name != "bug" {
+		t.Errorf("Expected second label 'bug', got '%s'", items[0].Issue.Labels[1].Name)
+	}
+}
+
 // ============================================================================
 // GetSubIssues Tests - Improved Coverage
 // ============================================================================

@@ -49,6 +49,8 @@ type releaseClient interface {
 	GitAdd(paths ...string) error
 	// CloseIssue closes an issue
 	CloseIssue(issueID string) error
+	// ReopenIssue reopens a closed issue
+	ReopenIssue(issueID string) error
 	// GitTag creates an annotated git tag
 	GitTag(tag, message string) error
 	// GitCheckoutNewBranch creates and checks out a new git branch
@@ -77,7 +79,9 @@ type releaseCurrentOptions struct {
 
 // releaseCloseOptions holds the options for the release close command
 type releaseCloseOptions struct {
-	tag bool
+	tag         bool
+	yes         bool
+	releaseName string
 }
 
 // releaseListOptions holds the options for the release list command
@@ -97,6 +101,7 @@ func newReleaseCommand() *cobra.Command {
 	cmd.AddCommand(newReleaseRemoveCommand())
 	cmd.AddCommand(newReleaseCurrentCommand())
 	cmd.AddCommand(newReleaseCloseCommand())
+	cmd.AddCommand(newReleaseReopenCommand())
 	cmd.AddCommand(newReleaseListCommand())
 
 	return cmd
@@ -236,10 +241,21 @@ func newReleaseCloseCommand() *cobra.Command {
 	opts := &releaseCloseOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "close",
-		Short: "Close the active release",
-		Long:  `Closes the active release, generates artifacts, and optionally creates a git tag.`,
+		Use:   "close <release-name>",
+		Short: "Close a release",
+		Long: `Closes a release, generates artifacts, and optionally creates a git tag.
+
+The release name must be specified explicitly (e.g., release/v2.0.0).
+Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
+
+Examples:
+  gh pmu release close release/v2.0.0
+  gh pmu release close patch/v1.9.1 --tag
+  gh pmu release close release/v2.0.0 --yes`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.releaseName = args[0]
+
 			cwd, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("failed to get current directory: %w", err)
@@ -254,6 +270,7 @@ func newReleaseCloseCommand() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&opts.tag, "tag", false, "Create a git tag for the release")
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt")
 
 	return cmd
 }
@@ -341,6 +358,25 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 		err = client.SetProjectItemField(project.ID, itemID, statusField.Field, statusValue)
 		if err != nil {
 			return fmt.Errorf("failed to set status: %w", err)
+		}
+	}
+
+	// Parse version and track from branch name for config storage
+	version, track := parseReleaseTitle(title)
+
+	// Add to active releases in config
+	cfg.AddActiveRelease(config.ActiveRelease{
+		Version:      version,
+		TrackerIssue: issue.Number,
+		Track:        track,
+	})
+
+	// Save config
+	cwd, _ := os.Getwd()
+	configPath, err := config.FindConfigFile(cwd)
+	if err == nil {
+		if err := cfg.Save(configPath); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to update config: %v\n", err)
 		}
 	}
 
@@ -585,20 +621,110 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		return fmt.Errorf("failed to get release issues: %w", err)
 	}
 
-	// Find active release tracker
-	activeRelease := findActiveRelease(issues)
-	if activeRelease == nil {
-		return fmt.Errorf("no active release found")
+	// Find the specified release by name
+	var targetRelease *api.Issue
+	expectedTitle := fmt.Sprintf("Release: %s", opts.releaseName)
+	for i := range issues {
+		if issues[i].Title == expectedTitle || strings.HasPrefix(issues[i].Title, expectedTitle+" (") {
+			targetRelease = &issues[i]
+			break
+		}
+	}
+	if targetRelease == nil {
+		return fmt.Errorf("release not found: %s", opts.releaseName)
 	}
 
 	// Extract version and codename from title
-	releaseVersion := extractReleaseVersion(activeRelease.Title)
-	codename := extractReleaseCodename(activeRelease.Title)
+	releaseVersion := extractReleaseVersion(targetRelease.Title)
+	codename := extractReleaseCodename(targetRelease.Title)
 
 	// Get issues assigned to this release
 	releaseIssues, err := client.GetIssuesByRelease(owner, repo, releaseVersion)
 	if err != nil {
 		return fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	// Count done vs incomplete issues
+	var doneIssues, incompleteIssues []api.Issue
+	for _, issue := range releaseIssues {
+		if issue.State == "CLOSED" || issue.State == "closed" {
+			doneIssues = append(doneIssues, issue)
+		} else {
+			incompleteIssues = append(incompleteIssues, issue)
+		}
+	}
+
+	// Show release summary
+	fmt.Fprintf(cmd.OutOrStdout(), "Closing release: %s\n", opts.releaseName)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Tracker issue: #%d\n", targetRelease.Number)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Issues in release: %d (%d done, %d incomplete)\n",
+		len(releaseIssues), len(doneIssues), len(incompleteIssues))
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// Warn about incomplete issues and confirm
+	if len(incompleteIssues) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  %d issue(s) are not done. They will be moved to backlog.\n", len(incompleteIssues))
+
+		if !opts.yes {
+			fmt.Fprint(cmd.OutOrStdout(), "Proceed? (y/n): ")
+			var response string
+			_, _ = fmt.Scanln(&response)
+			response = strings.ToLower(strings.TrimSpace(response))
+			if response != "y" && response != "yes" {
+				fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				return nil
+			}
+		}
+		fmt.Fprintln(cmd.OutOrStdout())
+
+		// Move incomplete issues to backlog and clear Release/Microsprint fields
+		fmt.Fprintln(cmd.OutOrStdout(), "Moving incomplete issues to backlog...")
+		project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+		if err != nil {
+			return fmt.Errorf("failed to get project: %w", err)
+		}
+
+		for _, issue := range incompleteIssues {
+			// Get project item ID
+			itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "  Warning: could not find project item for #%d: %v\n", issue.Number, err)
+				continue
+			}
+
+			// Clear Release field
+			if releaseField, ok := cfg.Fields["release"]; ok {
+				_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
+			}
+
+			// Clear Microsprint field
+			if microsprintField, ok := cfg.Fields["microsprint"]; ok {
+				_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, "")
+			}
+
+			// Set status to backlog
+			if statusField, ok := cfg.Fields["status"]; ok {
+				backlogValue := statusField.Values["backlog"]
+				if backlogValue == "" {
+					backlogValue = "Backlog"
+				}
+				_ = client.SetProjectItemField(project.ID, itemID, statusField.Field, backlogValue)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "  #%d - %s\n", issue.Number, issue.Title)
+		}
+		fmt.Fprintln(cmd.OutOrStdout())
+	} else if !opts.yes {
+		// Confirm even without incomplete issues
+		fmt.Fprint(cmd.OutOrStdout(), "Proceed? (y/n): ")
+		var response string
+		_, _ = fmt.Scanln(&response)
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+			return nil
+		}
+		fmt.Fprintln(cmd.OutOrStdout())
 	}
 
 	// Create artifact directory (configurable via release.artifacts.directory)
@@ -610,10 +736,10 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 
 	var artifactPaths []string
 
-	// Generate and write release-notes.md (AC-020-1, AC-020-2)
+	// Generate and write release-notes.md
 	if cfg.ShouldGenerateReleaseNotes() {
 		releaseNotesPath := fmt.Sprintf("%s/release-notes.md", artifactDir)
-		releaseNotesContent := generateReleaseNotesContent(releaseVersion, codename, activeRelease.Number, releaseIssues)
+		releaseNotesContent := generateReleaseNotesContent(releaseVersion, codename, targetRelease.Number, doneIssues)
 		err = client.WriteFile(releaseNotesPath, releaseNotesContent)
 		if err != nil {
 			return fmt.Errorf("failed to write release-notes.md: %w", err)
@@ -621,10 +747,10 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		artifactPaths = append(artifactPaths, releaseNotesPath)
 	}
 
-	// Generate and write changelog.md (AC-020-3)
+	// Generate and write changelog.md
 	if cfg.ShouldGenerateChangelog() {
 		changelogPath := fmt.Sprintf("%s/changelog.md", artifactDir)
-		changelogContent := generateChangelogContent(releaseVersion, releaseIssues)
+		changelogContent := generateChangelogContent(releaseVersion, doneIssues)
 		err = client.WriteFile(changelogPath, changelogContent)
 		if err != nil {
 			return fmt.Errorf("failed to write changelog.md: %w", err)
@@ -632,7 +758,7 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		artifactPaths = append(artifactPaths, changelogPath)
 	}
 
-	// Stage artifacts to git (AC-020-4)
+	// Stage artifacts to git
 	if len(artifactPaths) > 0 {
 		err = client.GitAdd(artifactPaths...)
 		if err != nil {
@@ -640,7 +766,7 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		}
 	}
 
-	// Create git tag if requested (AC-021-1)
+	// Create git tag if requested
 	if opts.tag {
 		tagMessage := fmt.Sprintf("Release %s", releaseVersion)
 		err = client.GitTag(releaseVersion, tagMessage)
@@ -650,17 +776,128 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 	}
 
 	// Close the tracker issue
-	err = client.CloseIssue(activeRelease.ID)
+	err = client.CloseIssue(targetRelease.ID)
 	if err != nil {
 		return fmt.Errorf("failed to close tracker issue: %w", err)
 	}
 
-	// Output confirmation
-	fmt.Fprintf(cmd.OutOrStdout(), "Closed release: %s\n", releaseVersion)
-	fmt.Fprintf(cmd.OutOrStdout(), "Artifacts created in: %s\n", artifactDir)
-	if opts.tag {
-		fmt.Fprintf(cmd.OutOrStdout(), "Tag created: %s\n", releaseVersion)
+	// Remove from active releases in config
+	cfg.RemoveActiveRelease(targetRelease.Number)
+
+	// Save config
+	cwd, _ := os.Getwd()
+	configPath, err := config.FindConfigFile(cwd)
+	if err == nil {
+		if err := cfg.Save(configPath); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to update config: %v\n", err)
+		}
 	}
+
+	// Output confirmation
+	fmt.Fprintf(cmd.OutOrStdout(), "✓ Release closed: %s\n", releaseVersion)
+	fmt.Fprintf(cmd.OutOrStdout(), "✓ Artifacts created in: %s\n", artifactDir)
+	if len(incompleteIssues) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(incompleteIssues))
+	}
+	if opts.tag {
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ Tag created: %s\n", releaseVersion)
+	}
+
+	return nil
+}
+
+// newReleaseReopenCommand creates the release reopen subcommand
+func newReleaseReopenCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reopen <release-name>",
+		Short: "Reopen a closed release",
+		Long: `Reopens a previously closed release tracker issue.
+
+Use this to continue work on a release after it has been closed.
+The release name must be specified explicitly.
+
+Examples:
+  gh pmu release reopen release/v2.0.0
+  gh pmu release reopen patch/v1.9.1`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			releaseName := args[0]
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+			}
+
+			if err := cfg.Validate(); err != nil {
+				return fmt.Errorf("invalid configuration: %w", err)
+			}
+
+			client := api.NewClient()
+			return runReleaseReopenWithDeps(cmd, releaseName, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+func runReleaseReopenWithDeps(cmd *cobra.Command, releaseName string, cfg *config.Config, client releaseClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get closed release issues
+	issues, err := client.GetClosedIssuesByLabel(owner, repo, "release")
+	if err != nil {
+		return fmt.Errorf("failed to get closed release issues: %w", err)
+	}
+
+	// Find the specified release by name
+	var targetRelease *api.Issue
+	expectedTitle := fmt.Sprintf("Release: %s", releaseName)
+	for i := range issues {
+		if issues[i].Title == expectedTitle || strings.HasPrefix(issues[i].Title, expectedTitle+" (") {
+			targetRelease = &issues[i]
+			break
+		}
+	}
+
+	if targetRelease == nil {
+		return fmt.Errorf("closed release not found: %s", releaseName)
+	}
+
+	// Reopen the tracker issue
+	err = client.ReopenIssue(targetRelease.ID)
+	if err != nil {
+		return fmt.Errorf("failed to reopen tracker issue: %w", err)
+	}
+
+	// Parse version and track for config storage
+	version, track := parseReleaseTitle(targetRelease.Title)
+
+	// Add to active releases in config
+	cfg.AddActiveRelease(config.ActiveRelease{
+		Version:      version,
+		TrackerIssue: targetRelease.Number,
+		Track:        track,
+	})
+
+	// Save config
+	cwd, _ := os.Getwd()
+	configPath, err := config.FindConfigFile(cwd)
+	if err == nil {
+		if err := cfg.Save(configPath); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to update config: %v\n", err)
+		}
+	}
+
+	releaseVersion := extractReleaseVersion(targetRelease.Title)
+	fmt.Fprintf(cmd.OutOrStdout(), "Reopened release %s (tracker #%d)\n", releaseVersion, targetRelease.Number)
 
 	return nil
 }

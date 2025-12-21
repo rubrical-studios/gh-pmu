@@ -917,3 +917,101 @@ func TestShouldGenerateChangelog(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// IsIDPF Tests
+// ============================================================================
+
+func TestConfig_IsIDPF_WithIDPF(t *testing.T) {
+	cfg := &Config{Framework: "IDPF"}
+	if !cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return true for 'IDPF'")
+	}
+}
+
+func TestConfig_IsIDPF_WithLowercase(t *testing.T) {
+	cfg := &Config{Framework: "idpf"}
+	if !cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return true for 'idpf'")
+	}
+}
+
+func TestConfig_IsIDPF_WithNone(t *testing.T) {
+	cfg := &Config{Framework: "none"}
+	if cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return false for 'none'")
+	}
+}
+
+func TestConfig_IsIDPF_WithEmpty(t *testing.T) {
+	cfg := &Config{Framework: ""}
+	if cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return false for empty string")
+	}
+}
+
+// ============================================================================
+// LoadFromDirectoryAndNormalize Tests
+// ============================================================================
+
+func TestLoadFromDirectoryAndNormalize_NormalizesEmptyFramework(t *testing.T) {
+	// ARRANGE: Create temp dir with config without framework
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	configContent := `project:
+  owner: test-owner
+  number: 1
+repositories:
+  - test-owner/test-repo
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// ACT: Load and normalize
+	cfg, err := LoadFromDirectoryAndNormalize(testDir)
+
+	// ASSERT: Framework is set to IDPF
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if cfg.Framework != "IDPF" {
+		t.Errorf("Expected framework 'IDPF', got '%s'", cfg.Framework)
+	}
+
+	// ASSERT: File was updated
+	loadedCfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to reload config: %v", err)
+	}
+	if loadedCfg.Framework != "IDPF" {
+		t.Errorf("Expected saved framework 'IDPF', got '%s'", loadedCfg.Framework)
+	}
+}
+
+func TestLoadFromDirectoryAndNormalize_PreservesExistingFramework(t *testing.T) {
+	// ARRANGE: Create temp dir with config with framework: none
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	configContent := `project:
+  owner: test-owner
+  number: 1
+repositories:
+  - test-owner/test-repo
+framework: none
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// ACT: Load and normalize
+	cfg, err := LoadFromDirectoryAndNormalize(testDir)
+
+	// ASSERT: Framework is preserved as 'none'
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if cfg.Framework != "none" {
+		t.Errorf("Expected framework 'none', got '%s'", cfg.Framework)
+	}
+}

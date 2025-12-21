@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Project      Project           `yaml:"project"`
 	Repositories []string          `yaml:"repositories"`
+	Framework    string            `yaml:"framework,omitempty"`
 	Defaults     Defaults          `yaml:"defaults,omitempty"`
 	Fields       map[string]Field  `yaml:"fields,omitempty"`
 	Triage       map[string]Triage `yaml:"triage,omitempty"`
@@ -111,6 +112,33 @@ func LoadFromDirectory(dir string) (*Config, error) {
 		return nil, err
 	}
 	return Load(configPath)
+}
+
+// LoadFromDirectoryAndNormalize loads the config and normalizes the framework field.
+// If the framework field is empty, it sets it to "IDPF" and saves the config.
+// This ensures the config file is self-documenting about which framework is in use.
+func LoadFromDirectoryAndNormalize(dir string) (*Config, error) {
+	configPath, err := FindConfigFile(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Normalize: missing framework defaults to IDPF
+	if cfg.Framework == "" {
+		cfg.Framework = "IDPF"
+		if err := cfg.Save(configPath); err != nil {
+			// Log warning but don't fail - config is still usable
+			// The next save operation will include the framework
+			return cfg, nil
+		}
+	}
+
+	return cfg, nil
 }
 
 // FindConfigFile searches for .gh-pmu.yml starting from dir and walking up
@@ -213,6 +241,12 @@ func (c *Config) Save(path string) error {
 	return nil
 }
 
+// IsIDPF returns true if the config uses IDPF framework validation.
+// IDPF is the default framework when not specified.
+func (c *Config) IsIDPF() bool {
+	return c.Framework == "IDPF" || c.Framework == "idpf"
+}
+
 // AddFieldMetadata adds or updates field metadata in the config
 func (c *Config) AddFieldMetadata(field FieldMetadata) {
 	if c.Metadata == nil {
@@ -235,6 +269,14 @@ func (c *Config) AddFieldMetadata(field FieldMetadata) {
 type Release struct {
 	Tracks    map[string]TrackConfig `yaml:"tracks,omitempty"`
 	Artifacts *ArtifactConfig        `yaml:"artifacts,omitempty"`
+	Active    []ActiveRelease        `yaml:"active,omitempty"`
+}
+
+// ActiveRelease represents an active release in the config
+type ActiveRelease struct {
+	Version      string `yaml:"version"`
+	TrackerIssue int    `yaml:"tracker_issue"`
+	Track        string `yaml:"track"`
 }
 
 // ArtifactConfig contains configuration for release artifacts
@@ -349,4 +391,38 @@ func (c *Config) ShouldGenerateChangelog() bool {
 		return true // Default to true
 	}
 	return c.Release.Artifacts.Changelog
+}
+
+// AddActiveRelease adds a release to the active list if not already present
+func (c *Config) AddActiveRelease(release ActiveRelease) {
+	// Check for duplicates by tracker issue number
+	for _, r := range c.Release.Active {
+		if r.TrackerIssue == release.TrackerIssue {
+			return // Already exists
+		}
+	}
+	c.Release.Active = append(c.Release.Active, release)
+}
+
+// RemoveActiveRelease removes a release from the active list by tracker issue number
+func (c *Config) RemoveActiveRelease(trackerIssue int) {
+	var filtered []ActiveRelease
+	for _, r := range c.Release.Active {
+		if r.TrackerIssue != trackerIssue {
+			filtered = append(filtered, r)
+		}
+	}
+	c.Release.Active = filtered
+}
+
+// GetActiveReleases returns the list of active releases
+func (c *Config) GetActiveReleases() []ActiveRelease {
+	return c.Release.Active
+}
+
+// MergeActiveReleases merges discovered releases into the config (additive, no duplicates)
+func (c *Config) MergeActiveReleases(releases []ActiveRelease) {
+	for _, r := range releases {
+		c.AddActiveRelease(r)
+	}
 }

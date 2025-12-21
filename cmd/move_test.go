@@ -1094,7 +1094,9 @@ func TestCollectSubIssuesRecursive_RespectsDepthLimit(t *testing.T) {
 	}
 
 	// Collect with maxDepth=2 (should get levels 1 and 2, i.e., issues 2 and 3)
-	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, 1, 2)
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue)
+	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, itemFieldsMap, itemDataMap, 1, 2)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1122,8 +1124,10 @@ func TestCollectSubIssuesRecursive_HandlesEmptySubIssues(t *testing.T) {
 	// No sub-issues for any issue
 
 	itemIDMap := map[string]string{}
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue)
 
-	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, 1, 10)
+	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, itemFieldsMap, itemDataMap, 1, 10)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1151,8 +1155,10 @@ func TestCollectSubIssuesRecursive_HandlesCrossRepoSubIssues(t *testing.T) {
 	itemIDMap := map[string]string{
 		"owner-b/repo-b#100": "item-100",
 	}
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue)
 
-	result, err := collectSubIssuesRecursive(mock, "owner-a", "repo-a", 1, itemIDMap, 1, 10)
+	result, err := collectSubIssuesRecursive(mock, "owner-a", "repo-a", 1, itemIDMap, itemFieldsMap, itemDataMap, 1, 10)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1191,8 +1197,10 @@ func TestCollectSubIssuesRecursive_InheritsRepoWhenEmpty(t *testing.T) {
 	itemIDMap := map[string]string{
 		"testowner/testrepo#2": "item-2",
 	}
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue)
 
-	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, 1, 10)
+	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, itemFieldsMap, itemDataMap, 1, 10)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1226,8 +1234,10 @@ func TestCollectSubIssuesRecursive_SubIssueNotInProject(t *testing.T) {
 
 	// Empty itemIDMap - sub-issue not in project
 	itemIDMap := map[string]string{}
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue)
 
-	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, 1, 10)
+	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, itemFieldsMap, itemDataMap, 1, 10)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -1250,9 +1260,11 @@ func TestCollectSubIssuesRecursive_MaxDepthZero(t *testing.T) {
 	}
 
 	itemIDMap := map[string]string{"testowner/testrepo#2": "item-2"}
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue)
 
 	// maxDepth=0, currentDepth=1 -> should return nothing
-	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, 1, 0)
+	result, err := collectSubIssuesRecursive(mock, "testowner", "testrepo", 1, itemIDMap, itemFieldsMap, itemDataMap, 1, 0)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

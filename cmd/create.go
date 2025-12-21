@@ -28,6 +28,7 @@ type createOptions struct {
 	status      string
 	priority    string
 	microsprint string
+	release     string
 	labels      []string
 	assignees   []string
 	milestone   string
@@ -63,6 +64,7 @@ any specified field values (status, priority) are set.`,
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field (e.g., backlog, in_progress)")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field (e.g., p0, p1, p2)")
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "M", "", "Set microsprint field (use 'current' for active microsprint)")
+	cmd.Flags().StringVarP(&opts.release, "release", "r", "", "Set release field (use 'current' for active release)")
 	cmd.Flags().StringArrayVarP(&opts.labels, "label", "l", nil, "Add labels (can be specified multiple times)")
 	cmd.Flags().StringArrayVarP(&opts.assignees, "assignee", "a", nil, "Assign users (can be specified multiple times)")
 	cmd.Flags().StringVarP(&opts.milestone, "milestone", "m", "", "Set milestone (title or number)")
@@ -172,6 +174,14 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 		return fmt.Errorf("--title is required (use --interactive for prompted mode)")
 	}
 
+	// IDPF validation for create
+	if cfg.IsIDPF() && opts.status != "" {
+		statusValue := cfg.ResolveFieldValue("status", opts.status)
+		if err := validateCreateOptions(statusValue, body, opts.release); err != nil {
+			return err
+		}
+	}
+
 	// Merge labels: config defaults + command line
 	labels := append([]string{}, cfg.Defaults.Labels...)
 	labels = append(labels, opts.labels...)
@@ -241,6 +251,26 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 		}
 		if err := client.SetProjectItemField(project.ID, itemID, "Microsprint", microsprintValue); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint: %v\n", err)
+		}
+	}
+
+	// Set release field
+	if opts.release != "" {
+		releaseValue := opts.release
+		if opts.release == "current" {
+			// Resolve "current" to active release - will be implemented with #371
+			releaseIssues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+			if err != nil {
+				return fmt.Errorf("failed to get release issues: %w", err)
+			}
+			activeRelease := findActiveReleaseForCreate(releaseIssues)
+			if activeRelease == nil {
+				return fmt.Errorf("no active release found. Run 'gh pmu release start' to create one")
+			}
+			releaseValue = strings.TrimPrefix(activeRelease.Title, "Release: ")
+		}
+		if err := client.SetProjectItemField(project.ID, itemID, "Release", releaseValue); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to set release: %v\n", err)
 		}
 	}
 
@@ -362,6 +392,37 @@ func runCreateFromFile(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 	return nil
 }
 
+// validateCreateOptions validates IDPF rules for issue creation
+func validateCreateOptions(status, body, release string) error {
+	statusLower := strings.ToLower(status)
+
+	// Rule 1: Body required for in_review/done
+	if statusLower == "in_review" || statusLower == "in review" || statusLower == "done" {
+		if isBodyEmpty(body) {
+			return fmt.Errorf("cannot create issue with status '%s' without body content", status)
+		}
+	}
+
+	// Rule 2: All checkboxes must be checked for done
+	if statusLower == "done" {
+		unchecked := countUncheckedBoxes(body)
+		if unchecked > 0 {
+			return fmt.Errorf("cannot create issue as 'done' with %d unchecked checkbox(es)", unchecked)
+		}
+	}
+
+	// Rule 3: Release required for ready/in_progress/in_review/done
+	requiresRelease := statusLower == "ready" ||
+		statusLower == "in progress" || statusLower == "in_progress" ||
+		statusLower == "in_review" || statusLower == "in review" ||
+		statusLower == "done"
+	if requiresRelease && release == "" {
+		return fmt.Errorf("cannot create issue with status '%s' without --release flag\nUse: gh pmu create --status %s --release \"release/vX.Y.Z\"", status, strings.ToLower(status))
+	}
+
+	return nil
+}
+
 // findActiveMicrosprintForCreate finds today's active microsprint tracker from a list of issues
 // Returns nil if no active microsprint is found for today
 func findActiveMicrosprintForCreate(issues []api.Issue) *api.Issue {
@@ -370,6 +431,17 @@ func findActiveMicrosprintForCreate(issues []api.Issue) *api.Issue {
 
 	for i := range issues {
 		if strings.HasPrefix(issues[i].Title, prefix) {
+			return &issues[i]
+		}
+	}
+	return nil
+}
+
+// findActiveReleaseForCreate finds the active release tracker from a list of issues
+// Returns nil if no active release is found
+func findActiveReleaseForCreate(issues []api.Issue) *api.Issue {
+	for i := range issues {
+		if strings.HasPrefix(issues[i].Title, "Release: ") {
 			return &issues[i]
 		}
 	}

@@ -64,8 +64,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 	u.Header("gh-pmu init", "Configure project management settings")
 	fmt.Fprintln(cmd.OutOrStdout())
 
-	// Check if config already exists
+	// Check if config already exists and preserve framework and active releases
+	var existingFramework string
+	var existingActiveReleases []ReleaseActiveEntry
 	if _, err := os.Stat(".gh-pmu.yml"); err == nil {
+		// Try to load existing config to preserve framework and active releases
+		if existingCfg, err := loadExistingConfigFull("."); err == nil {
+			if existingCfg.Framework != "" {
+				existingFramework = existingCfg.Framework
+			}
+			existingActiveReleases = existingCfg.ActiveReleases
+		}
 		u.Warning("Configuration file .gh-pmu.yml already exists")
 		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Overwrite?", "y/N"))
 		response, _ := reader.ReadString('\n')
@@ -223,6 +232,27 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	u.Success(fmt.Sprintf("Repository: %s", repo))
 
+	// Prompt for IDPF framework (new projects only, preserve existing on re-init)
+	var framework string
+	if existingFramework != "" {
+		// Preserve existing framework value on re-init
+		framework = existingFramework
+		u.Info(fmt.Sprintf("Framework preserved: %s", framework))
+	} else {
+		// New project - prompt for framework
+		framework = "IDPF" // Default to IDPF
+		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Use IDPF framework validation?", "Y/n"))
+		frameworkInput, _ := reader.ReadString('\n')
+		frameworkInput = strings.TrimSpace(strings.ToLower(frameworkInput))
+		if frameworkInput == "n" || frameworkInput == "no" {
+			framework = "none"
+			u.Info("IDPF validation disabled")
+		} else {
+			u.Success("IDPF validation enabled")
+		}
+	}
+
 	// Fetch project fields
 	fmt.Fprintln(cmd.OutOrStdout())
 	spinner = ui.NewSpinner(cmd.OutOrStdout(), "Fetching project fields...")
@@ -234,84 +264,89 @@ func runInit(cmd *cobra.Command, args []string) error {
 		u.Warning(fmt.Sprintf("Could not fetch project fields: %v", err))
 	}
 
-	// Check and create required fields
-	fmt.Fprintln(cmd.OutOrStdout())
-	u.Info("Checking project fields...")
-	requiredFields := []struct {
-		name     string
-		dataType string
-	}{
-		{"Release", "TEXT"},
-		{"Microsprint", "TEXT"},
-	}
-
-	for _, rf := range requiredFields {
-		exists, err := client.FieldExists(selectedProject.ID, rf.name)
-		if err != nil {
-			u.Warning(fmt.Sprintf("Could not check %s field: %v", rf.name, err))
-			continue
+	// Check and create required fields (IDPF only)
+	repoOwner, repoName := splitRepository(repo)
+	if framework == "IDPF" {
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Info("Checking project fields...")
+		requiredFields := []struct {
+			name     string
+			dataType string
+		}{
+			{"Release", "TEXT"},
+			{"Microsprint", "TEXT"},
 		}
-		if exists {
-			u.Success(fmt.Sprintf("%s field exists", rf.name))
-		} else {
-			spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s field...", rf.name))
-			spinner.Start()
-			_, err := client.CreateProjectField(selectedProject.ID, rf.name, rf.dataType, nil)
-			spinner.Stop()
+
+		for _, rf := range requiredFields {
+			exists, err := client.FieldExists(selectedProject.ID, rf.name)
 			if err != nil {
-				u.Warning(fmt.Sprintf("Could not create %s field: %v", rf.name, err))
+				u.Warning(fmt.Sprintf("Could not check %s field: %v", rf.name, err))
+				continue
+			}
+			if exists {
+				u.Success(fmt.Sprintf("%s field exists", rf.name))
 			} else {
-				u.Success(fmt.Sprintf("Created %s field", rf.name))
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s field...", rf.name))
+				spinner.Start()
+				_, err := client.CreateProjectField(selectedProject.ID, rf.name, rf.dataType, nil)
+				spinner.Stop()
+				if err != nil {
+					u.Warning(fmt.Sprintf("Could not create %s field: %v", rf.name, err))
+				} else {
+					u.Success(fmt.Sprintf("Created %s field", rf.name))
+				}
 			}
 		}
+
+		// Check and create required labels (IDPF only)
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Info("Checking repository labels...")
+		requiredLabels := []struct {
+			name        string
+			color       string
+			description string
+		}{
+			{"release", "0e8a16", "Release tracker issue"},
+			{"microsprint", "1d76db", "Microsprint tracker issue"},
+		}
+
+		for _, rl := range requiredLabels {
+			exists, err := client.LabelExists(repoOwner, repoName, rl.name)
+			if err != nil {
+				u.Warning(fmt.Sprintf("Could not check %s label: %v", rl.name, err))
+				continue
+			}
+			if exists {
+				u.Success(fmt.Sprintf("%s label exists", rl.name))
+			} else {
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s label...", rl.name))
+				spinner.Start()
+				err := client.CreateLabel(repoOwner, repoName, rl.name, rl.color, rl.description)
+				spinner.Stop()
+				if err != nil {
+					u.Warning(fmt.Sprintf("Could not create %s label: %v", rl.name, err))
+				} else {
+					u.Success(fmt.Sprintf("Created %s label", rl.name))
+				}
+			}
+		}
+	} else {
+		u.Info("Skipping Release/Microsprint field and label creation (framework: none)")
 	}
 
 	// Refetch fields after potential creation
 	fields, _ := client.GetProjectFields(selectedProject.ID)
 
-	// Check and create required labels
-	fmt.Fprintln(cmd.OutOrStdout())
-	u.Info("Checking repository labels...")
-	repoOwner, repoName := splitRepository(repo)
-	requiredLabels := []struct {
-		name        string
-		color       string
-		description string
-	}{
-		{"release", "0e8a16", "Release tracker issue"},
-		{"microsprint", "1d76db", "Microsprint tracker issue"},
-	}
-
-	for _, rl := range requiredLabels {
-		exists, err := client.LabelExists(repoOwner, repoName, rl.name)
-		if err != nil {
-			u.Warning(fmt.Sprintf("Could not check %s label: %v", rl.name, err))
-			continue
-		}
-		if exists {
-			u.Success(fmt.Sprintf("%s label exists", rl.name))
-		} else {
-			spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s label...", rl.name))
-			spinner.Start()
-			err := client.CreateLabel(repoOwner, repoName, rl.name, rl.color, rl.description)
-			spinner.Stop()
-			if err != nil {
-				u.Warning(fmt.Sprintf("Could not create %s label: %v", rl.name, err))
-			} else {
-				u.Success(fmt.Sprintf("Created %s label", rl.name))
-			}
-		}
-	}
-
 	// Sync active releases from tracker issues
 	fmt.Fprintln(cmd.OutOrStdout())
 	u.Info("Syncing active releases...")
-	activeReleases, err := syncActiveReleases(client, repoOwner, repoName)
+	activeReleases, releaseResults, err := syncActiveReleases(client, repoOwner, repoName)
 	if err != nil {
 		u.Warning(fmt.Sprintf("Could not sync releases: %v", err))
-	} else if len(activeReleases) > 0 {
-		for _, r := range activeReleases {
-			u.Success(fmt.Sprintf("Found active release: %s (track: %s, tracker: #%d)", r.Version, r.Track, r.TrackerIssue))
+	} else if len(releaseResults) > 0 {
+		for _, r := range releaseResults {
+			u.Success(fmt.Sprintf("Found active release: %s (track: %s, tracker: #%d, issues: %d)",
+				r.Entry.Version, r.Entry.Track, r.Entry.TrackerIssue, r.IssueCount))
 		}
 	} else {
 		u.Info("No active releases found")
@@ -342,11 +377,15 @@ func runInit(cmd *cobra.Command, args []string) error {
 		ProjectOwner:  owner,
 		ProjectNumber: projectNumber,
 		Repositories:  []string{repo},
+		Framework:     framework,
 	}
+
+	// Merge existing active releases with newly discovered ones (additive, no duplicates)
+	mergedReleases := mergeActiveReleases(existingActiveReleases, activeReleases)
 
 	// Write config
 	cwd, _ := os.Getwd()
-	if err := writeConfigWithMetadata(cwd, cfg, metadata, activeReleases); err != nil {
+	if err := writeConfigWithMetadata(cwd, cfg, metadata, mergedReleases); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -395,6 +434,56 @@ func detectRepository() string {
 	return parseGitRemote(strings.TrimSpace(string(output)))
 }
 
+// existingConfig holds the framework value from existing config for preservation
+type existingConfig struct {
+	Framework string `yaml:"framework"`
+}
+
+// existingConfigFull holds framework and active releases for preservation during re-init
+type existingConfigFull struct {
+	Framework      string `yaml:"framework"`
+	ActiveReleases []ReleaseActiveEntry
+}
+
+// existingConfigRaw is used for YAML unmarshaling to get release.active
+type existingConfigRaw struct {
+	Framework string `yaml:"framework"`
+	Release   struct {
+		Active []ReleaseActiveEntry `yaml:"active"`
+	} `yaml:"release"`
+}
+
+// loadExistingConfig loads just the framework field from an existing config file.
+func loadExistingConfig(dir string) (*existingConfig, error) {
+	configPath := filepath.Join(dir, ".gh-pmu.yml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+	var cfg existingConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// loadExistingConfigFull loads framework and active releases from existing config
+func loadExistingConfigFull(dir string) (*existingConfigFull, error) {
+	configPath := filepath.Join(dir, ".gh-pmu.yml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+	var raw existingConfigRaw
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	return &existingConfigFull{
+		Framework:      raw.Framework,
+		ActiveReleases: raw.Release.Active,
+	}, nil
+}
+
 // splitRepository splits "owner/repo" into owner and repo parts.
 func splitRepository(repo string) (owner, name string) {
 	parts := strings.SplitN(repo, "/", 2)
@@ -410,6 +499,7 @@ type InitConfig struct {
 	ProjectOwner  string
 	ProjectNumber int
 	Repositories  []string
+	Framework     string
 }
 
 // ConfigFile represents the .gh-pmu.yml file structure.
@@ -515,6 +605,7 @@ type ReleaseActiveEntry struct {
 type ConfigFileWithMetadata struct {
 	Project      ProjectConfig           `yaml:"project"`
 	Repositories []string                `yaml:"repositories"`
+	Framework    string                  `yaml:"framework,omitempty"`
 	Defaults     DefaultsConfig          `yaml:"defaults"`
 	Fields       map[string]FieldMapping `yaml:"fields"`
 	Triage       map[string]TriageRule   `yaml:"triage,omitempty"`
@@ -626,6 +717,7 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 			Number: cfg.ProjectNumber,
 		},
 		Repositories: cfg.Repositories,
+		Framework:    cfg.Framework,
 		Defaults: DefaultsConfig{
 			Priority: "p2",
 			Status:   "backlog",
@@ -683,28 +775,57 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 	return nil
 }
 
-// syncActiveReleases queries open release issues and returns active release entries
-func syncActiveReleases(client *api.Client, owner, repo string) ([]ReleaseActiveEntry, error) {
+// ReleaseDiscoveryResult holds release info with issue count for display
+type ReleaseDiscoveryResult struct {
+	Entry      ReleaseActiveEntry
+	IssueCount int
+}
+
+// syncActiveReleases queries open release issues and returns active release entries with issue counts
+func syncActiveReleases(client *api.Client, owner, repo string) ([]ReleaseActiveEntry, []ReleaseDiscoveryResult, error) {
 	issues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get release issues: %w", err)
+		return nil, nil, fmt.Errorf("failed to get release issues: %w", err)
 	}
 
 	var entries []ReleaseActiveEntry
+	var results []ReleaseDiscoveryResult
 	for _, issue := range issues {
 		if !strings.HasPrefix(issue.Title, "Release: ") {
 			continue
 		}
 
 		version, track := parseReleaseTitleForInit(issue.Title)
-		entries = append(entries, ReleaseActiveEntry{
+
+		// Get the release field value to count issues
+		releaseFieldValue := extractReleaseVersionForInit(issue.Title)
+		releaseIssues, _ := client.GetIssuesByRelease(owner, repo, releaseFieldValue)
+		issueCount := len(releaseIssues)
+
+		entry := ReleaseActiveEntry{
 			Version:      version,
 			TrackerIssue: issue.Number,
 			Track:        track,
+		}
+		entries = append(entries, entry)
+		results = append(results, ReleaseDiscoveryResult{
+			Entry:      entry,
+			IssueCount: issueCount,
 		})
 	}
 
-	return entries, nil
+	return entries, results, nil
+}
+
+// extractReleaseVersionForInit extracts the release field value from a title
+func extractReleaseVersionForInit(title string) string {
+	// Remove "Release: " prefix
+	version := strings.TrimPrefix(title, "Release: ")
+	// Remove codename if present
+	if idx := strings.Index(version, " ("); idx > 0 {
+		version = version[:idx]
+	}
+	return version
 }
 
 // parseReleaseTitleForInit parses a release title into version and track
@@ -729,4 +850,27 @@ func parseReleaseTitleForInit(title string) (version, track string) {
 	}
 
 	return version, track
+}
+
+// mergeActiveReleases merges existing releases with newly discovered ones (additive, no duplicates)
+func mergeActiveReleases(existing, discovered []ReleaseActiveEntry) []ReleaseActiveEntry {
+	// Start with discovered releases (fresh from GitHub)
+	result := make([]ReleaseActiveEntry, len(discovered))
+	copy(result, discovered)
+
+	// Create a map of tracker issue numbers for quick duplicate detection
+	seen := make(map[int]bool)
+	for _, r := range discovered {
+		seen[r.TrackerIssue] = true
+	}
+
+	// Add existing releases that aren't already in discovered (handles releases that may have been added manually)
+	for _, r := range existing {
+		if !seen[r.TrackerIssue] {
+			result = append(result, r)
+			seen[r.TrackerIssue] = true
+		}
+	}
+
+	return result
 }

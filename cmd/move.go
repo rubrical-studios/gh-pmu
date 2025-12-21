@@ -20,6 +20,7 @@ type moveOptions struct {
 	recursive   bool
 	depth       int
 	dryRun      bool
+	force       bool   // bypass checkbox validation
 	yes         bool   // skip confirmation
 	repo        string // repository override (owner/repo format)
 }
@@ -106,6 +107,7 @@ Examples:
 	cmd.Flags().BoolVarP(&opts.recursive, "recursive", "r", false, "Apply changes to all sub-issues recursively")
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
+	cmd.Flags().BoolVarP(&opts.force, "force", "f", false, "Bypass checkbox validation (still requires body and release)")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt for recursive operations")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
@@ -114,12 +116,14 @@ Examples:
 
 // issueInfo holds information about an issue to be updated
 type issueInfo struct {
-	Owner  string
-	Repo   string
-	Number int
-	Title  string
-	ItemID string
-	Depth  int
+	Owner       string
+	Repo        string
+	Number      int
+	Title       string
+	Body        string
+	ItemID      string
+	Depth       int
+	FieldValues []api.FieldValue
 }
 
 func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
@@ -184,12 +188,17 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
 
-	// Build a map of issue numbers to item IDs for quick lookup
+	// Build maps for quick lookup: item IDs, field values, and issue data (title/body)
+	// This allows batch processing without additional API calls for issues in the project
 	itemIDMap := make(map[string]string)
+	itemFieldsMap := make(map[string][]api.FieldValue)
+	itemDataMap := make(map[string]*api.Issue) // title, body from project items
 	for _, item := range items {
 		if item.Issue != nil {
 			key := fmt.Sprintf("%s/%s#%d", item.Issue.Repository.Owner, item.Issue.Repository.Name, item.Issue.Number)
 			itemIDMap[key] = item.ID
+			itemFieldsMap[key] = item.FieldValues
+			itemDataMap[key] = item.Issue
 		}
 	}
 
@@ -216,13 +225,6 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			repo = defaultRepo
 		}
 
-		issue, err := client.GetIssue(owner, repo, number)
-		if err != nil {
-			collectionErrors = append(collectionErrors, fmt.Sprintf("#%d: %v", number, err))
-			hasErrors = true
-			continue
-		}
-
 		rootKey := fmt.Sprintf("%s/%s#%d", owner, repo, number)
 		rootItemID, inProject := itemIDMap[rootKey]
 		if !inProject {
@@ -231,17 +233,32 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			continue
 		}
 
+		// Use issue data from project items (batch-fetched) instead of individual API call
+		issueData, hasData := itemDataMap[rootKey]
+		if !hasData {
+			// Fallback to API call if somehow not in map (shouldn't happen for items in project)
+			issue, err := client.GetIssue(owner, repo, number)
+			if err != nil {
+				collectionErrors = append(collectionErrors, fmt.Sprintf("#%d: %v", number, err))
+				hasErrors = true
+				continue
+			}
+			issueData = issue
+		}
+
 		issuesToUpdate = append(issuesToUpdate, issueInfo{
-			Owner:  owner,
-			Repo:   repo,
-			Number: number,
-			Title:  issue.Title,
-			ItemID: rootItemID,
-			Depth:  0,
+			Owner:       owner,
+			Repo:        repo,
+			Number:      number,
+			Title:       issueData.Title,
+			Body:        issueData.Body,
+			ItemID:      rootItemID,
+			Depth:       0,
+			FieldValues: itemFieldsMap[rootKey],
 		})
 
 		if opts.recursive {
-			subIssues, err := collectSubIssuesRecursive(client, owner, repo, number, itemIDMap, 1, opts.depth)
+			subIssues, err := collectSubIssuesRecursive(client, owner, repo, number, itemIDMap, itemFieldsMap, itemDataMap, 1, opts.depth)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to collect sub-issues for #%d: %v\n", number, err)
 			} else {
@@ -318,6 +335,54 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Release -> %s", releaseValue))
 	}
 
+	// Validate IDPF rules before making any changes (all-or-nothing)
+	// Build validation results map for dry-run display
+	var validationErrors ValidationErrors
+	var forceWarnings []string
+	validationResults := make(map[int]string) // issue number -> validation status
+
+	if cfg.IsIDPF() && statusValue != "" {
+		// Discover active releases from GitHub
+		var activeReleases []string
+		if len(issuesToUpdate) > 0 {
+			firstIssue := issuesToUpdate[0]
+			releaseIssues, err := client.GetOpenIssuesByLabel(firstIssue.Owner, firstIssue.Repo, "release")
+			if err == nil {
+				activeReleases = discoverActiveReleases(releaseIssues)
+			}
+		}
+
+		for _, info := range issuesToUpdate {
+			if info.ItemID == "" {
+				validationResults[info.Number] = "skip"
+				continue // Skip issues not in project
+			}
+			ctx := buildValidationContext(info.Number, info.Body, info.FieldValues, activeReleases)
+			if err := validateStatusTransition(cfg, ctx, statusValue, releaseValue, opts.force); err != nil {
+				validationErrors.Add(*err)
+				validationResults[info.Number] = err.Message
+			} else if opts.force && countUncheckedBoxes(info.Body) > 0 {
+				// Track --force bypasses for warning
+				forceWarnings = append(forceWarnings, fmt.Sprintf("#%d has %d unchecked checkbox(es)", info.Number, countUncheckedBoxes(info.Body)))
+				validationResults[info.Number] = "pass (--force)"
+			} else {
+				validationResults[info.Number] = "pass"
+			}
+		}
+
+		// In non-dry-run mode, fail early on validation errors
+		if !opts.dryRun && validationErrors.HasErrors() {
+			return &validationErrors
+		}
+		if !opts.dryRun && len(forceWarnings) > 0 {
+			fmt.Fprintf(os.Stderr, "Warning: --force bypassing checkbox validation:\n")
+			for _, w := range forceWarnings {
+				fmt.Fprintf(os.Stderr, "  %s\n", w)
+			}
+			fmt.Fprintln(os.Stderr)
+		}
+	}
+
 	multiIssueMode := len(args) > 1 || opts.recursive
 
 	if multiIssueMode || opts.dryRun {
@@ -329,10 +394,16 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		fmt.Printf("Issues to update (%d):\n", len(issuesToUpdate))
 		for _, info := range issuesToUpdate {
 			indent := strings.Repeat("  ", info.Depth)
-			if info.ItemID != "" {
-				fmt.Printf("%s* #%d - %s\n", indent, info.Number, info.Title)
-			} else {
+			status := validationResults[info.Number]
+			if info.ItemID == "" {
 				fmt.Printf("%s* #%d - %s (not in project, will skip)\n", indent, info.Number, info.Title)
+			} else if opts.dryRun && status != "" && status != "pass" && status != "pass (--force)" && status != "skip" {
+				// Show validation failure in dry-run mode
+				fmt.Printf("%s* #%d - %s [FAIL: %s]\n", indent, info.Number, info.Title, status)
+			} else if opts.dryRun && status == "pass (--force)" {
+				fmt.Printf("%s* #%d - %s [PASS with --force]\n", indent, info.Number, info.Title)
+			} else {
+				fmt.Printf("%s* #%d - %s\n", indent, info.Number, info.Title)
 			}
 		}
 
@@ -342,6 +413,17 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		}
 
 		if opts.dryRun {
+			// Show validation summary in dry-run mode
+			if validationErrors.HasErrors() {
+				fmt.Println()
+				fmt.Println("Validation would FAIL:")
+				for _, e := range validationErrors.Errors {
+					fmt.Printf("  - Issue #%d: %s\n", e.IssueNumber, e.Message)
+				}
+				fmt.Println("\nFix all issues or use --force to bypass.")
+			} else {
+				fmt.Println("\nValidation: PASS")
+			}
 			return nil
 		}
 
@@ -446,7 +528,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	return nil
 }
 
-func collectSubIssuesRecursive(client moveClient, owner, repo string, number int, itemIDMap map[string]string, currentDepth, maxDepth int) ([]issueInfo, error) {
+func collectSubIssuesRecursive(client moveClient, owner, repo string, number int, itemIDMap map[string]string, itemFieldsMap map[string][]api.FieldValue, itemDataMap map[string]*api.Issue, currentDepth, maxDepth int) ([]issueInfo, error) {
 	if currentDepth > maxDepth {
 		return nil, nil
 	}
@@ -471,18 +553,29 @@ func collectSubIssuesRecursive(client moveClient, owner, repo string, number int
 		key := fmt.Sprintf("%s/%s#%d", subOwner, subRepo, sub.Number)
 		itemID := itemIDMap[key] // may be empty if not in project
 
+		// Use body from batch-fetched project items if available
+		var body string
+		if issueData, ok := itemDataMap[key]; ok {
+			body = issueData.Body
+		} else if issue, err := client.GetIssue(subOwner, subRepo, sub.Number); err == nil {
+			// Fallback to individual API call for sub-issues not in project
+			body = issue.Body
+		}
+
 		info := issueInfo{
-			Owner:  subOwner,
-			Repo:   subRepo,
-			Number: sub.Number,
-			Title:  sub.Title,
-			ItemID: itemID,
-			Depth:  currentDepth,
+			Owner:       subOwner,
+			Repo:        subRepo,
+			Number:      sub.Number,
+			Title:       sub.Title,
+			Body:        body,
+			ItemID:      itemID,
+			FieldValues: itemFieldsMap[key],
+			Depth:       currentDepth,
 		}
 		result = append(result, info)
 
 		// Recurse into this sub-issue's children
-		children, err := collectSubIssuesRecursive(client, subOwner, subRepo, sub.Number, itemIDMap, currentDepth+1, maxDepth)
+		children, err := collectSubIssuesRecursive(client, subOwner, subRepo, sub.Number, itemIDMap, itemFieldsMap, itemDataMap, currentDepth+1, maxDepth)
 		if err != nil {
 			// Log warning but continue
 			fmt.Fprintf(os.Stderr, "Warning: failed to get sub-issues for #%d: %v\n", sub.Number, err)

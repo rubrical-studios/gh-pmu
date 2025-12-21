@@ -338,6 +338,7 @@ func (c *Client) getProjectItemsPage(projectID string, cursor *string) ([]Projec
 								ID         string
 								Number     int
 								Title      string
+								Body       string
 								State      string
 								URL        string `graphql:"url"`
 								Repository struct {
@@ -348,6 +349,11 @@ func (c *Client) getProjectItemsPage(projectID string, cursor *string) ([]Projec
 										Login string
 									}
 								} `graphql:"assignees(first: 10)"`
+								Labels struct {
+									Nodes []struct {
+										Name string
+									}
+								} `graphql:"labels(first: 20)"`
 							} `graphql:"... on Issue"`
 						}
 						FieldValues struct {
@@ -409,6 +415,7 @@ func (c *Client) getProjectItemsPage(projectID string, cursor *string) ([]Projec
 				ID:     node.Content.Issue.ID,
 				Number: node.Content.Issue.Number,
 				Title:  node.Content.Issue.Title,
+				Body:   node.Content.Issue.Body,
 				State:  node.Content.Issue.State,
 				URL:    node.Content.Issue.URL,
 			},
@@ -428,6 +435,11 @@ func (c *Client) getProjectItemsPage(projectID string, cursor *string) ([]Projec
 		// Parse assignees
 		for _, a := range node.Content.Issue.Assignees.Nodes {
 			item.Issue.Assignees = append(item.Issue.Assignees, Actor{Login: a.Login})
+		}
+
+		// Parse labels
+		for _, l := range node.Content.Issue.Labels.Nodes {
+			item.Issue.Labels = append(item.Issue.Labels, Label{Name: l.Name})
 		}
 
 		// Parse field values

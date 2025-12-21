@@ -1,8 +1,9 @@
 # Proposal: Status Transition Validation
 
 **Date:** 2025-12-20
-**Status:** Draft
+**Status:** Converted to PRD
 **Source:** process-docs/Proposal/Release-and-Sprint-Workflow.md (R8)
+**PRD:** PRD/PRD-Status-Transition-Validation.md
 
 ---
 
@@ -76,6 +77,8 @@ Use 'gh pmu release start' to create a new release.
 |------------|------------|
 | Any → `in_review` | Issue body must not be empty |
 | Any → `done` | Issue body must not be empty |
+
+**Empty body definition:** A body is considered empty if it is literally empty or contains only whitespace. Template headers with no content (e.g., `## Acceptance Criteria\n\n`) pass validation.
 
 **Error message:**
 ```
@@ -160,7 +163,18 @@ func validateStatusTransition(cfg *Config, issue *Issue, fromStatus, toStatus st
         }
     }
 
-    // Rule 2: Checkboxes required for in_review
+    // Rule 2: Body required for in_review/done
+    if toStatus == "in_review" || toStatus == "done" {
+        if isBodyEmpty(issue.Body) {
+            return fmt.Errorf(
+                "Issue #%d has no body.\n"+
+                "Issues require acceptance criteria before moving to %s.",
+                issue.Number, toStatus,
+            )
+        }
+    }
+
+    // Rule 3: Checkboxes required for in_review
     if toStatus == "in_review" {
         unchecked := findUncheckedBoxes(issue.Body)
         if len(unchecked) > 0 {
@@ -172,7 +186,7 @@ func validateStatusTransition(cfg *Config, issue *Issue, fromStatus, toStatus st
         }
     }
 
-    // Rule 3: Checkboxes required for done
+    // Rule 4: Checkboxes required for done
     if toStatus == "done" {
         unchecked := findUncheckedBoxes(issue.Body)
         if len(unchecked) > 0 {
@@ -185,6 +199,12 @@ func validateStatusTransition(cfg *Config, issue *Issue, fromStatus, toStatus st
     }
 
     return nil
+}
+
+func isBodyEmpty(body string) bool {
+    // Empty = empty string or whitespace-only
+    // Template headers with no content pass validation
+    return strings.TrimSpace(body) == ""
 }
 
 func findUncheckedBoxes(body string) []string {
@@ -319,14 +339,23 @@ framework: IDPF  # or "none"
 
 ### Default Behavior
 
-**Missing `framework` field defaults to IDPF.** This is a breaking change for existing users:
+**Missing `framework` field defaults to IDPF.** This is a breaking change for existing users.
+
+Config is normalized on load — if `framework` is missing or empty, `IDPF` is written to `.gh-pmu.yml`:
 
 ```go
-func (cfg *Config) IsIDPF() bool {
-    // Missing or empty framework = IDPF (default)
+func (cfg *Config) Load() error {
+    // ... load config ...
+
+    // Normalize: missing framework defaults to IDPF
     if cfg.Framework == "" {
-        return true
+        cfg.Framework = "IDPF"
+        cfg.Save() // Write normalized value back to file
     }
+    return nil
+}
+
+func (cfg *Config) IsIDPF() bool {
     return cfg.Framework == "IDPF" || cfg.Framework == "idpf"
 }
 ```
@@ -351,10 +380,6 @@ When `framework: none`, the following constraints are bypassed:
 ### Implementation
 
 ```go
-func (cfg *Config) IsIDPF() bool {
-    return cfg.Framework == "IDPF" || cfg.Framework == "idpf"
-}
-
 func validateStatusTransition(cfg *Config, issue *Issue, fromStatus, toStatus string) error {
     // Skip validation if not using IDPF
     if !cfg.IsIDPF() {
@@ -650,7 +675,7 @@ gh pmu create --title "Urgent fix" --status in_progress
 ### Framework Configuration
 - [ ] `gh pmu init` prompts "Are you using the IDPF framework? (y/n)" (new projects only)
 - [ ] `framework: IDPF` or `framework: none` stored in `.gh-pmu.yml`
-- [ ] **Missing `framework` field defaults to IDPF** (breaking change)
+- [ ] **Missing `framework` field normalized on load** — writes `IDPF` to config file (breaking change)
 - [ ] When `framework: none`, skip creating Release field
 - [ ] When `framework: none`, skip creating Microsprint field
 - [ ] All validation rules bypassed when `framework: none`
@@ -689,6 +714,7 @@ gh pmu create --title "Urgent fix" --status in_progress
 - [ ] **Release name must exist in `releases.active[]`** (typo prevention)
 - [ ] **Any → In Review blocked if body is empty** (Rule 2)
 - [ ] **Any → Done blocked if body is empty** (Rule 2)
+- [ ] **Empty body = empty string or whitespace-only** (template headers pass)
 - [ ] Any → In Review blocked if unchecked `[ ]` exists in body (Rule 3)
 - [ ] Any → Done blocked if unchecked `[ ]` exists in body (Rule 4)
 - [ ] **All checkboxes validated equally (including nested/indented)**

@@ -706,6 +706,38 @@ func (c *Client) CloseIssue(issueID string) error {
 	return nil
 }
 
+// ReopenIssue reopens a closed issue
+func (c *Client) ReopenIssue(issueID string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		ReopenIssue struct {
+			Issue struct {
+				ID string
+			}
+		} `graphql:"reopenIssue(input: $input)"`
+	}
+
+	input := struct {
+		IssueID graphql.ID `json:"issueId"`
+	}{
+		IssueID: graphql.ID(issueID),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("ReopenIssue", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to reopen issue: %w", err)
+	}
+
+	return nil
+}
+
 // UpdateIssueBody updates the body of an issue
 func (c *Client) UpdateIssueBody(issueID, body string) error {
 	if c.gql == nil {

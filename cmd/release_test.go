@@ -174,6 +174,10 @@ func (m *mockReleaseClient) CloseIssue(issueID string) error {
 	return nil
 }
 
+func (m *mockReleaseClient) ReopenIssue(issueID string) error {
+	return nil
+}
+
 func (m *mockReleaseClient) GitTag(tag, message string) error {
 	m.gitTagCalls = append(m.gitTagCalls, gitTagCall{
 		tag:     tag,
@@ -886,13 +890,13 @@ func TestRunReleaseCloseWithDeps_GeneratesReleaseNotes(t *testing.T) {
 		},
 	}
 	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Add new feature", Labels: []api.Label{{Name: "enhancement"}}},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix bug", Labels: []api.Label{{Name: "bug"}}},
+		{ID: "ISSUE_1", Number: 41, Title: "Add new feature", State: "CLOSED", Labels: []api.Label{{Name: "enhancement"}}},
+		{ID: "ISSUE_2", Number: 42, Title: "Fix bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
 	}
 
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{}
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
 	// ACT
 	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
@@ -928,13 +932,13 @@ func TestRunReleaseCloseWithDeps_ReleaseNotesContainsDetails(t *testing.T) {
 		},
 	}
 	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Add new feature", Labels: []api.Label{{Name: "enhancement"}}},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix critical bug", Labels: []api.Label{{Name: "bug"}}},
+		{ID: "ISSUE_1", Number: 41, Title: "Add new feature", State: "CLOSED", Labels: []api.Label{{Name: "enhancement"}}},
+		{ID: "ISSUE_2", Number: 42, Title: "Fix critical bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
 	}
 
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{}
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
 	// ACT
 	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
@@ -986,12 +990,12 @@ func TestRunReleaseCloseWithDeps_GeneratesChangelog(t *testing.T) {
 		},
 	}
 	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Add feature"},
+		{ID: "ISSUE_1", Number: 41, Title: "Add feature", State: "CLOSED"},
 	}
 
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{}
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
 	// ACT
 	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
@@ -1027,12 +1031,12 @@ func TestRunReleaseCloseWithDeps_StagesArtifacts(t *testing.T) {
 		},
 	}
 	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Add feature"},
+		{ID: "ISSUE_1", Number: 41, Title: "Add feature", State: "CLOSED"},
 	}
 
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{}
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
 	// ACT
 	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
@@ -1088,7 +1092,7 @@ func TestRunReleaseCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{}
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
 	// ACT
 	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
@@ -1116,7 +1120,7 @@ func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{}
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
 	// ACT
 	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
@@ -1127,8 +1131,8 @@ func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	}
 
 	errMsg := err.Error()
-	if !strings.Contains(errMsg, "no active release") {
-		t.Errorf("Expected error to mention 'no active release', got: %s", errMsg)
+	if !strings.Contains(errMsg, "release not found") {
+		t.Errorf("Expected error to mention 'release not found', got: %s", errMsg)
 	}
 }
 
@@ -1153,7 +1157,9 @@ func TestRunReleaseCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{
-		tag: true,
+		releaseName: "v1.2.0",
+		yes:         true,
+		tag:         true,
 	}
 
 	// ACT
@@ -1198,7 +1204,9 @@ func TestRunReleaseCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
 	cfg := testReleaseConfig()
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{
-		tag: false, // No --tag flag
+		releaseName: "v1.2.0",
+		yes:         true,
+		tag:         false, // No --tag flag
 	}
 
 	// ACT

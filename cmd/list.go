@@ -20,6 +20,9 @@ type listOptions struct {
 	assignee     string
 	label        string
 	search       string
+	release      string
+	noRelease    bool
+	microsprint  string
 	limit        int
 	hasSubIssues bool
 	json         bool
@@ -48,6 +51,10 @@ Use filters to narrow down the results.`,
 	cmd.Flags().StringVarP(&opts.assignee, "assignee", "a", "", "Filter by assignee login")
 	cmd.Flags().StringVarP(&opts.label, "label", "l", "", "Filter by label name")
 	cmd.Flags().StringVarP(&opts.search, "search", "q", "", "Search in issue title and body")
+	cmd.Flags().StringVarP(&opts.release, "release", "r", "", "Filter by release (e.g., v1.0.0, current)")
+	cmd.Flags().BoolVar(&opts.noRelease, "no-release", false, "Filter to issues without a release assignment")
+	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Filter by microsprint (e.g., 2025-12-20-a, current)")
+	cmd.MarkFlagsMutuallyExclusive("release", "no-release")
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 0, "Limit number of results (0 for no limit)")
 	cmd.Flags().BoolVar(&opts.hasSubIssues, "has-sub-issues", false, "Filter to only show parent issues (issues with sub-issues)")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
@@ -143,6 +150,56 @@ func runList(cmd *cobra.Command, opts *listOptions) error {
 		items = filterBySearch(items, opts.search)
 	}
 
+	// Apply release filter
+	if opts.release != "" {
+		targetRelease := opts.release
+		if opts.release == "current" && repoFilter != "" {
+			// Resolve "current" to active release
+			parts := strings.Split(repoFilter, "/")
+			if len(parts) == 2 {
+				releaseIssues, err := client.GetOpenIssuesByLabel(parts[0], parts[1], "release")
+				if err == nil {
+					for _, issue := range releaseIssues {
+						if strings.HasPrefix(issue.Title, "Release: ") {
+							targetRelease = strings.TrimPrefix(issue.Title, "Release: ")
+							if idx := strings.Index(targetRelease, " ("); idx > 0 {
+								targetRelease = targetRelease[:idx]
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+		items = filterByFieldValue(items, "Release", targetRelease)
+	}
+
+	// Apply no-release filter (issues without release assignment)
+	if opts.noRelease {
+		items = filterByEmptyField(items, "Release")
+	}
+
+	// Apply microsprint filter
+	if opts.microsprint != "" {
+		targetMicrosprint := opts.microsprint
+		if opts.microsprint == "current" && repoFilter != "" {
+			// Resolve "current" to active microsprint
+			parts := strings.Split(repoFilter, "/")
+			if len(parts) == 2 {
+				microsprintIssues, err := client.GetOpenIssuesByLabel(parts[0], parts[1], "microsprint")
+				if err == nil {
+					for _, issue := range microsprintIssues {
+						if strings.HasPrefix(issue.Title, "Microsprint: ") {
+							targetMicrosprint = strings.TrimPrefix(issue.Title, "Microsprint: ")
+							break
+						}
+					}
+				}
+			}
+		}
+		items = filterByFieldValue(items, "Microsprint", targetMicrosprint)
+	}
+
 	// Apply has-sub-issues filter
 	if opts.hasSubIssues {
 		items = filterByHasSubIssues(client, items)
@@ -170,6 +227,24 @@ func filterByFieldValue(items []api.ProjectItem, fieldName, value string) []api.
 				filtered = append(filtered, item)
 				break
 			}
+		}
+	}
+	return filtered
+}
+
+// filterByEmptyField filters items where a specific field is empty or not set
+func filterByEmptyField(items []api.ProjectItem, fieldName string) []api.ProjectItem {
+	var filtered []api.ProjectItem
+	for _, item := range items {
+		hasValue := false
+		for _, fv := range item.FieldValues {
+			if strings.EqualFold(fv.Field, fieldName) && fv.Value != "" {
+				hasValue = true
+				break
+			}
+		}
+		if !hasValue {
+			filtered = append(filtered, item)
 		}
 	}
 	return filtered
