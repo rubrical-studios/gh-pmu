@@ -328,10 +328,11 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 
 	// Use branch name for tracker title and Release field
 	title := fmt.Sprintf("Release: %s", opts.branch)
+	body := generateReleaseTrackerTemplate(opts.branch)
 
 	// Create tracker issue with release label
 	labels := []string{"release"}
-	issue, err := client.CreateIssue(owner, repo, title, "", labels)
+	issue, err := client.CreateIssue(owner, repo, title, body, labels)
 	if err != nil {
 		return fmt.Errorf("failed to create tracker issue: %w", err)
 	}
@@ -605,6 +606,35 @@ func generateReleaseTrackerBody(issues []api.Issue) string {
 		sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
 	}
 	return sb.String()
+}
+
+// generateReleaseTrackerTemplate generates the initial body template for a release tracker issue
+func generateReleaseTrackerTemplate(branchName string) string {
+	return fmt.Sprintf(`> **Release Tracker Issue**
+>
+> This issue tracks the release %s. It is managed by gh pmu release commands.
+>
+> **Do not manually:**
+> - Close or reopen this issue
+> - Change the title
+> - Remove the %s label
+
+## Commands
+
+- %s - Add issues to this release
+- %s - Remove issues from this release
+- %s - Close this release
+
+## Issues in this release
+
+_Issues are tracked via the Release field in the project._
+`,
+		"`"+branchName+"`",
+		"`release`",
+		"`gh pmu release add <issue>`",
+		"`gh pmu release remove <issue>`",
+		"`gh pmu release close "+branchName+"`",
+	)
 }
 
 // runReleaseCloseWithDeps is the testable entry point for release close
