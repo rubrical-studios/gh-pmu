@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -9,6 +11,37 @@ import (
 	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
+
+// setupReleaseTestDir creates a temp directory with a .gh-pmu.yml config file
+// and changes to that directory. Returns cleanup function to restore original dir.
+func setupReleaseTestDir(t *testing.T, cfg *config.Config) func() {
+	t.Helper()
+
+	// Save original directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	// Create temp directory
+	tempDir := t.TempDir()
+
+	// Save config to temp directory
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if err := cfg.Save(configPath); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+
+	// Change to temp directory
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir to temp dir: %v", err)
+	}
+
+	// Return cleanup function
+	return func() {
+		_ = os.Chdir(originalDir)
+	}
+}
 
 // mockReleaseClient implements releaseClient for testing
 type mockReleaseClient struct {
@@ -246,6 +279,9 @@ func TestRunReleaseStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForRelease()
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
 		branch: "release/v1.2.0",
@@ -279,6 +315,9 @@ func TestRunReleaseStartWithDeps_HasReleaseLabel(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForRelease()
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
 		branch: "release/v1.2.0",
@@ -323,6 +362,9 @@ func TestRunReleaseStartWithDeps_ActiveReleaseExists_ReturnsError(t *testing.T) 
 		},
 	}
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
 		branch: "release/v1.2.0",
@@ -347,6 +389,9 @@ func TestRunReleaseStartWithDeps_AddsToProjectAndSetsStatus(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForRelease()
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseStartOptions{
 		branch: "release/v1.2.0",
@@ -455,6 +500,9 @@ func TestRunReleaseStartWithDeps_BranchNameUsedLiterally(t *testing.T) {
 		t.Run(tc.branch, func(t *testing.T) {
 			mock := setupMockForRelease()
 			cfg := testReleaseConfig()
+			cleanup := setupReleaseTestDir(t, cfg)
+			defer cleanup()
+
 			cmd, _ := newTestReleaseCmd()
 			opts := &releaseStartOptions{
 				branch: tc.branch,
@@ -508,6 +556,8 @@ func TestRunReleaseAddWithDeps_SetsReleaseField(t *testing.T) {
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
 
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseAddOptions{
@@ -559,6 +609,8 @@ func TestRunReleaseAddWithDeps_OutputsConfirmation(t *testing.T) {
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
 
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseAddOptions{
@@ -895,6 +947,9 @@ func TestRunReleaseCloseWithDeps_GeneratesReleaseNotes(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
@@ -937,6 +992,9 @@ func TestRunReleaseCloseWithDeps_ReleaseNotesContainsDetails(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
@@ -994,6 +1052,9 @@ func TestRunReleaseCloseWithDeps_GeneratesChangelog(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
@@ -1035,6 +1096,9 @@ func TestRunReleaseCloseWithDeps_StagesArtifacts(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
@@ -1091,6 +1155,9 @@ func TestRunReleaseCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 	mock.releaseIssues = []api.Issue{}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
@@ -1119,6 +1186,9 @@ func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	mock.openIssues = []api.Issue{} // No active release
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
 
@@ -1155,6 +1225,9 @@ func TestRunReleaseCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
 	mock.releaseIssues = []api.Issue{}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{
 		releaseName: "v1.2.0",
@@ -1202,6 +1275,9 @@ func TestRunReleaseCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
 	mock.releaseIssues = []api.Issue{}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestReleaseCmd()
 	opts := &releaseCloseOptions{
 		releaseName: "v1.2.0",
