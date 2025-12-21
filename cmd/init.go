@@ -434,11 +434,6 @@ func detectRepository() string {
 	return parseGitRemote(strings.TrimSpace(string(output)))
 }
 
-// existingConfig holds the framework value from existing config for preservation
-type existingConfig struct {
-	Framework string `yaml:"framework"`
-}
-
 // existingConfigFull holds framework and active releases for preservation during re-init
 type existingConfigFull struct {
 	Framework      string `yaml:"framework"`
@@ -451,20 +446,6 @@ type existingConfigRaw struct {
 	Release   struct {
 		Active []ReleaseActiveEntry `yaml:"active"`
 	} `yaml:"release"`
-}
-
-// loadExistingConfig loads just the framework field from an existing config file.
-func loadExistingConfig(dir string) (*existingConfig, error) {
-	configPath := filepath.Join(dir, ".gh-pmu.yml")
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
-	}
-	var cfg existingConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-	return &cfg, nil
 }
 
 // loadExistingConfigFull loads framework and active releases from existing config

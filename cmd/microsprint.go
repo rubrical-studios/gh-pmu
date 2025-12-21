@@ -919,9 +919,7 @@ func runMicrosprintAddWithDeps(cmd *cobra.Command, opts *microsprintAddOptions, 
 		releaseVersion := extractReleaseFromMicrosprintTitle(activeTracker.Title)
 		if releaseVersion != "" {
 			if releaseField, ok := cfg.Fields["release"]; ok {
-				if err := client.SetProjectItemField(project.ID, itemID, releaseField.Field, releaseVersion); err == nil {
-					// Silent - don't print unless there's a mismatch
-				}
+				_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, releaseVersion)
 			}
 		}
 	}
