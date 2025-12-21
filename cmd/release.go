@@ -1014,12 +1014,12 @@ func runReleaseListWithDeps(cmd *cobra.Command, opts *releaseListOptions, cfg *c
 	// Combine and filter for release trackers
 	var releases []releaseInfo
 	for _, issue := range openIssues {
-		if strings.HasPrefix(issue.Title, "Release: v") {
+		if strings.HasPrefix(issue.Title, "Release: ") {
 			releases = append(releases, extractReleaseInfo(issue, "Active"))
 		}
 	}
 	for _, issue := range closedIssues {
-		if strings.HasPrefix(issue.Title, "Release: v") {
+		if strings.HasPrefix(issue.Title, "Release: ") {
 			releases = append(releases, extractReleaseInfo(issue, "Released"))
 		}
 	}
