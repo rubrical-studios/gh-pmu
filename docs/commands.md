@@ -268,9 +268,6 @@ gh pmu close 42
 # Close as not planned
 gh pmu close 42 --reason not_planned
 
-# Close as duplicate
-gh pmu close 42 --reason duplicate
-
 # Update project status to 'done' before closing (🆕 unique to gh-pmu)
 gh pmu close 42 --update-status
 
@@ -291,7 +288,9 @@ gh pmu close 42 --repo owner/other-repo
 |-------|---------------------|
 | `completed` | completed |
 | `not_planned`, `wontfix` | not_planned |
-| `duplicate`, `dupe` | duplicate |
+
+> **Note:** GitHub API doesn't have a `duplicate` close reason. To close duplicates, use:
+> `gh pmu close 42 --reason not_planned` and link to the original issue in a comment.
 
 **Output:**
 ```
