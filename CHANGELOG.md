@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2025-12-21
+
+### Added
+- Release tracker issues now include descriptive body with linked issues (#386)
+
+### Performance
+- `gh pmu view` command optimized from ~4.5s to ~0.8s (6x faster) (#386)
+
 ## [0.8.1] - 2025-12-21
 
 ### Fixed
@@ -529,7 +537,9 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.5...v0.8.0
 [0.7.5]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.3...v0.7.4
