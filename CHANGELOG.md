@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2025-12-21
+
+### Fixed
+- `release list` now finds releases with any branch name format (#376)
+  - Previously only matched titles starting with "Release: v"
+  - Now matches all "Release: " prefixed titles (e.g., "Release: release/v1.0.0")
+- Release tests no longer corrupt repository `.gh-pmu.yml` file (#378)
+  - Tests now use isolated temp directories for config operations
+- Documentation incorrectly claimed `duplicate` close reason exists (#379)
+  - Removed non-existent `duplicate`/`dupe` aliases from docs
+  - Added note explaining GitHub API only supports `completed` and `not_planned`
+
+### Changed
+- CI pipeline now verifies config file integrity after tests
+  - Detects test corruption patterns (testowner, testrepo values)
+  - Fails build if tests modify `.gh-pmu.yml`
+
 ## [0.8.0] - 2025-12-21
 
 ### Added
