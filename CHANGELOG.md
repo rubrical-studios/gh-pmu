@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-12-21
+
+### Added
+- `gh pmu validation` command group for status transition validation
+  - `validation rules` - Display configured transition rules
+  - `validation check <from> <to>` - Test if a transition is allowed
+  - `validation enable/disable` - Toggle validation enforcement
+- Status transition validation integrated into `move`, `create`, `release`, and `microsprint` commands
+  - Configurable via `validation` section in `.gh-pmu.yml`
+  - Default rules enforce logical workflow progressions
+  - `--force` flag available to bypass validation when needed
+- `GetAllowedTransitions` API query for retrieving valid status transitions
+- Extended configuration schema with `validation` section for custom transition rules
+- CodeQL security scanning workflow for automated vulnerability detection
+
+### Fixed
+- Config file no longer overwritten by field tests
+- Add bounds checking for int to int32 conversion in GraphQL queries
+- Remove unused code and fix empty branch lint errors
+
 ## [0.7.5] - 2025-12-19
 
 ### Added
@@ -492,7 +512,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.5...v0.8.0
 [0.7.5]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.2...v0.7.3

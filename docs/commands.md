@@ -35,6 +35,7 @@ Utilities:
 Workflow Commands:
   microsprint Manage microsprints for IDPF-Agile development
   release     Manage releases for IDPF-Structured development
+  validation  Manage status transition validation rules
 
 Flags:
   -h, --help      help for gh-pmu
@@ -595,6 +596,37 @@ gh pmu release list
 - The `--branch` flag is required and specifies the branch name to create
 - Branch name is used for tracker title, Release field, and artifact directory
 - Supports any branch naming convention: `release/v2.0.0`, `patch/v1.9.1`, `hotfix-auth-bypass`
+
+### validation
+
+Manage status transition validation rules. Ensures issues follow a logical workflow progression.
+
+```bash
+# View configured transition rules
+gh pmu validation rules
+
+# Check if a transition is allowed
+gh pmu validation check backlog in_progress    # ✓ Allowed
+gh pmu validation check done backlog           # ✗ Not allowed
+
+# Enable/disable validation
+gh pmu validation enable
+gh pmu validation disable
+```
+
+**Notes:**
+- Validation is configured in the `validation` section of `.gh-pmu.yml`
+- When enabled, `move`, `create`, and workflow commands enforce transition rules
+- Use `--force` flag on `move` command to bypass validation when needed
+
+**Default transition rules:**
+```
+backlog → ready, in_progress
+ready → in_progress, backlog
+in_progress → in_review, ready, backlog
+in_review → done, in_progress
+done → (no transitions allowed by default)
+```
 
 ---
 
