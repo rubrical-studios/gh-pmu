@@ -691,9 +691,49 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		len(releaseIssues), len(doneIssues), len(incompleteIssues))
 	fmt.Fprintln(cmd.OutOrStdout())
 
+	// Get project for field operations
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Separate incomplete issues into parking lot and to-move categories
+	var parkingLotIssues, issuesToMove []api.Issue
+	statusFieldName := "Status"
+	if statusField, ok := cfg.Fields["status"]; ok && statusField.Field != "" {
+		statusFieldName = statusField.Field
+	}
+	parkingLotValue := "Parking Lot"
+	if statusField, ok := cfg.Fields["status"]; ok {
+		if val, exists := statusField.Values["parking_lot"]; exists {
+			parkingLotValue = val
+		}
+	}
+
+	for _, issue := range incompleteIssues {
+		itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+		if err != nil {
+			// Can't determine status, include in move list
+			issuesToMove = append(issuesToMove, issue)
+			continue
+		}
+
+		status, _ := client.GetProjectItemFieldValue(project.ID, itemID, statusFieldName)
+		if status == parkingLotValue {
+			parkingLotIssues = append(parkingLotIssues, issue)
+		} else {
+			issuesToMove = append(issuesToMove, issue)
+		}
+	}
+
 	// Warn about incomplete issues and confirm
 	if len(incompleteIssues) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "⚠️  %d issue(s) are not done. They will be moved to backlog.\n", len(incompleteIssues))
+		if len(issuesToMove) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "⚠️  %d issue(s) are not done. They will be moved to backlog.\n", len(issuesToMove))
+		}
+		if len(parkingLotIssues) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "ℹ️  Skipping %d Parking Lot issue(s).\n", len(parkingLotIssues))
+		}
 
 		if !opts.yes {
 			fmt.Fprint(cmd.OutOrStdout(), "Proceed? (y/n): ")
@@ -707,43 +747,41 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		}
 		fmt.Fprintln(cmd.OutOrStdout())
 
-		// Move incomplete issues to backlog and clear Release/Microsprint fields
-		fmt.Fprintln(cmd.OutOrStdout(), "Moving incomplete issues to backlog...")
-		project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
-		if err != nil {
-			return fmt.Errorf("failed to get project: %w", err)
-		}
+		// Move non-parking-lot incomplete issues to backlog and clear Release/Microsprint fields
+		if len(issuesToMove) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "Moving incomplete issues to backlog...")
 
-		for _, issue := range incompleteIssues {
-			// Get project item ID
-			itemID, err := client.GetProjectItemID(project.ID, issue.ID)
-			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "  Warning: could not find project item for #%d: %v\n", issue.Number, err)
-				continue
-			}
-
-			// Clear Release field
-			if releaseField, ok := cfg.Fields["release"]; ok {
-				_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
-			}
-
-			// Clear Microsprint field
-			if microsprintField, ok := cfg.Fields["microsprint"]; ok {
-				_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, "")
-			}
-
-			// Set status to backlog
-			if statusField, ok := cfg.Fields["status"]; ok {
-				backlogValue := statusField.Values["backlog"]
-				if backlogValue == "" {
-					backlogValue = "Backlog"
+			for _, issue := range issuesToMove {
+				// Get project item ID
+				itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  Warning: could not find project item for #%d: %v\n", issue.Number, err)
+					continue
 				}
-				_ = client.SetProjectItemField(project.ID, itemID, statusField.Field, backlogValue)
-			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "  #%d - %s\n", issue.Number, issue.Title)
+				// Clear Release field
+				if releaseField, ok := cfg.Fields["release"]; ok {
+					_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
+				}
+
+				// Clear Microsprint field
+				if microsprintField, ok := cfg.Fields["microsprint"]; ok {
+					_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, "")
+				}
+
+				// Set status to backlog
+				if statusField, ok := cfg.Fields["status"]; ok {
+					backlogValue := statusField.Values["backlog"]
+					if backlogValue == "" {
+						backlogValue = "Backlog"
+					}
+					_ = client.SetProjectItemField(project.ID, itemID, statusField.Field, backlogValue)
+				}
+
+				fmt.Fprintf(cmd.OutOrStdout(), "  #%d - %s\n", issue.Number, issue.Title)
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
 		}
-		fmt.Fprintln(cmd.OutOrStdout())
 	} else if !opts.yes {
 		// Confirm even without incomplete issues
 		fmt.Fprint(cmd.OutOrStdout(), "Proceed? (y/n): ")

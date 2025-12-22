@@ -91,6 +91,22 @@ type CreateIssueInput struct {
 	MilestoneID  *graphql.ID    `json:"milestoneId,omitempty"`
 }
 
+// CloseIssueInput represents the input for closing an issue
+type CloseIssueInput struct {
+	IssueID graphql.ID `json:"issueId"`
+}
+
+// ReopenIssueInput represents the input for reopening an issue
+type ReopenIssueInput struct {
+	IssueID graphql.ID `json:"issueId"`
+}
+
+// UpdateIssueInput represents the input for updating an issue
+type UpdateIssueInput struct {
+	ID   graphql.ID     `json:"id"`
+	Body graphql.String `json:"body,omitempty"`
+}
+
 // AddIssueToProject adds an issue to a GitHub Project V2
 func (c *Client) AddIssueToProject(projectID, issueID string) (string, error) {
 	if c.gql == nil {
@@ -688,9 +704,7 @@ func (c *Client) CloseIssue(issueID string) error {
 		} `graphql:"closeIssue(input: $input)"`
 	}
 
-	input := struct {
-		IssueID graphql.ID `json:"issueId"`
-	}{
+	input := CloseIssueInput{
 		IssueID: graphql.ID(issueID),
 	}
 
@@ -720,9 +734,7 @@ func (c *Client) ReopenIssue(issueID string) error {
 		} `graphql:"reopenIssue(input: $input)"`
 	}
 
-	input := struct {
-		IssueID graphql.ID `json:"issueId"`
-	}{
+	input := ReopenIssueInput{
 		IssueID: graphql.ID(issueID),
 	}
 
@@ -752,10 +764,7 @@ func (c *Client) UpdateIssueBody(issueID, body string) error {
 		} `graphql:"updateIssue(input: $input)"`
 	}
 
-	input := struct {
-		ID   graphql.ID     `json:"id"`
-		Body graphql.String `json:"body"`
-	}{
+	input := UpdateIssueInput{
 		ID:   graphql.ID(issueID),
 		Body: graphql.String(body),
 	}

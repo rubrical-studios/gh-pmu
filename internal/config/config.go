@@ -1,10 +1,12 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -425,4 +427,106 @@ func (c *Config) MergeActiveReleases(releases []ActiveRelease) {
 	for _, r := range releases {
 		c.AddActiveRelease(r)
 	}
+}
+
+// TempDirName is the name of the temporary directory within the project root
+const TempDirName = "tmp"
+
+// GetProjectRoot returns the directory containing .gh-pmu.yml.
+// It searches from the current working directory up the directory tree.
+func GetProjectRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	configPath, err := FindConfigFile(cwd)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Dir(configPath), nil
+}
+
+// GetTempDir returns the path to the project's tmp directory and creates it if needed.
+// It also ensures tmp/ is in .gitignore.
+func GetTempDir() (string, error) {
+	projectRoot, err := GetProjectRoot()
+	if err != nil {
+		return "", err
+	}
+
+	tempDir := filepath.Join(projectRoot, TempDirName)
+
+	// Create tmp directory if it doesn't exist
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
+	}
+
+	// Ensure tmp/ is in .gitignore
+	if err := ensureGitignore(projectRoot); err != nil {
+		// Log warning but don't fail - gitignore is nice-to-have
+		fmt.Fprintf(os.Stderr, "Warning: could not update .gitignore: %v\n", err)
+	}
+
+	return tempDir, nil
+}
+
+// CreateTempFile creates a temporary file in the project's tmp directory.
+// The pattern follows os.CreateTemp conventions (e.g., "prefix-*.suffix").
+// The caller is responsible for closing and removing the file.
+func CreateTempFile(pattern string) (*os.File, error) {
+	tempDir, err := GetTempDir()
+	if err != nil {
+		return nil, err
+	}
+
+	return os.CreateTemp(tempDir, pattern)
+}
+
+// ensureGitignore adds tmp/ to .gitignore if not already present
+func ensureGitignore(projectRoot string) error {
+	gitignorePath := filepath.Join(projectRoot, ".gitignore")
+
+	// Check if tmp/ is already in .gitignore
+	if file, err := os.Open(gitignorePath); err == nil {
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == TempDirName || line == TempDirName+"/" {
+				return nil // Already present
+			}
+		}
+	}
+
+	// Append tmp/ to .gitignore
+	file, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open .gitignore: %w", err)
+	}
+	defer file.Close()
+
+	// Check if file is empty or ends with newline
+	info, _ := file.Stat()
+	needsNewline := info.Size() > 0
+
+	var content string
+	if needsNewline {
+		// Read last byte to check if it's a newline
+		if f, err := os.Open(gitignorePath); err == nil {
+			defer f.Close()
+			buf := make([]byte, 1)
+			if _, err := f.ReadAt(buf, info.Size()-1); err == nil && buf[0] != '\n' {
+				content = "\n"
+			}
+		}
+	}
+	content += TempDirName + "/\n"
+
+	if _, err := file.WriteString(content); err != nil {
+		return fmt.Errorf("failed to write to .gitignore: %w", err)
+	}
+
+	return nil
 }
