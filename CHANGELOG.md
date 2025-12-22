@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.5] - 2025-12-22
+
+### Fixed
+- GraphQL type mismatch in `GetRepositoryIssues` - now uses `IssueState` enum instead of `String` (#422)
+- Checkbox validation now ignores checkboxes inside code blocks (#419)
+  - Fenced code blocks (``` or ~~~) and indented code blocks are excluded
+  - Example checkboxes in documentation no longer trigger validation failures
+- Data race in mock handler prevented with mutex (#421)
+
+### Changed
+- Test coverage improvements with wrapper tests and TESTING.md documentation (#414, #417)
+
 ## [0.8.4] - 2025-12-22
 
 ### Added
