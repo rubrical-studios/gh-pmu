@@ -112,6 +112,8 @@ Coverage reports are available on [Codecov](https://codecov.io/gh/rubrical-studi
 
 Coverage is uploaded automatically on every CI run. Click the Codecov badge in the README for detailed per-file breakdown.
 
+For comprehensive testing strategy, coverage targets, and functions excluded from unit testing, see [TESTING.md](../TESTING.md).
+
 ## Project Structure
 
 ```

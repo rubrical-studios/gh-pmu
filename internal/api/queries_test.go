@@ -7,6 +7,41 @@ import (
 	"testing"
 )
 
+func TestSafeGraphQLInt_ValidValues(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    int
+		expected int
+	}{
+		{"zero", 0, 0},
+		{"positive", 100, 100},
+		{"negative", -100, -100},
+		{"max int32", 2147483647, 2147483647},
+		{"min int32", -2147483648, -2147483648},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := safeGraphQLInt(tt.input)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if int(result) != tt.expected {
+				t.Errorf("safeGraphQLInt(%d) = %d, want %d", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSafeGraphQLInt_Overflow(t *testing.T) {
+	// Values that exceed int32 range (only possible on 64-bit systems)
+	largeValue := int(2147483648) // max int32 + 1
+	_, err := safeGraphQLInt(largeValue)
+	if err == nil {
+		t.Error("Expected error for value exceeding int32 max")
+	}
+}
+
 func TestSplitRepoName(t *testing.T) {
 	tests := []struct {
 		name     string
