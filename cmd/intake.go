@@ -12,6 +12,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// intakeClient defines the interface for API methods used by intake functions.
+// This allows for easier testing with mock implementations.
+type intakeClient interface {
+	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error)
+	AddIssueToProject(projectID, issueID string) (string, error)
+	SetProjectItemField(projectID, itemID, fieldName, value string) error
+}
+
 type intakeOptions struct {
 	apply    string
 	dryRun   bool
@@ -88,6 +98,11 @@ func runIntake(cmd *cobra.Command, opts *intakeOptions) error {
 	// Create API client
 	client := api.NewClient()
 
+	return runIntakeWithDeps(cmd, opts, cfg, client)
+}
+
+// runIntakeWithDeps is the testable implementation of runIntake
+func runIntakeWithDeps(cmd *cobra.Command, opts *intakeOptions, cfg *config.Config, client intakeClient) error {
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {

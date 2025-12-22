@@ -2,11 +2,48 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
+
+// mockFilterClient implements filterClient for testing
+type mockFilterClient struct {
+	project      *api.Project
+	projectItems []api.ProjectItem
+
+	// Error injection
+	getProjectErr      error
+	getProjectItemsErr error
+}
+
+func newMockFilterClient() *mockFilterClient {
+	return &mockFilterClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+		},
+		projectItems: []api.ProjectItem{},
+	}
+}
+
+func (m *mockFilterClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockFilterClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	if m.getProjectItemsErr != nil {
+		return nil, m.getProjectItemsErr
+	}
+	return m.projectItems, nil
+}
 
 func TestFilterCommand_Exists(t *testing.T) {
 	cmd := NewRootCommand()
@@ -419,5 +456,289 @@ func TestOutputFilterJSON_WithIssues(t *testing.T) {
 	err := outputFilterJSON(issues)
 	if err != nil {
 		t.Fatalf("outputFilterJSON() error = %v", err)
+	}
+}
+
+// ============================================================================
+// runFilterWithDeps Tests
+// ============================================================================
+
+// createTempStdin creates a temp file with the given content for use as stdin
+func createTempStdin(t *testing.T, content string) *os.File {
+	t.Helper()
+	tmpfile, err := os.CreateTemp("", "stdin-*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	if _, err := tmpfile.WriteString(content); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	if _, err := tmpfile.Seek(0, 0); err != nil {
+		t.Fatalf("Failed to seek temp file: %v", err)
+	}
+	return tmpfile
+}
+
+func TestRunFilterWithDeps_GetProjectError(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.getProjectErr = errors.New("project not found")
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Test"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("expected 'failed to get project' error, got: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_GetProjectItemsError(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.getProjectItemsErr = errors.New("items not found")
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Test"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("expected 'failed to get project items' error, got: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_EmptyInput(t *testing.T) {
+	mock := newMockFilterClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, "")
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	if err == nil {
+		t.Fatal("expected error for empty input")
+	}
+	if !strings.Contains(err.Error(), "empty input") {
+		t.Errorf("expected 'empty input' error, got: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_InvalidJSON(t *testing.T) {
+	mock := newMockFilterClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, "not valid json")
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse JSON") {
+		t.Errorf("expected 'failed to parse JSON' error, got: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_NoMatchingIssues(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			Issue: &api.Issue{Number: 99}, // Different issue number
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Ready"},
+			},
+		},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Test Issue", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &filterOptions{}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No matching issues found") {
+		t.Errorf("expected 'No matching issues found', got: %s", output)
+	}
+}
+
+func TestRunFilterWithDeps_FilterByStatus(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			Issue: &api.Issue{Number: 1},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Ready"},
+			},
+		},
+		{
+			Issue: &api.Issue{Number: 2},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"ready": "Ready"},
+			},
+		},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open"}, {"number": 2, "title": "Issue 2", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{status: "ready"}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Output goes to stdout - verified by no error
+}
+
+func TestRunFilterWithDeps_FilterByPriority(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			Issue: &api.Issue{Number: 1},
+			FieldValues: []api.FieldValue{
+				{Field: "Priority", Value: "P1"},
+			},
+		},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"priority": {
+				Field:  "Priority",
+				Values: map[string]string{"p1": "P1"},
+			},
+		},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{priority: "p1"}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_FilterByAssignee(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			Issue: &api.Issue{Number: 1},
+		},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open", "assignees": [{"login": "user1"}]}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{assignee: "user1"}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_FilterByLabel(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			Issue: &api.Issue{Number: 1},
+		},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open", "labels": [{"name": "bug"}]}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{label: "bug"}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunFilterWithDeps_JSONOutput(t *testing.T) {
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			Issue: &api.Issue{Number: 1},
+		},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{json: true}
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

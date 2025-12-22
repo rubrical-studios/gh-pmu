@@ -18,6 +18,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// createClient defines the interface for API methods used by create functions.
+// This allows for easier testing with mock implementations.
+type createClient interface {
+	CreateIssueWithOptions(owner, repo, title, body string, labels, assignees []string, milestone string) (*api.Issue, error)
+	GetProject(owner string, number int) (*api.Project, error)
+	AddIssueToProject(projectID, issueID string) (string, error)
+	SetProjectItemField(projectID, itemID, fieldName, value string) error
+	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
+}
+
 type createOptions struct {
 	title       string
 	body        string
@@ -123,9 +133,17 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 		owner, repo = repoParts[0], repoParts[1]
 	}
 
+	// Create API client
+	client := api.NewClient()
+
+	return runCreateWithDeps(cmd, opts, cfg, client, owner, repo)
+}
+
+// runCreateWithDeps is the testable implementation of runCreate
+func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Config, client createClient, owner, repo string) error {
 	// Handle --from-file
 	if opts.fromFile != "" {
-		return runCreateFromFile(cmd, opts, cfg, owner, repo)
+		return runCreateFromFileWithDeps(cmd, opts, cfg, client, owner, repo)
 	}
 
 	// Handle interactive mode
@@ -185,9 +203,6 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 	// Merge labels: config defaults + command line
 	labels := append([]string{}, cfg.Defaults.Labels...)
 	labels = append(labels, opts.labels...)
-
-	// Create API client
-	client := api.NewClient()
 
 	// Create the issue with extended options
 	issue, err := client.CreateIssueWithOptions(owner, repo, title, body, labels, opts.assignees, opts.milestone)
@@ -288,7 +303,8 @@ func runCreate(cmd *cobra.Command, opts *createOptions) error {
 	return nil
 }
 
-func runCreateFromFile(cmd *cobra.Command, opts *createOptions, cfg *config.Config, owner, repo string) error {
+// runCreateFromFileWithDeps is the testable implementation of runCreateFromFile
+func runCreateFromFileWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Config, client createClient, owner, repo string) error {
 	// Read the file
 	data, err := os.ReadFile(opts.fromFile)
 	if err != nil {
@@ -339,9 +355,6 @@ func runCreateFromFile(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 	if opts.priority != "" {
 		priority = opts.priority
 	}
-
-	// Create API client
-	client := api.NewClient()
 
 	// Create the issue
 	issue, err := client.CreateIssueWithOptions(owner, repo, title, body, labels, assignees, milestone)

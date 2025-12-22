@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,7 @@ type mockReleaseClient struct {
 	getProjectItemErr      error
 	getProjectItemFieldErr error
 	getReleaseIssuesErr    error
+	reopenIssueErr         error
 }
 
 // Helper types for call tracking
@@ -208,6 +210,9 @@ func (m *mockReleaseClient) CloseIssue(issueID string) error {
 }
 
 func (m *mockReleaseClient) ReopenIssue(issueID string) error {
+	if m.reopenIssueErr != nil {
+		return m.reopenIssueErr
+	}
 	return nil
 }
 
@@ -1436,6 +1441,201 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "No releases found") {
 		t.Errorf("Expected output to contain 'No releases found', got '%s'", output)
+	}
+}
+
+// ============================================================================
+// runReleaseReopenWithDeps Tests
+// ============================================================================
+
+func TestRunReleaseReopenWithDeps_Success(t *testing.T) {
+	mock := setupMockForRelease()
+	mock.closedIssues = []api.Issue{
+		{ID: "closed-1", Number: 100, Title: "Release: v1.0.0"},
+	}
+
+	cfg := testReleaseConfig()
+	cmd, buf := newTestReleaseCmd()
+
+	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Reopened release v1.0.0") {
+		t.Errorf("expected 'Reopened release v1.0.0' in output, got: %s", output)
+	}
+}
+
+func TestRunReleaseReopenWithDeps_WithCodename(t *testing.T) {
+	mock := setupMockForRelease()
+	mock.closedIssues = []api.Issue{
+		{ID: "closed-1", Number: 100, Title: "Release: v1.0.0 (Phoenix)"},
+	}
+
+	cfg := testReleaseConfig()
+	cmd, buf := newTestReleaseCmd()
+
+	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Reopened release v1.0.0") {
+		t.Errorf("expected 'Reopened release v1.0.0' in output, got: %s", output)
+	}
+}
+
+func TestRunReleaseReopenWithDeps_ReleaseNotFound(t *testing.T) {
+	mock := setupMockForRelease()
+	mock.closedIssues = []api.Issue{
+		{ID: "closed-1", Number: 100, Title: "Release: v2.0.0"},
+	}
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+
+	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	if err == nil {
+		t.Fatal("expected error for release not found")
+	}
+	if !strings.Contains(err.Error(), "closed release not found") {
+		t.Errorf("expected 'closed release not found' error, got: %v", err)
+	}
+}
+
+func TestRunReleaseReopenWithDeps_GetClosedIssuesError(t *testing.T) {
+	mock := setupMockForRelease()
+	mock.getClosedIssuesErr = errors.New("API error")
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+
+	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get closed release issues") {
+		t.Errorf("expected 'failed to get closed release issues' error, got: %v", err)
+	}
+}
+
+func TestRunReleaseReopenWithDeps_ReopenError(t *testing.T) {
+	mock := setupMockForRelease()
+	mock.closedIssues = []api.Issue{
+		{ID: "closed-1", Number: 100, Title: "Release: v1.0.0"},
+	}
+	mock.reopenIssueErr = errors.New("reopen failed")
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+
+	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to reopen tracker issue") {
+		t.Errorf("expected 'failed to reopen tracker issue' error, got: %v", err)
+	}
+}
+
+func TestRunReleaseReopenWithDeps_NoRepositories(t *testing.T) {
+	mock := setupMockForRelease()
+	cfg := testReleaseConfig()
+	cfg.Repositories = []string{}
+
+	cmd, _ := newTestReleaseCmd()
+
+	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	if err == nil {
+		t.Fatal("expected error for no repositories")
+	}
+	if !strings.Contains(err.Error(), "no repositories") {
+		t.Errorf("expected 'no repositories' error, got: %v", err)
+	}
+}
+
+// =============================================================================
+// generateReleaseTrackerTemplate Tests
+// =============================================================================
+
+func TestGenerateReleaseTrackerTemplate_ContainsBranchName(t *testing.T) {
+	branch := "release/v1.2.0"
+	result := generateReleaseTrackerTemplate(branch)
+
+	if !strings.Contains(result, "`"+branch+"`") {
+		t.Errorf("Template should contain branch name in backticks, got: %s", result)
+	}
+}
+
+func TestGenerateReleaseTrackerTemplate_ContainsWarnings(t *testing.T) {
+	result := generateReleaseTrackerTemplate("release/v1.0.0")
+
+	warnings := []string{
+		"**Release Tracker Issue**",
+		"**Do not manually:**",
+		"Close or reopen this issue",
+		"Change the title",
+		"Remove the `release` label",
+	}
+
+	for _, warning := range warnings {
+		if !strings.Contains(result, warning) {
+			t.Errorf("Template should contain warning %q", warning)
+		}
+	}
+}
+
+func TestGenerateReleaseTrackerTemplate_ContainsCommands(t *testing.T) {
+	branch := "release/v1.0.0"
+	result := generateReleaseTrackerTemplate(branch)
+
+	commands := []string{
+		"`gh pmu release add <issue>`",
+		"`gh pmu release remove <issue>`",
+		"`gh pmu release close " + branch + "`",
+	}
+
+	for _, cmd := range commands {
+		if !strings.Contains(result, cmd) {
+			t.Errorf("Template should contain command %q", cmd)
+		}
+	}
+}
+
+func TestGenerateReleaseTrackerTemplate_ContainsIssuesSection(t *testing.T) {
+	result := generateReleaseTrackerTemplate("release/v1.0.0")
+
+	if !strings.Contains(result, "## Issues in this release") {
+		t.Error("Template should contain 'Issues in this release' section")
+	}
+	if !strings.Contains(result, "Release field in the project") {
+		t.Error("Template should explain issues are tracked via the Release field")
+	}
+}
+
+func TestGenerateReleaseTrackerTemplate_DifferentBranchFormats(t *testing.T) {
+	tests := []struct {
+		branch string
+	}{
+		{"release/v1.0.0"},
+		{"patch/v1.0.1"},
+		{"hotfix-auth-bypass"},
+		{"v2.0.0-beta"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.branch, func(t *testing.T) {
+			result := generateReleaseTrackerTemplate(tt.branch)
+			if !strings.Contains(result, "`"+tt.branch+"`") {
+				t.Errorf("Template should contain branch name %q in backticks", tt.branch)
+			}
+			if !strings.Contains(result, "gh pmu release close "+tt.branch) {
+				t.Errorf("Template should contain close command with branch name %q", tt.branch)
+			}
+		})
 	}
 }
 

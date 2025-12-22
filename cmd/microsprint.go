@@ -632,22 +632,26 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 	}
 
 	suffix := getNextMicrosprintSuffix(today, existingIssues)
-	title := fmt.Sprintf("Microsprint: %s-%s", today, suffix)
+	microsprintName := fmt.Sprintf("%s-%s", today, suffix)
 
 	// Append custom name if provided
 	if opts.name != "" {
-		title = fmt.Sprintf("%s-%s", title, opts.name)
+		microsprintName = fmt.Sprintf("%s-%s", microsprintName, opts.name)
 	}
+
+	title := fmt.Sprintf("Microsprint: %s", microsprintName)
 
 	// IDPF: Append release context to title
 	if opts.release != "" {
 		title = fmt.Sprintf("%s [%s]", title, opts.release)
 	}
 
-	// Create body with release metadata if IDPF
-	body := ""
+	// Generate body template
+	body := generateMicrosprintTrackerTemplate(microsprintName)
+
+	// Add release metadata if IDPF
 	if opts.release != "" {
-		body = fmt.Sprintf("<!-- release: %s -->\n\n## Release Context\n\nThis microsprint is targeting **%s**.\n", opts.release, opts.release)
+		body = fmt.Sprintf("<!-- release: %s -->\n\n%s\n## Release Context\n\nThis microsprint is targeting **%s**.\n", opts.release, body, opts.release)
 	}
 
 	// Create tracker issue with microsprint label
@@ -1401,4 +1405,33 @@ func sortMicrosprintsByDateDesc(issues []api.Issue) {
 			}
 		}
 	}
+}
+
+// generateMicrosprintTrackerTemplate generates the initial body template for a microsprint tracker issue
+func generateMicrosprintTrackerTemplate(microsprintName string) string {
+	return fmt.Sprintf(`> **Microsprint Tracker Issue**
+>
+> This issue tracks the microsprint %s. It is managed by gh pmu microsprint commands.
+>
+> **Do not manually:**
+> - Close or reopen this issue
+> - Change the title
+> - Remove the %s label
+
+## Commands
+
+- %s - Add issues to this microsprint
+- %s - Remove issues from this microsprint
+- %s - Close this microsprint
+
+## Issues in this microsprint
+
+_Issues are tracked via the Microsprint field in the project._
+`,
+		"`"+microsprintName+"`",
+		"`microsprint`",
+		"`gh pmu microsprint add <issue>`",
+		"`gh pmu microsprint remove <issue>`",
+		"`gh pmu microsprint close`",
+	)
 }

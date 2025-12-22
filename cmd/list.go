@@ -14,6 +14,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// listClient defines the interface for API methods used by list functions.
+// This allows for easier testing with mock implementations.
+type listClient interface {
+	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
+	GetSubIssueCounts(owner, repo string, numbers []int) (map[int]int, error)
+}
+
 type listOptions struct {
 	status       string
 	priority     string
@@ -84,6 +93,11 @@ func runList(cmd *cobra.Command, opts *listOptions) error {
 	// Create API client
 	client := api.NewClient()
 
+	return runListWithDeps(cmd, opts, cfg, client)
+}
+
+// runListWithDeps is the testable implementation of runList
+func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, client listClient) error {
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
@@ -252,7 +266,7 @@ func filterByEmptyField(items []api.ProjectItem, fieldName string) []api.Project
 
 // filterByHasSubIssues filters items to only those with sub-issues.
 // Uses a batch query to fetch sub-issue counts efficiently.
-func filterByHasSubIssues(client *api.Client, items []api.ProjectItem) []api.ProjectItem {
+func filterByHasSubIssues(client listClient, items []api.ProjectItem) []api.ProjectItem {
 	if len(items) == 0 {
 		return nil
 	}

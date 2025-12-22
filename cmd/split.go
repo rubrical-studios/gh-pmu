@@ -13,6 +13,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// splitClient defines the interface for API methods used by split functions.
+// This allows for easier testing with mock implementations.
+type splitClient interface {
+	GetIssue(owner, repo string, number int) (*api.Issue, error)
+	CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error)
+	AddSubIssue(parentID, issueID string) error
+}
+
 type splitOptions struct {
 	from   string
 	dryRun bool
@@ -103,6 +111,11 @@ func runSplit(cmd *cobra.Command, args []string, opts *splitOptions) error {
 	// Create API client
 	client := api.NewClient()
 
+	return runSplitWithDeps(cmd, args, opts, client, owner, repo, issueNum)
+}
+
+// runSplitWithDeps is the testable implementation of runSplit
+func runSplitWithDeps(cmd *cobra.Command, args []string, opts *splitOptions, client splitClient, owner, repo string, issueNum int) error {
 	// Get the parent issue
 	parentIssue, err := client.GetIssue(owner, repo, issueNum)
 	if err != nil {
