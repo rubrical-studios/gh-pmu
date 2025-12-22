@@ -421,6 +421,240 @@ func TestCountUncheckedBoxes(t *testing.T) {
 	}
 }
 
+// =============================================================================
+// REQ-419: Code Block Checkbox Exclusion Tests
+// =============================================================================
+
+func TestStripCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		expected string
+	}{
+		{
+			name:     "no code blocks",
+			body:     "Plain text\n- [ ] Todo",
+			expected: "Plain text\n- [ ] Todo",
+		},
+		{
+			name:     "fenced code block with backticks",
+			body:     "Before\n```\n- [ ] Example\n```\nAfter",
+			expected: "Before\nAfter",
+		},
+		{
+			name:     "fenced code block with tildes",
+			body:     "Before\n~~~\n- [ ] Example\n~~~\nAfter",
+			expected: "Before\nAfter",
+		},
+		{
+			name:     "fenced code block with language",
+			body:     "Before\n```markdown\n- [ ] Example\n```\nAfter",
+			expected: "Before\nAfter",
+		},
+		{
+			name: "multiple fenced code blocks",
+			body: `- [ ] Real task
+` + "```" + `
+- [ ] Example 1
+` + "```" + `
+- [ ] Another real task
+` + "```" + `
+- [ ] Example 2
+` + "```",
+			expected: "- [ ] Real task\n- [ ] Another real task",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripCodeBlocks(tt.body)
+			if result != tt.expected {
+				t.Errorf("stripCodeBlocks() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCountUncheckedBoxes_ExcludesCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		expected int
+	}{
+		{
+			name: "checkboxes in fenced code block excluded",
+			body: `## Acceptance Criteria
+- [ ] Real task 1
+- [x] Real task 2
+
+` + "```" + `markdown
+### Example
+- [ ] Example checkbox 1
+- [ ] Example checkbox 2
+` + "```",
+			expected: 1, // Only the real unchecked task, not the 2 in code block
+		},
+		{
+			name: "mixed real and example checkboxes",
+			body: `- [ ] Do this
+- [x] Done
+
+` + "```" + `
+- [ ] Not a real task
+` + "```" + `
+
+- [ ] Also do this`,
+			expected: 2, // Two real unchecked tasks
+		},
+		{
+			name:     "only code block checkboxes",
+			body:     "```\n- [ ] Example\n- [ ] Another example\n```",
+			expected: 0, // All are in code block
+		},
+		{
+			name: "nested markdown in code block",
+			body: `## Proposed Structure
+
+` + "```" + `markdown
+### Manual Testing Checklist
+- [ ] ` + "`gh pmu init`" + ` - interactive prompts work
+- [ ] ` + "`gh pmu board`" + ` - kanban display renders correctly
+` + "```" + `
+
+## Real Criteria
+- [x] All done`,
+			expected: 0, // No unchecked outside code block
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countUncheckedBoxes(tt.body)
+			if result != tt.expected {
+				t.Errorf("countUncheckedBoxes() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCountCodeBlockCheckboxes(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		expected int
+	}{
+		{
+			name:     "no code blocks",
+			body:     "- [ ] Task\n- [x] Done",
+			expected: 0,
+		},
+		{
+			name:     "checkboxes in code block",
+			body:     "```\n- [ ] Example\n- [x] Done example\n```",
+			expected: 2,
+		},
+		{
+			name: "mixed",
+			body: `- [ ] Real
+` + "```" + `
+- [ ] Example 1
+- [x] Example 2
+` + "```" + `
+- [x] Real done`,
+			expected: 2, // 2 in code block
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := countCodeBlockCheckboxes(tt.body)
+			if result != tt.expected {
+				t.Errorf("countCodeBlockCheckboxes() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGetUncheckedItems_ExcludesCodeBlocks(t *testing.T) {
+	body := `## Criteria
+- [ ] Real task 1
+- [x] Done task
+
+` + "```" + `
+- [ ] Example in code
+` + "```" + `
+
+- [ ] Real task 2`
+
+	items := getUncheckedItems(body)
+
+	if len(items) != 2 {
+		t.Errorf("Expected 2 unchecked items, got %d", len(items))
+	}
+
+	// Verify the example checkbox is not included
+	for _, item := range items {
+		if strings.Contains(item, "Example") {
+			t.Errorf("Code block checkbox should not be included: %s", item)
+		}
+	}
+}
+
+func TestValidateStatusTransition_IgnoresCodeBlockCheckboxes(t *testing.T) {
+	cfg := &config.Config{Framework: "IDPF"}
+	ctx := &issueValidationContext{
+		Number:        1,
+		CurrentStatus: "in_review",
+		Body: `## Summary
+This issue proposes a new testing structure.
+
+## Proposed TESTING.md Structure
+
+` + "```" + `markdown
+### Manual Testing Checklist
+- [ ] ` + "`gh pmu init`" + ` - interactive prompts work
+- [ ] ` + "`gh pmu board`" + ` - kanban display renders correctly
+` + "```" + `
+
+## Acceptance Criteria
+- [x] Create TESTING.md
+- [x] Document coverage philosophy`,
+	}
+
+	// Should pass validation - code block checkboxes are ignored
+	err := validateStatusTransition(cfg, ctx, "done", "", false)
+	if err != nil {
+		t.Errorf("Expected no error when code block checkboxes are present but real criteria are checked, got: %v", err)
+	}
+}
+
+func TestValidateStatusTransition_StillFailsWithRealUnchecked(t *testing.T) {
+	cfg := &config.Config{Framework: "IDPF"}
+	ctx := &issueValidationContext{
+		Number:        1,
+		CurrentStatus: "in_review",
+		Body: `## Example
+
+` + "```" + `
+- [ ] Example checkbox (ignored)
+` + "```" + `
+
+## Acceptance Criteria
+- [x] Done task
+- [ ] Not done yet`,
+	}
+
+	// Should fail - there's a real unchecked checkbox
+	err := validateStatusTransition(cfg, ctx, "done", "", false)
+	if err == nil {
+		t.Fatal("Expected validation error for real unchecked checkbox")
+	}
+
+	if !strings.Contains(err.Message, "1 unchecked") {
+		t.Errorf("Expected message about 1 unchecked checkbox, got: %s", err.Message)
+	}
+}
+
 func TestCountCheckedBoxes(t *testing.T) {
 	tests := []struct {
 		name     string
