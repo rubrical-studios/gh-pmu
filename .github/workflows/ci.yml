@@ -37,12 +37,11 @@ jobs:
       - name: Verify config not corrupted by tests
         run: node .claude/scripts/verify-config.js
 
-      - name: Upload coverage to Codecov
+      - name: Upload coverage reports to Codecov
         if: matrix.go-version == '1.23'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
-          files: coverage.out
-          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Generate coverage report
         run: go tool cover -func=coverage.out
