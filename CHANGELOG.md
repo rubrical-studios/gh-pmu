@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.3] - 2025-12-21
+
+### Performance
+- `list --has-sub-issues` optimized from N+1 API calls to single batch query per repository (#389)
+- `close --update-status` optimized with direct issue-to-project-item lookup (3 calls → 2 calls) (#390)
+
+### Added
+- README badges: CI, Codecov, Go Report Card, Release, License (#388)
+
+### Changed
+- Coverage reporting now via Codecov badge instead of committed reports (#388)
+- Removed `coverage` job from CI workflow (#388)
+- Deleted `coverage/` directory from repository (#388)
+
 ## [0.8.2] - 2025-12-21
 
 ### Added
@@ -537,7 +551,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/rubrical-studios/gh-pmu/compare/v0.7.5...v0.8.0
