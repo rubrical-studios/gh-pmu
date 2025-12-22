@@ -966,6 +966,115 @@ func TestFilterByHasSubIssues_FunctionSignature(t *testing.T) {
 	var _ filterFunc = filterByHasSubIssues
 }
 
+// ============================================================================
+// filterByEmptyField Tests
+// ============================================================================
+
+func TestFilterByEmptyField(t *testing.T) {
+	tests := []struct {
+		name      string
+		items     []api.ProjectItem
+		fieldName string
+		wantCount int
+	}{
+		{
+			name: "field is empty",
+			items: []api.ProjectItem{
+				{
+					ID: "1",
+					FieldValues: []api.FieldValue{
+						{Field: "Status", Value: "Done"},
+					},
+				},
+				{
+					ID: "2",
+					FieldValues: []api.FieldValue{
+						{Field: "Status", Value: "Done"},
+						{Field: "Release", Value: ""},
+					},
+				},
+			},
+			fieldName: "Release",
+			wantCount: 2,
+		},
+		{
+			name: "field has value",
+			items: []api.ProjectItem{
+				{
+					ID: "1",
+					FieldValues: []api.FieldValue{
+						{Field: "Release", Value: "v1.0.0"},
+					},
+				},
+			},
+			fieldName: "Release",
+			wantCount: 0,
+		},
+		{
+			name: "mixed - some with value some without",
+			items: []api.ProjectItem{
+				{
+					ID: "1",
+					FieldValues: []api.FieldValue{
+						{Field: "Release", Value: "v1.0.0"},
+					},
+				},
+				{
+					ID: "2",
+					FieldValues: []api.FieldValue{
+						{Field: "Status", Value: "Done"},
+					},
+				},
+				{
+					ID: "3",
+					FieldValues: []api.FieldValue{
+						{Field: "Release", Value: ""},
+					},
+				},
+			},
+			fieldName: "Release",
+			wantCount: 2,
+		},
+		{
+			name: "case insensitive field name",
+			items: []api.ProjectItem{
+				{
+					ID: "1",
+					FieldValues: []api.FieldValue{
+						{Field: "Release", Value: "v1.0.0"},
+					},
+				},
+			},
+			fieldName: "release",
+			wantCount: 0,
+		},
+		{
+			name:      "empty items",
+			items:     []api.ProjectItem{},
+			fieldName: "Release",
+			wantCount: 0,
+		},
+		{
+			name: "no field values at all",
+			items: []api.ProjectItem{
+				{ID: "1"},
+				{ID: "2"},
+			},
+			fieldName: "Release",
+			wantCount: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterByEmptyField(tt.items, tt.fieldName)
+			if len(result) != tt.wantCount {
+				t.Errorf("filterByEmptyField() returned %d items, want %d", len(result), tt.wantCount)
+			}
+		})
+	}
+}
+
 func TestFilterBySearch(t *testing.T) {
 	tests := []struct {
 		name      string

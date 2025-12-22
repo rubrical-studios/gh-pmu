@@ -1780,3 +1780,206 @@ func TestFindActiveMicrosprint_RecognizesTrackerWithCustomName(t *testing.T) {
 		t.Fatal("Expected to find tracker issue with custom name")
 	}
 }
+
+// =============================================================================
+// compareSuffixes Tests
+// =============================================================================
+
+func TestCompareSuffixes_SameLength(t *testing.T) {
+	tests := []struct {
+		a        string
+		b        string
+		expected int
+	}{
+		{"a", "a", 0},  // equal
+		{"a", "b", -1}, // a < b
+		{"b", "a", 1},  // b > a
+		{"z", "a", 1},  // z > a
+		{"aa", "aa", 0},
+		{"aa", "ab", -1},
+		{"ab", "aa", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
+			result := compareSuffixes(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("compareSuffixes(%q, %q) = %d, want %d", tt.a, tt.b, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCompareSuffixes_DifferentLength(t *testing.T) {
+	tests := []struct {
+		a        string
+		b        string
+		expected int
+	}{
+		{"a", "aa", -1},  // shorter is less
+		{"aa", "a", 1},   // longer is greater
+		{"z", "aa", -1},  // z < aa because aa is longer
+		{"aaa", "z", 1},  // aaa > z because aaa is longer
+		{"ab", "aaa", -1},
+		{"aaa", "ab", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
+			result := compareSuffixes(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("compareSuffixes(%q, %q) = %d, want %d", tt.a, tt.b, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCompareSuffixes_EdgeCases(t *testing.T) {
+	// Empty strings
+	if compareSuffixes("", "") != 0 {
+		t.Error("Expected empty strings to be equal")
+	}
+
+	// Single character vs empty
+	if compareSuffixes("a", "") != 1 {
+		t.Error("Expected 'a' > ''")
+	}
+	if compareSuffixes("", "a") != -1 {
+		t.Error("Expected '' < 'a'")
+	}
+}
+
+// =============================================================================
+// extractReleaseFromMicrosprintTitle Tests
+// =============================================================================
+
+func TestExtractReleaseFromMicrosprintTitle_WithRelease(t *testing.T) {
+	tests := []struct {
+		title    string
+		expected string
+	}{
+		{"Microsprint: 2025-12-13-a [v1.0.0]", "v1.0.0"},
+		{"Microsprint: 2025-12-13-a [release/v2.0.0]", "release/v2.0.0"},
+		{"Microsprint: 2025-12-13-a-auth [Phoenix]", "Phoenix"},
+		{"Microsprint: 2025-12-13-a [ v1.0.0 ]", "v1.0.0"}, // with spaces
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := extractReleaseFromMicrosprintTitle(tt.title)
+			if result != tt.expected {
+				t.Errorf("extractReleaseFromMicrosprintTitle(%q) = %q, want %q", tt.title, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractReleaseFromMicrosprintTitle_NoRelease(t *testing.T) {
+	tests := []struct {
+		title    string
+		expected string
+	}{
+		{"Microsprint: 2025-12-13-a", ""},
+		{"Microsprint: 2025-12-13-a-auth", ""},
+		{"Random issue title", ""},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := extractReleaseFromMicrosprintTitle(tt.title)
+			if result != tt.expected {
+				t.Errorf("extractReleaseFromMicrosprintTitle(%q) = %q, want %q", tt.title, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractReleaseFromMicrosprintTitle_MalformedBrackets(t *testing.T) {
+	tests := []struct {
+		title    string
+		expected string
+	}{
+		{"Microsprint: 2025-12-13-a [unclosed", ""},    // no closing bracket
+		{"Microsprint: 2025-12-13-a ]only close", ""},  // only closing bracket
+		{"[v1.0.0] Microsprint: 2025-12-13-a", ""},     // brackets at start don't work (uses LastIndex)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := extractReleaseFromMicrosprintTitle(tt.title)
+			if result != tt.expected {
+				t.Errorf("extractReleaseFromMicrosprintTitle(%q) = %q, want %q", tt.title, result, tt.expected)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// formatAsBullets Tests
+// =============================================================================
+
+func TestFormatAsBullets_EmptyInput(t *testing.T) {
+	result := formatAsBullets("")
+	expected := "- \n"
+	if result != expected {
+		t.Errorf("formatAsBullets(\"\") = %q, want %q", result, expected)
+	}
+}
+
+func TestFormatAsBullets_SingleLine(t *testing.T) {
+	result := formatAsBullets("Single item")
+	expected := "- Single item\n"
+	if result != expected {
+		t.Errorf("formatAsBullets(\"Single item\") = %q, want %q", result, expected)
+	}
+}
+
+func TestFormatAsBullets_MultipleLines(t *testing.T) {
+	input := "First item\nSecond item\nThird item"
+	result := formatAsBullets(input)
+	expected := "- First item\n- Second item\n- Third item\n"
+	if result != expected {
+		t.Errorf("formatAsBullets(%q) = %q, want %q", input, result, expected)
+	}
+}
+
+func TestFormatAsBullets_AlreadyBulleted(t *testing.T) {
+	// Should not double-bullet items
+	input := "- Already bulleted\n* Also bulleted"
+	result := formatAsBullets(input)
+	expected := "- Already bulleted\n* Also bulleted\n"
+	if result != expected {
+		t.Errorf("formatAsBullets(%q) = %q, want %q", input, result, expected)
+	}
+}
+
+func TestFormatAsBullets_MixedContent(t *testing.T) {
+	// Some lines bulleted, some not
+	input := "- Already bulleted\nNot bulleted\n* Star bulleted"
+	result := formatAsBullets(input)
+	expected := "- Already bulleted\n- Not bulleted\n* Star bulleted\n"
+	if result != expected {
+		t.Errorf("formatAsBullets(%q) = %q, want %q", input, result, expected)
+	}
+}
+
+func TestFormatAsBullets_WhitespaceLines(t *testing.T) {
+	// Empty lines should be skipped
+	input := "First item\n\n   \nSecond item"
+	result := formatAsBullets(input)
+	expected := "- First item\n- Second item\n"
+	if result != expected {
+		t.Errorf("formatAsBullets(%q) = %q, want %q", input, result, expected)
+	}
+}
+
+func TestFormatAsBullets_LeadingWhitespace(t *testing.T) {
+	// Whitespace should be trimmed
+	input := "   Indented item\n\tTabbed item"
+	result := formatAsBullets(input)
+	expected := "- Indented item\n- Tabbed item\n"
+	if result != expected {
+		t.Errorf("formatAsBullets(%q) = %q, want %q", input, result, expected)
+	}
+}

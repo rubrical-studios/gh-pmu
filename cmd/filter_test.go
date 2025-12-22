@@ -349,6 +349,50 @@ func TestOutputFilterTable_EmptyIssues(t *testing.T) {
 	}
 }
 
+func TestOutputFilterTable_WithIssues(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := createTestCmd(buf)
+
+	issues := []FilterInput{
+		{
+			Number: 42,
+			Title:  "Test Issue",
+			State:  "open",
+		},
+		{
+			Number: 43,
+			Title:  "Another Issue",
+			State:  "closed",
+		},
+	}
+
+	err := outputFilterTable(cmd, issues)
+	if err != nil {
+		t.Fatalf("outputFilterTable() error = %v", err)
+	}
+	// Function writes to os.Stdout, not buf, so we just verify no error
+}
+
+func TestOutputFilterTable_TitleTruncation(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cmd := createTestCmd(buf)
+
+	longTitle := "This is a very long title that exceeds fifty characters and should be truncated by the table output"
+	issues := []FilterInput{
+		{
+			Number: 42,
+			Title:  longTitle,
+			State:  "open",
+		},
+	}
+
+	err := outputFilterTable(cmd, issues)
+	if err != nil {
+		t.Fatalf("outputFilterTable() error = %v", err)
+	}
+	// Function writes to os.Stdout, not buf, so we just verify no error
+}
+
 // ============================================================================
 // outputFilterJSON Tests
 // ============================================================================
