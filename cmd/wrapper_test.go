@@ -64,7 +64,7 @@ func (h *mockGraphQLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // redirectTransport is an http.RoundTripper that redirects all requests to a test server
@@ -147,7 +147,7 @@ fields:
 	}
 
 	cleanup := func() {
-		os.Chdir(origDir)
+		_ = os.Chdir(origDir)
 		api.SetTestTransport(nil)
 		api.SetTestAuthToken("")
 		server.Close()
@@ -155,110 +155,6 @@ fields:
 	}
 
 	return tmpDir, cleanup
-}
-
-// standardProjectResponse returns a typical project response for testing
-func standardProjectResponse() map[string]interface{} {
-	return map[string]interface{}{
-		"data": map[string]interface{}{
-			"organization": map[string]interface{}{
-				"projectV2": map[string]interface{}{
-					"id":     "PVT_test123",
-					"title":  "Test Project",
-					"number": 1,
-					"url":    "https://github.com/orgs/test-org/projects/1",
-					"owner": map[string]interface{}{
-						"login": "test-org",
-					},
-				},
-			},
-		},
-	}
-}
-
-// standardProjectItemsResponse returns a typical items response for testing
-func standardProjectItemsResponse() map[string]interface{} {
-	return map[string]interface{}{
-		"data": map[string]interface{}{
-			"node": map[string]interface{}{
-				"items": map[string]interface{}{
-					"pageInfo": map[string]interface{}{
-						"hasNextPage": false,
-						"endCursor":   nil,
-					},
-					"nodes": []interface{}{
-						map[string]interface{}{
-							"id": "PVTI_test1",
-							"content": map[string]interface{}{
-								"__typename": "Issue",
-								"id":         "I_test1",
-								"number":     1,
-								"title":      "Test Issue 1",
-								"state":      "OPEN",
-								"url":        "https://github.com/test-org/test-repo/issues/1",
-								"body":       "Test body",
-								"repository": map[string]interface{}{
-									"nameWithOwner": "test-org/test-repo",
-									"owner": map[string]interface{}{
-										"login": "test-org",
-									},
-									"name": "test-repo",
-								},
-								"assignees": map[string]interface{}{
-									"nodes": []interface{}{},
-								},
-								"labels": map[string]interface{}{
-									"nodes": []interface{}{},
-								},
-							},
-							"fieldValues": map[string]interface{}{
-								"nodes": []interface{}{
-									map[string]interface{}{
-										"__typename": "ProjectV2ItemFieldSingleSelectValue",
-										"field": map[string]interface{}{
-											"name": "Status",
-										},
-										"name": "Backlog",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// standardIssueResponse returns a typical issue response for testing
-func standardIssueResponse() map[string]interface{} {
-	return map[string]interface{}{
-		"data": map[string]interface{}{
-			"repository": map[string]interface{}{
-				"issue": map[string]interface{}{
-					"id":     "I_test1",
-					"number": 1,
-					"title":  "Test Issue 1",
-					"state":  "OPEN",
-					"url":    "https://github.com/test-org/test-repo/issues/1",
-					"body":   "Test body content",
-					"repository": map[string]interface{}{
-						"nameWithOwner": "test-org/test-repo",
-						"owner": map[string]interface{}{
-							"login": "test-org",
-						},
-						"name": "test-repo",
-					},
-					"assignees": map[string]interface{}{
-						"nodes": []interface{}{},
-					},
-					"labels": map[string]interface{}{
-						"nodes": []interface{}{},
-					},
-				},
-			},
-		},
-	}
 }
 
 // ============================================================================
@@ -321,8 +217,8 @@ func TestRunList_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newListCommand()
 	opts := &listOptions{}
@@ -347,7 +243,7 @@ func TestRunList_InvalidConfig(t *testing.T) {
 
 	// Write invalid config (missing required fields)
 	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
-	os.WriteFile(configPath, []byte("invalid: yaml: content:"), 0644)
+	_ = os.WriteFile(configPath, []byte("invalid: yaml: content:"), 0644)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -360,8 +256,8 @@ func TestRunList_InvalidConfig(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newListCommand()
 	opts := &listOptions{}
@@ -420,8 +316,8 @@ func TestRunView_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newViewCommand()
 	opts := &viewOptions{}
@@ -486,8 +382,8 @@ func TestRunMove_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMoveCommand()
 	opts := &moveOptions{status: "done"}
@@ -556,8 +452,8 @@ func TestRunClose_WithUpdateStatus_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newCloseCommand()
 	opts := &closeOptions{
@@ -616,8 +512,8 @@ func TestRunFieldList_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newFieldListCommand()
 	err = runFieldList(cmd, []string{})
@@ -730,8 +626,8 @@ func TestRunHistory_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newHistoryCommand()
 	opts := &historyOptions{}
@@ -792,8 +688,8 @@ func TestRunBoard_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newBoardCommand()
 	opts := &boardOptions{}
@@ -888,8 +784,8 @@ func TestRunIntake_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newIntakeCommand()
 	opts := &intakeOptions{}
@@ -976,8 +872,8 @@ func TestRunSplit_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newSplitCommand()
 	opts := &splitOptions{}
@@ -1086,8 +982,8 @@ func TestRunTriage_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newTriageCommand()
 	opts := &triageOptions{}
@@ -1176,8 +1072,8 @@ func TestRunSubAdd_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newSubAddCommand()
 	opts := &subAddOptions{}
@@ -1242,8 +1138,8 @@ func TestRunSubCreate_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newSubCreateCommand()
 	opts := &subCreateOptions{
@@ -1311,8 +1207,8 @@ func TestRunSubList_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newSubListCommand()
 	opts := &subListOptions{
@@ -1377,8 +1273,8 @@ func TestRunMicrosprintStart_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintStartCommand()
 	opts := &microsprintStartOptions{}
@@ -1441,8 +1337,8 @@ func TestRunMicrosprintAdd_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintAddCommand()
 	opts := &microsprintAddOptions{issueNumber: 1}
@@ -1505,8 +1401,8 @@ func TestRunMicrosprintRemove_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintRemoveCommand()
 	opts := &microsprintRemoveOptions{issueNumber: 1}
@@ -1567,8 +1463,8 @@ func TestRunMicrosprintCurrent_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintCurrentCommand()
 	opts := &microsprintCurrentOptions{}
@@ -1629,8 +1525,8 @@ func TestRunMicrosprintClose_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintCloseCommand()
 	opts := &microsprintCloseOptions{}
@@ -1691,8 +1587,8 @@ func TestRunMicrosprintList_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintListCommand()
 	opts := &microsprintListOptions{}
@@ -1752,8 +1648,8 @@ func TestRunMicrosprintResolve_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newMicrosprintResolveCommand()
 	err = runMicrosprintResolve(cmd)
@@ -1815,8 +1711,8 @@ func TestRunCreate_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newCreateCommand()
 	opts := &createOptions{title: "Test"}
@@ -1878,8 +1774,8 @@ func TestRunSubRemove_ConfigNotFound(t *testing.T) {
 	}()
 
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	_ = os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	cmd := newSubRemoveCommand()
 	opts := &subRemoveOptions{}
