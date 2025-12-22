@@ -47,15 +47,17 @@ func setupReleaseTestDir(t *testing.T, cfg *config.Config) func() {
 // mockReleaseClient implements releaseClient for testing
 type mockReleaseClient struct {
 	// Return values
-	createdIssue          *api.Issue
-	openIssues            []api.Issue
-	closedIssues          []api.Issue
-	project               *api.Project
-	addedItemID           string
-	issueByNumber         *api.Issue
-	projectItemID         string
-	projectItemFieldValue string
-	releaseIssues         []api.Issue
+	createdIssue           *api.Issue
+	openIssues             []api.Issue
+	closedIssues           []api.Issue
+	project                *api.Project
+	addedItemID            string
+	issueByNumber          *api.Issue
+	projectItemID          string
+	projectItemIDs         map[string]string // issueID -> itemID mapping for per-issue returns
+	projectItemFieldValue  string
+	projectItemFieldValues map[string]string // itemID -> fieldValue mapping for per-issue status
+	releaseIssues          []api.Issue
 
 	// Captured calls for verification
 	createIssueCalls     []createIssueCall
@@ -158,12 +160,24 @@ func (m *mockReleaseClient) GetProjectItemID(projectID, issueID string) (string,
 	if m.getProjectItemErr != nil {
 		return "", m.getProjectItemErr
 	}
+	// Check per-issue mapping first
+	if m.projectItemIDs != nil {
+		if itemID, ok := m.projectItemIDs[issueID]; ok {
+			return itemID, nil
+		}
+	}
 	return m.projectItemID, nil
 }
 
 func (m *mockReleaseClient) GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error) {
 	if m.getProjectItemFieldErr != nil {
 		return "", m.getProjectItemFieldErr
+	}
+	// Check per-item mapping first
+	if m.projectItemFieldValues != nil {
+		if value, ok := m.projectItemFieldValues[itemID]; ok {
+			return value, nil
+		}
 	}
 	return m.projectItemFieldValue, nil
 }
@@ -1871,5 +1885,197 @@ func TestCompareVersions_EdgeCases(t *testing.T) {
 				t.Errorf("compareVersions(%q, %q) = %d, want %d", tt.a, tt.b, result, tt.expected)
 			}
 		})
+	}
+}
+
+// ============================================================================
+// Parking Lot Exclusion Tests
+// ============================================================================
+
+func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	// 3 incomplete issues: 1 parking lot, 2 regular
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Parked feature idea", State: "OPEN"},
+		{ID: "ISSUE_2", Number: 42, Title: "Incomplete work", State: "OPEN"},
+		{ID: "ISSUE_3", Number: 43, Title: "Another incomplete", State: "OPEN"},
+	}
+	// Map issue IDs to item IDs
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+		"ISSUE_2": "ITEM_2",
+		"ISSUE_3": "ITEM_3",
+	}
+	// ISSUE_1 is in Parking Lot status
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "Parking Lot",
+		"ITEM_2": "In Progress",
+		"ITEM_3": "Ready",
+	}
+
+	cfg := testReleaseConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog":     "Backlog",
+			"parking_lot": "Parking Lot",
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, output := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify output shows skipped parking lot issues
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "Skipping 1 Parking Lot issue") {
+		t.Errorf("Expected output to mention skipped parking lot issues, got: %s", outputStr)
+	}
+
+	// Verify only 2 issues were moved to backlog (not the parking lot one)
+	statusSetCount := 0
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Status" && call.value == "Backlog" {
+			statusSetCount++
+		}
+	}
+	if statusSetCount != 2 {
+		t.Errorf("Expected 2 issues moved to backlog, got %d. Calls: %+v", statusSetCount, mock.setFieldCalls)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
+	// ARRANGE: All incomplete issues are in Parking Lot
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Parked idea 1", State: "OPEN"},
+		{ID: "ISSUE_2", Number: 42, Title: "Parked idea 2", State: "OPEN"},
+	}
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+		"ISSUE_2": "ITEM_2",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "Parking Lot",
+		"ITEM_2": "Parking Lot",
+	}
+
+	cfg := testReleaseConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog":     "Backlog",
+			"parking_lot": "Parking Lot",
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, output := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify output shows 2 parking lot issues skipped
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "Skipping 2 Parking Lot issue") {
+		t.Errorf("Expected output to mention skipped parking lot issues, got: %s", outputStr)
+	}
+
+	// Verify no status changes to Backlog
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Status" && call.value == "Backlog" {
+			t.Errorf("No issues should be moved to backlog, but found call: %+v", call)
+		}
+	}
+
+	// Verify "Moving incomplete issues" message is NOT shown
+	if strings.Contains(outputStr, "Moving incomplete issues") {
+		t.Errorf("Should not show 'Moving incomplete issues' when all are parking lot")
+	}
+}
+
+func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
+	// ARRANGE: No parking_lot value configured, should use default "Parking Lot"
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Parked idea", State: "OPEN"},
+		{ID: "ISSUE_2", Number: 42, Title: "Regular issue", State: "OPEN"},
+	}
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+		"ISSUE_2": "ITEM_2",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "Parking Lot", // Uses default value
+		"ITEM_2": "In Progress",
+	}
+
+	cfg := testReleaseConfig()
+	// Status field configured but no parking_lot alias
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog": "Backlog",
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, output := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Should still skip parking lot with default value
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "Skipping 1 Parking Lot issue") {
+		t.Errorf("Expected parking lot issue to be skipped even without config, got: %s", outputStr)
 	}
 }

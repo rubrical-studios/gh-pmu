@@ -974,3 +974,219 @@ func TestGitCommit_ErrorMessageIncludesGitOutput(t *testing.T) {
 		}
 	}
 }
+
+// ============================================================================
+// CloseIssue, ReopenIssue, UpdateIssueBody Tests
+// ============================================================================
+
+func TestCloseIssue_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.CloseIssue("issue-id")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestCloseIssue_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "CloseIssue" {
+				t.Errorf("Expected mutation name 'CloseIssue', got '%s'", name)
+			}
+
+			// Verify input type is CloseIssueInput (not anonymous struct)
+			input, ok := variables["input"].(CloseIssueInput)
+			if !ok {
+				t.Fatal("Expected CloseIssueInput type in variables, got anonymous struct")
+			}
+			if input.IssueID.(string) != "issue-123" {
+				t.Errorf("Expected IssueID 'issue-123', got '%v'", input.IssueID)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.CloseIssue("issue-123")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestCloseIssue_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("mutation failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.CloseIssue("issue-id")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to close issue") {
+		t.Errorf("Expected 'failed to close issue' error, got: %v", err)
+	}
+}
+
+func TestReopenIssue_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.ReopenIssue("issue-id")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestReopenIssue_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "ReopenIssue" {
+				t.Errorf("Expected mutation name 'ReopenIssue', got '%s'", name)
+			}
+
+			// Verify input type is ReopenIssueInput (not anonymous struct)
+			input, ok := variables["input"].(ReopenIssueInput)
+			if !ok {
+				t.Fatal("Expected ReopenIssueInput type in variables, got anonymous struct")
+			}
+			if input.IssueID.(string) != "issue-456" {
+				t.Errorf("Expected IssueID 'issue-456', got '%v'", input.IssueID)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.ReopenIssue("issue-456")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestReopenIssue_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("mutation failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.ReopenIssue("issue-id")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to reopen issue") {
+		t.Errorf("Expected 'failed to reopen issue' error, got: %v", err)
+	}
+}
+
+func TestUpdateIssueBody_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.UpdateIssueBody("issue-id", "new body")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestUpdateIssueBody_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "UpdateIssue" {
+				t.Errorf("Expected mutation name 'UpdateIssue', got '%s'", name)
+			}
+
+			// Verify input type is UpdateIssueInput (not anonymous struct)
+			input, ok := variables["input"].(UpdateIssueInput)
+			if !ok {
+				t.Fatal("Expected UpdateIssueInput type in variables, got anonymous struct")
+			}
+			if input.ID.(string) != "issue-789" {
+				t.Errorf("Expected ID 'issue-789', got '%v'", input.ID)
+			}
+			if string(input.Body) != "updated body content" {
+				t.Errorf("Expected Body 'updated body content', got '%s'", input.Body)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateIssueBody("issue-789", "updated body content")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestUpdateIssueBody_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("mutation failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateIssueBody("issue-id", "body")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to update issue body") {
+		t.Errorf("Expected 'failed to update issue body' error, got: %v", err)
+	}
+}
+
+// ============================================================================
+// Issue Mutation Input Type Tests
+// ============================================================================
+
+func TestCloseIssueInput_HasRequiredFields(t *testing.T) {
+	input := CloseIssueInput{
+		IssueID: "issue-id",
+	}
+
+	if input.IssueID != "issue-id" {
+		t.Errorf("Expected IssueID 'issue-id', got '%s'", input.IssueID)
+	}
+}
+
+func TestReopenIssueInput_HasRequiredFields(t *testing.T) {
+	input := ReopenIssueInput{
+		IssueID: "issue-id",
+	}
+
+	if input.IssueID != "issue-id" {
+		t.Errorf("Expected IssueID 'issue-id', got '%s'", input.IssueID)
+	}
+}
+
+func TestUpdateIssueInput_HasRequiredFields(t *testing.T) {
+	input := UpdateIssueInput{
+		ID:   "issue-id",
+		Body: "new body",
+	}
+
+	if input.ID != "issue-id" {
+		t.Errorf("Expected ID 'issue-id', got '%s'", input.ID)
+	}
+	if input.Body != "new body" {
+		t.Errorf("Expected Body 'new body', got '%s'", input.Body)
+	}
+}

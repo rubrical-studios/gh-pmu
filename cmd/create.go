@@ -496,8 +496,8 @@ func openEditorForBody(initialContent string) (string, error) {
 		}
 	}
 
-	// Create a temporary file
-	tmpfile, err := os.CreateTemp("", "gh-pmu-issue-*.md")
+	// Create a temporary file in project tmp directory
+	tmpfile, err := config.CreateTempFile("gh-pmu-issue-*.md")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}

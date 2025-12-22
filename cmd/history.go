@@ -961,8 +961,8 @@ func renderDetailedHistoryScreen(commits []CommitInfo, targetPath string) {
 func openHistoryInBrowser(commits []CommitInfo, targetPath, repoOwner, repoName string) error {
 	htmlContent := generateHistoryHTML(commits, targetPath, repoOwner, repoName)
 
-	// Create temp file
-	tmpFile, err := os.CreateTemp("", "gh-pmu-history-*.html")
+	// Create temp file in project tmp directory
+	tmpFile, err := config.CreateTempFile("gh-pmu-history-*.html")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}

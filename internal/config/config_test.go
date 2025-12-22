@@ -1015,3 +1015,346 @@ framework: none
 		t.Errorf("Expected framework 'none', got '%s'", cfg.Framework)
 	}
 }
+
+// ============================================================================
+// Temp File Handling Tests
+// ============================================================================
+
+func TestGetTempDir_CreatesTmpDirectory(t *testing.T) {
+	// ARRANGE: Create temp dir with config file and change to it
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Get temp dir
+	tempDir, err := GetTempDir()
+
+	// ASSERT: Temp dir created
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	expectedPath := filepath.Join(testDir, TempDirName)
+	if tempDir != expectedPath {
+		t.Errorf("Expected temp dir '%s', got '%s'", expectedPath, tempDir)
+	}
+
+	// Verify directory exists
+	info, err := os.Stat(tempDir)
+	if err != nil {
+		t.Fatalf("Temp directory should exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("Expected temp path to be a directory")
+	}
+}
+
+func TestGetTempDir_AddsToGitignore(t *testing.T) {
+	// ARRANGE: Create temp dir with config file
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Get temp dir (should create .gitignore entry)
+	_, err = GetTempDir()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// ASSERT: .gitignore contains tmp/
+	gitignorePath := filepath.Join(testDir, ".gitignore")
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("Expected .gitignore to be created: %v", err)
+	}
+
+	content := string(data)
+	if content != "tmp/\n" {
+		t.Errorf("Expected .gitignore to contain 'tmp/', got '%s'", content)
+	}
+}
+
+func TestGetTempDir_DoesNotDuplicateGitignoreEntry(t *testing.T) {
+	// ARRANGE: Create temp dir with config file and existing .gitignore
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	gitignorePath := filepath.Join(testDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte("tmp/\n"), 0644); err != nil {
+		t.Fatalf("Failed to create .gitignore: %v", err)
+	}
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Get temp dir twice
+	_, _ = GetTempDir()
+	_, _ = GetTempDir()
+
+	// ASSERT: .gitignore still only has one entry
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("Failed to read .gitignore: %v", err)
+	}
+
+	content := string(data)
+	if content != "tmp/\n" {
+		t.Errorf("Expected .gitignore to contain only one 'tmp/' entry, got '%s'", content)
+	}
+}
+
+func TestGetTempDir_AppendsToExistingGitignore(t *testing.T) {
+	// ARRANGE: Create temp dir with config file and existing .gitignore with other entries
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	gitignorePath := filepath.Join(testDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte("node_modules/\n.env\n"), 0644); err != nil {
+		t.Fatalf("Failed to create .gitignore: %v", err)
+	}
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Get temp dir
+	_, err = GetTempDir()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// ASSERT: .gitignore has original entries plus tmp/
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("Failed to read .gitignore: %v", err)
+	}
+
+	content := string(data)
+	expected := "node_modules/\n.env\ntmp/\n"
+	if content != expected {
+		t.Errorf("Expected .gitignore content '%s', got '%s'", expected, content)
+	}
+}
+
+func TestCreateTempFile_CreatesFileInTmpDir(t *testing.T) {
+	// ARRANGE: Create temp dir with config file
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Create temp file
+	file, err := CreateTempFile("test-*.txt")
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	defer func() {
+		file.Close()
+		os.Remove(file.Name())
+	}()
+
+	// ASSERT: File is in tmp directory
+	expectedDir := filepath.Join(testDir, TempDirName)
+	if filepath.Dir(file.Name()) != expectedDir {
+		t.Errorf("Expected file in '%s', got '%s'", expectedDir, filepath.Dir(file.Name()))
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(file.Name()); err != nil {
+		t.Errorf("Temp file should exist: %v", err)
+	}
+}
+
+func TestCreateTempFile_UsesPattern(t *testing.T) {
+	// ARRANGE: Create temp dir with config file
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Create temp file with pattern
+	file, err := CreateTempFile("gh-pmu-issue-*.md")
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	defer func() {
+		file.Close()
+		os.Remove(file.Name())
+	}()
+
+	// ASSERT: File name matches pattern
+	filename := filepath.Base(file.Name())
+	if len(filename) < len("gh-pmu-issue-.md") {
+		t.Errorf("Filename should be longer than pattern base, got '%s'", filename)
+	}
+	if filename[:13] != "gh-pmu-issue-" {
+		t.Errorf("Filename should start with 'gh-pmu-issue-', got '%s'", filename)
+	}
+	if filename[len(filename)-3:] != ".md" {
+		t.Errorf("Filename should end with '.md', got '%s'", filename)
+	}
+}
+
+func TestGetTempDir_NoConfigFile_ReturnsError(t *testing.T) {
+	// ARRANGE: Empty temp dir with no config file
+	testDir := t.TempDir()
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Try to get temp dir
+	_, err = GetTempDir()
+
+	// ASSERT: Error returned
+	if err == nil {
+		t.Fatal("Expected error when no config file exists, got nil")
+	}
+}
+
+func TestCreateTempFile_NoConfigFile_ReturnsError(t *testing.T) {
+	// ARRANGE: Empty temp dir with no config file
+	testDir := t.TempDir()
+
+	// Save current dir and change to test dir
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	if err := os.Chdir(testDir); err != nil {
+		t.Fatalf("Failed to change to test dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	// ACT: Try to create temp file
+	_, err = CreateTempFile("test-*.txt")
+
+	// ASSERT: Error returned
+	if err == nil {
+		t.Fatal("Expected error when no config file exists, got nil")
+	}
+}
+
+func TestEnsureGitignore_HandlesNoTrailingNewline(t *testing.T) {
+	// ARRANGE: Create temp dir with .gitignore without trailing newline
+	testDir := t.TempDir()
+	gitignorePath := filepath.Join(testDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte("node_modules/"), 0644); err != nil {
+		t.Fatalf("Failed to create .gitignore: %v", err)
+	}
+
+	// ACT: Call ensureGitignore
+	err := ensureGitignore(testDir)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// ASSERT: .gitignore has newline before tmp/
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("Failed to read .gitignore: %v", err)
+	}
+
+	content := string(data)
+	expected := "node_modules/\ntmp/\n"
+	if content != expected {
+		t.Errorf("Expected .gitignore content '%s', got '%s'", expected, content)
+	}
+}
+
+func TestEnsureGitignore_RecognizesTmpWithoutSlash(t *testing.T) {
+	// ARRANGE: Create temp dir with .gitignore containing "tmp" without slash
+	testDir := t.TempDir()
+	gitignorePath := filepath.Join(testDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte("tmp\n"), 0644); err != nil {
+		t.Fatalf("Failed to create .gitignore: %v", err)
+	}
+
+	// ACT: Call ensureGitignore
+	err := ensureGitignore(testDir)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// ASSERT: .gitignore is not modified (tmp already present)
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("Failed to read .gitignore: %v", err)
+	}
+
+	content := string(data)
+	if content != "tmp\n" {
+		t.Errorf("Expected .gitignore to remain unchanged, got '%s'", content)
+	}
+}
