@@ -165,34 +165,16 @@ func updateStatusToDone(issueNum int, repoOverride string) error {
 		return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
 	}
 
-	// Get issue to get its node ID
-	issue, err := client.GetIssue(owner, repo, issueNum)
-	if err != nil {
-		return fmt.Errorf("failed to get issue: %w", err)
-	}
-
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Find the project item ID
-	items, err := client.GetProjectItems(project.ID, nil)
+	// Get the project item ID for this issue (efficient single query)
+	itemID, err := client.GetProjectItemIDForIssue(project.ID, owner, repo, issueNum)
 	if err != nil {
-		return fmt.Errorf("failed to get project items: %w", err)
-	}
-
-	var itemID string
-	for _, item := range items {
-		if item.Issue != nil && item.Issue.ID == issue.ID {
-			itemID = item.ID
-			break
-		}
-	}
-
-	if itemID == "" {
-		return fmt.Errorf("issue #%d is not in the project", issueNum)
+		return fmt.Errorf("failed to find issue in project: %w", err)
 	}
 
 	// Resolve "done" status value

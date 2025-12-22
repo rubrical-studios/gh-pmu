@@ -1,5 +1,11 @@
 # gh-pmu
 
+[![CI](https://github.com/rubrical-studios/gh-pmu/actions/workflows/ci.yml/badge.svg)](https://github.com/rubrical-studios/gh-pmu/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/rubrical-studios/gh-pmu/graph/badge.svg)](https://codecov.io/gh/rubrical-studios/gh-pmu)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rubrical-studios/gh-pmu)](https://goreportcard.com/report/github.com/rubrical-studios/gh-pmu)
+[![Release](https://img.shields.io/github/v/release/rubrical-studios/gh-pmu)](https://github.com/rubrical-studios/gh-pmu/releases/latest)
+[![License](https://img.shields.io/github/license/rubrical-studios/gh-pmu)](LICENSE)
+
 A GitHub CLI extension for project management and sub-issue hierarchy.
 
 ## Features

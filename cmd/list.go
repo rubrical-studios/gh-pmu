@@ -250,29 +250,58 @@ func filterByEmptyField(items []api.ProjectItem, fieldName string) []api.Project
 	return filtered
 }
 
-// filterByHasSubIssues filters items to only those with sub-issues
+// filterByHasSubIssues filters items to only those with sub-issues.
+// Uses a batch query to fetch sub-issue counts efficiently.
 func filterByHasSubIssues(client *api.Client, items []api.ProjectItem) []api.ProjectItem {
-	var filtered []api.ProjectItem
+	if len(items) == 0 {
+		return nil
+	}
+
+	// Group items by repository for batch queries
+	type repoKey struct {
+		owner string
+		repo  string
+	}
+	repoItems := make(map[repoKey][]api.ProjectItem)
+	repoNumbers := make(map[repoKey][]int)
+
 	for _, item := range items {
 		if item.Issue == nil {
 			continue
 		}
+		key := repoKey{
+			owner: item.Issue.Repository.Owner,
+			repo:  item.Issue.Repository.Name,
+		}
+		repoItems[key] = append(repoItems[key], item)
+		repoNumbers[key] = append(repoNumbers[key], item.Issue.Number)
+	}
 
-		// Check if issue has sub-issues
-		subIssues, err := client.GetSubIssues(
-			item.Issue.Repository.Owner,
-			item.Issue.Repository.Name,
-			item.Issue.Number,
-		)
+	// Fetch sub-issue counts for each repository (one query per repo)
+	subIssueCounts := make(map[repoKey]map[int]int)
+	for key, numbers := range repoNumbers {
+		counts, err := client.GetSubIssueCounts(key.owner, key.repo, numbers)
 		if err != nil {
-			// Skip issues where we can't fetch sub-issues
+			// On error, skip this repo's items
 			continue
 		}
+		subIssueCounts[key] = counts
+	}
 
-		if len(subIssues) > 0 {
-			filtered = append(filtered, item)
+	// Filter items based on sub-issue counts
+	var filtered []api.ProjectItem
+	for key, keyItems := range repoItems {
+		counts, ok := subIssueCounts[key]
+		if !ok {
+			continue
+		}
+		for _, item := range keyItems {
+			if count, exists := counts[item.Issue.Number]; exists && count > 0 {
+				filtered = append(filtered, item)
+			}
 		}
 	}
+
 	return filtered
 }
 

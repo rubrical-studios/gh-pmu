@@ -1,8 +1,11 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os/exec"
+	"strings"
 
 	graphql "github.com/cli/shurcooL-graphql"
 )
@@ -405,6 +408,54 @@ func (c *Client) GetIssueWithProjectFields(owner, repo string, number int) (*Iss
 	return issue, fieldValues, nil
 }
 
+// GetProjectItemIDForIssue looks up the project item ID for a specific issue in a project.
+// This is more efficient than fetching all project items when you only need one.
+func (c *Client) GetProjectItemIDForIssue(projectID, owner, repo string, number int) (string, error) {
+	if c.gql == nil {
+		return "", fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var query struct {
+		Repository struct {
+			Issue struct {
+				ProjectItems struct {
+					Nodes []struct {
+						ID      string
+						Project struct {
+							ID string
+						}
+					}
+				} `graphql:"projectItems(first: 20)"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	gqlNumber, err := safeGraphQLInt(number)
+	if err != nil {
+		return "", err
+	}
+
+	variables := map[string]interface{}{
+		"owner":  graphql.String(owner),
+		"repo":   graphql.String(repo),
+		"number": gqlNumber,
+	}
+
+	err = c.gql.Query("GetProjectItemIDForIssue", &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to get project item for issue %s/%s#%d: %w", owner, repo, number, err)
+	}
+
+	// Find the project item in the target project
+	for _, item := range query.Repository.Issue.ProjectItems.Nodes {
+		if item.Project.ID == projectID {
+			return item.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("issue #%d is not in the project", number)
+}
+
 // ProjectItemsFilter allows filtering project items
 type ProjectItemsFilter struct {
 	Repository string // Filter by repository (owner/repo format)
@@ -673,6 +724,63 @@ func (c *Client) GetSubIssues(owner, repo string, number int) ([]SubIssue, error
 	}
 
 	return subIssues, nil
+}
+
+// GetSubIssueCounts fetches sub-issue counts for multiple issues in a single query.
+// This is more efficient than calling GetSubIssues for each issue individually.
+// Returns a map of issue number to sub-issue count.
+func (c *Client) GetSubIssueCounts(owner, repo string, numbers []int) (map[int]int, error) {
+	if len(numbers) == 0 {
+		return make(map[int]int), nil
+	}
+
+	// Build a GraphQL query with aliases for each issue
+	// Example: query { repository(owner:"o", name:"r") { i1: issue(number:1) { subIssues { totalCount } } } }
+	var queryParts []string
+	for i, num := range numbers {
+		queryParts = append(queryParts, fmt.Sprintf("i%d: issue(number: %d) { subIssues { totalCount } }", i, num))
+	}
+
+	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) { %s } }`,
+		owner, repo, strings.Join(queryParts, " "))
+
+	// Execute via gh api graphql
+	cmd := exec.Command("gh", "api", "graphql",
+		"-H", "X-Github-Next: sub_issues",
+		"-f", "query="+query)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute batch sub-issue query: %w", err)
+	}
+
+	// Parse the response
+	var response struct {
+		Data struct {
+			Repository map[string]struct {
+				SubIssues struct {
+					TotalCount int `json:"totalCount"`
+				} `json:"subIssues"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse batch sub-issue response: %w", err)
+	}
+
+	// Build result map
+	result := make(map[int]int)
+	for i, num := range numbers {
+		alias := fmt.Sprintf("i%d", i)
+		if issueData, ok := response.Data.Repository[alias]; ok {
+			result[num] = issueData.SubIssues.TotalCount
+		} else {
+			result[num] = 0
+		}
+	}
+
+	return result, nil
 }
 
 // GetRepositoryIssues fetches issues from a repository with the given state filter
