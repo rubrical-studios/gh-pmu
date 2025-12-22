@@ -77,9 +77,9 @@ func TestUpdateStatusToDoneWithDeps_Success(t *testing.T) {
 	}
 
 	// Read output
-	stdout.Seek(0, 0)
+	_, _ = stdout.Seek(0, 0)
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(stdout)
+	_, _ = buf.ReadFrom(stdout)
 	output := buf.String()
 
 	if !strings.Contains(output, "#42") {

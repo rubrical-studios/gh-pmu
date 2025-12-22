@@ -734,9 +734,8 @@ func TestRunIntakeWithDeps_InvalidRepoFormat(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "invalid repository format") || !strings.Contains(output, "All issues are already tracked") {
-		// Either warning or "all tracked" message
-	}
+	// Either warning about invalid repo format or "all tracked" message is acceptable
+	_ = output
 }
 
 func TestRunIntakeWithDeps_AllTrackedJSON(t *testing.T) {
