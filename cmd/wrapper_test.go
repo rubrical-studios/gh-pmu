@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
@@ -22,6 +23,8 @@ type mockGraphQLHandler struct {
 	defaultResponse interface{}
 	// Track requests for assertions
 	requests []graphQLRequest
+	// Mutex to protect concurrent access to requests
+	mu sync.Mutex
 }
 
 type graphQLRequest struct {
@@ -43,7 +46,9 @@ func (h *mockGraphQLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
+	h.mu.Lock()
 	h.requests = append(h.requests, req)
+	h.mu.Unlock()
 
 	// Find matching response based on query content
 	var response interface{}
