@@ -46,7 +46,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 ### Tests
 
 - Add tests for new functionality
-- Maintain or improve coverage
+- Maintain or improve coverage (target: 68-70%)
 - Tests should be deterministic
 
 ```bash
@@ -56,6 +56,8 @@ go test ./...
 # With coverage
 go test -cover ./...
 ```
+
+For detailed testing strategy, coverage targets, and functions excluded from unit testing, see [TESTING.md](TESTING.md).
 
 ## Pull Request Process
 

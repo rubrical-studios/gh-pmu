@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"os/exec"
 	"strings"
 
@@ -13,6 +14,26 @@ const FeatureSubIssues = "sub_issues"
 
 // FeatureIssueTypes is the GitHub API preview header for issue types
 const FeatureIssueTypes = "issue_types"
+
+// testTransport is a package-level transport override for testing.
+// When set, NewClient() will use this transport instead of http.DefaultTransport.
+// This allows integration tests to mock the HTTP layer without modifying production code.
+var testTransport http.RoundTripper
+
+// testAuthToken is a package-level auth token override for testing.
+var testAuthToken string
+
+// SetTestTransport sets a custom transport for testing purposes.
+// Call with nil to clear the test transport.
+func SetTestTransport(t http.RoundTripper) {
+	testTransport = t
+}
+
+// SetTestAuthToken sets a custom auth token for testing purposes.
+// Call with empty string to clear the test token.
+func SetTestAuthToken(token string) {
+	testAuthToken = token
+}
 
 // GraphQLClient interface allows mocking the GitHub GraphQL client for testing
 type GraphQLClient interface {
@@ -36,14 +57,28 @@ type ClientOptions struct {
 
 	// EnableIssueTypes enables the issue_types feature preview
 	EnableIssueTypes bool
+
+	// Transport specifies the HTTP transport for API requests (for testing)
+	Transport http.RoundTripper
+
+	// AuthToken is the authorization token (for testing)
+	AuthToken string
 }
 
 // NewClient creates a new API client with default options
 func NewClient() *Client {
-	return NewClientWithOptions(ClientOptions{
+	opts := ClientOptions{
 		EnableSubIssues:  true,
 		EnableIssueTypes: true,
-	})
+	}
+	// Apply test overrides if set
+	if testTransport != nil {
+		opts.Transport = testTransport
+	}
+	if testAuthToken != "" {
+		opts.AuthToken = testAuthToken
+	}
+	return NewClientWithOptions(opts)
 }
 
 // NewClientWithOptions creates a new API client with custom options
@@ -73,6 +108,12 @@ func NewClientWithOptions(opts ClientOptions) *Client {
 
 	if opts.Host != "" {
 		apiOpts.Host = opts.Host
+	}
+	if opts.Transport != nil {
+		apiOpts.Transport = opts.Transport
+	}
+	if opts.AuthToken != "" {
+		apiOpts.AuthToken = opts.AuthToken
 	}
 
 	// Create the GraphQL client
