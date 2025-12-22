@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.6] - 2025-12-22
+
+### Fixed
+- GraphQL mutation "Missing type definition for variable" error for close/reopen/update operations (#425)
+  - shurcooL graphql library requires named struct types for input variables
+  - Added `CloseIssueInput`, `ReopenIssueInput`, `UpdateIssueInput` named types
+- Temp file utilities now use project root directory instead of OS temp (#427)
+  - `config.CreateTempFile()` creates files in `tmp/` alongside `.gh-pmu.yml`
+  - Directory automatically added to `.gitignore`
+
+### Changed
+- Release close now skips issues in "Parking Lot" status (#426)
+  - Parking Lot issues are listed separately in output but not moved to backlog
+  - Prevents accidentally moving parked work when closing releases
+
 ## [0.8.5] - 2025-12-22
 
 ### Fixed
