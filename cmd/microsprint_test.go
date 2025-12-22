@@ -1816,10 +1816,10 @@ func TestCompareSuffixes_DifferentLength(t *testing.T) {
 		b        string
 		expected int
 	}{
-		{"a", "aa", -1},  // shorter is less
-		{"aa", "a", 1},   // longer is greater
-		{"z", "aa", -1},  // z < aa because aa is longer
-		{"aaa", "z", 1},  // aaa > z because aaa is longer
+		{"a", "aa", -1}, // shorter is less
+		{"aa", "a", 1},  // longer is greater
+		{"z", "aa", -1}, // z < aa because aa is longer
+		{"aaa", "z", 1}, // aaa > z because aaa is longer
 		{"ab", "aaa", -1},
 		{"aaa", "ab", 1},
 	}
@@ -1900,9 +1900,9 @@ func TestExtractReleaseFromMicrosprintTitle_MalformedBrackets(t *testing.T) {
 		title    string
 		expected string
 	}{
-		{"Microsprint: 2025-12-13-a [unclosed", ""},    // no closing bracket
-		{"Microsprint: 2025-12-13-a ]only close", ""},  // only closing bracket
-		{"[v1.0.0] Microsprint: 2025-12-13-a", ""},     // brackets at start don't work (uses LastIndex)
+		{"Microsprint: 2025-12-13-a [unclosed", ""},   // no closing bracket
+		{"Microsprint: 2025-12-13-a ]only close", ""}, // only closing bracket
+		{"[v1.0.0] Microsprint: 2025-12-13-a", ""},    // brackets at start don't work (uses LastIndex)
 	}
 
 	for _, tt := range tests {

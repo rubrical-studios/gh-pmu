@@ -1245,7 +1245,7 @@ func TestFindActiveMicrosprintForCreate_ReturnsFirstMatch(t *testing.T) {
 func TestFindActiveMicrosprintForCreate_ExactPrefixMatch(t *testing.T) {
 	today := time.Now().Format("2006-01-02")
 	issues := []api.Issue{
-		{Number: 1, Title: "Microsprint: " + today},      // Missing suffix
+		{Number: 1, Title: "Microsprint: " + today},       // Missing suffix
 		{Number: 2, Title: "Microsprint: " + today + "-"}, // Has proper prefix
 	}
 
