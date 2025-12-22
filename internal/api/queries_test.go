@@ -555,6 +555,72 @@ func TestGetSubIssues_EmptyResult(t *testing.T) {
 }
 
 // ============================================================================
+// GetSubIssueCounts Tests
+// ============================================================================
+
+func TestGetSubIssueCounts_EmptyInput(t *testing.T) {
+	client := NewClient()
+	counts, err := client.GetSubIssueCounts("owner", "repo", []int{})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(counts) != 0 {
+		t.Errorf("Expected empty counts map, got %d entries", len(counts))
+	}
+}
+
+// ============================================================================
+// GetProjectItemIDForIssue Tests
+// ============================================================================
+
+func TestGetProjectItemIDForIssue_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+	_, err := client.GetProjectItemIDForIssue("project-id", "owner", "repo", 1)
+
+	if err == nil {
+		t.Fatal("Expected error for nil client")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestGetProjectItemIDForIssue_QueryError(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return errors.New("query failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	_, err := client.GetProjectItemIDForIssue("project-id", "owner", "repo", 1)
+
+	if err == nil {
+		t.Fatal("Expected error for query failure")
+	}
+}
+
+func TestGetProjectItemIDForIssue_NotInProject(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			// Return empty project items - issue is not in any project
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	_, err := client.GetProjectItemIDForIssue("project-id", "owner", "repo", 1)
+
+	if err == nil {
+		t.Fatal("Expected error when issue is not in project")
+	}
+	if !strings.Contains(err.Error(), "not in the project") {
+		t.Errorf("Expected 'not in the project' error, got: %v", err)
+	}
+}
+
+// ============================================================================
 // GetIssue Tests
 // ============================================================================
 

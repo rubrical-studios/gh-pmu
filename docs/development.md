@@ -108,9 +108,9 @@ gh workflow run integration-tests.yml -f test_type=all
 
 ## Test Coverage
 
-Current coverage details: [coverage/README.md](../coverage/README.md)
+Coverage reports are available on [Codecov](https://codecov.io/gh/rubrical-studios/gh-pmu).
 
-The coverage report is automatically updated on each release by CI.
+Coverage is uploaded automatically on every CI run. Click the Codecov badge in the README for detailed per-file breakdown.
 
 ## Project Structure
 
@@ -135,7 +135,6 @@ gh-pmu/
 │   ├── config/            # Configuration loading
 │   └── ui/                # Terminal UI components
 ├── docs/                  # Documentation
-├── coverage/              # Coverage reports
 ├── .gh-pmu.yml           # Project configuration
 └── main.go               # Entry point
 ```
@@ -208,9 +207,7 @@ GitHub Actions workflows:
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Push/PR | Test, lint, build |
-| `release.yml` | Tag push | GoReleaser, binaries |
-| `coverage.yml` | Release | Update coverage report |
+| `ci.yml` | Push/PR/Tag | Test, lint, build, release |
 | `integration-tests.yml` | Manual | Integration tests |
 
 ## See Also
