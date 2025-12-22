@@ -387,46 +387,46 @@ func TestGetRepositoryIssues_StateMapping(t *testing.T) {
 	tests := []struct {
 		name           string
 		inputState     string
-		expectedStates []string
+		expectedStates []IssueState
 	}{
 		{
 			name:           "open state",
 			inputState:     "open",
-			expectedStates: []string{"OPEN"},
+			expectedStates: []IssueState{IssueStateOpen},
 		},
 		{
 			name:           "closed state",
 			inputState:     "closed",
-			expectedStates: []string{"CLOSED"},
+			expectedStates: []IssueState{IssueStateClosed},
 		},
 		{
 			name:           "all state",
 			inputState:     "all",
-			expectedStates: []string{"OPEN", "CLOSED"},
+			expectedStates: []IssueState{IssueStateOpen, IssueStateClosed},
 		},
 		{
 			name:           "empty state defaults to all",
 			inputState:     "",
-			expectedStates: []string{"OPEN", "CLOSED"},
+			expectedStates: []IssueState{IssueStateOpen, IssueStateClosed},
 		},
 		{
 			name:           "custom state passed through",
 			inputState:     "CUSTOM",
-			expectedStates: []string{"CUSTOM"},
+			expectedStates: []IssueState{"CUSTOM"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var capturedStates []string
+			var capturedStates []IssueState
 			mock := &queryMockClient{
 				queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
 					if name == "GetRepositoryIssues" {
-						// Capture the states that were passed
-						if states, ok := variables["states"].([]interface{}); ok {
-							for _, s := range states {
-								capturedStates = append(capturedStates, string(s.(string)))
-							}
+						// Capture the states that were passed - verify IssueState type
+						if states, ok := variables["states"].([]IssueState); ok {
+							capturedStates = states
+						} else {
+							t.Errorf("states variable is not []IssueState, got %T", variables["states"])
 						}
 					}
 					return nil
@@ -436,10 +436,20 @@ func TestGetRepositoryIssues_StateMapping(t *testing.T) {
 			client := NewClientWithGraphQL(mock)
 			_, _ = client.GetRepositoryIssues("owner", "repo", tt.inputState)
 
-			// Note: The actual captured states depend on graphql.String conversion
-			// This test verifies the function is called correctly
+			// Verify the function was called
 			if len(mock.queryCalls) != 1 || mock.queryCalls[0] != "GetRepositoryIssues" {
 				t.Errorf("Expected GetRepositoryIssues query, got: %v", mock.queryCalls)
+			}
+
+			// Verify the captured states match expected
+			if len(capturedStates) != len(tt.expectedStates) {
+				t.Errorf("Expected %d states, got %d", len(tt.expectedStates), len(capturedStates))
+				return
+			}
+			for i, expected := range tt.expectedStates {
+				if capturedStates[i] != expected {
+					t.Errorf("State[%d] = %v, want %v", i, capturedStates[i], expected)
+				}
 			}
 		})
 	}

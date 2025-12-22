@@ -789,17 +789,17 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
-	// Map state to GraphQL enum values
-	var states []graphql.String
+	// Map state to GraphQL enum values (IssueState enum, not String)
+	var states []IssueState
 	switch state {
 	case "open":
-		states = []graphql.String{"OPEN"}
+		states = []IssueState{IssueStateOpen}
 	case "closed":
-		states = []graphql.String{"CLOSED"}
+		states = []IssueState{IssueStateClosed}
 	case "all", "":
-		states = []graphql.String{"OPEN", "CLOSED"}
+		states = []IssueState{IssueStateOpen, IssueStateClosed}
 	default:
-		states = []graphql.String{graphql.String(state)}
+		states = []IssueState{IssueState(state)}
 	}
 
 	var query struct {

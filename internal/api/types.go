@@ -1,5 +1,13 @@
 package api
 
+// IssueState represents GitHub issue state enum for GraphQL queries
+type IssueState string
+
+const (
+	IssueStateOpen   IssueState = "OPEN"
+	IssueStateClosed IssueState = "CLOSED"
+)
+
 // Project represents a GitHub Projects v2 project
 type Project struct {
 	ID     string
