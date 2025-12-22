@@ -3,10 +3,199 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 )
+
+// mockSplitClient implements splitClient for testing
+type mockSplitClient struct {
+	issue         *api.Issue
+	createdIssues []*api.Issue
+	createIndex   int
+
+	// Error injection
+	getIssueErr    error
+	createIssueErr error
+	addSubIssueErr error
+}
+
+func newMockSplitClient() *mockSplitClient {
+	return &mockSplitClient{
+		issue: &api.Issue{
+			ID:     "issue-1",
+			Number: 42,
+			Title:  "Parent Issue",
+			Body:   "- [ ] Task 1\n- [ ] Task 2\n- [x] Done task",
+		},
+		createdIssues: []*api.Issue{},
+	}
+}
+
+func (m *mockSplitClient) GetIssue(owner, repo string, number int) (*api.Issue, error) {
+	if m.getIssueErr != nil {
+		return nil, m.getIssueErr
+	}
+	return m.issue, nil
+}
+
+func (m *mockSplitClient) CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error) {
+	if m.createIssueErr != nil {
+		return nil, m.createIssueErr
+	}
+	if m.createIndex < len(m.createdIssues) {
+		issue := m.createdIssues[m.createIndex]
+		m.createIndex++
+		return issue, nil
+	}
+	return &api.Issue{
+		ID:     "new-issue",
+		Number: 100 + m.createIndex,
+		Title:  title,
+	}, nil
+}
+
+func (m *mockSplitClient) AddSubIssue(parentID, issueID string) error {
+	return m.addSubIssueErr
+}
+
+// ============================================================================
+// runSplitWithDeps Tests
+// ============================================================================
+
+func TestRunSplitWithDeps_DryRun(t *testing.T) {
+	mock := newMockSplitClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Parent Issue",
+		Body:   "- [ ] Task 1\n- [ ] Task 2",
+	}
+
+	cmd := newSplitCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &splitOptions{from: "body", dryRun: true}
+	args := []string{"42"}
+	err := runSplitWithDeps(cmd, args, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Would create") {
+		t.Error("expected 'Would create' in dry-run output")
+	}
+}
+
+func TestRunSplitWithDeps_GetIssueError(t *testing.T) {
+	mock := newMockSplitClient()
+	mock.getIssueErr = errors.New("issue not found")
+
+	cmd := newSplitCommand()
+	opts := &splitOptions{from: "body"}
+	args := []string{"42"}
+	err := runSplitWithDeps(cmd, args, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get issue") {
+		t.Errorf("expected 'failed to get issue' error, got: %v", err)
+	}
+}
+
+func TestRunSplitWithDeps_NoTasks(t *testing.T) {
+	mock := newMockSplitClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Empty Issue",
+		Body:   "No checklist items here",
+	}
+
+	cmd := newSplitCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &splitOptions{from: "body"}
+	args := []string{"42"}
+	err := runSplitWithDeps(cmd, args, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No tasks found") {
+		t.Error("expected 'No tasks found' in output")
+	}
+}
+
+func TestRunSplitWithDeps_NoSource(t *testing.T) {
+	mock := newMockSplitClient()
+
+	cmd := newSplitCommand()
+	opts := &splitOptions{}
+	args := []string{"42"} // No --from and no task arguments
+	err := runSplitWithDeps(cmd, args, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for no source, got nil")
+	}
+	if !strings.Contains(err.Error(), "no tasks specified") {
+		t.Errorf("expected 'no tasks specified' error, got: %v", err)
+	}
+}
+
+func TestRunSplitWithDeps_WithTaskArgs(t *testing.T) {
+	mock := newMockSplitClient()
+	mock.issue = &api.Issue{
+		ID:     "issue-42",
+		Number: 42,
+		Title:  "Parent Issue",
+	}
+	mock.createdIssues = []*api.Issue{
+		{ID: "new-1", Number: 43, Title: "Task 1"},
+		{ID: "new-2", Number: 44, Title: "Task 2"},
+	}
+
+	cmd := newSplitCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &splitOptions{}
+	args := []string{"42", "Task 1", "Task 2"}
+	err := runSplitWithDeps(cmd, args, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Created sub-issue") {
+		t.Error("expected 'Created sub-issue' in output")
+	}
+}
+
+func TestRunSplitWithDeps_JSONOutput(t *testing.T) {
+	mock := newMockSplitClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Parent Issue",
+		Body:   "- [ ] Task 1",
+	}
+
+	cmd := newSplitCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &splitOptions{from: "body", dryRun: true, json: true}
+	args := []string{"42"}
+	err := runSplitWithDeps(cmd, args, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 
 func TestSplitCommand(t *testing.T) {
 	t.Run("has correct command structure", func(t *testing.T) {

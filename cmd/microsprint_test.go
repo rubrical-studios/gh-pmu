@@ -1983,3 +1983,70 @@ func TestFormatAsBullets_LeadingWhitespace(t *testing.T) {
 		t.Errorf("formatAsBullets(%q) = %q, want %q", input, result, expected)
 	}
 }
+
+// =============================================================================
+// generateMicrosprintTrackerTemplate Tests
+// =============================================================================
+
+func TestGenerateMicrosprintTrackerTemplate_ContainsName(t *testing.T) {
+	name := "2025-12-21-a"
+	result := generateMicrosprintTrackerTemplate(name)
+
+	if !strings.Contains(result, "`"+name+"`") {
+		t.Errorf("Template should contain microsprint name in backticks, got: %s", result)
+	}
+}
+
+func TestGenerateMicrosprintTrackerTemplate_ContainsWarnings(t *testing.T) {
+	result := generateMicrosprintTrackerTemplate("2025-12-21-a")
+
+	warnings := []string{
+		"**Microsprint Tracker Issue**",
+		"**Do not manually:**",
+		"Close or reopen this issue",
+		"Change the title",
+		"Remove the `microsprint` label",
+	}
+
+	for _, warning := range warnings {
+		if !strings.Contains(result, warning) {
+			t.Errorf("Template should contain warning %q", warning)
+		}
+	}
+}
+
+func TestGenerateMicrosprintTrackerTemplate_ContainsCommands(t *testing.T) {
+	result := generateMicrosprintTrackerTemplate("2025-12-21-a")
+
+	commands := []string{
+		"`gh pmu microsprint add <issue>`",
+		"`gh pmu microsprint remove <issue>`",
+		"`gh pmu microsprint close`",
+	}
+
+	for _, cmd := range commands {
+		if !strings.Contains(result, cmd) {
+			t.Errorf("Template should contain command %q", cmd)
+		}
+	}
+}
+
+func TestGenerateMicrosprintTrackerTemplate_ContainsIssuesSection(t *testing.T) {
+	result := generateMicrosprintTrackerTemplate("2025-12-21-a")
+
+	if !strings.Contains(result, "## Issues in this microsprint") {
+		t.Error("Template should contain 'Issues in this microsprint' section")
+	}
+	if !strings.Contains(result, "Microsprint field in the project") {
+		t.Error("Template should explain issues are tracked via the Microsprint field")
+	}
+}
+
+func TestGenerateMicrosprintTrackerTemplate_WithCustomName(t *testing.T) {
+	name := "2025-12-21-a-auth-refactor"
+	result := generateMicrosprintTrackerTemplate(name)
+
+	if !strings.Contains(result, "`"+name+"`") {
+		t.Errorf("Template should contain full custom name %q", name)
+	}
+}

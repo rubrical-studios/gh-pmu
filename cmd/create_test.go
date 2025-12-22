@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,7 +10,73 @@ import (
 	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
+
+// mockCreateClient implements createClient for testing
+type mockCreateClient struct {
+	createdIssue  *api.Issue
+	project       *api.Project
+	itemID        string
+	issuesByLabel []api.Issue
+
+	// Error injection
+	createIssueErr          error
+	getProjectErr           error
+	addIssueToProjectErr    error
+	setProjectItemFieldErr  error
+	getOpenIssuesByLabelErr error
+}
+
+func newMockCreateClient() *mockCreateClient {
+	return &mockCreateClient{
+		createdIssue: &api.Issue{
+			ID:     "issue-1",
+			Number: 42,
+			Title:  "New Issue",
+			URL:    "https://github.com/owner/repo/issues/42",
+		},
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+		},
+		itemID: "item-123",
+	}
+}
+
+func (m *mockCreateClient) CreateIssueWithOptions(owner, repo, title, body string, labels, assignees []string, milestone string) (*api.Issue, error) {
+	if m.createIssueErr != nil {
+		return nil, m.createIssueErr
+	}
+	issue := m.createdIssue
+	issue.Title = title
+	return issue, nil
+}
+
+func (m *mockCreateClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockCreateClient) AddIssueToProject(projectID, issueID string) (string, error) {
+	if m.addIssueToProjectErr != nil {
+		return "", m.addIssueToProjectErr
+	}
+	return m.itemID, nil
+}
+
+func (m *mockCreateClient) SetProjectItemField(projectID, itemID, fieldName, value string) error {
+	return m.setProjectItemFieldErr
+}
+
+func (m *mockCreateClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+	if m.getOpenIssuesByLabelErr != nil {
+		return nil, m.getOpenIssuesByLabelErr
+	}
+	return m.issuesByLabel, nil
+}
 
 func TestCreateCommand_Exists(t *testing.T) {
 	cmd := NewRootCommand()
@@ -1790,5 +1857,401 @@ labels:
 	errStr := err.Error()
 	if strings.Contains(errStr, "failed to parse") || strings.Contains(errStr, "title is required") {
 		t.Errorf("Expected to pass label merging phase, got: %v", err)
+	}
+}
+
+// ============================================================================
+// runCreateWithDeps Tests
+// ============================================================================
+
+func TestRunCreateWithDeps_Success(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+
+	opts := &createOptions{title: "Test Issue", body: "Test body"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Output goes to os.Stdout via fmt.Printf - verified by running successfully
+}
+
+func TestRunCreateWithDeps_NoTitle(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{body: "Test body"} // No title
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for missing title")
+	}
+	if !strings.Contains(err.Error(), "--title is required") {
+		t.Errorf("expected '--title is required' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_CreateIssueError(t *testing.T) {
+	mock := newMockCreateClient()
+	mock.createIssueErr = errors.New("API error")
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to create issue") {
+		t.Errorf("expected 'failed to create issue' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_GetProjectError(t *testing.T) {
+	mock := newMockCreateClient()
+	mock.getProjectErr = errors.New("project not found")
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("expected 'failed to get project' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_AddIssueToProjectError(t *testing.T) {
+	mock := newMockCreateClient()
+	mock.addIssueToProjectErr = errors.New("add failed")
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to add issue to project") {
+		t.Errorf("expected 'failed to add issue to project' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_WithStatus(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"todo": "Todo"},
+			},
+		},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", status: "todo"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_WithPriority(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"priority": {
+				Field:  "Priority",
+				Values: map[string]string{"p1": "P1"},
+			},
+		},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", priority: "p1"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_WithMicrosprint(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	mock := newMockCreateClient()
+	mock.issuesByLabel = []api.Issue{
+		{Number: 100, Title: "Microsprint: " + today + "-A"},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", microsprint: "current"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_NoActiveMicrosprint(t *testing.T) {
+	mock := newMockCreateClient()
+	mock.issuesByLabel = []api.Issue{} // No microsprints
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", microsprint: "current"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for no active microsprint")
+	}
+	if !strings.Contains(err.Error(), "no active microsprint found") {
+		t.Errorf("expected 'no active microsprint found' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_WithRelease(t *testing.T) {
+	mock := newMockCreateClient()
+	mock.issuesByLabel = []api.Issue{
+		{Number: 100, Title: "Release: v1.0.0"},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", release: "current"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_NoActiveRelease(t *testing.T) {
+	mock := newMockCreateClient()
+	mock.issuesByLabel = []api.Issue{} // No releases
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", release: "current"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for no active release")
+	}
+	if !strings.Contains(err.Error(), "no active release found") {
+		t.Errorf("expected 'no active release found' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_InteractiveModeNotImplemented(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{interactive: true}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for interactive mode")
+	}
+	if !strings.Contains(err.Error(), "interactive mode not yet implemented") {
+		t.Errorf("expected 'interactive mode not yet implemented' error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_BodyAndBodyFileMutuallyExclusiveInDeps(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	// Create a temp file for body-file
+	tmpfile, err := os.CreateTemp("", "body-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	if _, err := tmpfile.WriteString("Body from file"); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := newCreateCommand()
+	opts := &createOptions{
+		title:    "Test Issue",
+		body:     "Body from flag",
+		bodyFile: tmpfile.Name(),
+	}
+	err = runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for mutually exclusive flags")
+	}
+	if !strings.Contains(err.Error(), "cannot use --body and --body-file together") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_DefaultsApplied(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Defaults: config.Defaults{
+			Status:   "backlog",
+			Priority: "p2",
+			Labels:   []string{"auto-label"},
+		},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+			"priority": {
+				Field:  "Priority",
+				Values: map[string]string{"p2": "P2"},
+			},
+		},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ============================================================================
+// runCreateFromFileWithDeps Tests
+// ============================================================================
+
+func TestRunCreateFromFileWithDeps_Success(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	// Create YAML file
+	tmpfile, err := os.CreateTemp("", "issue-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	yamlContent := `title: "Test Issue from YAML"
+body: "Test body"
+`
+	if _, err := tmpfile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := newCreateCommand()
+
+	opts := &createOptions{fromFile: tmpfile.Name()}
+	err = runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Output goes to os.Stdout via fmt.Printf - verified by running successfully
+}
+
+func TestRunCreateFromFileWithDeps_JSONFile(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	// Create JSON file
+	tmpfile, err := os.CreateTemp("", "issue-*.json")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	jsonContent := `{"title": "Test Issue from JSON", "body": "Test body"}`
+	if _, err := tmpfile.WriteString(jsonContent); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := newCreateCommand()
+	opts := &createOptions{fromFile: tmpfile.Name()}
+	err = runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCreateFromFileWithDeps_FileNotFound(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{fromFile: "/nonexistent/file.yaml"}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "failed to read file") {
+		t.Errorf("expected 'failed to read file' error, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFileWithDeps_MissingTitle(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	// Create YAML file without title
+	tmpfile, err := os.CreateTemp("", "issue-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	yamlContent := `body: "Test body without title"`
+	if _, err := tmpfile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := newCreateCommand()
+	opts := &createOptions{fromFile: tmpfile.Name()}
+	err = runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for missing title")
+	}
+	if !strings.Contains(err.Error(), "title is required in file") {
+		t.Errorf("expected 'title is required in file' error, got: %v", err)
 	}
 }

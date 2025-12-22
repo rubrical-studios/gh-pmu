@@ -3,11 +3,72 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
+
+// mockIntakeClient implements intakeClient for testing
+type mockIntakeClient struct {
+	project          *api.Project
+	projectItems     []api.ProjectItem
+	repositoryIssues []api.Issue
+	addedItemID      string
+
+	// Error injection
+	getProjectErr          error
+	getProjectItemsErr     error
+	getRepositoryIssuesErr error
+	addIssueToProjectErr   error
+	setProjectItemFieldErr error
+}
+
+func newMockIntakeClient() *mockIntakeClient {
+	return &mockIntakeClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+		},
+		projectItems:     []api.ProjectItem{},
+		repositoryIssues: []api.Issue{},
+		addedItemID:      "item-123",
+	}
+}
+
+func (m *mockIntakeClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockIntakeClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	if m.getProjectItemsErr != nil {
+		return nil, m.getProjectItemsErr
+	}
+	return m.projectItems, nil
+}
+
+func (m *mockIntakeClient) GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error) {
+	if m.getRepositoryIssuesErr != nil {
+		return nil, m.getRepositoryIssuesErr
+	}
+	return m.repositoryIssues, nil
+}
+
+func (m *mockIntakeClient) AddIssueToProject(projectID, issueID string) (string, error) {
+	if m.addIssueToProjectErr != nil {
+		return "", m.addIssueToProjectErr
+	}
+	return m.addedItemID, nil
+}
+
+func (m *mockIntakeClient) SetProjectItemField(projectID, itemID, fieldName, value string) error {
+	return m.setProjectItemFieldErr
+}
 
 func TestIntakeCommand(t *testing.T) {
 	t.Run("has correct command structure", func(t *testing.T) {
@@ -452,4 +513,249 @@ func TestParseApplyFields(t *testing.T) {
 			t.Errorf("Expected 1 field, got %d", len(result))
 		}
 	})
+}
+
+// ============================================================================
+// runIntakeWithDeps Tests
+// ============================================================================
+
+func TestRunIntakeWithDeps_GetProjectError(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.getProjectErr = errors.New("project not found")
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("expected 'failed to get project' error, got: %v", err)
+	}
+}
+
+func TestRunIntakeWithDeps_GetProjectItemsError(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.getProjectItemsErr = errors.New("items not found")
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("expected 'failed to get project items' error, got: %v", err)
+	}
+}
+
+func TestRunIntakeWithDeps_AllIssuesTracked(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{ID: "issue-1", Number: 1}},
+	}
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Tracked Issue"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "All issues are already tracked") {
+		t.Errorf("expected 'All issues are already tracked' message, got: %s", output)
+	}
+}
+
+func TestRunIntakeWithDeps_FindsUntrackedIssues(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.projectItems = []api.ProjectItem{} // No tracked issues
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Untracked Issue", State: "OPEN"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Found 1 untracked issue") {
+		t.Errorf("expected 'Found 1 untracked issue' message, got: %s", output)
+	}
+}
+
+func TestRunIntakeWithDeps_DryRun(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Untracked Issue", State: "OPEN"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &intakeOptions{dryRun: true}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Would add 1 issue") {
+		t.Errorf("expected 'Would add 1 issue' message, got: %s", output)
+	}
+}
+
+func TestRunIntakeWithDeps_JSONOutput(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Untracked Issue", State: "OPEN"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{json: true}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// JSON output goes to stdout - verified by no error
+}
+
+func TestRunIntakeWithDeps_FilterByLabel(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Bug Issue", Labels: []api.Label{{Name: "bug"}}},
+		{ID: "issue-2", Number: 2, Title: "Feature Issue", Labels: []api.Label{{Name: "feature"}}},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &intakeOptions{label: []string{"bug"}}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Found 1 untracked") {
+		t.Errorf("expected 'Found 1 untracked' (filtered), got: %s", output)
+	}
+}
+
+func TestRunIntakeWithDeps_FilterByAssignee(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Alice Issue", Assignees: []api.Actor{{Login: "alice"}}},
+		{ID: "issue-2", Number: 2, Title: "Bob Issue", Assignees: []api.Actor{{Login: "bob"}}},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &intakeOptions{assignee: []string{"alice"}}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Found 1 untracked") {
+		t.Errorf("expected 'Found 1 untracked' (filtered), got: %s", output)
+	}
+}
+
+func TestRunIntakeWithDeps_InvalidRepoFormat(t *testing.T) {
+	mock := newMockIntakeClient()
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"invalid-no-slash"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	// Should not error, just warn
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Either warning about invalid repo format or "all tracked" message is acceptable
+	_ = output
+}
+
+func TestRunIntakeWithDeps_AllTrackedJSON(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{ID: "issue-1", Number: 1}},
+	}
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Tracked Issue"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{json: true}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// JSON output with empty issues goes to stdout - verified by no error
 }

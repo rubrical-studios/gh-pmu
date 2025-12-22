@@ -12,6 +12,13 @@ import (
 	"golang.org/x/term"
 )
 
+// boardClient defines the interface for API methods used by board functions.
+// This allows for easier testing with mock implementations.
+type boardClient interface {
+	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+}
+
 type boardOptions struct {
 	status   string
 	priority string
@@ -99,6 +106,11 @@ func runBoard(cmd *cobra.Command, opts *boardOptions) error {
 	// Create API client
 	client := api.NewClient()
 
+	return runBoardWithDeps(cmd, opts, cfg, client)
+}
+
+// runBoardWithDeps is the testable implementation of runBoard
+func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config, client boardClient) error {
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {

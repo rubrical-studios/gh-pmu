@@ -3,12 +3,644 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
+
+// mockListClient implements listClient for testing
+type mockListClient struct {
+	project           *api.Project
+	projectItems      []api.ProjectItem
+	openIssuesByLabel []api.Issue
+	subIssueCounts    map[int]int
+
+	// Error injection
+	getProjectErr           error
+	getProjectItemsErr      error
+	getOpenIssuesByLabelErr error
+	getSubIssueCountsErr    error
+}
+
+func newMockListClient() *mockListClient {
+	return &mockListClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+			URL:   "https://github.com/orgs/test/projects/1",
+		},
+		projectItems:   []api.ProjectItem{},
+		subIssueCounts: make(map[int]int),
+	}
+}
+
+func (m *mockListClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockListClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	if m.getProjectItemsErr != nil {
+		return nil, m.getProjectItemsErr
+	}
+	return m.projectItems, nil
+}
+
+func (m *mockListClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+	if m.getOpenIssuesByLabelErr != nil {
+		return nil, m.getOpenIssuesByLabelErr
+	}
+	return m.openIssuesByLabel, nil
+}
+
+func (m *mockListClient) GetSubIssueCounts(owner, repo string, numbers []int) (map[int]int, error) {
+	if m.getSubIssueCountsErr != nil {
+		return nil, m.getSubIssueCountsErr
+	}
+	return m.subIssueCounts, nil
+}
+
+// ============================================================================
+// runListWithDeps Tests
+// ============================================================================
+
+func TestRunListWithDeps_Success(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Issue 1", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "Issue 2", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog", "in_progress": "In Progress"},
+			},
+		},
+	}
+
+	cmd := newListCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &listOptions{}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_GetProjectError(t *testing.T) {
+	mock := newMockListClient()
+	mock.getProjectErr = errors.New("project not found")
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("expected 'failed to get project' error, got: %v", err)
+	}
+}
+
+func TestRunListWithDeps_GetProjectItemsError(t *testing.T) {
+	mock := newMockListClient()
+	mock.getProjectItemsErr = errors.New("API error")
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("expected 'failed to get project items' error, got: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithStatusFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Backlog Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newListCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &listOptions{status: "backlog"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_JSONOutput(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 42, Title: "JSON Test Issue", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newListCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &listOptions{json: true}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_EmptyProject(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &listOptions{}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No issues found") {
+		t.Error("expected 'No issues found' in output")
+	}
+}
+
+func TestRunListWithDeps_InvalidRepoFormat(t *testing.T) {
+	mock := newMockListClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{repo: "invalid-no-slash"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error for invalid repo format")
+	}
+	if !strings.Contains(err.Error(), "invalid --repo format") {
+		t.Errorf("expected 'invalid --repo format' error, got: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithPriorityFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "P1 Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Priority", Value: "P1"},
+			},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "P2 Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Priority", Value: "P2"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"priority": {
+				Field:  "Priority",
+				Values: map[string]string{"p1": "P1", "p2": "P2"},
+			},
+		},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{priority: "p1"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithAssigneeFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-1",
+			Issue: &api.Issue{
+				Number:    1,
+				Title:     "Alice's Issue",
+				Assignees: []api.Actor{{Login: "alice"}},
+			},
+		},
+		{
+			ID: "item-2",
+			Issue: &api.Issue{
+				Number:    2,
+				Title:     "Bob's Issue",
+				Assignees: []api.Actor{{Login: "bob"}},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{assignee: "alice"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithLabelFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-1",
+			Issue: &api.Issue{
+				Number: 1,
+				Title:  "Bug Issue",
+				Labels: []api.Label{{Name: "bug"}},
+			},
+		},
+		{
+			ID: "item-2",
+			Issue: &api.Issue{
+				Number: 2,
+				Title:  "Feature Issue",
+				Labels: []api.Label{{Name: "enhancement"}},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{label: "bug"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithSearchFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-1",
+			Issue: &api.Issue{
+				Number: 1,
+				Title:  "Fix login bug",
+				Body:   "Authentication issue",
+			},
+		},
+		{
+			ID: "item-2",
+			Issue: &api.Issue{
+				Number: 2,
+				Title:  "Add feature",
+				Body:   "New functionality",
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{search: "login"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithReleaseFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Release Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.0.0"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{release: "v1.0.0"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithReleaseCurrentFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Release Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.0.0"},
+			},
+		},
+	}
+	mock.openIssuesByLabel = []api.Issue{
+		{Number: 100, Title: "Release: v1.0.0"},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{release: "current"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithNoReleaseFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Has Release"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.0.0"},
+			},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "No Release"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{noRelease: true}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithMicrosprintFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Sprint Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Microsprint", Value: "2025-12-20-A"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{microsprint: "2025-12-20-A"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithMicrosprintCurrentFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Sprint Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Microsprint", Value: "2025-12-20-A"},
+			},
+		},
+	}
+	mock.openIssuesByLabel = []api.Issue{
+		{Number: 100, Title: "Microsprint: 2025-12-20-A"},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{microsprint: "current"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithHasSubIssuesFilter(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-1",
+			Issue: &api.Issue{
+				Number: 1,
+				Title:  "Parent Issue",
+				Repository: api.Repository{
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			ID: "item-2",
+			Issue: &api.Issue{
+				Number: 2,
+				Title:  "Child Issue",
+				Repository: api.Repository{
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+	}
+	mock.subIssueCounts = map[int]int{
+		1: 2, // Issue 1 has 2 sub-issues
+		2: 0, // Issue 2 has no sub-issues
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{hasSubIssues: true}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithLimit(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Issue 1"}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Issue 2"}},
+		{ID: "item-3", Issue: &api.Issue{Number: 3, Title: "Issue 3"}},
+		{ID: "item-4", Issue: &api.Issue{Number: 4, Title: "Issue 4"}},
+		{ID: "item-5", Issue: &api.Issue{Number: 5, Title: "Issue 5"}},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{limit: 3}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithRepoFlag(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Issue 1"}},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{repo: "owner/repo"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_ReleaseWithParentheses(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Release Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.0.0"},
+			},
+		},
+	}
+	mock.openIssuesByLabel = []api.Issue{
+		{Number: 100, Title: "Release: v1.0.0 (Phoenix)"},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{release: "current"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 
 func TestListCommand_Exists(t *testing.T) {
 	cmd := NewRootCommand()
@@ -920,7 +1552,7 @@ func TestFilterByHasSubIssues_NilClient(t *testing.T) {
 
 	// We can't call with nil client as it would panic,
 	// but we can verify the function signature
-	var _ func(*api.Client, []api.ProjectItem) []api.ProjectItem = filterByHasSubIssues
+	var _ func(listClient, []api.ProjectItem) []api.ProjectItem = filterByHasSubIssues
 }
 
 func TestFilterByHasSubIssues_EmptyItems(t *testing.T) {
@@ -962,7 +1594,7 @@ func TestFilterByHasSubIssues_NilIssueItems(t *testing.T) {
 func TestFilterByHasSubIssues_FunctionSignature(t *testing.T) {
 	// Verify the function has the expected signature
 	// This is a compile-time check that the function exists and has correct types
-	type filterFunc func(*api.Client, []api.ProjectItem) []api.ProjectItem
+	type filterFunc func(listClient, []api.ProjectItem) []api.ProjectItem
 	var _ filterFunc = filterByHasSubIssues
 }
 

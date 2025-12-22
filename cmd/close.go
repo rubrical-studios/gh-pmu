@@ -12,6 +12,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// closeClient defines the interface for API methods used by close functions.
+// This allows for easier testing with mock implementations.
+type closeClient interface {
+	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectItemIDForIssue(projectID, owner, repo string, number int) (string, error)
+	SetProjectItemField(projectID, itemID, fieldName, value string) error
+}
+
 type closeOptions struct {
 	reason       string
 	comment      string
@@ -147,6 +155,11 @@ func updateStatusToDone(issueNum int, repoOverride string) error {
 	// Create API client
 	client := api.NewClient()
 
+	return updateStatusToDoneWithDeps(issueNum, repoOverride, cfg, client, os.Stdout)
+}
+
+// updateStatusToDoneWithDeps is the testable implementation of updateStatusToDone
+func updateStatusToDoneWithDeps(issueNum int, repoOverride string, cfg *config.Config, client closeClient, stdout *os.File) error {
 	// Determine repository (--repo flag takes precedence over config)
 	var owner, repo string
 	if repoOverride != "" {
@@ -185,6 +198,6 @@ func updateStatusToDone(issueNum int, repoOverride string) error {
 		return fmt.Errorf("failed to update status: %w", err)
 	}
 
-	fmt.Printf("✓ Updated issue #%d status to %s\n", issueNum, doneValue)
+	fmt.Fprintf(stdout, "✓ Updated issue #%d status to %s\n", issueNum, doneValue)
 	return nil
 }

@@ -1,8 +1,221 @@
 package cmd
 
 import (
+	"bytes"
+	"errors"
+	"os"
+	"strings"
 	"testing"
+
+	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
+
+// mockCloseClient implements closeClient for testing
+type mockCloseClient struct {
+	project *api.Project
+	itemID  string
+
+	// Error injection
+	getProjectErr          error
+	getProjectItemIDErr    error
+	setProjectItemFieldErr error
+}
+
+func newMockCloseClient() *mockCloseClient {
+	return &mockCloseClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+		},
+		itemID: "item-123",
+	}
+}
+
+func (m *mockCloseClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockCloseClient) GetProjectItemIDForIssue(projectID, owner, repo string, number int) (string, error) {
+	if m.getProjectItemIDErr != nil {
+		return "", m.getProjectItemIDErr
+	}
+	return m.itemID, nil
+}
+
+func (m *mockCloseClient) SetProjectItemField(projectID, itemID, fieldName, value string) error {
+	return m.setProjectItemFieldErr
+}
+
+// ============================================================================
+// updateStatusToDoneWithDeps Tests
+// ============================================================================
+
+func TestUpdateStatusToDoneWithDeps_Success(t *testing.T) {
+	mock := newMockCloseClient()
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"done": "Done"},
+			},
+		},
+	}
+
+	// Create a temp file to capture output
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "", cfg, mock, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Read output
+	_, _ = stdout.Seek(0, 0)
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(stdout)
+	output := buf.String()
+
+	if !strings.Contains(output, "#42") {
+		t.Error("expected issue number in output")
+	}
+	if !strings.Contains(output, "Done") {
+		t.Error("expected 'Done' status in output")
+	}
+}
+
+func TestUpdateStatusToDoneWithDeps_WithRepoOverride(t *testing.T) {
+	mock := newMockCloseClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"done": "Done"},
+			},
+		},
+	}
+
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "other-org/other-repo", cfg, mock, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUpdateStatusToDoneWithDeps_InvalidRepoFormat(t *testing.T) {
+	mock := newMockCloseClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "invalid-format", cfg, mock, stdout)
+	if err == nil {
+		t.Fatal("expected error for invalid repo format")
+	}
+	if !strings.Contains(err.Error(), "invalid --repo format") {
+		t.Errorf("expected 'invalid --repo format' error, got: %v", err)
+	}
+}
+
+func TestUpdateStatusToDoneWithDeps_NoRepoConfigured(t *testing.T) {
+	mock := newMockCloseClient()
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{},
+	}
+
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "", cfg, mock, stdout)
+	if err == nil {
+		t.Fatal("expected error when no repo configured")
+	}
+	if !strings.Contains(err.Error(), "no repository specified") {
+		t.Errorf("expected 'no repository specified' error, got: %v", err)
+	}
+}
+
+func TestUpdateStatusToDoneWithDeps_GetProjectError(t *testing.T) {
+	mock := newMockCloseClient()
+	mock.getProjectErr = errors.New("project not found")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+	}
+
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "", cfg, mock, stdout)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("expected 'failed to get project' error, got: %v", err)
+	}
+}
+
+func TestUpdateStatusToDoneWithDeps_IssueNotInProject(t *testing.T) {
+	mock := newMockCloseClient()
+	mock.getProjectItemIDErr = errors.New("issue not found in project")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+	}
+
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "", cfg, mock, stdout)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to find issue in project") {
+		t.Errorf("expected 'failed to find issue in project' error, got: %v", err)
+	}
+}
+
+func TestUpdateStatusToDoneWithDeps_SetFieldError(t *testing.T) {
+	mock := newMockCloseClient()
+	mock.setProjectItemFieldErr = errors.New("API error")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"done": "Done"},
+			},
+		},
+	}
+
+	stdout, _ := os.CreateTemp("", "stdout")
+	defer os.Remove(stdout.Name())
+
+	err := updateStatusToDoneWithDeps(42, "", cfg, mock, stdout)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to update status") {
+		t.Errorf("expected 'failed to update status' error, got: %v", err)
+	}
+}
 
 func TestNormalizeCloseReason(t *testing.T) {
 	tests := []struct {

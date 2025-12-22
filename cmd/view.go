@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// viewClient defines the interface for API methods used by view functions.
+// This allows for easier testing with mock implementations.
+type viewClient interface {
+	GetIssue(owner, repo string, number int) (*api.Issue, error)
+	GetIssueWithProjectFields(owner, repo string, number int) (*api.Issue, []api.FieldValue, error)
+	GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error)
+	GetParentIssue(owner, repo string, number int) (*api.Issue, error)
+	GetIssueComments(owner, repo string, number int) ([]api.Comment, error)
+}
+
 type viewOptions struct {
 	json     bool
 	web      bool
@@ -97,6 +107,11 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 	// Create API client
 	client := api.NewClient()
 
+	return runViewWithDeps(cmd, opts, client, owner, repo, number)
+}
+
+// runViewWithDeps is the testable implementation of runView
+func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, owner, repo string, number int) error {
 	// For --web flag, only need basic issue info
 	if opts.web {
 		issue, err := client.GetIssue(owner, repo, number)

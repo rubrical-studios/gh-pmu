@@ -3,11 +3,219 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/spf13/cobra"
 )
+
+// mockViewClient implements viewClient for testing
+type mockViewClient struct {
+	issue       *api.Issue
+	fieldValues []api.FieldValue
+	subIssues   []api.SubIssue
+	parentIssue *api.Issue
+	comments    []api.Comment
+
+	// Error injection
+	getIssueErr                  error
+	getIssueWithProjectFieldsErr error
+	getSubIssuesErr              error
+	getParentIssueErr            error
+	getIssueCommentsErr          error
+}
+
+func newMockViewClient() *mockViewClient {
+	return &mockViewClient{
+		issue: &api.Issue{
+			Number: 42,
+			Title:  "Test Issue",
+			State:  "OPEN",
+			URL:    "https://github.com/owner/repo/issues/42",
+			Author: api.Actor{Login: "testuser"},
+		},
+		fieldValues: []api.FieldValue{},
+		subIssues:   []api.SubIssue{},
+	}
+}
+
+func (m *mockViewClient) GetIssue(owner, repo string, number int) (*api.Issue, error) {
+	if m.getIssueErr != nil {
+		return nil, m.getIssueErr
+	}
+	return m.issue, nil
+}
+
+func (m *mockViewClient) GetIssueWithProjectFields(owner, repo string, number int) (*api.Issue, []api.FieldValue, error) {
+	if m.getIssueWithProjectFieldsErr != nil {
+		return nil, nil, m.getIssueWithProjectFieldsErr
+	}
+	return m.issue, m.fieldValues, nil
+}
+
+func (m *mockViewClient) GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error) {
+	if m.getSubIssuesErr != nil {
+		return nil, m.getSubIssuesErr
+	}
+	return m.subIssues, nil
+}
+
+func (m *mockViewClient) GetParentIssue(owner, repo string, number int) (*api.Issue, error) {
+	if m.getParentIssueErr != nil {
+		return nil, m.getParentIssueErr
+	}
+	return m.parentIssue, nil
+}
+
+func (m *mockViewClient) GetIssueComments(owner, repo string, number int) ([]api.Comment, error) {
+	if m.getIssueCommentsErr != nil {
+		return nil, m.getIssueCommentsErr
+	}
+	return m.comments, nil
+}
+
+// ============================================================================
+// runViewWithDeps Tests
+// ============================================================================
+
+func TestRunViewWithDeps_Success(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+	}
+	mock.fieldValues = []api.FieldValue{
+		{Field: "Status", Value: "In Progress"},
+	}
+
+	cmd := newViewCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &viewOptions{}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_GetIssueError(t *testing.T) {
+	mock := newMockViewClient()
+	mock.getIssueWithProjectFieldsErr = errors.New("issue not found")
+
+	cmd := newViewCommand()
+	opts := &viewOptions{}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get issue") {
+		t.Errorf("expected 'failed to get issue' error, got: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_JSONOutput(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "JSON Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+	}
+
+	cmd := newViewCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &viewOptions{json: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_WithSubIssues(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Parent Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+	}
+	mock.subIssues = []api.SubIssue{
+		{Number: 43, Title: "Sub 1", State: "CLOSED"},
+		{Number: 44, Title: "Sub 2", State: "OPEN"},
+	}
+
+	cmd := newViewCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &viewOptions{}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_WithParentIssue(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 43,
+		Title:  "Sub-Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/43",
+		Author: api.Actor{Login: "testuser"},
+	}
+	mock.parentIssue = &api.Issue{
+		Number: 42,
+		Title:  "Parent Issue",
+		URL:    "https://github.com/owner/repo/issues/42",
+	}
+
+	cmd := newViewCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &viewOptions{}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 43)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_WithComments(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+	}
+	mock.comments = []api.Comment{
+		{Author: "user1", Body: "Comment 1", CreatedAt: "2024-01-01T10:00:00Z"},
+		{Author: "user2", Body: "Comment 2", CreatedAt: "2024-01-02T11:00:00Z"},
+	}
+
+	cmd := newViewCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &viewOptions{comments: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 
 func TestViewCommand_Exists(t *testing.T) {
 	cmd := NewRootCommand()

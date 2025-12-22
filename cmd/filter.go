@@ -12,6 +12,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// filterClient defines the interface for API methods used by filter functions.
+// This allows for easier testing with mock implementations.
+type filterClient interface {
+	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+}
+
 type filterOptions struct {
 	status   string
 	priority string
@@ -95,6 +102,11 @@ func runFilter(cmd *cobra.Command, opts *filterOptions) error {
 	// Create API client
 	client := api.NewClient()
 
+	return runFilterWithDeps(cmd, opts, cfg, client, os.Stdin)
+}
+
+// runFilterWithDeps is the testable implementation of runFilter
+func runFilterWithDeps(cmd *cobra.Command, opts *filterOptions, cfg *config.Config, client filterClient, stdin *os.File) error {
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
@@ -103,7 +115,7 @@ func runFilter(cmd *cobra.Command, opts *filterOptions) error {
 
 	// Read and parse JSON input from stdin
 	var issues []FilterInput
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(stdin)
 	var inputBuilder strings.Builder
 	for scanner.Scan() {
 		inputBuilder.WriteString(scanner.Text())

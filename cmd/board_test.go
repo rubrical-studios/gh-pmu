@@ -2,12 +2,315 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
+
+// mockBoardClient implements boardClient for testing
+type mockBoardClient struct {
+	project      *api.Project
+	projectItems []api.ProjectItem
+
+	// Error injection
+	getProjectErr      error
+	getProjectItemsErr error
+}
+
+func newMockBoardClient() *mockBoardClient {
+	return &mockBoardClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+			URL:   "https://github.com/orgs/test/projects/1",
+		},
+		projectItems: []api.ProjectItem{},
+	}
+}
+
+func (m *mockBoardClient) GetProject(owner string, number int) (*api.Project, error) {
+	if m.getProjectErr != nil {
+		return nil, m.getProjectErr
+	}
+	return m.project, nil
+}
+
+func (m *mockBoardClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	if m.getProjectItemsErr != nil {
+		return nil, m.getProjectItemsErr
+	}
+	return m.projectItems, nil
+}
+
+// ============================================================================
+// runBoardWithDeps Tests
+// ============================================================================
+
+func TestRunBoardWithDeps_Success(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Test Issue 1"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "Test Issue 2"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field: "Status",
+				Values: map[string]string{
+					"backlog":     "Backlog",
+					"in_progress": "In Progress",
+				},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &boardOptions{}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Backlog") {
+		t.Error("expected Backlog in output")
+	}
+}
+
+func TestRunBoardWithDeps_GetProjectError(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.getProjectErr = errors.New("project not found")
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newBoardCommand()
+	opts := &boardOptions{}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("expected 'failed to get project' error, got: %v", err)
+	}
+}
+
+func TestRunBoardWithDeps_GetProjectItemsError(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.getProjectItemsErr = errors.New("API error")
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newBoardCommand()
+	opts := &boardOptions{}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("expected 'failed to get project items' error, got: %v", err)
+	}
+}
+
+func TestRunBoardWithDeps_WithStatusFilter(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Backlog Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "In Progress Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field: "Status",
+				Values: map[string]string{
+					"backlog":     "Backlog",
+					"in_progress": "In Progress",
+				},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &boardOptions{status: "backlog"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Should only show Backlog column
+	if !strings.Contains(output, "Backlog") {
+		t.Error("expected Backlog in output")
+	}
+}
+
+func TestRunBoardWithDeps_WithPriorityFilter(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "P1 Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+				{Field: "Priority", Value: "P1"},
+			},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "P2 Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+				{Field: "Priority", Value: "P2"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+			"priority": {
+				Field:  "Priority",
+				Values: map[string]string{"p1": "P1", "p2": "P2"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &boardOptions{priority: "p1"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "P1 Issue") {
+		t.Error("expected P1 Issue in output")
+	}
+	if strings.Contains(output, "P2 Issue") {
+		t.Error("P2 Issue should be filtered out")
+	}
+}
+
+func TestRunBoardWithDeps_JSONOutput(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 42, Title: "JSON Test Issue"},
+			FieldValues: []api.FieldValue{
+				{Field: "Status", Value: "Backlog"},
+			},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &boardOptions{json: true}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, `"number": 42`) {
+		t.Error("expected issue number in JSON output")
+	}
+	if !strings.Contains(output, `"status": "Backlog"`) {
+		t.Error("expected status in JSON output")
+	}
+}
+
+func TestRunBoardWithDeps_EmptyProject(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.projectItems = []api.ProjectItem{}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &boardOptions{}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Should show empty columns
+	if !strings.Contains(output, "(empty)") && !strings.Contains(output, "Backlog (0)") {
+		t.Error("expected empty indicator in output")
+	}
+}
 
 func TestNewBoardCommand(t *testing.T) {
 	cmd := newBoardCommand()
