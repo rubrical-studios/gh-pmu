@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.4] - 2025-12-22
+
+### Added
+- Microsprint tracker issues now include descriptive body explaining purpose and commands (#407)
+  - Similar to release tracker bodies added in v0.8.2
+
+### Fixed
+- License attribution moved to NOTICE file per Apache 2.0 requirements (#402, #403)
+- Codecov integration improvements for accurate diff coverage (#393, #394)
+
+### Changed
+- Improved test coverage for cmd package with mock client implementations (#395-#401, #405, #406)
+
 ## [0.8.3] - 2025-12-21
 
 ### Performance
