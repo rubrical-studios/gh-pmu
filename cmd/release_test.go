@@ -1455,6 +1455,9 @@ func TestRunReleaseReopenWithDeps_Success(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 
 	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
@@ -1475,6 +1478,9 @@ func TestRunReleaseReopenWithDeps_WithCodename(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 
 	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)

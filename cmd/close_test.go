@@ -17,9 +17,9 @@ type mockCloseClient struct {
 	itemID  string
 
 	// Error injection
-	getProjectErr           error
-	getProjectItemIDErr     error
-	setProjectItemFieldErr  error
+	getProjectErr          error
+	getProjectItemIDErr    error
+	setProjectItemFieldErr error
 }
 
 func newMockCloseClient() *mockCloseClient {

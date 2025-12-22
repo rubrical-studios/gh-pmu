@@ -12,14 +12,14 @@ import (
 
 // mockSplitClient implements splitClient for testing
 type mockSplitClient struct {
-	issue       *api.Issue
+	issue         *api.Issue
 	createdIssues []*api.Issue
-	createIndex int
+	createIndex   int
 
 	// Error injection
-	getIssueErr     error
-	createIssueErr  error
-	addSubIssueErr  error
+	getIssueErr    error
+	createIssueErr error
+	addSubIssueErr error
 }
 
 func newMockSplitClient() *mockSplitClient {

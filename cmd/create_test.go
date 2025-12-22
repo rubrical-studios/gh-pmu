@@ -15,16 +15,16 @@ import (
 
 // mockCreateClient implements createClient for testing
 type mockCreateClient struct {
-	createdIssue *api.Issue
-	project      *api.Project
-	itemID       string
+	createdIssue  *api.Issue
+	project       *api.Project
+	itemID        string
 	issuesByLabel []api.Issue
 
 	// Error injection
-	createIssueErr         error
-	getProjectErr          error
-	addIssueToProjectErr   error
-	setProjectItemFieldErr error
+	createIssueErr          error
+	getProjectErr           error
+	addIssueToProjectErr    error
+	setProjectItemFieldErr  error
 	getOpenIssuesByLabelErr error
 }
 
