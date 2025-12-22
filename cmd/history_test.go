@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
 
 func TestNewHistoryCommand(t *testing.T) {
@@ -473,5 +477,346 @@ func TestGenerateHistoryHTML_EscapesHTML(t *testing.T) {
 	}
 	if strings.Contains(html, "<b>bold</b>") {
 		t.Error("HTML should be escaped - found unescaped b tag")
+	}
+}
+
+// ============================================================================
+// validateHistorySafety Tests
+// ============================================================================
+
+func TestValidateHistorySafety_ForceOverrides(t *testing.T) {
+	// Force flag should always succeed
+	opts := &historyOptions{force: true}
+	err := validateHistorySafety([]string{"."}, opts)
+	if err != nil {
+		t.Errorf("Expected no error with --force, got: %v", err)
+	}
+}
+
+func TestValidateHistorySafety_NormalPath(t *testing.T) {
+	// A specific subdirectory should be fine
+	opts := &historyOptions{force: false}
+	err := validateHistorySafety([]string{"cmd/"}, opts)
+	// This should pass as it's not the repo root
+	if err != nil && strings.Contains(err.Error(), "repository root") {
+		t.Errorf("Expected non-root path to succeed, got: %v", err)
+	}
+}
+
+// ============================================================================
+// parseRepoFromConfig Tests
+// ============================================================================
+
+func TestParseRepoFromConfig_ValidRepo(t *testing.T) {
+	cfg := &config.Config{
+		Repositories: []string{"owner/repo"},
+	}
+
+	owner, repo := parseRepoFromConfig(cfg)
+	if owner != "owner" {
+		t.Errorf("Expected owner 'owner', got %q", owner)
+	}
+	if repo != "repo" {
+		t.Errorf("Expected repo 'repo', got %q", repo)
+	}
+}
+
+func TestParseRepoFromConfig_EmptyRepos(t *testing.T) {
+	cfg := &config.Config{
+		Repositories: []string{},
+	}
+
+	owner, repo := parseRepoFromConfig(cfg)
+	if owner != "" {
+		t.Errorf("Expected empty owner, got %q", owner)
+	}
+	if repo != "" {
+		t.Errorf("Expected empty repo, got %q", repo)
+	}
+}
+
+func TestParseRepoFromConfig_InvalidFormat(t *testing.T) {
+	cfg := &config.Config{
+		Repositories: []string{"invalid-no-slash"},
+	}
+
+	owner, repo := parseRepoFromConfig(cfg)
+	if owner != "" || repo != "" {
+		t.Errorf("Expected empty owner/repo for invalid format, got %q/%q", owner, repo)
+	}
+}
+
+func TestParseRepoFromConfig_MultipleRepos(t *testing.T) {
+	// Should use first repo
+	cfg := &config.Config{
+		Repositories: []string{"first-owner/first-repo", "second-owner/second-repo"},
+	}
+
+	owner, repo := parseRepoFromConfig(cfg)
+	if owner != "first-owner" {
+		t.Errorf("Expected owner 'first-owner', got %q", owner)
+	}
+	if repo != "first-repo" {
+		t.Errorf("Expected repo 'first-repo', got %q", repo)
+	}
+}
+
+// ============================================================================
+// outputHistoryJSON Tests
+// ============================================================================
+
+func TestOutputHistoryJSON_ValidCommits(t *testing.T) {
+	commits := []CommitInfo{
+		{
+			Hash:       "abc1234",
+			Author:     "Test Author",
+			Date:       time.Date(2025, 12, 10, 10, 0, 0, 0, time.UTC),
+			Subject:    "feat: Test commit",
+			ChangeType: "Add",
+			Insertions: 10,
+			Deletions:  5,
+		},
+	}
+
+	// Capture stdout by redirecting to a buffer
+	// We'll just verify the function doesn't error
+	err := outputHistoryJSON(commits)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestOutputHistoryJSON_EmptyCommits(t *testing.T) {
+	var commits []CommitInfo
+
+	err := outputHistoryJSON(commits)
+	if err != nil {
+		t.Errorf("Expected no error for empty commits, got: %v", err)
+	}
+}
+
+// ============================================================================
+// outputMarkdown Tests
+// ============================================================================
+
+func TestOutputMarkdown_CreatesFile(t *testing.T) {
+	// Create temp directory
+	tempDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	commits := []CommitInfo{
+		{
+			Hash:       "abc1234",
+			Author:     "Test Author",
+			Date:       time.Date(2025, 12, 10, 10, 0, 0, 0, time.UTC),
+			Subject:    "feat: Test commit #123",
+			ChangeType: "Add",
+			References: []IssueReference{
+				{Number: 123, URL: "https://github.com/owner/repo/issues/123"},
+			},
+			Insertions: 10,
+			Deletions:  5,
+		},
+		{
+			Hash:       "def5678",
+			Author:     "Another Author",
+			Date:       time.Date(2025, 12, 9, 10, 0, 0, 0, time.UTC),
+			Subject:    "fix: Bug fix",
+			ChangeType: "Fix",
+		},
+	}
+
+	err := outputMarkdown(commits, "cmd/test.go", "owner", "repo")
+	if err != nil {
+		t.Fatalf("outputMarkdown failed: %v", err)
+	}
+
+	// Check file was created
+	expectedPath := filepath.Join("History", "cmd-test-go.md")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Error("Expected History file to be created")
+	}
+
+	// Read and verify content
+	content, err := os.ReadFile(expectedPath)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "# History: cmd/test.go") {
+		t.Error("Expected title in markdown")
+	}
+	if !strings.Contains(contentStr, "**Total Commits:** 2") {
+		t.Error("Expected commit count")
+	}
+	if !strings.Contains(contentStr, "| `abc1234`") {
+		t.Error("Expected commit hash in table")
+	}
+	if !strings.Contains(contentStr, "[#123]") {
+		t.Error("Expected issue link")
+	}
+}
+
+func TestOutputMarkdown_EscapesPipeInSubject(t *testing.T) {
+	tempDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	commits := []CommitInfo{
+		{
+			Hash:       "abc1234",
+			Author:     "Test",
+			Date:       time.Now(),
+			Subject:    "feat: Add A | B feature",
+			ChangeType: "Add",
+		},
+	}
+
+	err := outputMarkdown(commits, "test", "owner", "repo")
+	if err != nil {
+		t.Fatalf("outputMarkdown failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join("History", "test.md"))
+	if err != nil {
+		t.Fatalf("Failed to read output: %v", err)
+	}
+
+	// Pipe should be escaped
+	if !strings.Contains(string(content), `A \| B`) {
+		t.Error("Expected pipe character to be escaped in markdown table")
+	}
+}
+
+func TestOutputMarkdown_HandlesMultiplePaths(t *testing.T) {
+	tempDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	commits := []CommitInfo{
+		{
+			Hash:       "abc1234",
+			Author:     "Test",
+			Date:       time.Now(),
+			Subject:    "test commit",
+			ChangeType: "Change",
+		},
+	}
+
+	err := outputMarkdown(commits, "cmd/, internal/", "owner", "repo")
+	if err != nil {
+		t.Fatalf("outputMarkdown failed: %v", err)
+	}
+
+	// Check that History directory exists
+	historyDir := filepath.Join("History")
+	entries, err := os.ReadDir(historyDir)
+	if err != nil {
+		t.Fatalf("Failed to read History directory: %v", err)
+	}
+
+	// Just verify a file was created (the exact name depends on path sanitization)
+	if len(entries) == 0 {
+		t.Error("Expected at least one file in History directory")
+	}
+}
+
+// ============================================================================
+// isDirectory Additional Tests
+// ============================================================================
+
+func TestIsDirectory_ExistingDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	result := isDirectory(tempDir)
+	if !result {
+		t.Errorf("Expected true for existing directory, got false")
+	}
+}
+
+func TestIsDirectory_ExistingFile(t *testing.T) {
+	tempFile, err := os.CreateTemp("", "test-*.txt")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	tempFile.Close()
+
+	result := isDirectory(tempFile.Name())
+	if result {
+		t.Errorf("Expected false for existing file, got true")
+	}
+}
+
+func TestIsDirectory_NonexistentNoSlash(t *testing.T) {
+	result := isDirectory("nonexistent-path-no-slash")
+	if result {
+		t.Errorf("Expected false for nonexistent path without slash, got true")
+	}
+}
+
+// ============================================================================
+// countFilesInPath Tests (uses git ls-files)
+// ============================================================================
+
+func TestCountFilesInPath_CurrentDirectory(t *testing.T) {
+	// This test runs in the actual repo
+	// Get the repo root first, then check for files
+	root, err := getRepoRoot()
+	if err != nil {
+		t.Skipf("Skipping: not in git repo: %v", err)
+	}
+
+	// Count files in the cmd directory from repo root
+	cmdPath := filepath.Join(root, "cmd")
+	count, err := countFilesInPath(cmdPath)
+	if err != nil {
+		t.Skipf("Skipping: git ls-files failed: %v", err)
+	}
+
+	if count == 0 {
+		// The test might be running from a different cwd, just verify function works
+		t.Skipf("Skipping: no files found (may be running from unexpected directory)")
+	}
+}
+
+func TestCountFilesInPath_NonexistentPath(t *testing.T) {
+	count, err := countFilesInPath("nonexistent-dir-12345")
+	// git ls-files may succeed with 0 files or fail
+	if err == nil && count != 0 {
+		t.Errorf("Expected 0 files for nonexistent path, got %d", count)
+	}
+}
+
+// ============================================================================
+// getRepoRoot Tests
+// ============================================================================
+
+func TestGetRepoRoot_InGitRepo(t *testing.T) {
+	root, err := getRepoRoot()
+	if err != nil {
+		t.Skipf("Skipping: not in git repo: %v", err)
+	}
+
+	if root == "" {
+		t.Error("Expected non-empty repo root")
+	}
+
+	// Should be an absolute path
+	if !filepath.IsAbs(root) {
+		t.Errorf("Expected absolute path, got %q", root)
 	}
 }

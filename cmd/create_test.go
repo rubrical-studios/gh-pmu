@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/rubrical-studios/gh-pmu/internal/api"
 )
 
 func TestCreateCommand_Exists(t *testing.T) {
@@ -1177,5 +1180,615 @@ func TestValidateCreateOptions_CaseInsensitive(t *testing.T) {
 	err = validateCreateOptions("in_progress", "body", "")
 	if err == nil {
 		t.Error("Expected error for in_progress without release")
+	}
+}
+
+// ============================================================================
+// findActiveMicrosprintForCreate Tests
+// ============================================================================
+
+func TestFindActiveMicrosprintForCreate_FindsActiveToday(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	issues := []api.Issue{
+		{Number: 1, Title: "Microsprint: 2024-01-01-A"},
+		{Number: 2, Title: "Microsprint: " + today + "-A"},
+		{Number: 3, Title: "Other Issue"},
+	}
+
+	result := findActiveMicrosprintForCreate(issues)
+	if result == nil {
+		t.Fatal("Expected to find active microsprint")
+	}
+	if result.Number != 2 {
+		t.Errorf("Expected issue #2, got #%d", result.Number)
+	}
+}
+
+func TestFindActiveMicrosprintForCreate_NoActiveToday(t *testing.T) {
+	issues := []api.Issue{
+		{Number: 1, Title: "Microsprint: 2024-01-01-A"},
+		{Number: 2, Title: "Microsprint: 2024-01-02-B"},
+		{Number: 3, Title: "Other Issue"},
+	}
+
+	result := findActiveMicrosprintForCreate(issues)
+	if result != nil {
+		t.Errorf("Expected nil for no active microsprint today, got #%d", result.Number)
+	}
+}
+
+func TestFindActiveMicrosprintForCreate_EmptyIssues(t *testing.T) {
+	var issues []api.Issue
+
+	result := findActiveMicrosprintForCreate(issues)
+	if result != nil {
+		t.Error("Expected nil for empty issues slice")
+	}
+}
+
+func TestFindActiveMicrosprintForCreate_ReturnsFirstMatch(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	issues := []api.Issue{
+		{Number: 1, Title: "Microsprint: " + today + "-A"},
+		{Number: 2, Title: "Microsprint: " + today + "-B"},
+	}
+
+	result := findActiveMicrosprintForCreate(issues)
+	if result == nil {
+		t.Fatal("Expected to find active microsprint")
+	}
+	if result.Number != 1 {
+		t.Errorf("Expected first match (issue #1), got #%d", result.Number)
+	}
+}
+
+func TestFindActiveMicrosprintForCreate_ExactPrefixMatch(t *testing.T) {
+	today := time.Now().Format("2006-01-02")
+	issues := []api.Issue{
+		{Number: 1, Title: "Microsprint: " + today},       // Missing suffix
+		{Number: 2, Title: "Microsprint: " + today + "-"}, // Has proper prefix
+	}
+
+	result := findActiveMicrosprintForCreate(issues)
+	// The function looks for prefix "Microsprint: " + today + "-"
+	// So issue #1 should NOT match, issue #2 SHOULD match
+	if result == nil {
+		t.Fatal("Expected to find active microsprint")
+	}
+	if result.Number != 2 {
+		t.Errorf("Expected issue #2 with proper prefix, got #%d", result.Number)
+	}
+}
+
+// ============================================================================
+// findActiveReleaseForCreate Tests
+// ============================================================================
+
+func TestFindActiveReleaseForCreate_FindsActiveRelease(t *testing.T) {
+	issues := []api.Issue{
+		{Number: 1, Title: "Bug: Something"},
+		{Number: 2, Title: "Release: v1.0.0"},
+		{Number: 3, Title: "Feature: New thing"},
+	}
+
+	result := findActiveReleaseForCreate(issues)
+	if result == nil {
+		t.Fatal("Expected to find active release")
+	}
+	if result.Number != 2 {
+		t.Errorf("Expected issue #2, got #%d", result.Number)
+	}
+}
+
+func TestFindActiveReleaseForCreate_NoActiveRelease(t *testing.T) {
+	issues := []api.Issue{
+		{Number: 1, Title: "Bug: Something"},
+		{Number: 2, Title: "Feature: New thing"},
+	}
+
+	result := findActiveReleaseForCreate(issues)
+	if result != nil {
+		t.Errorf("Expected nil for no active release, got #%d", result.Number)
+	}
+}
+
+func TestFindActiveReleaseForCreate_EmptyIssues(t *testing.T) {
+	var issues []api.Issue
+
+	result := findActiveReleaseForCreate(issues)
+	if result != nil {
+		t.Error("Expected nil for empty issues slice")
+	}
+}
+
+func TestFindActiveReleaseForCreate_ReturnsFirstMatch(t *testing.T) {
+	issues := []api.Issue{
+		{Number: 1, Title: "Release: v1.0.0"},
+		{Number: 2, Title: "Release: v2.0.0"},
+	}
+
+	result := findActiveReleaseForCreate(issues)
+	if result == nil {
+		t.Fatal("Expected to find active release")
+	}
+	if result.Number != 1 {
+		t.Errorf("Expected first match (issue #1), got #%d", result.Number)
+	}
+}
+
+func TestFindActiveReleaseForCreate_ExactPrefixMatch(t *testing.T) {
+	issues := []api.Issue{
+		{Number: 1, Title: "ReleaseNotes: v1.0.0"}, // Not a release
+		{Number: 2, Title: "Release: v2.0.0"},      // Correct prefix
+	}
+
+	result := findActiveReleaseForCreate(issues)
+	if result == nil {
+		t.Fatal("Expected to find active release")
+	}
+	if result.Number != 2 {
+		t.Errorf("Expected issue #2 with correct prefix, got #%d", result.Number)
+	}
+}
+
+// ============================================================================
+// decodeBase64Content Tests
+// ============================================================================
+
+func TestDecodeBase64Content_ValidBase64(t *testing.T) {
+	// "Hello, World!" encoded in base64
+	encoded := "SGVsbG8sIFdvcmxkIQ=="
+	result, err := decodeBase64Content(encoded)
+	if err != nil {
+		t.Fatalf("decodeBase64Content failed: %v", err)
+	}
+	if result != "Hello, World!" {
+		t.Errorf("Expected 'Hello, World!', got %q", result)
+	}
+}
+
+func TestDecodeBase64Content_WithNewlines(t *testing.T) {
+	// GitHub API includes newlines in base64 content
+	encoded := "SGVs\nbG8s\nIFdv\ncmxk\nIQ=="
+	result, err := decodeBase64Content(encoded)
+	if err != nil {
+		t.Fatalf("decodeBase64Content failed: %v", err)
+	}
+	if result != "Hello, World!" {
+		t.Errorf("Expected 'Hello, World!', got %q", result)
+	}
+}
+
+func TestDecodeBase64Content_EmptyString(t *testing.T) {
+	result, err := decodeBase64Content("")
+	if err != nil {
+		t.Fatalf("decodeBase64Content failed: %v", err)
+	}
+	if result != "" {
+		t.Errorf("Expected empty string, got %q", result)
+	}
+}
+
+func TestDecodeBase64Content_InvalidBase64(t *testing.T) {
+	// Invalid base64 characters
+	encoded := "This is not valid base64!!!"
+	_, err := decodeBase64Content(encoded)
+	if err == nil {
+		t.Error("Expected error for invalid base64")
+	}
+}
+
+func TestDecodeBase64Content_MultilineContent(t *testing.T) {
+	// Multi-line markdown content
+	content := "## Title\n\nParagraph text.\n\n- Item 1\n- Item 2"
+	encoded := "IyMgVGl0bGUKClBhcmFncmFwaCB0ZXh0LgoKLSBJdGVtIDEKLSBJdGVtIDI="
+	result, err := decodeBase64Content(encoded)
+	if err != nil {
+		t.Fatalf("decodeBase64Content failed: %v", err)
+	}
+	if result != content {
+		t.Errorf("Expected:\n%q\n\nGot:\n%q", content, result)
+	}
+}
+
+// ============================================================================
+// runCreateFromFile Tests
+// ============================================================================
+
+func TestRunCreateFromFile_YAMLParsing(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create YAML issue file
+	yamlContent := `
+title: "Test Issue from YAML"
+body: "This is the body from YAML file"
+labels:
+  - bug
+  - urgent
+status: "backlog"
+priority: "p1"
+`
+	yamlFile := filepath.Join(dir, "issue.yaml")
+	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"create", "--from-file", yamlFile})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT: Should reach API call phase (past file parsing)
+	if err == nil {
+		t.Skip("Skipping: API call succeeded (authenticated environment)")
+	}
+
+	// Verify we didn't get a YAML parsing error
+	errStr := err.Error()
+	if strings.Contains(errStr, "failed to parse YAML") {
+		t.Errorf("Expected to successfully parse YAML, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_JSONParsing(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create JSON issue file
+	jsonContent := `{
+  "title": "Test Issue from JSON",
+  "body": "This is the body from JSON file",
+  "labels": ["bug", "urgent"],
+  "status": "backlog",
+  "priority": "p1"
+}`
+	jsonFile := filepath.Join(dir, "issue.json")
+	if err := os.WriteFile(jsonFile, []byte(jsonContent), 0644); err != nil {
+		t.Fatalf("Failed to write JSON file: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"create", "--from-file", jsonFile})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT: Should reach API call phase (past file parsing)
+	if err == nil {
+		t.Skip("Skipping: API call succeeded (authenticated environment)")
+	}
+
+	// Verify we didn't get a JSON parsing error
+	errStr := err.Error()
+	if strings.Contains(errStr, "failed to parse JSON") {
+		t.Errorf("Expected to successfully parse JSON, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_MissingTitleError(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create YAML issue file WITHOUT title
+	yamlContent := `
+body: "This is the body but no title"
+labels:
+  - bug
+`
+	yamlFile := filepath.Join(dir, "issue-no-title.yaml")
+	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"create", "--from-file", yamlFile})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for missing title in file")
+	}
+	if !strings.Contains(err.Error(), "title is required in file") {
+		t.Errorf("Expected 'title is required in file' error, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_CLIFlagOverrides(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create YAML issue file with values
+	yamlContent := `
+title: "Title from file"
+body: "Body from file"
+status: "backlog"
+priority: "p2"
+`
+	yamlFile := filepath.Join(dir, "issue.yaml")
+	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	// Use CLI flags to override
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"create",
+		"--from-file", yamlFile,
+		"--body", "Body from CLI override",
+		"--status", "in_progress",
+		"--priority", "p1",
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT: Should reach API call phase (past file parsing and merging)
+	if err == nil {
+		t.Skip("Skipping: API call succeeded (authenticated environment)")
+	}
+
+	// Verify we didn't get a parsing or merge error
+	errStr := err.Error()
+	if strings.Contains(errStr, "failed to parse") || strings.Contains(errStr, "title is required") {
+		t.Errorf("Expected to pass parsing and merge phase, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_FileNotFound(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"create", "--from-file", "nonexistent.yaml"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "failed to read file") {
+		t.Errorf("Expected 'failed to read file' error, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_InvalidYAML(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create invalid YAML file
+	invalidYAML := `
+title: "Test Issue"
+body: this is invalid yaml because
+  of: bad indentation
+    that: doesn't work
+`
+	yamlFile := filepath.Join(dir, "invalid.yaml")
+	if err := os.WriteFile(yamlFile, []byte(invalidYAML), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"create", "--from-file", yamlFile})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for invalid YAML")
+	}
+	if !strings.Contains(err.Error(), "failed to parse YAML") {
+		t.Errorf("Expected 'failed to parse YAML' error, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_InvalidJSON(t *testing.T) {
+	// ARRANGE: Create config
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create invalid JSON file
+	invalidJSON := `{
+  "title": "Test Issue",
+  "body": "Missing closing brace"
+`
+	jsonFile := filepath.Join(dir, "invalid.json")
+	if err := os.WriteFile(jsonFile, []byte(invalidJSON), 0644); err != nil {
+		t.Fatalf("Failed to write JSON file: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"create", "--from-file", jsonFile})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse JSON") {
+		t.Errorf("Expected 'failed to parse JSON' error, got: %v", err)
+	}
+}
+
+func TestRunCreateFromFile_LabelsFromFileAndCLI(t *testing.T) {
+	// ARRANGE: Create config with default labels
+	configContent := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+defaults:
+  labels:
+    - "default-label"
+`
+	dir := createTempConfig(t, configContent)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create YAML with labels
+	yamlContent := `
+title: "Test Issue"
+labels:
+  - "file-label"
+`
+	yamlFile := filepath.Join(dir, "issue.yaml")
+	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write YAML file: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"create",
+		"--from-file", yamlFile,
+		"--label", "cli-label",
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// ACT
+	err := cmd.Execute()
+
+	// ASSERT: Should reach API call phase (labels should be merged)
+	if err == nil {
+		t.Skip("Skipping: API call succeeded (authenticated environment)")
+	}
+
+	// Verify we didn't get a parsing error - labels should be merged correctly
+	errStr := err.Error()
+	if strings.Contains(errStr, "failed to parse") || strings.Contains(errStr, "title is required") {
+		t.Errorf("Expected to pass label merging phase, got: %v", err)
 	}
 }

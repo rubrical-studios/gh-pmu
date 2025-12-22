@@ -1,0 +1,12 @@
+gh-pmu - GitHub Project Management Utility
+
+Copyright (c) 2025 rubrical-studios
+
+This project builds upon and unifies functionality from the following
+open-source projects, both licensed under MIT:
+
+- gh-pm (https://github.com/yahsan2/gh-pm)
+  Copyright (c) 2024 yahsan2
+
+- gh-sub-issue (https://github.com/yahsan2/gh-sub-issue)
+  Copyright (c) 2024 yahsan2

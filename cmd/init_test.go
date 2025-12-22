@@ -690,3 +690,374 @@ func TestParseReleaseTitleForInit(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// extractReleaseVersionForInit Tests
+// ============================================================================
+
+func TestExtractReleaseVersionForInit_SimpleVersion(t *testing.T) {
+	tests := []struct {
+		title    string
+		expected string
+	}{
+		{"Release: v1.0.0", "v1.0.0"},
+		{"Release: v2.5.1", "v2.5.1"},
+		{"Release: 1.0.0", "1.0.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := extractReleaseVersionForInit(tt.title)
+			if result != tt.expected {
+				t.Errorf("extractReleaseVersionForInit(%q) = %q, want %q", tt.title, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractReleaseVersionForInit_WithCodename(t *testing.T) {
+	tests := []struct {
+		title    string
+		expected string
+	}{
+		{"Release: v1.0.0 (Phoenix)", "v1.0.0"},
+		{"Release: v2.5.1 (Alpha)", "v2.5.1"},
+		{"Release: 3.0.0 (Beta Release)", "3.0.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := extractReleaseVersionForInit(tt.title)
+			if result != tt.expected {
+				t.Errorf("extractReleaseVersionForInit(%q) = %q, want %q", tt.title, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractReleaseVersionForInit_TrackPrefix(t *testing.T) {
+	tests := []struct {
+		title    string
+		expected string
+	}{
+		{"Release: patch/v1.0.1", "patch/v1.0.1"},
+		{"Release: beta/v2.0.0-rc1", "beta/v2.0.0-rc1"},
+		{"Release: hotfix/1.0.2", "hotfix/1.0.2"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := extractReleaseVersionForInit(tt.title)
+			if result != tt.expected {
+				t.Errorf("extractReleaseVersionForInit(%q) = %q, want %q", tt.title, result, tt.expected)
+			}
+		})
+	}
+}
+
+// ============================================================================
+// mergeActiveReleases Tests
+// ============================================================================
+
+func TestMergeActiveReleases_EmptyBoth(t *testing.T) {
+	result := mergeActiveReleases(nil, nil)
+	if len(result) != 0 {
+		t.Errorf("Expected empty result, got %d items", len(result))
+	}
+}
+
+func TestMergeActiveReleases_EmptyExisting(t *testing.T) {
+	discovered := []ReleaseActiveEntry{
+		{Version: "1.0.0", TrackerIssue: 100, Track: "stable"},
+	}
+
+	result := mergeActiveReleases(nil, discovered)
+	if len(result) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(result))
+	}
+	if result[0].Version != "1.0.0" {
+		t.Errorf("Expected version 1.0.0, got %s", result[0].Version)
+	}
+}
+
+func TestMergeActiveReleases_EmptyDiscovered(t *testing.T) {
+	existing := []ReleaseActiveEntry{
+		{Version: "0.9.0", TrackerIssue: 50, Track: "stable"},
+	}
+
+	result := mergeActiveReleases(existing, nil)
+	if len(result) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(result))
+	}
+	if result[0].Version != "0.9.0" {
+		t.Errorf("Expected version 0.9.0, got %s", result[0].Version)
+	}
+}
+
+func TestMergeActiveReleases_NoDuplicates(t *testing.T) {
+	existing := []ReleaseActiveEntry{
+		{Version: "1.0.0", TrackerIssue: 100, Track: "stable"},
+	}
+	discovered := []ReleaseActiveEntry{
+		{Version: "1.0.0", TrackerIssue: 100, Track: "stable"},
+	}
+
+	result := mergeActiveReleases(existing, discovered)
+	if len(result) != 1 {
+		t.Errorf("Expected 1 item (no duplicates), got %d", len(result))
+	}
+}
+
+func TestMergeActiveReleases_MergesDifferentReleases(t *testing.T) {
+	existing := []ReleaseActiveEntry{
+		{Version: "0.9.0", TrackerIssue: 50, Track: "stable"},
+	}
+	discovered := []ReleaseActiveEntry{
+		{Version: "1.0.0", TrackerIssue: 100, Track: "stable"},
+	}
+
+	result := mergeActiveReleases(existing, discovered)
+	if len(result) != 2 {
+		t.Fatalf("Expected 2 items, got %d", len(result))
+	}
+
+	// Discovered should come first
+	if result[0].Version != "1.0.0" {
+		t.Errorf("Expected first item to be discovered (1.0.0), got %s", result[0].Version)
+	}
+	if result[1].Version != "0.9.0" {
+		t.Errorf("Expected second item to be existing (0.9.0), got %s", result[1].Version)
+	}
+}
+
+func TestMergeActiveReleases_DedupesByTrackerIssue(t *testing.T) {
+	// Same tracker issue, different versions (edge case - shouldn't happen in practice)
+	existing := []ReleaseActiveEntry{
+		{Version: "old-version", TrackerIssue: 100, Track: "stable"},
+	}
+	discovered := []ReleaseActiveEntry{
+		{Version: "new-version", TrackerIssue: 100, Track: "stable"},
+	}
+
+	result := mergeActiveReleases(existing, discovered)
+	// Should have 1 item (discovered takes precedence for same tracker issue)
+	if len(result) != 1 {
+		t.Errorf("Expected 1 item (deduped by tracker issue), got %d", len(result))
+	}
+	if result[0].Version != "new-version" {
+		t.Errorf("Expected discovered version to win, got %s", result[0].Version)
+	}
+}
+
+// ============================================================================
+// loadExistingConfigFull Tests
+// ============================================================================
+
+func TestLoadExistingConfigFull_ValidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a config file
+	configContent := `
+framework: IDPF
+project:
+  owner: test
+  number: 1
+release:
+  active:
+    - version: "1.0.0"
+      tracker_issue: 100
+      track: stable
+`
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// Load and verify
+	result, err := loadExistingConfigFull(tmpDir)
+	if err != nil {
+		t.Fatalf("loadExistingConfigFull failed: %v", err)
+	}
+
+	if result.Framework != "IDPF" {
+		t.Errorf("Expected framework 'IDPF', got %q", result.Framework)
+	}
+	if len(result.ActiveReleases) != 1 {
+		t.Fatalf("Expected 1 active release, got %d", len(result.ActiveReleases))
+	}
+	if result.ActiveReleases[0].Version != "1.0.0" {
+		t.Errorf("Expected version '1.0.0', got %q", result.ActiveReleases[0].Version)
+	}
+}
+
+func TestLoadExistingConfigFull_NoActiveReleases(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	configContent := `
+framework: none
+project:
+  owner: test
+  number: 1
+`
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	result, err := loadExistingConfigFull(tmpDir)
+	if err != nil {
+		t.Fatalf("loadExistingConfigFull failed: %v", err)
+	}
+
+	if result.Framework != "none" {
+		t.Errorf("Expected framework 'none', got %q", result.Framework)
+	}
+	if len(result.ActiveReleases) != 0 {
+		t.Errorf("Expected 0 active releases, got %d", len(result.ActiveReleases))
+	}
+}
+
+func TestLoadExistingConfigFull_FileNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Don't create any config file
+
+	_, err := loadExistingConfigFull(tmpDir)
+	if err == nil {
+		t.Error("Expected error for missing config file")
+	}
+}
+
+func TestLoadExistingConfigFull_InvalidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	configContent := `
+not valid: yaml:
+  - bad indent
+    really bad
+`
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	_, err := loadExistingConfigFull(tmpDir)
+	if err == nil {
+		t.Error("Expected error for invalid YAML")
+	}
+}
+
+// ============================================================================
+// isRepoRoot Tests
+// ============================================================================
+
+func TestIsRepoRoot_WithGoMod(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a go.mod file
+	goModPath := filepath.Join(tmpDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte("module test"), 0644); err != nil {
+		t.Fatalf("Failed to create go.mod: %v", err)
+	}
+
+	result := isRepoRoot(tmpDir)
+	if !result {
+		t.Error("Expected isRepoRoot to return true when go.mod exists")
+	}
+}
+
+func TestIsRepoRoot_WithoutGoMod(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	result := isRepoRoot(tmpDir)
+	if result {
+		t.Error("Expected isRepoRoot to return false when go.mod doesn't exist")
+	}
+}
+
+func TestIsRepoRoot_InvalidPath(t *testing.T) {
+	result := isRepoRoot("/nonexistent/path/12345")
+	if result {
+		t.Error("Expected isRepoRoot to return false for invalid path")
+	}
+}
+
+// ============================================================================
+// SetRepoRootProtection Tests
+// ============================================================================
+
+func TestSetRepoRootProtection_EnablesProtection(t *testing.T) {
+	// Reset protection state after test
+	defer SetRepoRootProtection(false)
+
+	SetRepoRootProtection(true)
+
+	tmpDir := t.TempDir()
+	// Create go.mod to simulate repo root
+	goModPath := filepath.Join(tmpDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte("module test"), 0644); err != nil {
+		t.Fatalf("Failed to create go.mod: %v", err)
+	}
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+
+	err := writeConfig(tmpDir, cfg)
+	if err != ErrRepoRootProtected {
+		t.Errorf("Expected ErrRepoRootProtected, got: %v", err)
+	}
+}
+
+func TestSetRepoRootProtection_DisabledAllowsWrite(t *testing.T) {
+	SetRepoRootProtection(false)
+
+	tmpDir := t.TempDir()
+	// Create go.mod to simulate repo root
+	goModPath := filepath.Join(tmpDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte("module test"), 0644); err != nil {
+		t.Fatalf("Failed to create go.mod: %v", err)
+	}
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+
+	err := writeConfig(tmpDir, cfg)
+	if err != nil {
+		t.Errorf("Expected write to succeed with protection disabled, got: %v", err)
+	}
+}
+
+func TestWriteConfigWithMetadata_RepoRootProtection(t *testing.T) {
+	// Reset protection state after test
+	defer SetRepoRootProtection(false)
+
+	SetRepoRootProtection(true)
+
+	tmpDir := t.TempDir()
+	// Create go.mod to simulate repo root
+	goModPath := filepath.Join(tmpDir, "go.mod")
+	if err := os.WriteFile(goModPath, []byte("module test"), 0644); err != nil {
+		t.Fatalf("Failed to create go.mod: %v", err)
+	}
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields:    []FieldMetadata{},
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata, nil)
+	if err != ErrRepoRootProtected {
+		t.Errorf("Expected ErrRepoRootProtected, got: %v", err)
+	}
+}

@@ -1505,3 +1505,165 @@ func TestCalculateNextVersions(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Command Flag Existence Tests
+// =============================================================================
+
+func TestReleaseStartCommand_HasBranchFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	startCmd, _, err := cmd.Find([]string{"release", "start"})
+	if err != nil {
+		t.Fatalf("release start command not found: %v", err)
+	}
+
+	flag := startCmd.Flags().Lookup("branch")
+	if flag == nil {
+		t.Fatal("Expected --branch flag to exist")
+	}
+}
+
+func TestReleaseCloseCommand_Flags(t *testing.T) {
+	cmd := NewRootCommand()
+	closeCmd, _, err := cmd.Find([]string{"release", "close"})
+	if err != nil {
+		t.Fatalf("release close command not found: %v", err)
+	}
+
+	tests := []struct {
+		flag      string
+		shorthand string
+	}{
+		{"yes", "y"},
+		{"tag", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.flag, func(t *testing.T) {
+			flag := closeCmd.Flags().Lookup(tt.flag)
+			if flag == nil {
+				t.Fatalf("Expected --%s flag to exist", tt.flag)
+			}
+			if tt.shorthand != "" && flag.Shorthand != tt.shorthand {
+				t.Errorf("Expected --%s shorthand to be '%s', got '%s'", tt.flag, tt.shorthand, flag.Shorthand)
+			}
+		})
+	}
+}
+
+func TestReleaseCurrentCommand_HasRefreshFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	currentCmd, _, err := cmd.Find([]string{"release", "current"})
+	if err != nil {
+		t.Fatalf("release current command not found: %v", err)
+	}
+
+	flag := currentCmd.Flags().Lookup("refresh")
+	if flag == nil {
+		t.Fatal("Expected --refresh flag to exist")
+	}
+}
+
+func TestReleaseAddCommand_Structure(t *testing.T) {
+	cmd := NewRootCommand()
+	addCmd, _, err := cmd.Find([]string{"release", "add"})
+	if err != nil {
+		t.Fatalf("release add command not found: %v", err)
+	}
+
+	if addCmd.Use != "add <issue-number>" {
+		t.Errorf("Expected Use 'add <issue-number>', got %s", addCmd.Use)
+	}
+
+	// Requires exactly 1 argument
+	if err := addCmd.Args(addCmd, []string{}); err == nil {
+		t.Error("Expected error when no arguments provided")
+	}
+	if err := addCmd.Args(addCmd, []string{"123"}); err != nil {
+		t.Errorf("Unexpected error with one argument: %v", err)
+	}
+}
+
+func TestReleaseRemoveCommand_Structure(t *testing.T) {
+	cmd := NewRootCommand()
+	removeCmd, _, err := cmd.Find([]string{"release", "remove"})
+	if err != nil {
+		t.Fatalf("release remove command not found: %v", err)
+	}
+
+	if removeCmd.Use != "remove <issue-number>" {
+		t.Errorf("Expected Use 'remove <issue-number>', got %s", removeCmd.Use)
+	}
+
+	// Requires exactly 1 argument
+	if err := removeCmd.Args(removeCmd, []string{}); err == nil {
+		t.Error("Expected error when no arguments provided")
+	}
+	if err := removeCmd.Args(removeCmd, []string{"123"}); err != nil {
+		t.Errorf("Unexpected error with one argument: %v", err)
+	}
+}
+
+func TestReleaseListCommand_Structure(t *testing.T) {
+	cmd := NewRootCommand()
+	listCmd, _, err := cmd.Find([]string{"release", "list"})
+	if err != nil {
+		t.Fatalf("release list command not found: %v", err)
+	}
+
+	if listCmd.Use != "list" {
+		t.Errorf("Expected Use 'list', got %s", listCmd.Use)
+	}
+
+	if listCmd.Short == "" {
+		t.Error("Expected Short description to be set")
+	}
+}
+
+func TestReleaseReopenCommand_Structure(t *testing.T) {
+	cmd := NewRootCommand()
+	reopenCmd, _, err := cmd.Find([]string{"release", "reopen"})
+	if err != nil {
+		t.Fatalf("release reopen command not found: %v", err)
+	}
+
+	if reopenCmd.Use != "reopen <release-name>" {
+		t.Errorf("Expected Use 'reopen <release-name>', got %s", reopenCmd.Use)
+	}
+
+	// Requires exactly 1 argument
+	if err := reopenCmd.Args(reopenCmd, []string{}); err == nil {
+		t.Error("Expected error when no arguments provided")
+	}
+	if err := reopenCmd.Args(reopenCmd, []string{"release/v1.0.0"}); err != nil {
+		t.Errorf("Unexpected error with one argument: %v", err)
+	}
+}
+
+func TestCompareVersions_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		a        string
+		b        string
+		expected int
+	}{
+		{"equal", "v1.0.0", "v1.0.0", 0},
+		{"a greater major", "v2.0.0", "v1.0.0", 1},
+		{"b greater major", "v1.0.0", "v2.0.0", -1},
+		{"a greater minor", "v1.2.0", "v1.1.0", 1},
+		{"b greater minor", "v1.1.0", "v1.2.0", -1},
+		{"a greater patch", "v1.0.2", "v1.0.1", 1},
+		{"b greater patch", "v1.0.1", "v1.0.2", -1},
+		{"without prefix", "1.0.0", "1.0.0", 0},
+		{"mixed prefix", "v1.0.0", "1.0.0", 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareVersions(tt.a, tt.b)
+			if result != tt.expected {
+				t.Errorf("compareVersions(%q, %q) = %d, want %d", tt.a, tt.b, result, tt.expected)
+			}
+		})
+	}
+}
