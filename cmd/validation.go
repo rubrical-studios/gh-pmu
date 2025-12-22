@@ -179,21 +179,95 @@ func isBodyEmpty(body string) bool {
 	return strings.TrimSpace(body) == ""
 }
 
-// countUncheckedBoxes counts the number of unchecked checkboxes in the body
+// stripCodeBlocks removes content inside fenced code blocks (``` or ~~~) and
+// indented code blocks (4 spaces or tab) from the body. This prevents example
+// checkboxes in code blocks from being counted as acceptance criteria.
+func stripCodeBlocks(body string) string {
+	lines := strings.Split(body, "\n")
+	var filteredLines []string
+	inFencedCodeBlock := false
+	fenceChar := ""
+	inIndentedCodeBlock := false
+
+	for i, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		// Check for fenced code block start/end (``` or ~~~)
+		if strings.HasPrefix(trimmedLine, "```") || strings.HasPrefix(trimmedLine, "~~~") {
+			currentFence := trimmedLine[:3]
+			if !inFencedCodeBlock {
+				// Starting a fenced code block
+				inFencedCodeBlock = true
+				fenceChar = currentFence
+				continue // Skip the opening fence line
+			} else if currentFence == fenceChar {
+				// Ending a fenced code block (matching fence)
+				inFencedCodeBlock = false
+				fenceChar = ""
+				continue // Skip the closing fence line
+			}
+			// Different fence inside a code block - just skip it
+			continue
+		}
+
+		// Skip content inside fenced code blocks
+		if inFencedCodeBlock {
+			continue
+		}
+
+		// Check for indented code block (4+ spaces or tab at start)
+		// But not if it's a list item (- [ ] or - [x] pattern)
+		isIndentedCode := (strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t")) &&
+			!strings.Contains(line, "- [ ]") && !strings.Contains(line, "- [x]")
+
+		// Check if previous line was blank (indented code blocks are preceded by blank line)
+		prevLineBlank := i == 0 || strings.TrimSpace(lines[i-1]) == ""
+
+		if isIndentedCode && (inIndentedCodeBlock || prevLineBlank) {
+			inIndentedCodeBlock = true
+			continue // Skip this line (it's part of an indented code block)
+		} else if trimmedLine == "" && inIndentedCodeBlock {
+			// Blank line might end the code block, but keep checking
+			continue
+		} else {
+			inIndentedCodeBlock = false
+			filteredLines = append(filteredLines, line)
+		}
+	}
+
+	return strings.Join(filteredLines, "\n")
+}
+
+// countUncheckedBoxes counts the number of unchecked checkboxes in the body,
+// excluding checkboxes inside code blocks (which are examples, not criteria).
 func countUncheckedBoxes(body string) int {
-	return len(uncheckedBoxRegex.FindAllString(body, -1))
+	strippedBody := stripCodeBlocks(body)
+	return len(uncheckedBoxRegex.FindAllString(strippedBody, -1))
 }
 
-// countCheckedBoxes counts the number of checked checkboxes in the body
+// countCheckedBoxes counts the number of checked checkboxes in the body,
+// excluding checkboxes inside code blocks.
 func countCheckedBoxes(body string) int {
-	return len(checkedBoxRegex.FindAllString(body, -1))
+	strippedBody := stripCodeBlocks(body)
+	return len(checkedBoxRegex.FindAllString(strippedBody, -1))
 }
 
-// getUncheckedItems extracts the text of all unchecked checkbox items
+// countCodeBlockCheckboxes counts checkboxes inside code blocks (for informational messages).
+// Returns the count of both checked and unchecked checkboxes found in code blocks.
+func countCodeBlockCheckboxes(body string) int {
+	totalBefore := len(uncheckedBoxRegex.FindAllString(body, -1)) + len(checkedBoxRegex.FindAllString(body, -1))
+	strippedBody := stripCodeBlocks(body)
+	totalAfter := len(uncheckedBoxRegex.FindAllString(strippedBody, -1)) + len(checkedBoxRegex.FindAllString(strippedBody, -1))
+	return totalBefore - totalAfter
+}
+
+// getUncheckedItems extracts the text of all unchecked checkbox items,
+// excluding checkboxes inside code blocks.
 func getUncheckedItems(body string) []string {
+	strippedBody := stripCodeBlocks(body)
 	// Match unchecked checkboxes with their text content
 	uncheckedItemRegex := regexp.MustCompile(`- \[ \] (.+)`)
-	matches := uncheckedItemRegex.FindAllStringSubmatch(body, -1)
+	matches := uncheckedItemRegex.FindAllStringSubmatch(strippedBody, -1)
 
 	var items []string
 	for _, match := range matches {
