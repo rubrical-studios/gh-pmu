@@ -33,6 +33,8 @@ release:
         - version: 0.9.0
           tracker_issue: 432
           track: release
+    coverage:
+        threshold: 70
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX

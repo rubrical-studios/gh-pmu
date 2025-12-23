@@ -1470,6 +1470,169 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 	}
 }
 
+// Test release list uses cache when available
+func TestRunReleaseListWithDeps_UsesCache(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	// API should NOT be called since we have cache
+	mock.getOpenIssuesErr = errors.New("should not be called")
+	mock.getClosedIssuesErr = errors.New("should not be called")
+
+	cfg := testReleaseConfig()
+	// Add cached data
+	cfg.Cache = &config.Cache{
+		Releases: []config.CachedTracker{
+			{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
+			{Number: 200, Title: "Release: v2.0.0 (Phoenix)", State: "OPEN"},
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestReleaseCmd()
+	opts := &releaseListOptions{refresh: false}
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "v1.0.0") {
+		t.Errorf("Expected output to contain 'v1.0.0' from cache, got '%s'", output)
+	}
+	if !strings.Contains(output, "v2.0.0") {
+		t.Errorf("Expected output to contain 'v2.0.0' from cache, got '%s'", output)
+	}
+	if !strings.Contains(output, "Phoenix") {
+		t.Errorf("Expected output to contain 'Phoenix' codename from cache, got '%s'", output)
+	}
+}
+
+// Test release list with --refresh flag bypasses cache
+func TestRunReleaseListWithDeps_RefreshBypassesCache(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_300", Number: 300, Title: "Release: v3.0.0", State: "OPEN"},
+	}
+	mock.closedIssues = []api.Issue{}
+
+	cfg := testReleaseConfig()
+	// Add stale cached data
+	cfg.Cache = &config.Cache{
+		Releases: []config.CachedTracker{
+			{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestReleaseCmd()
+	opts := &releaseListOptions{refresh: true} // Force refresh
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	// Should contain fresh API data, not stale cache
+	if !strings.Contains(output, "v3.0.0") {
+		t.Errorf("Expected output to contain 'v3.0.0' from API, got '%s'", output)
+	}
+}
+
+// Test release list API error handling
+func TestRunReleaseListWithDeps_OpenIssuesError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.getOpenIssuesErr = errors.New("API error")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseListOptions{}
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get open releases") {
+		t.Errorf("Expected error about open releases, got: %v", err)
+	}
+}
+
+func TestRunReleaseListWithDeps_ClosedIssuesError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{}
+	mock.getClosedIssuesErr = errors.New("API error")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseListOptions{}
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get closed releases") {
+		t.Errorf("Expected error about closed releases, got: %v", err)
+	}
+}
+
+// Test releasesFromCache helper function
+func TestReleasesFromCache(t *testing.T) {
+	cached := []config.CachedTracker{
+		{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
+		{Number: 200, Title: "Release: v2.0.0 (Phoenix)", State: "OPEN"},
+		{Number: 300, Title: "Not a release", State: "OPEN"}, // Should be filtered out
+	}
+
+	releases := releasesFromCache(cached)
+
+	if len(releases) != 2 {
+		t.Fatalf("Expected 2 releases, got %d", len(releases))
+	}
+
+	// Check first release
+	if releases[0].version != "v1.0.0" {
+		t.Errorf("Expected version 'v1.0.0', got '%s'", releases[0].version)
+	}
+	if releases[0].status != "Released" {
+		t.Errorf("Expected status 'Released' for CLOSED, got '%s'", releases[0].status)
+	}
+
+	// Check second release
+	if releases[1].version != "v2.0.0" {
+		t.Errorf("Expected version 'v2.0.0', got '%s'", releases[1].version)
+	}
+	if releases[1].codename != "Phoenix" {
+		t.Errorf("Expected codename 'Phoenix', got '%s'", releases[1].codename)
+	}
+	if releases[1].status != "Active" {
+		t.Errorf("Expected status 'Active' for OPEN, got '%s'", releases[1].status)
+	}
+}
+
 // ============================================================================
 // runReleaseReopenWithDeps Tests
 // ============================================================================
