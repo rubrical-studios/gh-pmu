@@ -554,6 +554,7 @@ gh pmu microsprint close --commit        # Auto-commit artifacts
 
 # List microsprint history
 gh pmu microsprint list
+gh pmu microsprint list --refresh    # Force API fetch, update cache
 
 # Resolve multiple active microsprints
 gh pmu microsprint resolve
@@ -589,6 +590,7 @@ gh pmu release close
 
 # List release history
 gh pmu release list
+gh pmu release list --refresh         # Force API fetch, update cache
 ```
 
 **Notes:**

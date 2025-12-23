@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-12-23
+
+### Added
+- Local caching for `release list` and `microsprint list` commands (#434)
+  - Cached data stored in `.gh-pmu.yml` under `cache:` section
+  - Cache automatically updated on `start`, `close`, `reopen` commands
+  - Use `--refresh` flag to force API fetch and update cache
+  - ~6x performance improvement (~118ms cached vs ~780ms uncached)
+- Coverage gate for `/prepare-release` workflow
+  - Analyzes patch coverage against changed lines since last tag
+  - Configurable threshold in `.gh-pmu.yml` under `release.coverage.threshold`
+
+### Fixed
+- Test isolation to prevent `.gh-pmu.yml` corruption (#436)
+  - All tests that call `cfg.Save()` now use isolated temp directories
+  - Added canary test to detect future isolation failures
+
 ## [0.8.6] - 2025-12-22
 
 ### Fixed

@@ -158,6 +158,30 @@ release:
 - Active releases are synced from tracker issues during init
 - Track prefix controls artifact directory naming (e.g., `main-v1.2.0/` vs `v1.2.0/`)
 
+### Cache (Auto-managed)
+
+The `cache:` section stores tracker data for faster `list` commands:
+
+```yaml
+cache:
+  releases:
+    - number: 100
+      title: "Release: v1.0.0"
+      state: CLOSED
+    - number: 200
+      title: "Release: v2.0.0"
+      state: OPEN
+  microsprints:
+    - number: 50
+      title: "Microsprint: 2025-12-23-a"
+      state: OPEN
+```
+
+**Notes:**
+- Cache is automatically updated on `start`, `close`, and `reopen` commands
+- Use `--refresh` flag with `release list` or `microsprint list` to force API fetch
+- Provides ~6x performance improvement for list operations
+
 ### Validation Rules
 
 Configure status transition validation to enforce workflow progressions:
