@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -1356,5 +1357,491 @@ func TestEnsureGitignore_RecognizesTmpWithoutSlash(t *testing.T) {
 	content := string(data)
 	if content != "tmp\n" {
 		t.Errorf("Expected .gitignore to remain unchanged, got '%s'", content)
+	}
+}
+
+// ============================================================================
+// Coverage Configuration Tests
+// ============================================================================
+
+func TestIsCoverageGateEnabled_DefaultsToTrue(t *testing.T) {
+	// ARRANGE: Config with no coverage section
+	cfg := &Config{}
+
+	// ACT & ASSERT: Should default to true
+	if !cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be enabled by default")
+	}
+}
+
+func TestIsCoverageGateEnabled_WithNilEnabled(t *testing.T) {
+	// ARRANGE: Config with coverage section but nil Enabled
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Threshold: 85,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should default to true when Enabled is nil
+	if !cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be enabled when Enabled is nil")
+	}
+}
+
+func TestIsCoverageGateEnabled_ExplicitlyDisabled(t *testing.T) {
+	// ARRANGE: Config with coverage explicitly disabled
+	enabled := false
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Enabled: &enabled,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should be disabled
+	if cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be disabled")
+	}
+}
+
+func TestIsCoverageGateEnabled_ExplicitlyEnabled(t *testing.T) {
+	// ARRANGE: Config with coverage explicitly enabled
+	enabled := true
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Enabled: &enabled,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should be enabled
+	if !cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be enabled")
+	}
+}
+
+func TestGetCoverageThreshold_DefaultsTo80(t *testing.T) {
+	// ARRANGE: Config with no coverage section
+	cfg := &Config{}
+
+	// ACT & ASSERT: Should default to 80
+	if threshold := cfg.GetCoverageThreshold(); threshold != 80 {
+		t.Errorf("Expected default threshold 80, got %d", threshold)
+	}
+}
+
+func TestGetCoverageThreshold_WithZeroValue(t *testing.T) {
+	// ARRANGE: Config with coverage section but zero threshold
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Threshold: 0,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should default to 80 when threshold is 0
+	if threshold := cfg.GetCoverageThreshold(); threshold != 80 {
+		t.Errorf("Expected default threshold 80, got %d", threshold)
+	}
+}
+
+func TestGetCoverageThreshold_CustomValue(t *testing.T) {
+	// ARRANGE: Config with custom threshold
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Threshold: 90,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should return custom value
+	if threshold := cfg.GetCoverageThreshold(); threshold != 90 {
+		t.Errorf("Expected threshold 90, got %d", threshold)
+	}
+}
+
+func TestGetCoverageSkipPatterns_DefaultPatterns(t *testing.T) {
+	// ARRANGE: Config with no coverage section
+	cfg := &Config{}
+
+	// ACT
+	patterns := cfg.GetCoverageSkipPatterns()
+
+	// ASSERT: Should return default patterns
+	if len(patterns) != 2 {
+		t.Errorf("Expected 2 default patterns, got %d", len(patterns))
+	}
+	if patterns[0] != "*_test.go" {
+		t.Errorf("Expected first pattern '*_test.go', got '%s'", patterns[0])
+	}
+	if patterns[1] != "mock_*.go" {
+		t.Errorf("Expected second pattern 'mock_*.go', got '%s'", patterns[1])
+	}
+}
+
+func TestGetCoverageSkipPatterns_EmptyPatterns(t *testing.T) {
+	// ARRANGE: Config with coverage section but empty patterns
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				SkipPatterns: []string{},
+			},
+		},
+	}
+
+	// ACT
+	patterns := cfg.GetCoverageSkipPatterns()
+
+	// ASSERT: Should return default patterns when empty
+	if len(patterns) != 2 {
+		t.Errorf("Expected 2 default patterns, got %d", len(patterns))
+	}
+}
+
+func TestGetCoverageSkipPatterns_CustomPatterns(t *testing.T) {
+	// ARRANGE: Config with custom patterns
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				SkipPatterns: []string{"*_generated.go", "vendor/*"},
+			},
+		},
+	}
+
+	// ACT
+	patterns := cfg.GetCoverageSkipPatterns()
+
+	// ASSERT: Should return custom patterns
+	if len(patterns) != 2 {
+		t.Errorf("Expected 2 patterns, got %d", len(patterns))
+	}
+	if patterns[0] != "*_generated.go" {
+		t.Errorf("Expected first pattern '*_generated.go', got '%s'", patterns[0])
+	}
+	if patterns[1] != "vendor/*" {
+		t.Errorf("Expected second pattern 'vendor/*', got '%s'", patterns[1])
+	}
+}
+
+func TestCoverageConfig_YAMLParsing(t *testing.T) {
+	// ARRANGE: YAML config with coverage section
+	yamlContent := `project:
+  owner: test
+  number: 1
+repositories:
+  - test/repo
+release:
+  coverage:
+    enabled: false
+    threshold: 85
+    skip_patterns:
+      - "*_generated.go"
+      - "mock_*.go"
+`
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// ACT
+	cfg, err := Load(configPath)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	if cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be disabled")
+	}
+
+	if threshold := cfg.GetCoverageThreshold(); threshold != 85 {
+		t.Errorf("Expected threshold 85, got %d", threshold)
+	}
+
+	patterns := cfg.GetCoverageSkipPatterns()
+	if len(patterns) != 2 || patterns[0] != "*_generated.go" {
+		t.Errorf("Unexpected patterns: %v", patterns)
+	}
+}
+
+// TestHasCachedReleases tests the HasCachedReleases method
+func TestHasCachedReleases(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "nil cache",
+			cfg:      &Config{},
+			expected: false,
+		},
+		{
+			name:     "empty cache",
+			cfg:      &Config{Cache: &Cache{}},
+			expected: false,
+		},
+		{
+			name: "with cached releases",
+			cfg: &Config{
+				Cache: &Cache{
+					Releases: []CachedTracker{{Number: 1, Title: "Release: v1.0.0", State: "OPEN"}},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cfg.HasCachedReleases()
+			if result != tt.expected {
+				t.Errorf("HasCachedReleases() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestHasCachedMicrosprints tests the HasCachedMicrosprints method
+func TestHasCachedMicrosprints(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Config
+		expected bool
+	}{
+		{
+			name:     "nil cache",
+			cfg:      &Config{},
+			expected: false,
+		},
+		{
+			name:     "empty cache",
+			cfg:      &Config{Cache: &Cache{}},
+			expected: false,
+		},
+		{
+			name: "with cached microsprints",
+			cfg: &Config{
+				Cache: &Cache{
+					Microsprints: []CachedTracker{{Number: 1, Title: "Microsprint: 2025-12-23-a", State: "OPEN"}},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cfg.HasCachedMicrosprints()
+			if result != tt.expected {
+				t.Errorf("HasCachedMicrosprints() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSetCachedReleases tests the SetCachedReleases method
+func TestSetCachedReleases(t *testing.T) {
+	cfg := &Config{}
+	trackers := []CachedTracker{
+		{Number: 1, Title: "Release: v1.0.0", State: "OPEN"},
+		{Number: 2, Title: "Release: v0.9.0", State: "CLOSED"},
+	}
+
+	cfg.SetCachedReleases(trackers)
+
+	if cfg.Cache == nil {
+		t.Fatal("Expected Cache to be initialized")
+	}
+	if len(cfg.Cache.Releases) != 2 {
+		t.Errorf("Expected 2 cached releases, got %d", len(cfg.Cache.Releases))
+	}
+	if cfg.Cache.Releases[0].Number != 1 {
+		t.Errorf("Expected first release number 1, got %d", cfg.Cache.Releases[0].Number)
+	}
+}
+
+// TestSetCachedMicrosprints tests the SetCachedMicrosprints method
+func TestSetCachedMicrosprints(t *testing.T) {
+	cfg := &Config{}
+	trackers := []CachedTracker{
+		{Number: 10, Title: "Microsprint: 2025-12-23-a", State: "OPEN"},
+		{Number: 9, Title: "Microsprint: 2025-12-22-a", State: "CLOSED"},
+	}
+
+	cfg.SetCachedMicrosprints(trackers)
+
+	if cfg.Cache == nil {
+		t.Fatal("Expected Cache to be initialized")
+	}
+	if len(cfg.Cache.Microsprints) != 2 {
+		t.Errorf("Expected 2 cached microsprints, got %d", len(cfg.Cache.Microsprints))
+	}
+}
+
+// TestUpdateCachedTracker tests the UpdateCachedTracker method
+func TestUpdateCachedTracker(t *testing.T) {
+	t.Run("add new release tracker", func(t *testing.T) {
+		cfg := &Config{}
+		cfg.UpdateCachedTracker("release", CachedTracker{
+			Number: 1,
+			Title:  "Release: v1.0.0",
+			State:  "OPEN",
+		})
+
+		if cfg.Cache == nil {
+			t.Fatal("Expected Cache to be initialized")
+		}
+		if len(cfg.Cache.Releases) != 1 {
+			t.Errorf("Expected 1 cached release, got %d", len(cfg.Cache.Releases))
+		}
+	})
+
+	t.Run("update existing release tracker", func(t *testing.T) {
+		cfg := &Config{
+			Cache: &Cache{
+				Releases: []CachedTracker{
+					{Number: 1, Title: "Release: v1.0.0", State: "OPEN"},
+				},
+			},
+		}
+
+		cfg.UpdateCachedTracker("release", CachedTracker{
+			Number: 1,
+			Title:  "Release: v1.0.0",
+			State:  "CLOSED",
+		})
+
+		if len(cfg.Cache.Releases) != 1 {
+			t.Errorf("Expected 1 cached release, got %d", len(cfg.Cache.Releases))
+		}
+		if cfg.Cache.Releases[0].State != "CLOSED" {
+			t.Errorf("Expected state CLOSED, got %s", cfg.Cache.Releases[0].State)
+		}
+	})
+
+	t.Run("add new microsprint tracker", func(t *testing.T) {
+		cfg := &Config{}
+		cfg.UpdateCachedTracker("microsprint", CachedTracker{
+			Number: 10,
+			Title:  "Microsprint: 2025-12-23-a",
+			State:  "OPEN",
+		})
+
+		if cfg.Cache == nil {
+			t.Fatal("Expected Cache to be initialized")
+		}
+		if len(cfg.Cache.Microsprints) != 1 {
+			t.Errorf("Expected 1 cached microsprint, got %d", len(cfg.Cache.Microsprints))
+		}
+	})
+
+	t.Run("invalid tracker type ignored", func(t *testing.T) {
+		cfg := &Config{}
+		cfg.UpdateCachedTracker("invalid", CachedTracker{
+			Number: 1,
+			Title:  "Test",
+			State:  "OPEN",
+		})
+
+		if cfg.Cache != nil && (len(cfg.Cache.Releases) > 0 || len(cfg.Cache.Microsprints) > 0) {
+			t.Error("Expected no trackers to be added for invalid type")
+		}
+	})
+}
+
+// TestGetCachedReleases tests the GetCachedReleases method
+func TestGetCachedReleases(t *testing.T) {
+	t.Run("nil cache returns nil", func(t *testing.T) {
+		cfg := &Config{}
+		result := cfg.GetCachedReleases()
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("returns cached releases", func(t *testing.T) {
+		cfg := &Config{
+			Cache: &Cache{
+				Releases: []CachedTracker{
+					{Number: 1, Title: "Release: v1.0.0", State: "OPEN"},
+				},
+			},
+		}
+		result := cfg.GetCachedReleases()
+		if len(result) != 1 {
+			t.Errorf("Expected 1 release, got %d", len(result))
+		}
+	})
+}
+
+// TestGetCachedMicrosprints tests the GetCachedMicrosprints method
+func TestGetCachedMicrosprints(t *testing.T) {
+	t.Run("nil cache returns nil", func(t *testing.T) {
+		cfg := &Config{}
+		result := cfg.GetCachedMicrosprints()
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("returns cached microsprints", func(t *testing.T) {
+		cfg := &Config{
+			Cache: &Cache{
+				Microsprints: []CachedTracker{
+					{Number: 10, Title: "Microsprint: 2025-12-23-a", State: "OPEN"},
+				},
+			},
+		}
+		result := cfg.GetCachedMicrosprints()
+		if len(result) != 1 {
+			t.Errorf("Expected 1 microsprint, got %d", len(result))
+		}
+	})
+}
+
+// ============================================================================
+// Config File Protection Test
+// ============================================================================
+
+// TestRealConfigFileNotCorrupted verifies that the real .gh-pmu.yml file
+// at the project root has not been corrupted by tests writing test data to it.
+// This test acts as a canary to detect when test isolation fails.
+func TestRealConfigFileNotCorrupted(t *testing.T) {
+	// Find the real config file at project root
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Skipf("Could not get current directory: %v", err)
+	}
+
+	// Walk up to find project root (where .gh-pmu.yml should be)
+	configPath, err := FindConfigFile(cwd)
+	if err != nil {
+		t.Skipf("No .gh-pmu.yml found in path: %v", err)
+	}
+
+	// Read the config file
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Skipf("Could not read config file: %v", err)
+	}
+
+	// Verify it contains the real project owner, not test data
+	if strings.Contains(string(content), "testowner") {
+		t.Error("Real .gh-pmu.yml contains 'testowner' - tests have corrupted the config file! " +
+			"Tests that call cfg.Save() must use setupReleaseTestDir/setupMicrosprintTestDir for isolation.")
+	}
+
+	// Verify it contains expected owner
+	if !strings.Contains(string(content), "rubrical-studios") {
+		t.Error("Real .gh-pmu.yml does not contain 'rubrical-studios' - the config may be corrupted")
 	}
 }

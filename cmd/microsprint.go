@@ -80,7 +80,7 @@ type microsprintCurrentOptions struct {
 
 // microsprintListOptions holds the options for the microsprint list command
 type microsprintListOptions struct {
-	// No options needed for basic list
+	refresh bool
 }
 
 // parseOwnerRepo extracts owner and repo from the first configured repository
@@ -346,6 +346,8 @@ func newMicrosprintListCommand() *cobra.Command {
 			return runMicrosprintList(cmd, opts)
 		},
 	}
+
+	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Force refresh from API and update cache")
 
 	return cmd
 }
@@ -697,6 +699,20 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 		}
 	}
 
+	// Update cache with new microsprint tracker
+	cfg.UpdateCachedTracker("microsprint", config.CachedTracker{
+		Number: issue.Number,
+		Title:  title,
+		State:  "OPEN",
+	})
+
+	// Save config
+	cwd, _ := os.Getwd()
+	configPath, err := config.FindConfigFile(cwd)
+	if err == nil {
+		_ = cfg.Save(configPath) // Best effort save
+	}
+
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "Started microsprint: %s\n", title)
 	fmt.Fprintf(cmd.OutOrStdout(), "Tracker issue: #%d\n", issue.Number)
@@ -852,6 +868,20 @@ func runMicrosprintCloseWithDeps(cmd *cobra.Command, opts *microsprintCloseOptio
 	err = client.CloseIssue(activeTracker.ID)
 	if err != nil {
 		return fmt.Errorf("failed to close tracker issue: %w", err)
+	}
+
+	// Update cache to mark tracker as closed
+	cfg.UpdateCachedTracker("microsprint", config.CachedTracker{
+		Number: activeTracker.Number,
+		Title:  activeTracker.Title,
+		State:  "CLOSED",
+	})
+
+	// Save config
+	cwd, _ := os.Getwd()
+	configPath, err := config.FindConfigFile(cwd)
+	if err == nil {
+		_ = cfg.Save(configPath) // Best effort save
 	}
 
 	microsprintName := strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
@@ -1331,77 +1361,124 @@ func generateTrackerCloseBody(issues []api.Issue, artifactDir string) string {
 	return body.String()
 }
 
+// microsprintInfo holds parsed microsprint information for display
+type microsprintInfo struct {
+	name       string
+	trackerNum int
+	status     string
+}
+
 // runMicrosprintListWithDeps is the testable entry point for microsprint list
 // It receives all dependencies as parameters for easy mocking in tests
 func runMicrosprintListWithDeps(cmd *cobra.Command, opts *microsprintListOptions, cfg *config.Config, client microsprintClient) error {
-	owner, repo, err := parseOwnerRepo(cfg)
-	if err != nil {
-		return err
-	}
+	var microsprints []microsprintInfo
 
-	// Get both open and closed microsprint issues
-	openIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
-	if err != nil {
-		return fmt.Errorf("failed to get open microsprint issues: %w", err)
-	}
-
-	closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "microsprint")
-	if err != nil {
-		return fmt.Errorf("failed to get closed microsprint issues: %w", err)
-	}
-
-	// Filter for valid tracker issues and combine
-	var allTrackers []api.Issue
-	for _, issue := range openIssues {
-		if strings.HasPrefix(issue.Title, "Microsprint: ") {
-			allTrackers = append(allTrackers, issue)
+	// Use cache if available and not refreshing
+	if cfg.HasCachedMicrosprints() && !opts.refresh {
+		microsprints = microsprintsFromCache(cfg.GetCachedMicrosprints())
+	} else {
+		// Fetch from API
+		owner, repo, err := parseOwnerRepo(cfg)
+		if err != nil {
+			return err
 		}
-	}
-	for _, issue := range closedIssues {
-		if strings.HasPrefix(issue.Title, "Microsprint: ") {
-			allTrackers = append(allTrackers, issue)
+
+		openIssues, err := client.GetOpenIssuesByLabel(owner, repo, "microsprint")
+		if err != nil {
+			return fmt.Errorf("failed to get open microsprint issues: %w", err)
+		}
+
+		closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "microsprint")
+		if err != nil {
+			return fmt.Errorf("failed to get closed microsprint issues: %w", err)
+		}
+
+		// Filter for valid tracker issues and build cache
+		var cachedTrackers []config.CachedTracker
+		for _, issue := range openIssues {
+			if strings.HasPrefix(issue.Title, "Microsprint: ") {
+				microsprints = append(microsprints, microsprintInfo{
+					name:       strings.TrimPrefix(issue.Title, "Microsprint: "),
+					trackerNum: issue.Number,
+					status:     "Active",
+				})
+				cachedTrackers = append(cachedTrackers, config.CachedTracker{
+					Number: issue.Number,
+					Title:  issue.Title,
+					State:  "OPEN",
+				})
+			}
+		}
+		for _, issue := range closedIssues {
+			if strings.HasPrefix(issue.Title, "Microsprint: ") {
+				microsprints = append(microsprints, microsprintInfo{
+					name:       strings.TrimPrefix(issue.Title, "Microsprint: "),
+					trackerNum: issue.Number,
+					status:     "Closed",
+				})
+				cachedTrackers = append(cachedTrackers, config.CachedTracker{
+					Number: issue.Number,
+					Title:  issue.Title,
+					State:  "CLOSED",
+				})
+			}
+		}
+
+		// Update cache and save config
+		cfg.SetCachedMicrosprints(cachedTrackers)
+		cwd, _ := os.Getwd()
+		configPath, err := config.FindConfigFile(cwd)
+		if err == nil {
+			_ = cfg.Save(configPath) // Best effort save
 		}
 	}
 
 	// Handle no microsprints found
-	if len(allTrackers) == 0 {
+	if len(microsprints) == 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "No microsprints found\n")
 		return nil
 	}
 
 	// Sort by microsprint name (date) descending
-	sortMicrosprintsByDateDesc(allTrackers)
+	sortMicrosprintInfoByDateDesc(microsprints)
 
 	// Print table header
 	fmt.Fprintf(cmd.OutOrStdout(), "%-20s  %-10s  %-10s\n", "MICROSPRINT", "TRACKER", "STATUS")
 	fmt.Fprintf(cmd.OutOrStdout(), "%-20s  %-10s  %-10s\n", "--------------------", "----------", "----------")
 
 	// Print each microsprint
-	for _, tracker := range allTrackers {
-		name := strings.TrimPrefix(tracker.Title, "Microsprint: ")
-		trackerNum := fmt.Sprintf("#%d", tracker.Number)
-		status := "Active"
-		if tracker.State == "CLOSED" {
-			status = "Closed"
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%-20s  %-10s  %-10s\n", name, trackerNum, status)
+	for _, m := range microsprints {
+		fmt.Fprintf(cmd.OutOrStdout(), "%-20s  #%-9d  %-10s\n", m.name, m.trackerNum, m.status)
 	}
 
 	return nil
 }
 
-// sortMicrosprintsByDateDesc sorts microsprint issues by their date in descending order
-func sortMicrosprintsByDateDesc(issues []api.Issue) {
-	// Simple bubble sort for now (microsprints list is typically small)
-	for i := 0; i < len(issues)-1; i++ {
-		for j := i + 1; j < len(issues); j++ {
-			// Extract date portion from title: "Microsprint: YYYY-MM-DD-x"
-			nameI := strings.TrimPrefix(issues[i].Title, "Microsprint: ")
-			nameJ := strings.TrimPrefix(issues[j].Title, "Microsprint: ")
+// microsprintsFromCache converts cached trackers to microsprintInfo for display
+func microsprintsFromCache(cached []config.CachedTracker) []microsprintInfo {
+	var microsprints []microsprintInfo
+	for _, t := range cached {
+		if strings.HasPrefix(t.Title, "Microsprint: ") {
+			status := "Active"
+			if t.State == "CLOSED" {
+				status = "Closed"
+			}
+			microsprints = append(microsprints, microsprintInfo{
+				name:       strings.TrimPrefix(t.Title, "Microsprint: "),
+				trackerNum: t.Number,
+				status:     status,
+			})
+		}
+	}
+	return microsprints
+}
 
-			// Compare - larger (more recent) date should come first
-			if nameI < nameJ {
-				issues[i], issues[j] = issues[j], issues[i]
+// sortMicrosprintInfoByDateDesc sorts microsprintInfo by name (date) descending
+func sortMicrosprintInfoByDateDesc(microsprints []microsprintInfo) {
+	for i := 0; i < len(microsprints)-1; i++ {
+		for j := i + 1; j < len(microsprints); j++ {
+			if microsprints[i].name < microsprints[j].name {
+				microsprints[i], microsprints[j] = microsprints[j], microsprints[i]
 			}
 		}
 	}

@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +13,37 @@ import (
 	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
+
+// setupMicrosprintTestDir creates a temp directory with a .gh-pmu.yml config file
+// and changes to that directory. Returns cleanup function to restore original dir.
+func setupMicrosprintTestDir(t *testing.T, cfg *config.Config) func() {
+	t.Helper()
+
+	// Save original directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	// Create temp directory
+	tempDir := t.TempDir()
+
+	// Save config to temp directory
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if err := cfg.Save(configPath); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+
+	// Change to temp directory
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir to temp dir: %v", err)
+	}
+
+	// Return cleanup function
+	return func() {
+		_ = os.Chdir(originalDir)
+	}
+}
 
 // mockMicrosprintClient implements microsprintClient for testing
 type mockMicrosprintClient struct {
@@ -292,6 +326,9 @@ func TestRunMicrosprintStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -341,6 +378,9 @@ func TestRunMicrosprintStartWithDeps_WithNameFlag_AppendsSuffix(t *testing.T) {
 	// ARRANGE - AC-001-2
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{
 		name: "auth",
@@ -372,6 +412,9 @@ func TestRunMicrosprintStartWithDeps_AssignsToCurrentUser(t *testing.T) {
 	mock := setupMockForStart()
 	mock.authenticatedUser = "alice"
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -398,6 +441,9 @@ func TestRunMicrosprintStartWithDeps_SetsStatusToInProgress(t *testing.T) {
 	// ARRANGE - AC-001-4
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -448,6 +494,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_AtoB(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -490,6 +539,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_BtoC(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -527,6 +579,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_ZtoAA(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -564,6 +619,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_AAtoAB(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -596,6 +654,9 @@ func TestRunMicrosprintStartWithDeps_CreatesNewIssue(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -624,6 +685,9 @@ func TestRunMicrosprintStartWithDeps_HasMicrosprintLabel(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -667,6 +731,9 @@ func TestRunMicrosprintCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintCloseOptions{}
 
@@ -858,6 +925,9 @@ func TestRunMicrosprintStartWithDeps_IgnoresOldDates(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -1495,6 +1565,9 @@ func TestRunMicrosprintListWithDeps_DisplaysTable(t *testing.T) {
 	}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestMicrosprintCmd()
 	opts := &microsprintListOptions{}
 
@@ -1555,6 +1628,9 @@ func TestRunMicrosprintListWithDeps_SortedByDateDescending(t *testing.T) {
 	}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestMicrosprintCmd()
 	opts := &microsprintListOptions{}
 
@@ -1589,6 +1665,9 @@ func TestRunMicrosprintListWithDeps_NoMicrosprints(t *testing.T) {
 	mock.closedIssues = []api.Issue{}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestMicrosprintCmd()
 	opts := &microsprintListOptions{}
 
@@ -1603,6 +1682,163 @@ func TestRunMicrosprintListWithDeps_NoMicrosprints(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "No microsprints found") {
 		t.Errorf("Expected output to contain 'No microsprints found', got '%s'", output)
+	}
+}
+
+// Test microsprint list uses cache when available
+func TestRunMicrosprintListWithDeps_UsesCache(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	// API should NOT be called since we have cache
+	mock.getOpenIssuesErr = errors.New("should not be called")
+	mock.getClosedIssuesErr = errors.New("should not be called")
+
+	cfg := testMicrosprintConfig()
+	// Add cached data
+	cfg.Cache = &config.Cache{
+		Microsprints: []config.CachedTracker{
+			{Number: 100, Title: "Microsprint: 2025-12-13-a", State: "OPEN"},
+			{Number: 99, Title: "Microsprint: 2025-12-12-a", State: "CLOSED"},
+		},
+	}
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{refresh: false}
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "2025-12-13-a") {
+		t.Errorf("Expected output to contain '2025-12-13-a' from cache, got '%s'", output)
+	}
+	if !strings.Contains(output, "2025-12-12-a") {
+		t.Errorf("Expected output to contain '2025-12-12-a' from cache, got '%s'", output)
+	}
+}
+
+// Test microsprint list with --refresh flag bypasses cache
+func TestRunMicrosprintListWithDeps_RefreshBypassesCache(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_200", Number: 200, Title: "Microsprint: 2025-12-20-a", State: "OPEN"},
+	}
+	mock.closedIssues = []api.Issue{}
+
+	cfg := testMicrosprintConfig()
+	// Add stale cached data
+	cfg.Cache = &config.Cache{
+		Microsprints: []config.CachedTracker{
+			{Number: 100, Title: "Microsprint: 2025-12-10-a", State: "CLOSED"},
+		},
+	}
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{refresh: true} // Force refresh
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	// Should contain fresh API data, not stale cache
+	if !strings.Contains(output, "2025-12-20-a") {
+		t.Errorf("Expected output to contain '2025-12-20-a' from API, got '%s'", output)
+	}
+}
+
+// Test microsprint list API error handling
+func TestRunMicrosprintListWithDeps_OpenIssuesError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	mock.getOpenIssuesErr = errors.New("API error")
+
+	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{}
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get open microsprint issues") {
+		t.Errorf("Expected error about open microsprint issues, got: %v", err)
+	}
+}
+
+func TestRunMicrosprintListWithDeps_ClosedIssuesError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForMicrosprint()
+	mock.openIssues = []api.Issue{}
+	mock.getClosedIssuesErr = errors.New("API error")
+
+	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestMicrosprintCmd()
+	opts := &microsprintListOptions{}
+
+	// ACT
+	err := runMicrosprintListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get closed microsprint issues") {
+		t.Errorf("Expected error about closed microsprint issues, got: %v", err)
+	}
+}
+
+// Test microsprintsFromCache helper function
+func TestMicrosprintsFromCache(t *testing.T) {
+	cached := []config.CachedTracker{
+		{Number: 100, Title: "Microsprint: 2025-12-13-a", State: "OPEN"},
+		{Number: 99, Title: "Microsprint: 2025-12-12-a", State: "CLOSED"},
+		{Number: 98, Title: "Not a microsprint", State: "OPEN"}, // Should be filtered out
+	}
+
+	microsprints := microsprintsFromCache(cached)
+
+	if len(microsprints) != 2 {
+		t.Fatalf("Expected 2 microsprints, got %d", len(microsprints))
+	}
+
+	// Check first microsprint
+	if microsprints[0].name != "2025-12-13-a" {
+		t.Errorf("Expected name '2025-12-13-a', got '%s'", microsprints[0].name)
+	}
+	if microsprints[0].status != "Active" {
+		t.Errorf("Expected status 'Active' for OPEN, got '%s'", microsprints[0].status)
+	}
+
+	// Check second microsprint
+	if microsprints[1].name != "2025-12-12-a" {
+		t.Errorf("Expected name '2025-12-12-a', got '%s'", microsprints[1].name)
+	}
+	if microsprints[1].status != "Closed" {
+		t.Errorf("Expected status 'Closed' for CLOSED, got '%s'", microsprints[1].status)
 	}
 }
 
@@ -1672,6 +1908,9 @@ func TestRunMicrosprintCloseWithDeps_MultipleActiveError(t *testing.T) {
 	}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintCloseOptions{}
 

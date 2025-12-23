@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,6 +166,8 @@ func (m *mockReleaseClient) GetProjectItemID(projectID, issueID string) (string,
 		if itemID, ok := m.projectItemIDs[issueID]; ok {
 			return itemID, nil
 		}
+		// If map is set but issueID not found, return error (not found)
+		return "", fmt.Errorf("project item not found for issue %s", issueID)
 	}
 	return m.projectItemID, nil
 }
@@ -1344,6 +1347,9 @@ func TestRunReleaseListWithDeps_DisplaysReleaseTable(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseListOptions{}
 
@@ -1407,6 +1413,9 @@ func TestRunReleaseListWithDeps_SortedByVersionDescending(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseListOptions{}
 
@@ -1441,6 +1450,9 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 	mock.closedIssues = []api.Issue{}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseListOptions{}
 
@@ -1455,6 +1467,169 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "No releases found") {
 		t.Errorf("Expected output to contain 'No releases found', got '%s'", output)
+	}
+}
+
+// Test release list uses cache when available
+func TestRunReleaseListWithDeps_UsesCache(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	// API should NOT be called since we have cache
+	mock.getOpenIssuesErr = errors.New("should not be called")
+	mock.getClosedIssuesErr = errors.New("should not be called")
+
+	cfg := testReleaseConfig()
+	// Add cached data
+	cfg.Cache = &config.Cache{
+		Releases: []config.CachedTracker{
+			{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
+			{Number: 200, Title: "Release: v2.0.0 (Phoenix)", State: "OPEN"},
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestReleaseCmd()
+	opts := &releaseListOptions{refresh: false}
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "v1.0.0") {
+		t.Errorf("Expected output to contain 'v1.0.0' from cache, got '%s'", output)
+	}
+	if !strings.Contains(output, "v2.0.0") {
+		t.Errorf("Expected output to contain 'v2.0.0' from cache, got '%s'", output)
+	}
+	if !strings.Contains(output, "Phoenix") {
+		t.Errorf("Expected output to contain 'Phoenix' codename from cache, got '%s'", output)
+	}
+}
+
+// Test release list with --refresh flag bypasses cache
+func TestRunReleaseListWithDeps_RefreshBypassesCache(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_300", Number: 300, Title: "Release: v3.0.0", State: "OPEN"},
+	}
+	mock.closedIssues = []api.Issue{}
+
+	cfg := testReleaseConfig()
+	// Add stale cached data
+	cfg.Cache = &config.Cache{
+		Releases: []config.CachedTracker{
+			{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestReleaseCmd()
+	opts := &releaseListOptions{refresh: true} // Force refresh
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	output := buf.String()
+	// Should contain fresh API data, not stale cache
+	if !strings.Contains(output, "v3.0.0") {
+		t.Errorf("Expected output to contain 'v3.0.0' from API, got '%s'", output)
+	}
+}
+
+// Test release list API error handling
+func TestRunReleaseListWithDeps_OpenIssuesError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.getOpenIssuesErr = errors.New("API error")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseListOptions{}
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get open releases") {
+		t.Errorf("Expected error about open releases, got: %v", err)
+	}
+}
+
+func TestRunReleaseListWithDeps_ClosedIssuesError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{}
+	mock.getClosedIssuesErr = errors.New("API error")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseListOptions{}
+
+	// ACT
+	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get closed releases") {
+		t.Errorf("Expected error about closed releases, got: %v", err)
+	}
+}
+
+// Test releasesFromCache helper function
+func TestReleasesFromCache(t *testing.T) {
+	cached := []config.CachedTracker{
+		{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
+		{Number: 200, Title: "Release: v2.0.0 (Phoenix)", State: "OPEN"},
+		{Number: 300, Title: "Not a release", State: "OPEN"}, // Should be filtered out
+	}
+
+	releases := releasesFromCache(cached)
+
+	if len(releases) != 2 {
+		t.Fatalf("Expected 2 releases, got %d", len(releases))
+	}
+
+	// Check first release
+	if releases[0].version != "v1.0.0" {
+		t.Errorf("Expected version 'v1.0.0', got '%s'", releases[0].version)
+	}
+	if releases[0].status != "Released" {
+		t.Errorf("Expected status 'Released' for CLOSED, got '%s'", releases[0].status)
+	}
+
+	// Check second release
+	if releases[1].version != "v2.0.0" {
+		t.Errorf("Expected version 'v2.0.0', got '%s'", releases[1].version)
+	}
+	if releases[1].codename != "Phoenix" {
+		t.Errorf("Expected codename 'Phoenix', got '%s'", releases[1].codename)
+	}
+	if releases[1].status != "Active" {
+		t.Errorf("Expected status 'Active' for OPEN, got '%s'", releases[1].status)
 	}
 }
 
@@ -2077,5 +2252,264 @@ func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 	outputStr := output.String()
 	if !strings.Contains(outputStr, "Skipping 1 Parking Lot issue") {
 		t.Errorf("Expected parking lot issue to be skipped even without config, got: %s", outputStr)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) {
+	// ARRANGE: Incomplete issues that need to be moved to backlog
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+	}
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "In Progress",
+	}
+
+	cfg := testReleaseConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog": "Backlog",
+		},
+	}
+	cfg.Fields["release"] = config.Field{
+		Field: "Release",
+	}
+	cfg.Fields["microsprint"] = config.Field{
+		Field: "Microsprint",
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify Release field was cleared (set to "")
+	releaseCleared := false
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Release" && call.value == "" {
+			releaseCleared = true
+			break
+		}
+	}
+	if !releaseCleared {
+		t.Errorf("Expected Release field to be cleared, calls: %+v", mock.setFieldCalls)
+	}
+
+	// Verify Microsprint field was cleared (set to "")
+	microsprintCleared := false
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Microsprint" && call.value == "" {
+			microsprintCleared = true
+			break
+		}
+	}
+	if !microsprintCleared {
+		t.Errorf("Expected Microsprint field to be cleared, calls: %+v", mock.setFieldCalls)
+	}
+
+	// Verify Status was set to Backlog
+	statusSet := false
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Status" && call.value == "Backlog" {
+			statusSet = true
+			break
+		}
+	}
+	if !statusSet {
+		t.Errorf("Expected Status field to be set to Backlog, calls: %+v", mock.setFieldCalls)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *testing.T) {
+	// ARRANGE: GetProjectItemID fails for one issue but succeeds for another
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Issue without project item", State: "OPEN"},
+		{ID: "ISSUE_2", Number: 42, Title: "Normal issue", State: "OPEN"},
+	}
+	// Only ISSUE_2 has a project item ID - ISSUE_1 will fail lookup
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_2": "ITEM_2",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_2": "In Progress",
+	}
+
+	cfg := testReleaseConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog": "Backlog",
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT: Should succeed overall
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify warning was shown for issue 41
+	stderrStr := stderr.String()
+	if !strings.Contains(stderrStr, "Warning") || !strings.Contains(stderrStr, "#41") {
+		t.Errorf("Expected warning about issue #41, got stderr: %s", stderrStr)
+	}
+
+	// Verify only 1 issue had status set (the one that succeeded)
+	statusSetCount := 0
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Status" && call.value == "Backlog" {
+			statusSetCount++
+		}
+	}
+	if statusSetCount != 1 {
+		t.Errorf("Expected 1 issue moved to backlog, got %d", statusSetCount)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
+	// ARRANGE: All release issues are closed (done)
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	// All issues are closed (done)
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Completed work", State: "CLOSED"},
+		{ID: "ISSUE_2", Number: 42, Title: "Also done", State: "CLOSED"},
+	}
+
+	cfg := testReleaseConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog": "Backlog",
+		},
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, output := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify output shows 2 done, 0 incomplete
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "2 done") || !strings.Contains(outputStr, "0 incomplete") {
+		t.Errorf("Expected '2 done, 0 incomplete' in output, got: %s", outputStr)
+	}
+
+	// Verify no backlog status updates (all issues already done)
+	backlogCount := 0
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Status" && call.value == "Backlog" {
+			backlogCount++
+		}
+	}
+	if backlogCount != 0 {
+		t.Errorf("Expected no backlog status updates (all done), got %d: %+v", backlogCount, mock.setFieldCalls)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
+	// ARRANGE: Status field has no backlog alias defined
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Release: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.releaseIssues = []api.Issue{
+		{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+	}
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "In Progress",
+	}
+
+	cfg := testReleaseConfig()
+	// Status field with empty values map (no backlog alias)
+	cfg.Fields["status"] = config.Field{
+		Field:  "Status",
+		Values: map[string]string{}, // No backlog alias
+	}
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify Status was set to default "Backlog" (not an alias)
+	statusSet := false
+	for _, call := range mock.setFieldCalls {
+		if call.fieldID == "Status" && call.value == "Backlog" {
+			statusSet = true
+			break
+		}
+	}
+	if !statusSet {
+		t.Errorf("Expected Status field to be set to default 'Backlog', calls: %+v", mock.setFieldCalls)
 	}
 }
