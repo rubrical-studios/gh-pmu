@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -1805,4 +1806,42 @@ func TestGetCachedMicrosprints(t *testing.T) {
 			t.Errorf("Expected 1 microsprint, got %d", len(result))
 		}
 	})
+}
+
+// ============================================================================
+// Config File Protection Test
+// ============================================================================
+
+// TestRealConfigFileNotCorrupted verifies that the real .gh-pmu.yml file
+// at the project root has not been corrupted by tests writing test data to it.
+// This test acts as a canary to detect when test isolation fails.
+func TestRealConfigFileNotCorrupted(t *testing.T) {
+	// Find the real config file at project root
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Skipf("Could not get current directory: %v", err)
+	}
+
+	// Walk up to find project root (where .gh-pmu.yml should be)
+	configPath, err := FindConfigFile(cwd)
+	if err != nil {
+		t.Skipf("No .gh-pmu.yml found in path: %v", err)
+	}
+
+	// Read the config file
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Skipf("Could not read config file: %v", err)
+	}
+
+	// Verify it contains the real project owner, not test data
+	if strings.Contains(string(content), "testowner") {
+		t.Error("Real .gh-pmu.yml contains 'testowner' - tests have corrupted the config file! " +
+			"Tests that call cfg.Save() must use setupReleaseTestDir/setupMicrosprintTestDir for isolation.")
+	}
+
+	// Verify it contains expected owner
+	if !strings.Contains(string(content), "rubrical-studios") {
+		t.Error("Real .gh-pmu.yml does not contain 'rubrical-studios' - the config may be corrupted")
+	}
 }

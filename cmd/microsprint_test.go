@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +12,37 @@ import (
 	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
+
+// setupMicrosprintTestDir creates a temp directory with a .gh-pmu.yml config file
+// and changes to that directory. Returns cleanup function to restore original dir.
+func setupMicrosprintTestDir(t *testing.T, cfg *config.Config) func() {
+	t.Helper()
+
+	// Save original directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	// Create temp directory
+	tempDir := t.TempDir()
+
+	// Save config to temp directory
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if err := cfg.Save(configPath); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+
+	// Change to temp directory
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to chdir to temp dir: %v", err)
+	}
+
+	// Return cleanup function
+	return func() {
+		_ = os.Chdir(originalDir)
+	}
+}
 
 // mockMicrosprintClient implements microsprintClient for testing
 type mockMicrosprintClient struct {
@@ -292,6 +325,9 @@ func TestRunMicrosprintStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -341,6 +377,9 @@ func TestRunMicrosprintStartWithDeps_WithNameFlag_AppendsSuffix(t *testing.T) {
 	// ARRANGE - AC-001-2
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{
 		name: "auth",
@@ -372,6 +411,9 @@ func TestRunMicrosprintStartWithDeps_AssignsToCurrentUser(t *testing.T) {
 	mock := setupMockForStart()
 	mock.authenticatedUser = "alice"
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -398,6 +440,9 @@ func TestRunMicrosprintStartWithDeps_SetsStatusToInProgress(t *testing.T) {
 	// ARRANGE - AC-001-4
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -448,6 +493,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_AtoB(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -490,6 +538,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_BtoC(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -527,6 +578,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_ZtoAA(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -564,6 +618,9 @@ func TestRunMicrosprintStartWithDeps_AutoIncrement_AAtoAB(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -596,6 +653,9 @@ func TestRunMicrosprintStartWithDeps_CreatesNewIssue(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -624,6 +684,9 @@ func TestRunMicrosprintStartWithDeps_HasMicrosprintLabel(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForStart()
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -667,6 +730,9 @@ func TestRunMicrosprintCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintCloseOptions{}
 
@@ -858,6 +924,9 @@ func TestRunMicrosprintStartWithDeps_IgnoresOldDates(t *testing.T) {
 		},
 	}
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintStartOptions{}
 
@@ -1495,6 +1564,9 @@ func TestRunMicrosprintListWithDeps_DisplaysTable(t *testing.T) {
 	}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestMicrosprintCmd()
 	opts := &microsprintListOptions{}
 
@@ -1555,6 +1627,9 @@ func TestRunMicrosprintListWithDeps_SortedByDateDescending(t *testing.T) {
 	}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestMicrosprintCmd()
 	opts := &microsprintListOptions{}
 
@@ -1589,6 +1664,9 @@ func TestRunMicrosprintListWithDeps_NoMicrosprints(t *testing.T) {
 	mock.closedIssues = []api.Issue{}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestMicrosprintCmd()
 	opts := &microsprintListOptions{}
 
@@ -1672,6 +1750,9 @@ func TestRunMicrosprintCloseWithDeps_MultipleActiveError(t *testing.T) {
 	}
 
 	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, _ := newTestMicrosprintCmd()
 	opts := &microsprintCloseOptions{}
 

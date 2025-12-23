@@ -1347,6 +1347,9 @@ func TestRunReleaseListWithDeps_DisplaysReleaseTable(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseListOptions{}
 
@@ -1410,6 +1413,9 @@ func TestRunReleaseListWithDeps_SortedByVersionDescending(t *testing.T) {
 	}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseListOptions{}
 
@@ -1444,6 +1450,9 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 	mock.closedIssues = []api.Issue{}
 
 	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
 	cmd, buf := newTestReleaseCmd()
 	opts := &releaseListOptions{}
 
