@@ -21,6 +21,7 @@ type Config struct {
 	Triage       map[string]Triage `yaml:"triage,omitempty"`
 	Release      Release           `yaml:"release,omitempty"`
 	Metadata     *Metadata         `yaml:"metadata,omitempty"`
+	Cache        *Cache            `yaml:"cache,omitempty"`
 }
 
 // Project contains GitHub project configuration
@@ -315,6 +316,19 @@ type LabelConstraints struct {
 	Forbidden []string `yaml:"forbidden,omitempty"`
 }
 
+// Cache contains cached tracker data for fast list operations
+type Cache struct {
+	Releases     []CachedTracker `yaml:"releases,omitempty"`
+	Microsprints []CachedTracker `yaml:"microsprints,omitempty"`
+}
+
+// CachedTracker represents a cached release or microsprint tracker issue
+type CachedTracker struct {
+	Number int    `yaml:"number"`
+	Title  string `yaml:"title"`
+	State  string `yaml:"state"` // "OPEN" or "CLOSED"
+}
+
 // GetTrackPrefix returns the prefix for a given track name
 // Returns "v" for stable track if not configured
 func (c *Config) GetTrackPrefix(track string) string {
@@ -462,6 +476,73 @@ func (c *Config) MergeActiveReleases(releases []ActiveRelease) {
 	for _, r := range releases {
 		c.AddActiveRelease(r)
 	}
+}
+
+// HasCachedReleases returns true if cached release data exists
+func (c *Config) HasCachedReleases() bool {
+	return c.Cache != nil && len(c.Cache.Releases) > 0
+}
+
+// HasCachedMicrosprints returns true if cached microsprint data exists
+func (c *Config) HasCachedMicrosprints() bool {
+	return c.Cache != nil && len(c.Cache.Microsprints) > 0
+}
+
+// GetCachedReleases returns cached release trackers
+func (c *Config) GetCachedReleases() []CachedTracker {
+	if c.Cache == nil {
+		return nil
+	}
+	return c.Cache.Releases
+}
+
+// GetCachedMicrosprints returns cached microsprint trackers
+func (c *Config) GetCachedMicrosprints() []CachedTracker {
+	if c.Cache == nil {
+		return nil
+	}
+	return c.Cache.Microsprints
+}
+
+// SetCachedReleases updates the cached release tracker data
+func (c *Config) SetCachedReleases(trackers []CachedTracker) {
+	if c.Cache == nil {
+		c.Cache = &Cache{}
+	}
+	c.Cache.Releases = trackers
+}
+
+// SetCachedMicrosprints updates the cached microsprint tracker data
+func (c *Config) SetCachedMicrosprints(trackers []CachedTracker) {
+	if c.Cache == nil {
+		c.Cache = &Cache{}
+	}
+	c.Cache.Microsprints = trackers
+}
+
+// UpdateCachedTracker updates or adds a single tracker in the cache
+func (c *Config) UpdateCachedTracker(trackerType string, tracker CachedTracker) {
+	if c.Cache == nil {
+		c.Cache = &Cache{}
+	}
+
+	var trackers *[]CachedTracker
+	if trackerType == "release" {
+		trackers = &c.Cache.Releases
+	} else if trackerType == "microsprint" {
+		trackers = &c.Cache.Microsprints
+	} else {
+		return
+	}
+
+	// Update existing or append new
+	for i, t := range *trackers {
+		if t.Number == tracker.Number {
+			(*trackers)[i] = tracker
+			return
+		}
+	}
+	*trackers = append(*trackers, tracker)
 }
 
 // TempDirName is the name of the temporary directory within the project root

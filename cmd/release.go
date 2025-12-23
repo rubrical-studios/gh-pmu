@@ -86,6 +86,7 @@ type releaseCloseOptions struct {
 
 // releaseListOptions holds the options for the release list command
 type releaseListOptions struct {
+	refresh bool
 }
 
 // newReleaseCommand creates the release command group
@@ -297,6 +298,8 @@ func newReleaseListCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Force refresh from API and update cache")
+
 	return cmd
 }
 
@@ -370,6 +373,13 @@ func runReleaseStartWithDeps(cmd *cobra.Command, opts *releaseStartOptions, cfg 
 		Version:      version,
 		TrackerIssue: issue.Number,
 		Track:        track,
+	})
+
+	// Update cache with new release tracker
+	cfg.UpdateCachedTracker("release", config.CachedTracker{
+		Number: issue.Number,
+		Title:  title,
+		State:  "OPEN",
 	})
 
 	// Save config
@@ -852,6 +862,13 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 	// Remove from active releases in config
 	cfg.RemoveActiveRelease(targetRelease.Number)
 
+	// Update cache to mark tracker as closed
+	cfg.UpdateCachedTracker("release", config.CachedTracker{
+		Number: targetRelease.Number,
+		Title:  targetRelease.Title,
+		State:  "CLOSED",
+	})
+
 	// Save config
 	cwd, _ := os.Getwd()
 	configPath, err := config.FindConfigFile(cwd)
@@ -953,6 +970,13 @@ func runReleaseReopenWithDeps(cmd *cobra.Command, releaseName string, cfg *confi
 		Version:      version,
 		TrackerIssue: targetRelease.Number,
 		Track:        track,
+	})
+
+	// Update cache to mark tracker as open
+	cfg.UpdateCachedTracker("release", config.CachedTracker{
+		Number: targetRelease.Number,
+		Title:  targetRelease.Title,
+		State:  "OPEN",
 	})
 
 	// Save config
@@ -1063,32 +1087,57 @@ func generateChangelogContent(version string, issues []api.Issue) string {
 // runReleaseListWithDeps is the testable entry point for release list
 // It receives all dependencies as parameters for easy mocking in tests
 func runReleaseListWithDeps(cmd *cobra.Command, opts *releaseListOptions, cfg *config.Config, client releaseClient) error {
-	owner, repo, err := parseOwnerRepo(cfg)
-	if err != nil {
-		return err
-	}
-
-	// Get open and closed release issues
-	openIssues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
-	if err != nil {
-		return fmt.Errorf("failed to get open releases: %w", err)
-	}
-
-	closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "release")
-	if err != nil {
-		return fmt.Errorf("failed to get closed releases: %w", err)
-	}
-
-	// Combine and filter for release trackers
 	var releases []releaseInfo
-	for _, issue := range openIssues {
-		if strings.HasPrefix(issue.Title, "Release: ") {
-			releases = append(releases, extractReleaseInfo(issue, "Active"))
+
+	// Use cache if available and not refreshing
+	if cfg.HasCachedReleases() && !opts.refresh {
+		releases = releasesFromCache(cfg.GetCachedReleases())
+	} else {
+		// Fetch from API
+		owner, repo, err := parseOwnerRepo(cfg)
+		if err != nil {
+			return err
 		}
-	}
-	for _, issue := range closedIssues {
-		if strings.HasPrefix(issue.Title, "Release: ") {
-			releases = append(releases, extractReleaseInfo(issue, "Released"))
+
+		openIssues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+		if err != nil {
+			return fmt.Errorf("failed to get open releases: %w", err)
+		}
+
+		closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "release")
+		if err != nil {
+			return fmt.Errorf("failed to get closed releases: %w", err)
+		}
+
+		// Combine and filter for release trackers
+		var cachedTrackers []config.CachedTracker
+		for _, issue := range openIssues {
+			if strings.HasPrefix(issue.Title, "Release: ") {
+				releases = append(releases, extractReleaseInfo(issue, "Active"))
+				cachedTrackers = append(cachedTrackers, config.CachedTracker{
+					Number: issue.Number,
+					Title:  issue.Title,
+					State:  "OPEN",
+				})
+			}
+		}
+		for _, issue := range closedIssues {
+			if strings.HasPrefix(issue.Title, "Release: ") {
+				releases = append(releases, extractReleaseInfo(issue, "Released"))
+				cachedTrackers = append(cachedTrackers, config.CachedTracker{
+					Number: issue.Number,
+					Title:  issue.Title,
+					State:  "CLOSED",
+				})
+			}
+		}
+
+		// Update cache and save config
+		cfg.SetCachedReleases(cachedTrackers)
+		cwd, _ := os.Getwd()
+		configPath, err := config.FindConfigFile(cwd)
+		if err == nil {
+			_ = cfg.Save(configPath) // Best effort save
 		}
 	}
 
@@ -1112,6 +1161,26 @@ func runReleaseListWithDeps(cmd *cobra.Command, opts *releaseListOptions, cfg *c
 	}
 
 	return nil
+}
+
+// releasesFromCache converts cached trackers to releaseInfo for display
+func releasesFromCache(cached []config.CachedTracker) []releaseInfo {
+	var releases []releaseInfo
+	for _, t := range cached {
+		if strings.HasPrefix(t.Title, "Release: ") {
+			status := "Active"
+			if t.State == "CLOSED" {
+				status = "Released"
+			}
+			releases = append(releases, releaseInfo{
+				version:    extractReleaseVersion(t.Title),
+				codename:   extractReleaseCodename(t.Title),
+				trackerNum: t.Number,
+				status:     status,
+			})
+		}
+	}
+	return releases
 }
 
 // releaseInfo holds parsed release information

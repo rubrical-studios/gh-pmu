@@ -26,7 +26,6 @@ fields:
 triage:
     estimate:
         query: is:issue is:open -has:estimate
-        apply: {}
         interactive:
             estimate: true
 release:
@@ -120,3 +119,14 @@ metadata:
         - name: Microsprint
           id: PVTF_lAHOAATLPs4BJeuXzg6bQ8Y
           data_type: TEXT
+cache:
+    releases:
+        - number: 432
+          title: 'Release: release/v0.9.0'
+          state: OPEN
+        - number: 380
+          title: 'Release: release/v0.8.1-test'
+          state: CLOSED
+        - number: 409
+          title: 'Release: release/v0.9.0'
+          state: CLOSED
