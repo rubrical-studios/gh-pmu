@@ -25,7 +25,6 @@ fields:
 triage:
     estimate:
         query: is:issue is:open -has:estimate
-        apply: {}
         interactive:
             estimate: true
     tracked:
@@ -38,6 +37,11 @@ triage:
                 status: backlog
         interactive:
             status: true
+release:
+    active:
+        - version: 0.9.0
+          tracker_issue: 432
+          track: release
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX

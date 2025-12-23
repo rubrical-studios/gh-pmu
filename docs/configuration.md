@@ -141,10 +141,20 @@ release:
     - version: "1.2.0"
       track: main
       tracker_issue: 42
+
+  # Coverage gate settings (for /prepare-release workflow)
+  coverage:
+    enabled: true              # Enable coverage gate (default: true)
+    threshold: 80              # Minimum patch coverage % (default: 80)
+    skip_patterns:             # Patterns to exclude from analysis
+      - "*_test.go"
+      - "mock_*.go"
 ```
 
 **Notes:**
 - `gh pmu init` auto-creates Release/Microsprint fields and labels if missing
+- Coverage gate runs during `/prepare-release` to catch test coverage gaps before release
+- Set `enabled: false` to disable the coverage gate
 - Active releases are synced from tracker issues during init
 - Track prefix controls artifact directory naming (e.g., `main-v1.2.0/` vs `v1.2.0/`)
 

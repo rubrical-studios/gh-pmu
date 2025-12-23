@@ -1358,3 +1358,215 @@ func TestEnsureGitignore_RecognizesTmpWithoutSlash(t *testing.T) {
 		t.Errorf("Expected .gitignore to remain unchanged, got '%s'", content)
 	}
 }
+
+// ============================================================================
+// Coverage Configuration Tests
+// ============================================================================
+
+func TestIsCoverageGateEnabled_DefaultsToTrue(t *testing.T) {
+	// ARRANGE: Config with no coverage section
+	cfg := &Config{}
+
+	// ACT & ASSERT: Should default to true
+	if !cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be enabled by default")
+	}
+}
+
+func TestIsCoverageGateEnabled_WithNilEnabled(t *testing.T) {
+	// ARRANGE: Config with coverage section but nil Enabled
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Threshold: 85,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should default to true when Enabled is nil
+	if !cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be enabled when Enabled is nil")
+	}
+}
+
+func TestIsCoverageGateEnabled_ExplicitlyDisabled(t *testing.T) {
+	// ARRANGE: Config with coverage explicitly disabled
+	enabled := false
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Enabled: &enabled,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should be disabled
+	if cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be disabled")
+	}
+}
+
+func TestIsCoverageGateEnabled_ExplicitlyEnabled(t *testing.T) {
+	// ARRANGE: Config with coverage explicitly enabled
+	enabled := true
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Enabled: &enabled,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should be enabled
+	if !cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be enabled")
+	}
+}
+
+func TestGetCoverageThreshold_DefaultsTo80(t *testing.T) {
+	// ARRANGE: Config with no coverage section
+	cfg := &Config{}
+
+	// ACT & ASSERT: Should default to 80
+	if threshold := cfg.GetCoverageThreshold(); threshold != 80 {
+		t.Errorf("Expected default threshold 80, got %d", threshold)
+	}
+}
+
+func TestGetCoverageThreshold_WithZeroValue(t *testing.T) {
+	// ARRANGE: Config with coverage section but zero threshold
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Threshold: 0,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should default to 80 when threshold is 0
+	if threshold := cfg.GetCoverageThreshold(); threshold != 80 {
+		t.Errorf("Expected default threshold 80, got %d", threshold)
+	}
+}
+
+func TestGetCoverageThreshold_CustomValue(t *testing.T) {
+	// ARRANGE: Config with custom threshold
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				Threshold: 90,
+			},
+		},
+	}
+
+	// ACT & ASSERT: Should return custom value
+	if threshold := cfg.GetCoverageThreshold(); threshold != 90 {
+		t.Errorf("Expected threshold 90, got %d", threshold)
+	}
+}
+
+func TestGetCoverageSkipPatterns_DefaultPatterns(t *testing.T) {
+	// ARRANGE: Config with no coverage section
+	cfg := &Config{}
+
+	// ACT
+	patterns := cfg.GetCoverageSkipPatterns()
+
+	// ASSERT: Should return default patterns
+	if len(patterns) != 2 {
+		t.Errorf("Expected 2 default patterns, got %d", len(patterns))
+	}
+	if patterns[0] != "*_test.go" {
+		t.Errorf("Expected first pattern '*_test.go', got '%s'", patterns[0])
+	}
+	if patterns[1] != "mock_*.go" {
+		t.Errorf("Expected second pattern 'mock_*.go', got '%s'", patterns[1])
+	}
+}
+
+func TestGetCoverageSkipPatterns_EmptyPatterns(t *testing.T) {
+	// ARRANGE: Config with coverage section but empty patterns
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				SkipPatterns: []string{},
+			},
+		},
+	}
+
+	// ACT
+	patterns := cfg.GetCoverageSkipPatterns()
+
+	// ASSERT: Should return default patterns when empty
+	if len(patterns) != 2 {
+		t.Errorf("Expected 2 default patterns, got %d", len(patterns))
+	}
+}
+
+func TestGetCoverageSkipPatterns_CustomPatterns(t *testing.T) {
+	// ARRANGE: Config with custom patterns
+	cfg := &Config{
+		Release: Release{
+			Coverage: &CoverageConfig{
+				SkipPatterns: []string{"*_generated.go", "vendor/*"},
+			},
+		},
+	}
+
+	// ACT
+	patterns := cfg.GetCoverageSkipPatterns()
+
+	// ASSERT: Should return custom patterns
+	if len(patterns) != 2 {
+		t.Errorf("Expected 2 patterns, got %d", len(patterns))
+	}
+	if patterns[0] != "*_generated.go" {
+		t.Errorf("Expected first pattern '*_generated.go', got '%s'", patterns[0])
+	}
+	if patterns[1] != "vendor/*" {
+		t.Errorf("Expected second pattern 'vendor/*', got '%s'", patterns[1])
+	}
+}
+
+func TestCoverageConfig_YAMLParsing(t *testing.T) {
+	// ARRANGE: YAML config with coverage section
+	yamlContent := `project:
+  owner: test
+  number: 1
+repositories:
+  - test/repo
+release:
+  coverage:
+    enabled: false
+    threshold: 85
+    skip_patterns:
+      - "*_generated.go"
+      - "mock_*.go"
+`
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// ACT
+	cfg, err := Load(configPath)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	if cfg.IsCoverageGateEnabled() {
+		t.Error("Expected coverage gate to be disabled")
+	}
+
+	if threshold := cfg.GetCoverageThreshold(); threshold != 85 {
+		t.Errorf("Expected threshold 85, got %d", threshold)
+	}
+
+	patterns := cfg.GetCoverageSkipPatterns()
+	if len(patterns) != 2 || patterns[0] != "*_generated.go" {
+		t.Errorf("Unexpected patterns: %v", patterns)
+	}
+}

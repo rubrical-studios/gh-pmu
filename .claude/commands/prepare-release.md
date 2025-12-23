@@ -39,7 +39,56 @@ This outputs JSON with:
 
 ---
 
-## Step 2: Recommend Version Number
+## Step 2: Coverage Gate (Optional)
+
+**Skip this step if using `--skip-coverage` flag.**
+
+Run the coverage analysis script:
+
+```bash
+node .claude/scripts/analyze-coverage.js
+```
+
+Options:
+- `--since <tag>` - Compare against specific tag (default: latest)
+- `--threshold <n>` - Minimum patch coverage % (default: 80, configurable in `.gh-pmu.yml`)
+- `--skip-tests` - Use existing coverage.out file
+
+The script will:
+1. Run `go test -coverprofile=coverage.out ./...`
+2. Parse coverage results and compare against changed lines since last tag
+3. Calculate patch coverage percentage
+4. Categorize uncovered lines as addressable vs. non-addressable
+5. Exit with code 2 if coverage is below threshold
+
+**If coverage is below threshold:**
+1. Review the `addressableGaps` array in the output
+2. Create an issue for coverage improvements using `gh pmu create`:
+   ```bash
+   gh pmu create --repo rubrical-studios/gh-pmu --title "Test coverage: Address gaps before release" --label enhancement --status backlog
+   ```
+3. Include the uncovered files and line numbers in the issue body
+4. **Inform user**: "Coverage at X% is below the Y% threshold. Created issue #Z for coverage work. Options:"
+   - Address the coverage gaps before releasing
+   - Use `--skip-coverage` to proceed anyway (not recommended)
+   - Adjust threshold in `.gh-pmu.yml` if appropriate
+
+**Configuration** (`.gh-pmu.yml`):
+```yaml
+release:
+  coverage:
+    enabled: true          # Enable coverage gate (default: true)
+    threshold: 80          # Minimum patch coverage % (default: 80)
+    skip_patterns:         # Patterns to exclude
+      - "*_test.go"
+      - "mock_*.go"
+```
+
+**If coverage passes or is skipped, proceed to Step 3.**
+
+---
+
+## Step 3: Recommend Version Number
 
 Run the version recommendation script:
 
@@ -64,7 +113,7 @@ This applies [Semantic Versioning](https://semver.org/):
 
 ---
 
-## Step 3: Wait for CI to Pass
+## Step 4: Wait for CI to Pass
 
 **CRITICAL: Do not proceed until CI passes.**
 
@@ -88,7 +137,7 @@ The script will:
 
 ---
 
-## Step 4: Update CHANGELOG.md
+## Step 5: Update CHANGELOG.md
 
 Follow [Keep a Changelog](https://keepachangelog.com/) format:
 
@@ -122,7 +171,7 @@ Follow [Keep a Changelog](https://keepachangelog.com/) format:
 
 ---
 
-## Step 5: Check README.md
+## Step 6: Check README.md
 
 Review if README needs updates:
 
@@ -135,7 +184,7 @@ Review if README needs updates:
 
 ---
 
-## Step 6: Review Documentation Freshness
+## Step 7: Review Documentation Freshness
 
 Check if documentation files need updates based on changes in this release:
 
@@ -190,7 +239,7 @@ Development guide. Update if:
 
 ---
 
-## Step 7: Commit Release Preparation
+## Step 8: Commit Release Preparation
 
 ```bash
 git add CHANGELOG.md README.md docs/
@@ -202,7 +251,7 @@ git push
 
 ---
 
-## Step 8: Create Tag
+## Step 9: Create Tag
 
 **Ask user for confirmation before creating tag.**
 
@@ -212,11 +261,11 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-**DO NOT STOP HERE. Proceed immediately to Step 9.**
+**DO NOT STOP HERE. Proceed immediately to Step 10.**
 
 ---
 
-## Step 9: Monitor Release Pipeline to Completion
+## Step 10: Monitor Release Pipeline to Completion
 
 **CRITICAL: The release is NOT complete until all CI jobs finish successfully.**
 
@@ -250,6 +299,7 @@ Before tagging, verify:
 
 - [ ] Config file clean (`node .claude/scripts/verify-config.js`)
 - [ ] All commits analyzed and categorized
+- [ ] Coverage gate passed (or `--skip-coverage` confirmed)
 - [ ] Version number confirmed with user
 - [ ] CI passing on main branch
 - [ ] CHANGELOG.md updated with new version

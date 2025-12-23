@@ -272,6 +272,14 @@ type Release struct {
 	Tracks    map[string]TrackConfig `yaml:"tracks,omitempty"`
 	Artifacts *ArtifactConfig        `yaml:"artifacts,omitempty"`
 	Active    []ActiveRelease        `yaml:"active,omitempty"`
+	Coverage  *CoverageConfig        `yaml:"coverage,omitempty"`
+}
+
+// CoverageConfig contains configuration for release coverage gates
+type CoverageConfig struct {
+	Enabled      *bool    `yaml:"enabled,omitempty"`       // Enable coverage gate (default: true)
+	Threshold    int      `yaml:"threshold,omitempty"`     // Minimum patch coverage % (default: 80)
+	SkipPatterns []string `yaml:"skip_patterns,omitempty"` // Patterns to exclude from analysis
 }
 
 // ActiveRelease represents an active release in the config
@@ -393,6 +401,33 @@ func (c *Config) ShouldGenerateChangelog() bool {
 		return true // Default to true
 	}
 	return c.Release.Artifacts.Changelog
+}
+
+// IsCoverageGateEnabled returns whether coverage gate is enabled (default: true)
+func (c *Config) IsCoverageGateEnabled() bool {
+	if c.Release.Coverage == nil || c.Release.Coverage.Enabled == nil {
+		return true // Default to enabled
+	}
+	return *c.Release.Coverage.Enabled
+}
+
+// GetCoverageThreshold returns the minimum patch coverage percentage (default: 80)
+func (c *Config) GetCoverageThreshold() int {
+	if c.Release.Coverage == nil || c.Release.Coverage.Threshold == 0 {
+		return 80 // Default threshold
+	}
+	return c.Release.Coverage.Threshold
+}
+
+// GetCoverageSkipPatterns returns patterns to exclude from coverage analysis
+func (c *Config) GetCoverageSkipPatterns() []string {
+	if c.Release.Coverage == nil {
+		return []string{"*_test.go", "mock_*.go"}
+	}
+	if len(c.Release.Coverage.SkipPatterns) == 0 {
+		return []string{"*_test.go", "mock_*.go"}
+	}
+	return c.Release.Coverage.SkipPatterns
 }
 
 // AddActiveRelease adds a release to the active list if not already present
