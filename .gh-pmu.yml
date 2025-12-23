@@ -28,13 +28,6 @@ triage:
         query: is:issue is:open -has:estimate
         interactive:
             estimate: true
-release:
-    active:
-        - version: 0.9.0
-          tracker_issue: 432
-          track: release
-    coverage:
-        threshold: 70
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -121,14 +114,3 @@ metadata:
         - name: Microsprint
           id: PVTF_lAHOAATLPs4BJeuXzg6bQ8Y
           data_type: TEXT
-cache:
-    releases:
-        - number: 432
-          title: 'Release: release/v0.9.0'
-          state: OPEN
-        - number: 380
-          title: 'Release: release/v0.8.1-test'
-          state: CLOSED
-        - number: 409
-          title: 'Release: release/v0.9.0'
-          state: CLOSED
