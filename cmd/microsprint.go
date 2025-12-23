@@ -1484,23 +1484,6 @@ func sortMicrosprintInfoByDateDesc(microsprints []microsprintInfo) {
 	}
 }
 
-// sortMicrosprintsByDateDesc sorts microsprint issues by their date in descending order
-func sortMicrosprintsByDateDesc(issues []api.Issue) {
-	// Simple bubble sort for now (microsprints list is typically small)
-	for i := 0; i < len(issues)-1; i++ {
-		for j := i + 1; j < len(issues); j++ {
-			// Extract date portion from title: "Microsprint: YYYY-MM-DD-x"
-			nameI := strings.TrimPrefix(issues[i].Title, "Microsprint: ")
-			nameJ := strings.TrimPrefix(issues[j].Title, "Microsprint: ")
-
-			// Compare - larger (more recent) date should come first
-			if nameI < nameJ {
-				issues[i], issues[j] = issues[j], issues[i]
-			}
-		}
-	}
-}
-
 // generateMicrosprintTrackerTemplate generates the initial body template for a microsprint tracker issue
 func generateMicrosprintTrackerTemplate(microsprintName string) string {
 	return fmt.Sprintf(`> **Microsprint Tracker Issue**
