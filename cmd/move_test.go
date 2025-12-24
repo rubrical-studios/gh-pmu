@@ -14,11 +14,12 @@ import (
 
 // mockMoveClient implements moveClient for testing
 type mockMoveClient struct {
-	issues       map[string]*api.Issue // "owner/repo#number" -> Issue
-	project      *api.Project
-	projectItems []api.ProjectItem
-	subIssues    map[string][]api.SubIssue // "owner/repo#number" -> SubIssues
-	fieldUpdates []fieldUpdate             // track field updates for verification
+	issues        map[string]*api.Issue // "owner/repo#number" -> Issue
+	project       *api.Project
+	projectFields []api.ProjectField
+	projectItems  []api.ProjectItem
+	subIssues     map[string][]api.SubIssue // "owner/repo#number" -> SubIssues
+	fieldUpdates  []fieldUpdate             // track field updates for verification
 
 	// Microsprint support
 	openIssuesByLabel map[string][]api.Issue // label -> issues
@@ -26,6 +27,7 @@ type mockMoveClient struct {
 	// Error injection
 	getIssueErr             error
 	getProjectErr           error
+	getProjectFieldsErr     error
 	getProjectItemsErr      error
 	getSubIssuesErr         error
 	setProjectItemErr       error
@@ -101,6 +103,35 @@ func (m *mockMoveClient) SetProjectItemField(projectID, itemID, fieldName, value
 		value:     value,
 	})
 	return nil
+}
+
+func (m *mockMoveClient) SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []api.ProjectField) error {
+	// Delegate to the same logic as SetProjectItemField for testing
+	return m.SetProjectItemField(projectID, itemID, fieldName, value)
+}
+
+func (m *mockMoveClient) GetProjectFields(projectID string) ([]api.ProjectField, error) {
+	if m.getProjectFieldsErr != nil {
+		return nil, m.getProjectFieldsErr
+	}
+	if m.projectFields != nil {
+		return m.projectFields, nil
+	}
+	// Return default test fields
+	return []api.ProjectField{
+		{ID: "STATUS_FIELD", Name: "Status", DataType: "SINGLE_SELECT", Options: []api.FieldOption{
+			{ID: "OPT_BACKLOG", Name: "Backlog"},
+			{ID: "OPT_IN_PROGRESS", Name: "In progress"},
+			{ID: "OPT_DONE", Name: "Done"},
+		}},
+		{ID: "PRIORITY_FIELD", Name: "Priority", DataType: "SINGLE_SELECT", Options: []api.FieldOption{
+			{ID: "OPT_P0", Name: "P0"},
+			{ID: "OPT_P1", Name: "P1"},
+			{ID: "OPT_P2", Name: "P2"},
+		}},
+		{ID: "MICROSPRINT_FIELD", Name: "Microsprint", DataType: "TEXT"},
+		{ID: "RELEASE_FIELD", Name: "Release", DataType: "TEXT"},
+	}, nil
 }
 
 func (m *mockMoveClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
