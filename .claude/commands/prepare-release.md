@@ -291,6 +291,56 @@ The script will:
 
 **Report the output to user when complete.**
 
+**DO NOT STOP HERE. Proceed immediately to Step 11.**
+
+---
+
+## Step 11: Update GitHub Release Notes
+
+After the release is created by CI, update the release notes with content from CHANGELOG.md:
+
+```bash
+node .claude/scripts/update-release-notes.js --version vX.Y.Z
+```
+
+Options:
+- `--version <version>` - Version to update (required)
+- `--dry-run` - Show what would be updated without making changes
+
+The script will:
+1. Parse CHANGELOG.md for the specified version
+2. Transform content into GitHub release format with sections:
+   - "What's New" (features, changes, performance)
+   - "Bug Fixes"
+   - "Security" (if applicable)
+   - Full changelog comparison link
+3. Update the GitHub release with the formatted notes
+
+**Preview first with `--dry-run`, then run without the flag to update.**
+
+---
+
+## Step 12: Clean Up Old Release Assets
+
+After the release is complete, clean up assets from older releases to save storage:
+
+```bash
+node .claude/scripts/cleanup-release-assets.js
+```
+
+Options:
+- `--keep <n>` - Number of recent releases to keep assets for (default: 3)
+- `--dry-run` - Show what would be deleted without making changes
+
+The script will:
+1. List all GitHub releases with assets
+2. Keep assets for the 3 most recent tagged releases
+3. Delete assets from older releases (preserves release entries)
+
+**Preview first with `--dry-run`, then run without the flag to clean up.**
+
+**Report cleanup results to user when complete.**
+
 ---
 
 ## Summary Checklist
@@ -321,6 +371,8 @@ After tagging, verify:
 - [ ] All CI jobs completed successfully (test, lint, build, release, coverage)
 - [ ] Release assets uploaded (all platform binaries + checksums)
 - [ ] `gh release view vX.Y.Z` confirms release exists with assets
+- [ ] Release notes updated from CHANGELOG.md (Step 11)
+- [ ] Old release assets cleaned up (Step 12)
 
 ---
 
