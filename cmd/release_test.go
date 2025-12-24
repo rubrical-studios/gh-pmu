@@ -83,6 +83,7 @@ type mockReleaseClient struct {
 	getProjectItemFieldErr error
 	getReleaseIssuesErr    error
 	reopenIssueErr         error
+	getProjectItemsErr     error
 }
 
 // Helper types for call tracking
@@ -194,6 +195,9 @@ func (m *mockReleaseClient) GetIssuesByRelease(owner, repo, releaseVersion strin
 }
 
 func (m *mockReleaseClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	if m.getProjectItemsErr != nil {
+		return nil, m.getProjectItemsErr
+	}
 	return m.projectItems, nil
 }
 
@@ -984,6 +988,102 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 	}
 }
 
+
+func TestRunReleaseCurrentWithDeps_GetProjectError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectErr = errors.New("failed to get project")
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCurrentOptions{}
+
+	// ACT
+	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("Expected error to contain 'failed to get project', got: %v", err)
+	}
+}
+
+func TestRunReleaseCurrentWithDeps_GetProjectItemsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectItemsErr = errors.New("failed to get project items")
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCurrentOptions{}
+
+	// ACT
+	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("Expected error to contain 'failed to get project items', got: %v", err)
+	}
+}
+
+func TestRunReleaseCurrentWithDeps_SkipsNilIssues(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: nil,
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Fix bug C"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+	}
+
+	cfg := testReleaseConfig()
+	cmd, buf := newTestReleaseCmd()
+	opts := &releaseCurrentOptions{}
+
+	// ACT
+	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "Issues: 2") {
+		t.Errorf("Expected output to contain 'Issues: 2', got: %s", output)
+	}
+}
+
 // =============================================================================
 // REQ-020: Release Artifacts
 // =============================================================================
@@ -1277,6 +1377,61 @@ func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 		t.Errorf("Expected error to mention 'release not found', got: %s", errMsg)
 	}
 }
+
+func TestRunReleaseCloseWithDeps_GetProjectError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectErr = errors.New("failed to get project")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("Expected error to contain 'failed to get project', got: %v", err)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_GetProjectItemsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectItemsErr = errors.New("failed to get project items")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("Expected error to contain 'failed to get project items', got: %v", err)
+	}
+}
+
 
 // =============================================================================
 // REQ-021: Release Git Tag
