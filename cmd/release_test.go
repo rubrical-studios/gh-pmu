@@ -59,6 +59,7 @@ type mockReleaseClient struct {
 	projectItemFieldValue  string
 	projectItemFieldValues map[string]string // itemID -> fieldValue mapping for per-issue status
 	releaseIssues          []api.Issue
+	projectItems           []api.ProjectItem
 
 	// Captured calls for verification
 	createIssueCalls     []createIssueCall
@@ -190,6 +191,10 @@ func (m *mockReleaseClient) GetIssuesByRelease(owner, repo, releaseVersion strin
 		return nil, m.getReleaseIssuesErr
 	}
 	return m.releaseIssues, nil
+}
+
+func (m *mockReleaseClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	return m.projectItems, nil
 }
 
 func (m *mockReleaseClient) UpdateIssueBody(issueID, body string) error {
@@ -848,10 +853,29 @@ func TestRunReleaseCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
-		{ID: "ISSUE_3", Number: 43, Title: "Add feature C"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Add feature C"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -915,9 +939,22 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -1008,9 +1045,22 @@ func TestRunReleaseCloseWithDeps_ReleaseNotesContainsDetails(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Add new feature", State: "CLOSED", Labels: []api.Label{{Name: "enhancement"}}},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix critical bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Add new feature", State: "CLOSED", Labels: []api.Label{{Name: "enhancement"}}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Fix critical bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -2078,11 +2128,32 @@ func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	// 3 incomplete issues: 1 parking lot, 2 regular
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Parked feature idea", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Incomplete work", State: "OPEN"},
-		{ID: "ISSUE_3", Number: 43, Title: "Another incomplete", State: "OPEN"},
+	// 3 incomplete issues: 1 parking lot, 2 regular - using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Parked feature idea", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Incomplete work", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Another incomplete", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Ready"},
+			},
+		},
 	}
 	// Map issue IDs to item IDs
 	mock.projectItemIDs = map[string]string{
@@ -2148,9 +2219,24 @@ func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Parked idea 1", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Parked idea 2", State: "OPEN"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Parked idea 1", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Parked idea 2", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
@@ -2213,9 +2299,24 @@ func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Parked idea", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Regular issue", State: "OPEN"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Parked idea", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"}, // Uses default value
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Regular issue", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
@@ -2266,8 +2367,16 @@ func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T)
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
@@ -2351,11 +2460,26 @@ func TestRunReleaseCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *t
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Issue without project item", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Normal issue", State: "OPEN"},
+	// Using projectItems with Release field - ISSUE_1 missing projectItemID will trigger warning
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Issue without project item", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Normal issue", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
-	// Only ISSUE_2 has a project item ID - ISSUE_1 will fail lookup
+	// Only ISSUE_2 has a project item ID - ISSUE_1 will fail lookup and show warning
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_2": "ITEM_2",
 	}
@@ -2415,10 +2539,22 @@ func TestRunReleaseCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	// All issues are closed (done)
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Completed work", State: "CLOSED"},
-		{ID: "ISSUE_2", Number: 42, Title: "Also done", State: "CLOSED"},
+	// All issues are closed (done) - using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Completed work", State: "CLOSED"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Also done", State: "CLOSED"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -2471,8 +2607,16 @@ func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+	// Use projectItems with Release field for filtering
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",

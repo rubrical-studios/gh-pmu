@@ -39,6 +39,8 @@ type releaseClient interface {
 	GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error)
 	// GetIssuesByRelease returns issues assigned to a specific release
 	GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error)
+	// GetProjectItems returns all items in a project with their field values
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
 	// UpdateIssueBody updates an issue's body
 	UpdateIssueBody(issueID, body string) error
 	// WriteFile writes content to a file path
@@ -584,10 +586,31 @@ func runReleaseCurrentWithDeps(cmd *cobra.Command, opts *releaseCurrentOptions, 
 	// Extract version from title
 	releaseVersion := extractReleaseVersion(activeRelease.Title)
 
-	// Get issues assigned to this release
-	releaseIssues, err := client.GetIssuesByRelease(owner, repo, releaseVersion)
+	// Get project to query items
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
-		return fmt.Errorf("failed to get release issues: %w", err)
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Get all project items and filter by release field
+	items, err := client.GetProjectItems(project.ID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get project items: %w", err)
+	}
+
+	// Filter items by Release field matching releaseVersion
+	var releaseIssues []api.Issue
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+		// Check if this item has a Release field matching the target version
+		for _, fv := range item.FieldValues {
+			if fv.Field == "Release" && fv.Value == releaseVersion {
+				releaseIssues = append(releaseIssues, *item.Issue)
+				break
+			}
+		}
 	}
 
 	// Display release details (AC-036-1)
@@ -678,10 +701,31 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 	releaseVersion := extractReleaseVersion(targetRelease.Title)
 	codename := extractReleaseCodename(targetRelease.Title)
 
-	// Get issues assigned to this release
-	releaseIssues, err := client.GetIssuesByRelease(owner, repo, releaseVersion)
+	// Get project for field operations
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
-		return fmt.Errorf("failed to get release issues: %w", err)
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Get all project items and filter by release field
+	items, err := client.GetProjectItems(project.ID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get project items: %w", err)
+	}
+
+	// Filter items by Release field matching releaseVersion
+	var releaseIssues []api.Issue
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+		// Check if this item has a Release field matching the target version
+		for _, fv := range item.FieldValues {
+			if fv.Field == "Release" && fv.Value == releaseVersion {
+				releaseIssues = append(releaseIssues, *item.Issue)
+				break
+			}
+		}
 	}
 
 	// Count done vs incomplete issues
@@ -700,12 +744,6 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 	fmt.Fprintf(cmd.OutOrStdout(), "  Issues in release: %d (%d done, %d incomplete)\n",
 		len(releaseIssues), len(doneIssues), len(incompleteIssues))
 	fmt.Fprintln(cmd.OutOrStdout())
-
-	// Get project for field operations
-	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
-	if err != nil {
-		return fmt.Errorf("failed to get project: %w", err)
-	}
 
 	// Separate incomplete issues into parking lot and to-move categories
 	var parkingLotIssues, issuesToMove []api.Issue
