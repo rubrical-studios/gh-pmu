@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2025-12-23
+
+### Fixed
+- `gh pmu init` now detects all status and priority field values from project metadata (#442)
+  - Previously hardcoded values missed custom options like "Parking Lot"
+  - Now dynamically generates field mappings from actual project fields
+  - Handles emoji prefixes (e.g., "🅿️ Parking Lot" → `parking_lot` alias)
+
 ## [0.9.0] - 2025-12-23
 
 ### Added
