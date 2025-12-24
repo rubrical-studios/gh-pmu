@@ -691,6 +691,9 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 		metadataFields = append(metadataFields, mf)
 	}
 
+	// Build field mappings dynamically from metadata
+	fieldMappings := buildFieldMappingsFromMetadata(metadata)
+
 	configFile := &ConfigFileWithMetadata{
 		Project: ProjectConfig{
 			Name:   cfg.ProjectName,
@@ -703,26 +706,7 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 			Priority: "p2",
 			Status:   "backlog",
 		},
-		Fields: map[string]FieldMapping{
-			"priority": {
-				Field: "Priority",
-				Values: map[string]string{
-					"p0": "P0",
-					"p1": "P1",
-					"p2": "P2",
-				},
-			},
-			"status": {
-				Field: "Status",
-				Values: map[string]string{
-					"backlog":     "Backlog",
-					"ready":       "Ready",
-					"in_progress": "In progress",
-					"in_review":   "In review",
-					"done":        "Done",
-				},
-			},
-		},
+		Fields: fieldMappings,
 		Triage: map[string]TriageRule{
 			"estimate": {
 				Query: "is:issue is:open -has:estimate",
@@ -852,6 +836,95 @@ func mergeActiveReleases(existing, discovered []ReleaseActiveEntry) []ReleaseAct
 			seen[r.TrackerIssue] = true
 		}
 	}
+
+	return result
+}
+
+// buildFieldMappingsFromMetadata builds field mappings dynamically from project metadata.
+// This ensures all field options (including "Parking Lot") are included in the config.
+func buildFieldMappingsFromMetadata(metadata *ProjectMetadata) map[string]FieldMapping {
+	mappings := make(map[string]FieldMapping)
+
+	// Find Status and Priority fields in metadata
+	for _, field := range metadata.Fields {
+		fieldNameLower := strings.ToLower(field.Name)
+
+		if fieldNameLower == "status" && len(field.Options) > 0 {
+			values := make(map[string]string)
+			for _, opt := range field.Options {
+				alias := optionNameToAlias(opt.Name)
+				values[alias] = opt.Name
+			}
+			mappings["status"] = FieldMapping{
+				Field:  field.Name,
+				Values: values,
+			}
+		}
+
+		if fieldNameLower == "priority" && len(field.Options) > 0 {
+			values := make(map[string]string)
+			for _, opt := range field.Options {
+				alias := optionNameToAlias(opt.Name)
+				values[alias] = opt.Name
+			}
+			mappings["priority"] = FieldMapping{
+				Field:  field.Name,
+				Values: values,
+			}
+		}
+	}
+
+	// Fallback to defaults if fields not found in metadata
+	if _, ok := mappings["status"]; !ok {
+		mappings["status"] = FieldMapping{
+			Field: "Status",
+			Values: map[string]string{
+				"backlog":     "Backlog",
+				"ready":       "Ready",
+				"in_progress": "In progress",
+				"in_review":   "In review",
+				"done":        "Done",
+			},
+		}
+	}
+
+	if _, ok := mappings["priority"]; !ok {
+		mappings["priority"] = FieldMapping{
+			Field: "Priority",
+			Values: map[string]string{
+				"p0": "P0",
+				"p1": "P1",
+				"p2": "P2",
+			},
+		}
+	}
+
+	return mappings
+}
+
+// optionNameToAlias converts a field option name to a CLI-friendly alias.
+// Examples: "In progress" -> "in_progress", "🅿️ Parking Lot" -> "parking_lot"
+func optionNameToAlias(name string) string {
+	// Remove common emoji prefixes (strip all non-ASCII characters)
+	var cleaned strings.Builder
+	for _, r := range name {
+		if r < 128 { // ASCII only
+			cleaned.WriteRune(r)
+		}
+	}
+	result := strings.TrimSpace(cleaned.String())
+
+	// Convert to lowercase and replace spaces with underscores
+	result = strings.ToLower(result)
+	result = strings.ReplaceAll(result, " ", "_")
+
+	// Remove any double underscores
+	for strings.Contains(result, "__") {
+		result = strings.ReplaceAll(result, "__", "_")
+	}
+
+	// Trim leading/trailing underscores
+	result = strings.Trim(result, "_")
 
 	return result
 }
