@@ -59,6 +59,7 @@ type mockReleaseClient struct {
 	projectItemFieldValue  string
 	projectItemFieldValues map[string]string // itemID -> fieldValue mapping for per-issue status
 	releaseIssues          []api.Issue
+	projectItems           []api.ProjectItem
 
 	// Captured calls for verification
 	createIssueCalls     []createIssueCall
@@ -82,6 +83,7 @@ type mockReleaseClient struct {
 	getProjectItemFieldErr error
 	getReleaseIssuesErr    error
 	reopenIssueErr         error
+	getProjectItemsErr     error
 }
 
 // Helper types for call tracking
@@ -190,6 +192,13 @@ func (m *mockReleaseClient) GetIssuesByRelease(owner, repo, releaseVersion strin
 		return nil, m.getReleaseIssuesErr
 	}
 	return m.releaseIssues, nil
+}
+
+func (m *mockReleaseClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	if m.getProjectItemsErr != nil {
+		return nil, m.getProjectItemsErr
+	}
+	return m.projectItems, nil
 }
 
 func (m *mockReleaseClient) UpdateIssueBody(issueID, body string) error {
@@ -848,10 +857,29 @@ func TestRunReleaseCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
-		{ID: "ISSUE_3", Number: 43, Title: "Add feature C"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Add feature C"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -915,9 +943,22 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Fix bug B"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -944,6 +985,101 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 	}
 	if !strings.Contains(call.body, "#41") || !strings.Contains(call.body, "#42") {
 		t.Errorf("Expected body to contain issue references, got '%s'", call.body)
+	}
+}
+
+func TestRunReleaseCurrentWithDeps_GetProjectError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectErr = errors.New("failed to get project")
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCurrentOptions{}
+
+	// ACT
+	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("Expected error to contain 'failed to get project', got: %v", err)
+	}
+}
+
+func TestRunReleaseCurrentWithDeps_GetProjectItemsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectItemsErr = errors.New("failed to get project items")
+
+	cfg := testReleaseConfig()
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCurrentOptions{}
+
+	// ACT
+	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("Expected error to contain 'failed to get project items', got: %v", err)
+	}
+}
+
+func TestRunReleaseCurrentWithDeps_SkipsNilIssues(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: nil,
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Fix bug C"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+	}
+
+	cfg := testReleaseConfig()
+	cmd, buf := newTestReleaseCmd()
+	opts := &releaseCurrentOptions{}
+
+	// ACT
+	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "Issues: 2") {
+		t.Errorf("Expected output to contain 'Issues: 2', got: %s", output)
 	}
 }
 
@@ -1008,9 +1144,22 @@ func TestRunReleaseCloseWithDeps_ReleaseNotesContainsDetails(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Add new feature", State: "CLOSED", Labels: []api.Label{{Name: "enhancement"}}},
-		{ID: "ISSUE_2", Number: 42, Title: "Fix critical bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Add new feature", State: "CLOSED", Labels: []api.Label{{Name: "enhancement"}}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Fix critical bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -1225,6 +1374,60 @@ func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "release not found") {
 		t.Errorf("Expected error to mention 'release not found', got: %s", errMsg)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_GetProjectError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectErr = errors.New("failed to get project")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project") {
+		t.Errorf("Expected error to contain 'failed to get project', got: %v", err)
+	}
+}
+
+func TestRunReleaseCloseWithDeps_GetProjectItemsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+	}
+	mock.getProjectItemsErr = errors.New("failed to get project items")
+
+	cfg := testReleaseConfig()
+	cleanup := setupReleaseTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestReleaseCmd()
+	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project items") {
+		t.Errorf("Expected error to contain 'failed to get project items', got: %v", err)
 	}
 }
 
@@ -2078,11 +2281,32 @@ func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	// 3 incomplete issues: 1 parking lot, 2 regular
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Parked feature idea", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Incomplete work", State: "OPEN"},
-		{ID: "ISSUE_3", Number: 43, Title: "Another incomplete", State: "OPEN"},
+	// 3 incomplete issues: 1 parking lot, 2 regular - using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Parked feature idea", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Incomplete work", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Another incomplete", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Ready"},
+			},
+		},
 	}
 	// Map issue IDs to item IDs
 	mock.projectItemIDs = map[string]string{
@@ -2148,9 +2372,24 @@ func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Parked idea 1", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Parked idea 2", State: "OPEN"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Parked idea 1", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Parked idea 2", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
@@ -2213,9 +2452,24 @@ func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Parked idea", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Regular issue", State: "OPEN"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Parked idea", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "Parking Lot"}, // Uses default value
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Regular issue", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
@@ -2266,8 +2520,16 @@ func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T)
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+	// Using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
@@ -2351,11 +2613,26 @@ func TestRunReleaseCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *t
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Issue without project item", State: "OPEN"},
-		{ID: "ISSUE_2", Number: 42, Title: "Normal issue", State: "OPEN"},
+	// Using projectItems with Release field - ISSUE_1 missing projectItemID will trigger warning
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Issue without project item", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Normal issue", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
-	// Only ISSUE_2 has a project item ID - ISSUE_1 will fail lookup
+	// Only ISSUE_2 has a project item ID - ISSUE_1 will fail lookup and show warning
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_2": "ITEM_2",
 	}
@@ -2415,10 +2692,22 @@ func TestRunReleaseCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	// All issues are closed (done)
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Completed work", State: "CLOSED"},
-		{ID: "ISSUE_2", Number: 42, Title: "Also done", State: "CLOSED"},
+	// All issues are closed (done) - using projectItems with Release field
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Completed work", State: "CLOSED"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Also done", State: "CLOSED"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
 	}
 
 	cfg := testReleaseConfig()
@@ -2471,8 +2760,16 @@ func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+	// Use projectItems with Release field for filtering
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Incomplete work", State: "OPEN"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+				{Field: "Status", Value: "In Progress"},
+			},
+		},
 	}
 	mock.projectItemIDs = map[string]string{
 		"ISSUE_1": "ITEM_1",
