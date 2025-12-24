@@ -499,6 +499,126 @@ func maybePull(repoPath string, cfg Config) {
 
 ---
 
+## Distribution & Installation
+
+### No User Installation Required
+
+Both SQLite and BoltDB are **embedded into the gh-pmu binary**. Users do not install anything separately.
+
+| Driver | Type | User Action | Build Requirement |
+|--------|------|-------------|-------------------|
+| `modernc.org/sqlite` | Pure Go | None | `go build` |
+| `go.etcd.io/bbolt` | Pure Go | None | `go build` |
+| `github.com/mattn/go-sqlite3` | CGO | None (but limits cross-compile) | C compiler + SQLite headers |
+
+**Recommended:** `modernc.org/sqlite` - pure Go, no CGO, cross-compiles to all platforms.
+
+### Binary Size Impact
+
+```
+Current gh-pmu binary:     ~15MB
++ modernc.org/sqlite:      +3-5MB  → ~18-20MB
++ go.etcd.io/bbolt:        +1MB    → ~16MB
+```
+
+### Database File Creation
+
+The cache database is created automatically on first use:
+
+```bash
+# User installs gh-pmu (SQLite embedded in binary)
+gh extension install rubrical-studios/gh-pmu
+
+# First command that uses cache creates the database
+gh pmu release list
+# Creates: ~/.config/gh-pmu/cache.db (or cache.bolt)
+
+# Database location
+# Linux/macOS: ~/.config/gh-pmu/cache.db
+# Windows:     %APPDATA%\gh-pmu\cache.db
+```
+
+### Initialization Logic
+
+```go
+// internal/cache/init.go
+func InitCache(cfg Config) (*Cache, error) {
+    // Determine cache path
+    cacheDir := getCacheDir()  // ~/.config/gh-pmu or %APPDATA%\gh-pmu
+    if cfg.Cache.Path != "" {
+        cacheDir = cfg.Cache.Path
+    }
+
+    // Create directory if needed
+    if err := os.MkdirAll(cacheDir, 0755); err != nil {
+        return nil, err
+    }
+
+    dbPath := filepath.Join(cacheDir, "cache.db")
+
+    // Open/create database
+    db, err := sql.Open("sqlite", dbPath)
+    if err != nil {
+        return nil, err
+    }
+
+    // Run migrations (creates tables if not exist)
+    if err := migrate(db); err != nil {
+        return nil, err
+    }
+
+    return &Cache{db: db}, nil
+}
+
+func getCacheDir() string {
+    if runtime.GOOS == "windows" {
+        return filepath.Join(os.Getenv("APPDATA"), "gh-pmu")
+    }
+    if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+        return filepath.Join(xdg, "gh-pmu")
+    }
+    return filepath.Join(os.Getenv("HOME"), ".config", "gh-pmu")
+}
+```
+
+### Cross-Platform Build
+
+```bash
+# Build for all platforms from any OS (no CGO needed)
+GOOS=linux   GOARCH=amd64 go build -o gh-pmu-linux-amd64
+GOOS=darwin  GOARCH=amd64 go build -o gh-pmu-darwin-amd64
+GOOS=darwin  GOARCH=arm64 go build -o gh-pmu-darwin-arm64
+GOOS=windows GOARCH=amd64 go build -o gh-pmu-windows-amd64.exe
+```
+
+### Upgrade Path
+
+When upgrading gh-pmu with schema changes:
+
+```go
+// internal/cache/migrate.go
+func migrate(db *sql.DB) error {
+    var version int
+    db.QueryRow("PRAGMA user_version").Scan(&version)
+
+    migrations := []func(*sql.DB) error{
+        migrateV1,  // Initial schema
+        migrateV2,  // Add new columns (future)
+    }
+
+    for i := version; i < len(migrations); i++ {
+        if err := migrations[i](db); err != nil {
+            return err
+        }
+        db.Exec(fmt.Sprintf("PRAGMA user_version = %d", i+1))
+    }
+
+    return nil
+}
+```
+
+---
+
 ## Implementation Plan
 
 ### Phase 1: Foundation
