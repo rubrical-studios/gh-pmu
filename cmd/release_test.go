@@ -988,7 +988,6 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 	}
 }
 
-
 func TestRunReleaseCurrentWithDeps_GetProjectError(t *testing.T) {
 	// ARRANGE
 	mock := setupMockForRelease()
@@ -1431,7 +1430,6 @@ func TestRunReleaseCloseWithDeps_GetProjectItemsError(t *testing.T) {
 		t.Errorf("Expected error to contain 'failed to get project items', got: %v", err)
 	}
 }
-
 
 // =============================================================================
 // REQ-021: Release Git Tag
