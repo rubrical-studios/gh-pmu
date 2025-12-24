@@ -1061,3 +1061,287 @@ func TestWriteConfigWithMetadata_RepoRootProtection(t *testing.T) {
 		t.Errorf("Expected ErrRepoRootProtected, got: %v", err)
 	}
 }
+
+// ============================================================================
+// optionNameToAlias Tests (Issue #442)
+// ============================================================================
+
+func TestOptionNameToAlias(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple lowercase",
+			input:    "Backlog",
+			expected: "backlog",
+		},
+		{
+			name:     "space to underscore",
+			input:    "In progress",
+			expected: "in_progress",
+		},
+		{
+			name:     "multiple spaces",
+			input:    "In Review",
+			expected: "in_review",
+		},
+		{
+			name:     "emoji prefix with space",
+			input:    "🅿️ Parking Lot",
+			expected: "parking_lot",
+		},
+		{
+			name:     "emoji prefix no space",
+			input:    "🚀Ready",
+			expected: "ready",
+		},
+		{
+			name:     "multiple emojis",
+			input:    "✅ ✓ Done",
+			expected: "done",
+		},
+		{
+			name:     "emoji only",
+			input:    "🔥",
+			expected: "",
+		},
+		{
+			name:     "already lowercase underscore",
+			input:    "in_progress",
+			expected: "in_progress",
+		},
+		{
+			name:     "uppercase with underscore",
+			input:    "IN_PROGRESS",
+			expected: "in_progress",
+		},
+		{
+			name:     "leading and trailing spaces",
+			input:    "  Backlog  ",
+			expected: "backlog",
+		},
+		{
+			name:     "P0 priority",
+			input:    "P0",
+			expected: "p0",
+		},
+		{
+			name:     "complex emoji",
+			input:    "🏃‍♂️ Running",
+			expected: "running",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := optionNameToAlias(tt.input)
+			if result != tt.expected {
+				t.Errorf("optionNameToAlias(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// ============================================================================
+// buildFieldMappingsFromMetadata Tests (Issue #442)
+// ============================================================================
+
+func TestBuildFieldMappingsFromMetadata_StatusField(t *testing.T) {
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields: []FieldMetadata{
+			{
+				ID:       "PVTF_status",
+				Name:     "Status",
+				DataType: "SINGLE_SELECT",
+				Options: []OptionMetadata{
+					{ID: "opt1", Name: "Backlog"},
+					{ID: "opt2", Name: "In progress"},
+					{ID: "opt3", Name: "🅿️ Parking Lot"},
+					{ID: "opt4", Name: "Done"},
+				},
+			},
+		},
+	}
+
+	mappings := buildFieldMappingsFromMetadata(metadata)
+
+	// Check status field exists
+	status, ok := mappings["status"]
+	if !ok {
+		t.Fatal("Expected 'status' field mapping")
+	}
+
+	if status.Field != "Status" {
+		t.Errorf("Expected field name 'Status', got %q", status.Field)
+	}
+
+	// Check all values are mapped
+	expectedMappings := map[string]string{
+		"backlog":     "Backlog",
+		"in_progress": "In progress",
+		"parking_lot": "🅿️ Parking Lot",
+		"done":        "Done",
+	}
+
+	for alias, expected := range expectedMappings {
+		if actual, ok := status.Values[alias]; !ok {
+			t.Errorf("Missing alias %q in status values", alias)
+		} else if actual != expected {
+			t.Errorf("status.Values[%q] = %q, want %q", alias, actual, expected)
+		}
+	}
+}
+
+func TestBuildFieldMappingsFromMetadata_PriorityField(t *testing.T) {
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields: []FieldMetadata{
+			{
+				ID:       "PVTF_priority",
+				Name:     "Priority",
+				DataType: "SINGLE_SELECT",
+				Options: []OptionMetadata{
+					{ID: "opt1", Name: "P0"},
+					{ID: "opt2", Name: "P1"},
+					{ID: "opt3", Name: "P2"},
+					{ID: "opt4", Name: "P3"},
+				},
+			},
+		},
+	}
+
+	mappings := buildFieldMappingsFromMetadata(metadata)
+
+	priority, ok := mappings["priority"]
+	if !ok {
+		t.Fatal("Expected 'priority' field mapping")
+	}
+
+	// Check P3 is included (not hardcoded)
+	if _, ok := priority.Values["p3"]; !ok {
+		t.Error("Expected 'p3' to be included in priority values")
+	}
+}
+
+func TestBuildFieldMappingsFromMetadata_FallbackDefaults(t *testing.T) {
+	// Empty metadata - should use fallback defaults
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields:    []FieldMetadata{},
+	}
+
+	mappings := buildFieldMappingsFromMetadata(metadata)
+
+	// Should have default status
+	status, ok := mappings["status"]
+	if !ok {
+		t.Fatal("Expected default 'status' field mapping")
+	}
+	if _, ok := status.Values["backlog"]; !ok {
+		t.Error("Expected default 'backlog' in status values")
+	}
+
+	// Should have default priority
+	priority, ok := mappings["priority"]
+	if !ok {
+		t.Fatal("Expected default 'priority' field mapping")
+	}
+	if _, ok := priority.Values["p0"]; !ok {
+		t.Error("Expected default 'p0' in priority values")
+	}
+}
+
+func TestBuildFieldMappingsFromMetadata_NoOptions(t *testing.T) {
+	// Fields exist but have no options - should fall back to defaults
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields: []FieldMetadata{
+			{
+				ID:       "PVTF_status",
+				Name:     "Status",
+				DataType: "SINGLE_SELECT",
+				Options:  []OptionMetadata{}, // Empty options
+			},
+		},
+	}
+
+	mappings := buildFieldMappingsFromMetadata(metadata)
+
+	// Should fall back to default status values
+	status := mappings["status"]
+	if _, ok := status.Values["backlog"]; !ok {
+		t.Error("Expected fallback to default 'backlog' when no options")
+	}
+}
+
+func TestBuildFieldMappingsFromMetadata_CaseInsensitiveFieldName(t *testing.T) {
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields: []FieldMetadata{
+			{
+				ID:       "PVTF_status",
+				Name:     "STATUS", // Uppercase
+				DataType: "SINGLE_SELECT",
+				Options: []OptionMetadata{
+					{ID: "opt1", Name: "Active"},
+				},
+			},
+		},
+	}
+
+	mappings := buildFieldMappingsFromMetadata(metadata)
+
+	status, ok := mappings["status"]
+	if !ok {
+		t.Fatal("Expected 'status' field mapping for uppercase 'STATUS'")
+	}
+	if status.Field != "STATUS" {
+		t.Errorf("Expected field name to preserve case 'STATUS', got %q", status.Field)
+	}
+}
+
+func TestWriteConfigWithMetadata_IncludesParkingLot(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_test",
+		Fields: []FieldMetadata{
+			{
+				ID:       "PVTF_status",
+				Name:     "Status",
+				DataType: "SINGLE_SELECT",
+				Options: []OptionMetadata{
+					{ID: "opt1", Name: "Backlog"},
+					{ID: "opt2", Name: "🅿️ Parking Lot"},
+					{ID: "opt3", Name: "Done"},
+				},
+			},
+		},
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata, nil)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	content, _ := readFile(tmpDir + "/.gh-pmu.yml")
+
+	// Should contain parking_lot alias
+	if !bytes.Contains(content, []byte("parking_lot:")) {
+		t.Error("Config should contain 'parking_lot:' alias")
+	}
+
+	// Should contain the original name with emoji
+	if !bytes.Contains(content, []byte("Parking Lot")) {
+		t.Error("Config should contain 'Parking Lot' value")
+	}
+}
