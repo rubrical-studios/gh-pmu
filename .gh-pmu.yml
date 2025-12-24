@@ -22,10 +22,13 @@ fields:
             done: Done
             in_progress: In progress
             in_review: In review
+            notes: Notes
+            parking_lot: Parking Lot
             ready: Ready
 triage:
     estimate:
         query: is:issue is:open -has:estimate
+        apply: {}
         interactive:
             estimate: true
 metadata:
@@ -54,6 +57,8 @@ metadata:
               id: "98236657"
             - name: Notes
               id: db9f4455
+            - name: Parking Lot
+              id: 87752a74
         - name: Labels
           id: PVTF_lAHOAATLPs4BJeuXzg5oVBA
           data_type: LABELS
