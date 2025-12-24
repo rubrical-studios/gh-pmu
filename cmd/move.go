@@ -30,9 +30,11 @@ type moveOptions struct {
 type moveClient interface {
 	GetIssue(owner, repo string, number int) (*api.Issue, error)
 	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectFields(projectID string) ([]api.ProjectField, error)
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
 	GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error)
 	SetProjectItemField(projectID, itemID, fieldName, value string) error
+	SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []api.ProjectField) error
 	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
 }
 
@@ -440,6 +442,12 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		fmt.Println()
 	}
 
+	// Cache project fields once before the update loop to avoid N+1 API calls
+	projectFields, err := client.GetProjectFields(project.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get project fields: %w", err)
+	}
+
 	updatedCount := 0
 	skippedCount := 0
 	errorCount := 0
@@ -453,42 +461,42 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		updateFailed := false
 
 		if statusValue != "" {
-			if err := client.SetProjectItemField(project.ID, info.ItemID, "Status", statusValue); err != nil {
+			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Status", statusValue, projectFields); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set status for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if priorityValue != "" && !updateFailed {
-			if err := client.SetProjectItemField(project.ID, info.ItemID, "Priority", priorityValue); err != nil {
+			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Priority", priorityValue, projectFields); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set priority for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if microsprintValue != "" && !updateFailed {
-			if err := client.SetProjectItemField(project.ID, info.ItemID, "Microsprint", microsprintValue); err != nil {
+			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", microsprintValue, projectFields); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if releaseValue != "" && !updateFailed {
-			if err := client.SetProjectItemField(project.ID, info.ItemID, "Release", releaseValue); err != nil {
+			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", releaseValue, projectFields); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set release for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if clearMicrosprint && !updateFailed {
-			if err := client.SetProjectItemField(project.ID, info.ItemID, "Microsprint", ""); err != nil {
+			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", "", projectFields); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to clear microsprint for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if clearRelease && !updateFailed {
-			if err := client.SetProjectItemField(project.ID, info.ItemID, "Release", ""); err != nil {
+			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", "", projectFields); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to clear release for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}

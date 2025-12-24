@@ -1190,3 +1190,165 @@ func TestUpdateIssueInput_HasRequiredFields(t *testing.T) {
 		t.Errorf("Expected Body 'new body', got '%s'", input.Body)
 	}
 }
+
+// ============================================================================
+// SetProjectItemFieldWithFields Tests
+// ============================================================================
+
+func TestSetProjectItemFieldWithFields_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Status", DataType: "SINGLE_SELECT"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Status", "Done", fields)
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_FieldNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Status", DataType: "SINGLE_SELECT"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Priority", "P1", fields)
+	if err == nil {
+		t.Fatal("Expected error when field not found")
+	}
+	if !strings.Contains(err.Error(), "field \"Priority\" not found") {
+		t.Errorf("Expected 'field not found' error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_SingleSelectField_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return nil
+		},
+	}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{
+			ID:       "field-123",
+			Name:     "Status",
+			DataType: "SINGLE_SELECT",
+			Options: []FieldOption{
+				{ID: "opt-1", Name: "Todo"},
+				{ID: "opt-2", Name: "Done"},
+			},
+		},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Status", "Done", fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_SingleSelectField_OptionNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{
+			ID:       "field-123",
+			Name:     "Status",
+			DataType: "SINGLE_SELECT",
+			Options: []FieldOption{
+				{ID: "opt-1", Name: "Todo"},
+				{ID: "opt-2", Name: "Done"},
+			},
+		},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Status", "Invalid", fields)
+	if err == nil {
+		t.Fatal("Expected error when option not found")
+	}
+	if !strings.Contains(err.Error(), "option \"Invalid\" not found") {
+		t.Errorf("Expected 'option not found' error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_TextField_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return nil
+		},
+	}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Notes", DataType: "TEXT"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Notes", "Some notes", fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_NumberField_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return nil
+		},
+	}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Points", DataType: "NUMBER"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Points", "5", fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_UnsupportedFieldType(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Date", DataType: "DATE"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Date", "2024-01-15", fields)
+	if err == nil {
+		t.Fatal("Expected error for unsupported field type")
+	}
+	if !strings.Contains(err.Error(), "unsupported field type") {
+		t.Errorf("Expected 'unsupported field type' error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemFieldWithFields_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("mutation failed")
+		},
+	}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Notes", DataType: "TEXT"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Notes", "Some notes", fields)
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to set") {
+		t.Errorf("Expected 'failed to set' error, got: %v", err)
+	}
+}

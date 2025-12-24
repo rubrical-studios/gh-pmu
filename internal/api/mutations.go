@@ -144,7 +144,9 @@ type AddProjectV2ItemByIdInput struct {
 	ContentID graphql.ID `json:"contentId"`
 }
 
-// SetProjectItemField sets a field value on a project item
+// SetProjectItemField sets a field value on a project item.
+// This method fetches project fields on each call. For bulk operations,
+// use SetProjectItemFieldWithFields with pre-fetched fields for better performance.
 func (c *Client) SetProjectItemField(projectID, itemID, fieldName, value string) error {
 	if c.gql == nil {
 		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
@@ -154,6 +156,16 @@ func (c *Client) SetProjectItemField(projectID, itemID, fieldName, value string)
 	fields, err := c.GetProjectFields(projectID)
 	if err != nil {
 		return fmt.Errorf("failed to get project fields: %w", err)
+	}
+
+	return c.SetProjectItemFieldWithFields(projectID, itemID, fieldName, value, fields)
+}
+
+// SetProjectItemFieldWithFields sets a field value using pre-fetched project fields.
+// Use this method for bulk operations to avoid redundant GetProjectFields API calls.
+func (c *Client) SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []ProjectField) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
 	var field *ProjectField

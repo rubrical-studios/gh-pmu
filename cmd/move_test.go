@@ -14,18 +14,23 @@ import (
 
 // mockMoveClient implements moveClient for testing
 type mockMoveClient struct {
-	issues       map[string]*api.Issue // "owner/repo#number" -> Issue
-	project      *api.Project
-	projectItems []api.ProjectItem
-	subIssues    map[string][]api.SubIssue // "owner/repo#number" -> SubIssues
-	fieldUpdates []fieldUpdate             // track field updates for verification
+	issues        map[string]*api.Issue // "owner/repo#number" -> Issue
+	project       *api.Project
+	projectFields []api.ProjectField
+	projectItems  []api.ProjectItem
+	subIssues     map[string][]api.SubIssue // "owner/repo#number" -> SubIssues
+	fieldUpdates  []fieldUpdate             // track field updates for verification
 
 	// Microsprint support
 	openIssuesByLabel map[string][]api.Issue // label -> issues
 
+	// Call counters for caching verification
+	getProjectFieldsCalls int
+
 	// Error injection
 	getIssueErr             error
 	getProjectErr           error
+	getProjectFieldsErr     error
 	getProjectItemsErr      error
 	getSubIssuesErr         error
 	setProjectItemErr       error
@@ -101,6 +106,36 @@ func (m *mockMoveClient) SetProjectItemField(projectID, itemID, fieldName, value
 		value:     value,
 	})
 	return nil
+}
+
+func (m *mockMoveClient) SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []api.ProjectField) error {
+	// Delegate to the same logic as SetProjectItemField for testing
+	return m.SetProjectItemField(projectID, itemID, fieldName, value)
+}
+
+func (m *mockMoveClient) GetProjectFields(projectID string) ([]api.ProjectField, error) {
+	m.getProjectFieldsCalls++
+	if m.getProjectFieldsErr != nil {
+		return nil, m.getProjectFieldsErr
+	}
+	if m.projectFields != nil {
+		return m.projectFields, nil
+	}
+	// Return default test fields
+	return []api.ProjectField{
+		{ID: "STATUS_FIELD", Name: "Status", DataType: "SINGLE_SELECT", Options: []api.FieldOption{
+			{ID: "OPT_BACKLOG", Name: "Backlog"},
+			{ID: "OPT_IN_PROGRESS", Name: "In progress"},
+			{ID: "OPT_DONE", Name: "Done"},
+		}},
+		{ID: "PRIORITY_FIELD", Name: "Priority", DataType: "SINGLE_SELECT", Options: []api.FieldOption{
+			{ID: "OPT_P0", Name: "P0"},
+			{ID: "OPT_P1", Name: "P1"},
+			{ID: "OPT_P2", Name: "P2"},
+		}},
+		{ID: "MICROSPRINT_FIELD", Name: "Microsprint", DataType: "TEXT"},
+		{ID: "RELEASE_FIELD", Name: "Release", DataType: "TEXT"},
+	}, nil
 }
 
 func (m *mockMoveClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
@@ -1621,5 +1656,66 @@ func TestRunMoveWithDeps_BacklogWithStatus(t *testing.T) {
 	}
 	if !releaseCleared {
 		t.Error("Expected Release field to be cleared")
+	}
+}
+
+// ============================================================================
+// Caching Behavior Tests
+// ============================================================================
+
+func TestRunMoveWithDeps_CachesProjectFields(t *testing.T) {
+	// ARRANGE - Setup mock with issue
+	mock := setupMockWithIssue(123, "Test Issue", "item-123")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Update BOTH status AND priority to trigger multiple field updates
+	opts := &moveOptions{status: "in_progress", priority: "high"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// GetProjectFields should only be called ONCE due to caching
+	if mock.getProjectFieldsCalls != 1 {
+		t.Errorf("Expected GetProjectFields to be called once (caching), got %d calls", mock.getProjectFieldsCalls)
+	}
+
+	// Both fields should still be updated
+	if len(mock.fieldUpdates) != 2 {
+		t.Errorf("Expected 2 field updates, got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestRunMoveWithDeps_GetProjectFieldsErrorReturnsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockWithIssue(123, "Test Issue", "item-123")
+	mock.getProjectFieldsErr = fmt.Errorf("failed to get fields")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to get project fields") {
+		t.Errorf("Expected 'failed to get project fields' error, got: %v", err)
 	}
 }
