@@ -1,4 +1,4 @@
-# Proposal: Local SQLite Cache for Releases and Microsprints
+# Proposal: Local Database Cache for Releases and Microsprints
 
 **Date:** 2024-12-24
 **Status:** Draft
@@ -8,9 +8,15 @@
 
 ## Executive Summary
 
-Evaluate SQLite as a local cache for release and microsprint tracker data, with comparison to alternative caching strategies. This proposal analyzes trade-offs for offline-capable, low-latency access to tracker metadata.
+Implement a local embedded database cache for release and microsprint tracker data, synchronized via GitHub Actions. This proposal evaluates SQLite and BoltDB as storage options.
 
-**Context:** This proposal complements PROPOSAL-Workflow-Cache-Manifest.md (#434) which proposes a server-side manifest. A local cache could provide additional benefits for offline scenarios and reduced network dependency.
+**Architecture:**
+```
+GitHub Actions ──▶ .github/pmu-cache.json ──▶ git pull ──▶ Local DB
+     (push)              (manifest)            (sync)       (query)
+```
+
+**Goal:** Sub-50ms queries with offline capability and multi-developer consistency.
 
 ---
 
@@ -20,16 +26,15 @@ Current `gh pmu release list` and `gh pmu microsprint list` commands:
 - Require 2 API calls each (~800ms latency)
 - Fail without network connectivity
 - Consume API rate limits on every invocation
-
-**Goal:** Provide sub-50ms responses with offline capability.
+- No team synchronization
 
 ---
 
-## Option 1: SQLite (Embedded Database)
+## Option 1: SQLite
 
 ### Overview
 
-Store tracker metadata in a local SQLite database at `~/.config/gh-pmu/cache.db` or project-level `.gh-pmu-cache.db`.
+Store tracker metadata in a local SQLite database at `~/.config/gh-pmu/cache.db`.
 
 ### Schema
 
@@ -37,381 +42,518 @@ Store tracker metadata in a local SQLite database at `~/.config/gh-pmu/cache.db`
 CREATE TABLE trackers (
     id INTEGER PRIMARY KEY,
     repo TEXT NOT NULL,
-    type TEXT NOT NULL,  -- 'release' | 'microsprint'
+    type TEXT NOT NULL CHECK(type IN ('release', 'microsprint')),
     number INTEGER NOT NULL,
     title TEXT NOT NULL,
-    state TEXT NOT NULL,  -- 'open' | 'closed'
+    state TEXT NOT NULL CHECK(state IN ('open', 'closed')),
     created_at TEXT,
     closed_at TEXT,
-    updated_at TEXT,
+    synced_at TEXT NOT NULL,
     UNIQUE(repo, type, number)
 );
 
-CREATE TABLE cache_metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT
+CREATE TABLE sync_metadata (
+    repo TEXT PRIMARY KEY,
+    manifest_hash TEXT,
+    last_sync TEXT NOT NULL
 );
 
 CREATE INDEX idx_repo_type_state ON trackers(repo, type, state);
+CREATE INDEX idx_repo_synced ON trackers(repo, synced_at);
 ```
 
-### Pros
+### Implementation
 
-- **Rich queries**: Filter by state, date ranges, full-text search
-- **Atomic updates**: ACID transactions prevent corruption
-- **Battle-tested**: SQLite handles billions of deployments
-- **Offline-first**: Full functionality without network
-- **Incremental sync**: Update only changed records
+```go
+// internal/cache/sqlite.go
+import "modernc.org/sqlite"  // Pure Go, no CGO
 
-### Cons
+type SQLiteCache struct {
+    db *sql.DB
+}
 
-- **Dependency**: Adds CGO dependency (or use modernc.org/sqlite for pure Go)
-- **Binary size**: +2-5MB to binary
-- **Schema migrations**: Must handle version upgrades
-- **Single-user**: Local cache doesn't sync across team members
-- **Staleness risk**: Cache can diverge from server state
+func (c *SQLiteCache) Sync(manifest Manifest) error {
+    tx, _ := c.db.Begin()
+    defer tx.Rollback()
 
-### Implementation Complexity
-
-Medium-High. Requires:
-- Schema definition and migrations
-- Repository pattern for data access
-- Sync logic with conflict resolution
-- Cache invalidation strategy
-
----
-
-## Option 2: JSON File Cache
-
-### Overview
-
-Store tracker data in a simple JSON file (similar to the manifest proposal but client-side).
-
-```json
-{
-  "version": 1,
-  "updated_at": "2024-12-24T10:00:00Z",
-  "repos": {
-    "rubrical-studios/gh-pmu": {
-      "releases": [...],
-      "microsprints": [...]
+    for _, tracker := range manifest.Releases {
+        tx.Exec(`INSERT OR REPLACE INTO trackers
+            (repo, type, number, title, state, created_at, closed_at, synced_at)
+            VALUES (?, 'release', ?, ?, ?, ?, ?, ?)`,
+            manifest.Repo, tracker.Number, tracker.Title,
+            tracker.State, tracker.CreatedAt, tracker.ClosedAt, time.Now())
     }
-  }
+
+    tx.Exec(`INSERT OR REPLACE INTO sync_metadata (repo, manifest_hash, last_sync)
+        VALUES (?, ?, ?)`, manifest.Repo, manifest.Hash(), time.Now())
+
+    return tx.Commit()
+}
+
+func (c *SQLiteCache) GetReleases(repo string, state string) ([]Tracker, error) {
+    rows, _ := c.db.Query(`
+        SELECT number, title, state, created_at, closed_at
+        FROM trackers
+        WHERE repo = ? AND type = 'release' AND (? = '' OR state = ?)
+        ORDER BY number DESC`,
+        repo, state, state)
+    // ... scan rows
 }
 ```
 
 ### Pros
 
-- **Zero dependencies**: Native Go encoding/json
-- **Human readable**: Easy to inspect and debug
-- **Simple**: Minimal code complexity
-- **Portable**: Works everywhere
+| Benefit | Description |
+|---------|-------------|
+| Rich queries | Filter by state, date ranges, counts, aggregations |
+| ACID transactions | Atomic sync, no corruption |
+| Battle-tested | Billions of deployments worldwide |
+| Incremental sync | Update only changed records |
+| Pure Go option | `modernc.org/sqlite` - no CGO required |
 
 ### Cons
 
-- **Full rewrites**: Must read/write entire file on updates
-- **No concurrent access**: File locking required
-- **Limited queries**: Must load all data into memory
-- **Size limits**: Performance degrades with large datasets
+| Concern | Mitigation |
+|---------|------------|
+| Binary size +3-5MB | Acceptable for CLI tool |
+| Schema migrations | Version table, auto-migrate on startup |
+| Learning curve | Well-documented, standard SQL |
 
-### Implementation Complexity
+### Query Capabilities
 
-Low. 100-200 lines of code.
+```sql
+-- Open releases
+SELECT * FROM trackers WHERE type = 'release' AND state = 'open';
+
+-- Releases created this month
+SELECT * FROM trackers
+WHERE type = 'release'
+AND created_at >= date('now', 'start of month');
+
+-- Count by state
+SELECT state, COUNT(*) FROM trackers WHERE type = 'microsprint' GROUP BY state;
+
+-- Stale cache detection
+SELECT repo FROM sync_metadata WHERE last_sync < datetime('now', '-1 hour');
+```
 
 ---
 
-## Option 3: BoltDB / bbolt
+## Option 2: BoltDB (bbolt)
 
 ### Overview
 
-Use BoltDB (pure Go key-value store) for structured local storage.
+Use BoltDB (pure Go key-value store) for structured local storage at `~/.config/gh-pmu/cache.bolt`.
+
+### Data Structure
+
+```
+Bucket: "trackers"
+  └── Key: "{repo}:release:{number}"
+      Value: JSON encoded Tracker
+
+Bucket: "sync"
+  └── Key: "{repo}"
+      Value: JSON encoded SyncMetadata
+```
+
+### Implementation
+
+```go
+// internal/cache/bolt.go
+import "go.etcd.io/bbolt"
+
+type BoltCache struct {
+    db *bbolt.DB
+}
+
+func (c *BoltCache) Sync(manifest Manifest) error {
+    return c.db.Update(func(tx *bbolt.Tx) error {
+        b := tx.Bucket([]byte("trackers"))
+
+        for _, tracker := range manifest.Releases {
+            key := fmt.Sprintf("%s:release:%d", manifest.Repo, tracker.Number)
+            data, _ := json.Marshal(tracker)
+            b.Put([]byte(key), data)
+        }
+
+        syncBucket := tx.Bucket([]byte("sync"))
+        meta := SyncMetadata{Hash: manifest.Hash(), LastSync: time.Now()}
+        data, _ := json.Marshal(meta)
+        syncBucket.Put([]byte(manifest.Repo), data)
+
+        return nil
+    })
+}
+
+func (c *BoltCache) GetReleases(repo string, state string) ([]Tracker, error) {
+    var results []Tracker
+
+    c.db.View(func(tx *bbolt.Tx) error {
+        b := tx.Bucket([]byte("trackers"))
+        prefix := []byte(fmt.Sprintf("%s:release:", repo))
+
+        c := b.Cursor()
+        for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+            var t Tracker
+            json.Unmarshal(v, &t)
+            if state == "" || t.State == state {
+                results = append(results, t)
+            }
+        }
+        return nil
+    })
+
+    return results, nil
+}
+```
 
 ### Pros
 
-- **Pure Go**: No CGO, easy cross-compilation
-- **ACID**: Transactional guarantees
-- **Embedded**: Single-file database
-- **Mature**: Battle-tested in etcd, InfluxDB, etc.
+| Benefit | Description |
+|---------|-------------|
+| Pure Go | No CGO, easy cross-compilation |
+| ACID | Transactional guarantees |
+| Single file | Simple deployment |
+| Mature | Battle-tested in etcd, InfluxDB |
+| Small binary | +1MB vs +3-5MB for SQLite |
 
 ### Cons
 
-- **Key-value only**: No SQL, queries require manual implementation
-- **No concurrent writers**: Single writer, multiple readers
-- **Dependency**: Additional module to maintain
+| Concern | Mitigation |
+|---------|------------|
+| Key-value only | Prefix scanning for queries |
+| No SQL | Manual query implementation |
+| Limited filtering | Must scan and filter in Go |
+| Single writer | Not an issue for CLI |
 
-### Implementation Complexity
+### Query Capabilities
 
-Medium. Less than SQLite but more than JSON.
+```go
+// Open releases - must scan and filter
+releases, _ := cache.GetReleases(repo, "open")
 
----
+// Count by state - must load all and count in Go
+all, _ := cache.GetReleases(repo, "")
+openCount := countByState(all, "open")
 
-## Option 4: In-Memory + Periodic Refresh
-
-### Overview
-
-Cache data in memory during CLI session with background refresh.
-
-### Pros
-
-- **Fastest reads**: Sub-1ms access
-- **No disk I/O**: No file management
-- **Always fresh**: Periodic refresh keeps data current
-
-### Cons
-
-- **No persistence**: Lost on process exit
-- **Memory overhead**: Must hold all data in RAM
-- **Cold start**: First call still slow
-
-### Implementation Complexity
-
-Low-Medium. Good for long-running processes, not CLI.
-
----
-
-## Option 5: Hybrid (Manifest + Local Fallback)
-
-### Overview
-
-Combine PROPOSAL-Workflow-Cache-Manifest.md (server-side) with a local JSON fallback.
-
-1. Check for `.github/pmu-cache.json` in repo (git-tracked, team-shared)
-2. Fall back to `~/.config/gh-pmu/cache.json` (local, user-specific)
-3. Fall back to API
-
-### Pros
-
-- **Best of both**: Team sync via manifest, offline via local
-- **Graceful degradation**: Works in all scenarios
-- **Simple implementation**: JSON for both layers
-
-### Cons
-
-- **Two caches**: Potential inconsistency
-- **Complexity**: Multiple code paths
-
-### Implementation Complexity
-
-Medium. Two cache layers but same format.
+// Date filtering - must implement in Go
+releases = filterByDate(releases, startDate, endDate)
+```
 
 ---
 
 ## Comparison Matrix
 
-| Criteria | SQLite | JSON File | BoltDB | In-Memory | Hybrid |
-|----------|--------|-----------|--------|-----------|--------|
-| Read latency | <5ms | <10ms | <5ms | <1ms | <10ms |
-| Dependencies | CGO/pure | None | Module | None | None |
-| Binary size | +2-5MB | +0 | +1MB | +0 | +0 |
-| Offline support | Full | Full | Full | None | Full |
-| Team sync | No | No | No | No | Partial |
-| Query flexibility | High | Low | Medium | Medium | Low |
-| Implementation effort | High | Low | Medium | Low | Medium |
-| Maintenance burden | Medium | Low | Low | Low | Low |
+| Criteria | SQLite | BoltDB |
+|----------|--------|--------|
+| Query flexibility | High (SQL) | Low (scan + filter) |
+| Binary size impact | +3-5MB | +1MB |
+| CGO required | No (modernc.org/sqlite) | No |
+| ACID transactions | Yes | Yes |
+| Concurrent readers | Yes | Yes |
+| Concurrent writers | Yes (WAL mode) | No (single writer) |
+| Learning curve | Low (SQL) | Medium (K/V patterns) |
+| Aggregations | Native (GROUP BY) | Manual |
+| Date range queries | Native | Manual |
+| Full-text search | FTS5 extension | Not available |
 
 ---
 
-## Multi-Developer Sync Considerations
+## GitHub Actions Sync Architecture
 
-Local caches are inherently single-user. Supporting 2..n developers requires additional infrastructure.
+### Workflow: Manifest Generator
 
-### Sync Strategies
+Triggers on tracker issue events, generates shared manifest.
 
-#### Strategy A: Git-Tracked Manifest (Recommended)
+```yaml
+# .github/workflows/pmu-cache.yml
+name: Update PMU Cache Manifest
 
-Use the approach from PROPOSAL-Workflow-Cache-Manifest.md (#434):
+on:
+  issues:
+    types: [opened, closed, reopened, edited, labeled, unlabeled]
+  schedule:
+    - cron: '0 */6 * * *'  # Refresh every 6 hours
+  workflow_dispatch:
+
+jobs:
+  update-manifest:
+    if: |
+      github.event_name != 'issues' ||
+      contains(github.event.issue.labels.*.name, 'release') ||
+      contains(github.event.issue.labels.*.name, 'microsprint')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api graphql -f query='
+            query($owner: String!, $repo: String!) {
+              repository(owner: $owner, name: $repo) {
+                releases: issues(labels: ["release"], first: 100, states: [OPEN, CLOSED]) {
+                  nodes { number title state createdAt closedAt }
+                }
+                microsprints: issues(labels: ["microsprint"], first: 100, states: [OPEN, CLOSED]) {
+                  nodes { number title state createdAt closedAt }
+                }
+              }
+            }
+          ' -f owner="${{ github.repository_owner }}" \
+            -f repo="${{ github.event.repository.name }}" > /tmp/data.json
+
+          jq '{
+            version: 1,
+            updated_at: (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
+            repo: "${{ github.repository }}",
+            releases: .data.repository.releases.nodes,
+            microsprints: .data.repository.microsprints.nodes
+          }' /tmp/data.json > .github/pmu-cache.json
+
+      - name: Commit manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/pmu-cache.json
+          git diff --cached --quiet || git commit -m "chore: update pmu cache manifest"
+          git push
+```
+
+### Manifest Schema
+
+```json
+{
+  "version": 1,
+  "updated_at": "2024-12-24T10:00:00Z",
+  "repo": "rubrical-studios/gh-pmu",
+  "releases": [
+    {
+      "number": 430,
+      "title": "Release: v0.9.0",
+      "state": "OPEN",
+      "createdAt": "2024-12-20T08:00:00Z",
+      "closedAt": null
+    }
+  ],
+  "microsprints": [
+    {
+      "number": 425,
+      "title": "Microsprint: cache-impl",
+      "state": "CLOSED",
+      "createdAt": "2024-12-23T09:00:00Z",
+      "closedAt": "2024-12-24T15:00:00Z"
+    }
+  ]
+}
+```
+
+### Sync Flow
 
 ```
-.github/pmu-cache.json  <-- committed to repo
+┌─────────────────────────────────────────────────────────────────┐
+│                     GitHub Actions                               │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐         │
+│  │ Issue Event  │──▶│ GraphQL      │──▶│ Commit       │         │
+│  │ or Cron      │   │ Query        │   │ Manifest     │         │
+│  └──────────────┘   └──────────────┘   └──────────────┘         │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    .github/pmu-cache.json (in repo)
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+        Developer A     Developer B     Developer C
+              │               │               │
+              ▼               ▼               ▼
+        ┌─────────────────────────────────────────┐
+        │           git pull (periodic)            │
+        └─────────────────────────────────────────┘
+              │               │               │
+              ▼               ▼               ▼
+        ┌─────────┐     ┌─────────┐     ┌─────────┐
+        │ Local   │     │ Local   │     │ Local   │
+        │ DB Sync │     │ DB Sync │     │ DB Sync │
+        └─────────┘     └─────────┘     └─────────┘
+              │               │               │
+              ▼               ▼               ▼
+        SQLite/Bolt     SQLite/Bolt     SQLite/Bolt
+        (~/.config/     (~/.config/     (~/.config/
+         gh-pmu/)        gh-pmu/)        gh-pmu/)
+              │               │               │
+              ▼               ▼               ▼
+        gh pmu list     gh pmu list     gh pmu list
+        (<5ms)          (<5ms)          (<5ms)
 ```
 
-**How it works:**
-1. GitHub Actions workflow updates manifest on tracker changes
-2. Developers pull latest via `git pull`
-3. All team members read same cache file
+### CLI Sync Logic
 
-**Requirements:**
-- GitHub Actions workflow (IDPF framework provides this)
-- Developers must `git pull` to get updates
-- Cache is eventually consistent (seconds to minutes)
+```go
+// internal/cache/sync.go
+func (c *Cache) SyncFromManifest(repoPath string) error {
+    manifestPath := filepath.Join(repoPath, ".github", "pmu-cache.json")
 
-**Pros:** Zero additional infrastructure, works with existing git workflow
-**Cons:** Creates commits, requires pull to sync
+    // Check if manifest exists
+    data, err := os.ReadFile(manifestPath)
+    if err != nil {
+        return c.FallbackToAPI()  // No manifest, use API
+    }
+
+    var manifest Manifest
+    json.Unmarshal(data, &manifest)
+
+    // Check if already synced (hash comparison)
+    if c.IsSynced(manifest.Hash()) {
+        return nil  // Already up to date
+    }
+
+    // Sync to local database
+    return c.db.Sync(manifest)
+}
+
+// Called on: gh pmu release list, gh pmu microsprint list
+func runListWithCache(cmd *cobra.Command, repo string) error {
+    cache := GetCache()
+
+    // Try sync from manifest (fast, local file read)
+    cache.SyncFromManifest(getRepoPath())
+
+    // Query local database
+    releases, err := cache.GetReleases(repo, "")
+    if err != nil || len(releases) == 0 {
+        // Fallback to API if cache empty/corrupt
+        return fetchFromAPI(cmd, repo)
+    }
+
+    return printReleases(cmd, releases)
+}
+```
 
 ---
 
-#### Strategy B: GitHub API as Source of Truth
+## Multi-Developer Sync
 
-Don't sync local caches - treat GitHub as the canonical source.
+### How It Works
 
-```
-Developer A: local cache -> stale? -> fetch from GitHub API
-Developer B: local cache -> stale? -> fetch from GitHub API
-```
+1. **Developer A** creates/closes a release issue
+2. **GitHub Actions** triggers, regenerates manifest, commits to repo
+3. **Developer B** runs `git pull` (or it happens automatically)
+4. **Developer B** runs `gh pmu release list`
+5. **CLI** detects manifest changed (hash mismatch), syncs to local DB
+6. **CLI** queries local DB (<5ms)
 
-**How it works:**
-1. Each developer maintains independent local cache
-2. TTL-based invalidation (e.g., 1 hour)
-3. On cache miss or stale, fetch fresh from API
+### Consistency Model
 
-**Requirements:**
-- Short TTL to limit staleness window
-- `--refresh` flag for immediate sync
-- Accept that caches may temporarily diverge
+| Scenario | Latency | Consistency |
+|----------|---------|-------------|
+| Same developer, after action | Immediate | Strong |
+| Other developer, after git pull | Seconds | Strong |
+| Other developer, before git pull | Up to 6 hours | Eventual |
+| Offline | N/A | Last synced state |
 
-**Pros:** Simple, no sync infrastructure
-**Cons:** Eventual consistency, API rate limit consumption
+### Auto-Pull Integration (Optional)
 
----
-
-#### Strategy C: Shared Cache Server
-
-Deploy a lightweight cache service accessible to all developers.
-
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│ Developer A │────▶│ Cache Server │◀────│ Developer B │
-└─────────────┘     └──────────────┘     └─────────────┘
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │ GitHub API  │
-                    └─────────────┘
+```yaml
+# .gh-pmu.yml
+cache:
+  auto_pull: true           # Run git pull before list commands
+  auto_pull_interval: 300   # Only if last pull >5 min ago
 ```
 
-**How it works:**
-1. Central server fetches from GitHub, caches results
-2. Developers query cache server instead of GitHub
-3. Server handles TTL, invalidation, rate limits
+```go
+func maybePull(repoPath string, cfg Config) {
+    if !cfg.Cache.AutoPull {
+        return
+    }
 
-**Requirements:**
-- Server infrastructure (could be serverless/edge function)
-- Network access from developer machines
-- Authentication/authorization
-
-**Pros:** Single source of truth, protects API rate limits
-**Cons:** Infrastructure to maintain, network dependency
-
----
-
-#### Strategy D: Webhook-Triggered Push
-
-GitHub webhooks push updates to developer machines.
-
-**Requirements:**
-- Publicly accessible endpoints on dev machines (impractical)
-- Or: polling service that developers subscribe to
-
-**Verdict:** Not practical for CLI tool. Dismiss.
-
----
-
-### Sync Requirements by Cache Type
-
-| Cache Type | Sync Approach | Additional Work |
-|------------|---------------|-----------------|
-| SQLite | Export/import or Strategy B | Schema for sync metadata, conflict resolution |
-| JSON File | Git-tracked (Strategy A) | Merge conflict handling |
-| BoltDB | Strategy B only | No practical sync option |
-| In-Memory | N/A | Cannot sync |
-| Hybrid | Strategy A + B combined | Already designed for this |
-
----
-
-### Recommended Multi-Dev Approach
-
-**For gh-pmu:** Combine Strategies A and B:
-
-1. **Primary:** Git-tracked manifest (`.github/pmu-cache.json`)
-   - Updated by GitHub Actions on tracker changes
-   - Shared via normal git operations
-   - Team-wide consistency
-
-2. **Fallback:** Local cache with TTL (`~/.config/gh-pmu/cache.json`)
-   - Used when manifest unavailable or stale
-   - Independent refresh via API
-   - Enables offline work
-
-3. **Override:** `--refresh` flag
-   - Bypasses all caches, fetches fresh from API
-   - Useful when developer knows cache is stale
-
-**Priority order:**
+    lastPull := getLastPullTime(repoPath)
+    if time.Since(lastPull) > cfg.Cache.AutoPullInterval {
+        exec.Command("git", "-C", repoPath, "pull", "--ff-only").Run()
+    }
+}
 ```
-1. Check manifest freshness -> use if fresh
-2. Check local cache freshness -> use if fresh
-3. Fetch from API -> update local cache
-```
-
-**Consistency guarantee:** Eventual (seconds to minutes). Acceptable for tracker metadata where real-time sync is not critical.
 
 ---
 
 ## Recommendation
 
-**Short-term (v1.0):** Implement **Option 2 (JSON File Cache)** as a simple local fallback:
-- Zero new dependencies
-- Minimal code (150 lines)
-- Pairs well with manifest proposal
+**SQLite with `modernc.org/sqlite`** (pure Go driver)
 
-**Long-term consideration:** If query needs grow (filtering, search, date ranges), evaluate SQLite with pure Go driver (modernc.org/sqlite).
+| Reason | Explanation |
+|--------|-------------|
+| Query flexibility | SQL enables filtering, aggregations, date ranges natively |
+| Future-proof | Easy to add new queries without code changes |
+| Familiar | Standard SQL, easy to debug with `sqlite3` CLI |
+| Same binary size class | Both add ~1-5MB, not a deciding factor |
+| Battle-tested | SQLite is the most deployed database in the world |
 
-**Not recommended for gh-pmu:**
-- SQLite: Overkill for current use case. Binary size and CGO concerns outweigh benefits.
-- BoltDB: Middle ground that doesn't offer enough over JSON.
-- In-Memory: CLI is short-lived, no persistence benefit.
+**BoltDB** is a solid alternative if:
+- Minimizing binary size is critical
+- Query needs remain simple (list all, filter by state)
+- Team prefers K/V patterns over SQL
 
 ---
 
-## Implementation Sketch (JSON Cache)
+## Implementation Plan
 
-```go
-// internal/cache/cache.go
-type LocalCache struct {
-    path string
-    data CacheData
-}
+### Phase 1: Foundation
+- [ ] Add `modernc.org/sqlite` dependency
+- [ ] Create schema and migration logic
+- [ ] Implement `Cache` interface with SQLite backend
 
-type CacheData struct {
-    Version   int                          `json:"version"`
-    UpdatedAt time.Time                    `json:"updated_at"`
-    Repos     map[string]RepoTrackers      `json:"repos"`
-}
+### Phase 2: Sync
+- [ ] Implement manifest reader
+- [ ] Add hash-based change detection
+- [ ] Integrate sync into `release list` and `microsprint list`
 
-func (c *LocalCache) GetReleases(repo string) ([]Tracker, bool) {
-    // Check freshness, return cached data or indicate miss
-}
+### Phase 3: GitHub Actions
+- [ ] Create workflow template in IDPF framework
+- [ ] Document workflow installation
+- [ ] Add `gh pmu init` workflow installation option
 
-func (c *LocalCache) SetReleases(repo string, releases []Tracker) error {
-    // Update cache, write to disk
-}
+### Phase 4: Configuration
+- [ ] Add `cache` section to `.gh-pmu.yml`
+- [ ] Implement `--refresh` flag for force API fetch
+- [ ] Add `gh pmu cache` command group (status, clear, sync)
+
+---
+
+## Configuration
+
+```yaml
+# .gh-pmu.yml
+cache:
+  enabled: true                    # Use local cache (default: true)
+  backend: sqlite                  # sqlite | bolt
+  path: ~/.config/gh-pmu/cache.db  # Override default location
+  auto_sync: true                  # Sync from manifest on list commands
+  auto_pull: false                 # Git pull before sync
+  auto_pull_interval: 300          # Seconds between auto-pulls
 ```
-
----
-
-## Open Questions
-
-1. Should local cache be per-project or global (`~/.config/gh-pmu/`)?
-2. What TTL makes sense for local cache? (suggest: 1 hour, configurable)
-3. Should cache invalidation be explicit (`gh pmu cache clear`) or automatic?
-4. How does this interact with the manifest proposal? Priority order?
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Cache storage location defined and documented
-- [ ] Read/write performance meets <50ms target
-- [ ] Graceful fallback when cache missing or corrupted
-- [ ] Cache TTL configurable in `.gh-pmu.yml`
-- [ ] Clear mechanism for cache invalidation
-- [ ] Works offline after initial population
+- [ ] SQLite cache with pure Go driver (no CGO)
+- [ ] Manifest sync from `.github/pmu-cache.json`
+- [ ] Hash-based change detection (skip sync if unchanged)
+- [ ] `gh pmu release list` reads from cache (<10ms)
+- [ ] `gh pmu microsprint list` reads from cache (<10ms)
+- [ ] `--refresh` flag bypasses cache
+- [ ] Graceful fallback to API when cache unavailable
+- [ ] GitHub Actions workflow template provided
+- [ ] Works offline after initial sync
 
 ---
 
 ## References
 
-- PROPOSAL-Workflow-Cache-Manifest.md - Server-side manifest approach
-- Issue #434: Enhancement: Cache release/microsprint list data locally
-- modernc.org/sqlite - Pure Go SQLite (if SQLite pursued later)
+- PROPOSAL-Workflow-Cache-Manifest.md (#434) - Original manifest concept
+- modernc.org/sqlite - Pure Go SQLite driver
 - go.etcd.io/bbolt - BoltDB fork maintained by etcd team
