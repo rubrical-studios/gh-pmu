@@ -1,16 +1,28 @@
 #!/usr/bin/env node
+// **Version:** 0.15.2
 /**
  * workflow-trigger.js
  *
  * UserPromptSubmit hook that:
  * 1. Detects workflow trigger prefixes and injects reminders
  * 2. Responds to 'commands' with available triggers and slash commands
+ * 3. Validates release assignment for 'work #N' commands (merged from validate-release.js)
  *
  * Trigger prefixes: bug:, enhancement:, finding:, idea:, proposal:, prd:
+ * Work command: work #N (validates release assignment, provides branch context)
+ *
+ * Performance optimizations:
+ * - Early exit for non-matching prompts (no I/O)
+ * - Single detectFramework() function (no duplication)
+ * - Cached command help (regenerated on demand)
  */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+
+// Cache file location
+const CACHE_FILE = path.join(process.cwd(), '.claude', 'hooks', '.command-cache.json');
 
 let input = '';
 
@@ -19,12 +31,25 @@ process.stdin.on('end', () => {
     try {
         const data = JSON.parse(input);
         const prompt = (data.prompt || '').trim();
+        const promptLower = prompt.toLowerCase();
 
-        // Check for 'commands' request
-        if (prompt.toLowerCase() === 'commands') {
-            const helpText = generateCommandsHelp();
+        // FAST PATH: Early exit for non-matching prompts (no I/O needed)
+        // Check for --refresh flag
+        const hasRefreshFlag = /--refresh/i.test(prompt);
+        const basePrompt = promptLower.replace(/\s*--refresh\s*/gi, '').trim();
+        const isCommandRequest = ['commands', 'list-commands', 'list-cmds'].includes(basePrompt);
+        const triggerMatch = prompt.match(/^(bug|enhancement|finding|idea|proposal|prd):/i);
+        const workMatch = prompt.match(/^work\s+#?(\d+)/i);
+
+        if (!isCommandRequest && !triggerMatch && !workMatch) {
+            process.exit(0);
+        }
+
+        // Handle 'commands' request
+        if (basePrompt === 'commands') {
+            const helpText = generateCommandsHelp(hasRefreshFlag);
             const output = {
-                systemMessage: `⚡ Commands`,
+                systemMessage: `Success`,
                 hookSpecificOutput: {
                     hookEventName: "UserPromptSubmit",
                     additionalContext: `[COMMANDS HELP: Display the following commands to the user in a clean formatted way.]\n\n${helpText}`
@@ -34,11 +59,11 @@ process.stdin.on('end', () => {
             process.exit(0);
         }
 
-        // Check for 'List-Commands' request (full detailed list)
-        if (prompt.toLowerCase() === 'list-commands' || prompt.toLowerCase() === 'list-cmds') {
-            const detailedCommands = generateDetailedCommands();
+        // Handle 'List-Commands' request (full detailed list)
+        if (basePrompt === 'list-commands' || basePrompt === 'list-cmds') {
+            const detailedCommands = getDetailedCommands(hasRefreshFlag);
             const output = {
-                systemMessage: `⚡ List-Commands`,
+                systemMessage: `Success`,
                 hookSpecificOutput: {
                     hookEventName: "UserPromptSubmit",
                     additionalContext: `[LIST-COMMANDS: Display the following detailed command list to the user in a clean formatted way.]\n\n${detailedCommands}`
@@ -48,15 +73,78 @@ process.stdin.on('end', () => {
             process.exit(0);
         }
 
-        // Check for workflow triggers
-        const match = prompt.match(/^(bug|enhancement|finding|idea|proposal|prd):/i);
-        if (match) {
-            const triggerType = match[1].toLowerCase();
+        // Handle 'work #N' command - validate release assignment
+        if (workMatch) {
+            const issueNumber = workMatch[1];
 
-            // Special handling for prd: trigger
+            try {
+                // Query issue's Release and Sprint fields via gh pmu view
+                const result = execSync(
+                    `gh pmu view ${issueNumber} --json`,
+                    { encoding: 'utf-8', timeout: 10000 }
+                );
+
+                const issueData = JSON.parse(result);
+                const release = issueData.fieldValues?.Release;
+                const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
+
+                if (!release || release === '' || release === 'null') {
+                    // No release assigned - block with actionable message
+                    const output = {
+                        decision: 'block',
+                        reason: `Issue #${issueNumber} has no release assignment.\n\nUse: /assign-release #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --release "release/vX.Y.Z"`
+                    };
+                    console.log(JSON.stringify(output));
+                    process.exit(0);
+                }
+
+                // Release assigned - allow and provide branch context
+                const branchName = release.startsWith('release/') || release.startsWith('patch/')
+                    ? release
+                    : `release/${release}`;
+
+                let contextMessage = `[BRANCH-AWARE WORK]\n`;
+                contextMessage += `Issue #${issueNumber} is assigned to release: ${release}\n`;
+                contextMessage += `\nBEFORE working on this issue:\n`;
+                contextMessage += `1. Check current branch: git branch --show-current\n`;
+                contextMessage += `2. If not on '${branchName}', switch to it: git checkout ${branchName}\n`;
+                contextMessage += `3. NEVER commit directly to main branch\n`;
+
+                if (sprint) {
+                    contextMessage += `\nSprint context: ${sprint}\n`;
+                }
+
+                const output = {
+                    systemMessage: `Success`,
+                    hookSpecificOutput: {
+                        hookEventName: 'UserPromptSubmit',
+                        additionalContext: contextMessage
+                    }
+                };
+                console.log(JSON.stringify(output));
+                process.exit(0);
+
+            } catch (error) {
+                // Error checking - allow and let downstream handle (fail-open)
+                const output = {
+                    systemMessage: `Success`,
+                    hookSpecificOutput: {
+                        hookEventName: 'UserPromptSubmit',
+                        additionalContext: `[WORK COMMAND] Could not verify release assignment for #${issueNumber} (fail-open). Proceeding with work.`
+                    }
+                };
+                console.log(JSON.stringify(output));
+                process.exit(0);
+            }
+        }
+
+        // Handle workflow triggers
+        if (triggerMatch) {
+            const triggerType = triggerMatch[1].toLowerCase();
+
             if (triggerType === 'prd') {
                 const output = {
-                    systemMessage: `⚡ PRD conversion trigger detected`,
+                    systemMessage: `Success`,
                     hookSpecificOutput: {
                         hookEventName: "UserPromptSubmit",
                         additionalContext: "[PRD TRIGGER: Invoke Proposal-to-PRD workflow (Section 8 of GitHub-Workflow.md). Identify proposal from name or issue number, then run IDPF-PRD phases.]"
@@ -65,7 +153,7 @@ process.stdin.on('end', () => {
                 console.log(JSON.stringify(output));
             } else {
                 const output = {
-                    systemMessage: `⚡ Workflow trigger detected: "${triggerType}"`,
+                    systemMessage: `Success`,
                     hookSpecificOutput: {
                         hookEventName: "UserPromptSubmit",
                         additionalContext: "[WORKFLOW TRIGGER: Create GitHub issue first. Wait for 'work' instruction before implementing.]"
@@ -77,22 +165,117 @@ process.stdin.on('end', () => {
 
         process.exit(0);
     } catch (e) {
-        // Parse error - allow prompt to proceed
         process.exit(0);
     }
 });
 
 /**
- * Generate help text for all available commands
+ * Detect active IDPF framework (single source of truth)
+ * @returns {string|null} Framework name or null
  */
-function generateCommandsHelp() {
+function detectFramework() {
+    const cwd = process.cwd();
+
+    // Check framework-config.json first (user projects - most specific)
+    try {
+        const configPath = path.join(cwd, 'framework-config.json');
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            const framework = config.projectType?.processFramework || config.framework;
+            if (framework) return normalizeFramework(framework);
+        }
+    } catch (e) {}
+
+    // Check for IDPF directories (framework dev or direct usage)
+    const frameworks = ['IDPF-Agile', 'IDPF-Structured', 'IDPF-Vibe', 'IDPF-PRD', 'IDPF-LTS'];
+    for (const fw of frameworks) {
+        if (fs.existsSync(path.join(cwd, fw))) {
+            return fw;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Normalize framework name to standard format
+ */
+function normalizeFramework(name) {
+    const lower = name.toLowerCase();
+    if (lower === 'agile' || lower === 'idpf-agile') return 'IDPF-Agile';
+    if (lower === 'structured' || lower === 'idpf-structured') return 'IDPF-Structured';
+    if (lower.startsWith('vibe') || lower === 'idpf-vibe') return 'IDPF-Vibe';
+    if (lower === 'prd' || lower === 'idpf-prd') return 'IDPF-PRD';
+    if (lower === 'lts' || lower === 'idpf-lts') return 'IDPF-LTS';
+    return name;
+}
+
+/**
+ * Try to load from cache, regenerate if stale or missing
+ * @param {string} key - Cache key to retrieve
+ * @param {boolean} forceRefresh - If true, skip cache and force regeneration
+ */
+function getFromCache(key, forceRefresh = false) {
+    // Skip cache entirely if refresh requested
+    if (forceRefresh) {
+        return null;
+    }
+
+    try {
+        if (fs.existsSync(CACHE_FILE)) {
+            const cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+
+            // Check if cache is from today (daily expiration)
+            if (cache.timestamp) {
+                const cacheDate = new Date(cache.timestamp).toDateString();
+                const today = new Date().toDateString();
+                if (cacheDate !== today) {
+                    return null; // Cache expired, force regeneration
+                }
+            }
+
+            // Trust cached framework when cache is fresh (no detectFramework() call)
+            // Framework changes are rare within a session
+            if (cache[key]) {
+                return cache[key];
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
+/**
+ * Save to cache
+ */
+function saveToCache(key, value) {
+    try {
+        let cache = {};
+        if (fs.existsSync(CACHE_FILE)) {
+            cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        }
+        cache.framework = detectFramework();
+        cache[key] = value;
+        cache.timestamp = Date.now();
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+    } catch (e) {}
+}
+
+/**
+ * Generate help text for all available commands
+ * @param {boolean} forceRefresh - If true, bypass cache and regenerate
+ */
+function generateCommandsHelp(forceRefresh = false) {
+    // Try cache first (unless refresh requested)
+    const cached = getFromCache('commandsHelp', forceRefresh);
+    if (cached) return cached;
+
     let help = `📋 **Available Commands**
 
 **Workflow Triggers** (prefix your message):
 - \`bug:\` - Report a bug → creates issue, wait for 'work' to implement fix
 - \`enhancement:\` - Request enhancement → creates issue, wait for 'work' to implement
 - \`finding:\` - Document a finding → creates issue for discovered issues
-- \`idea:\` - Quick idea → creates lightweight proposal + issue
+- \`idea:\` - Alias for proposal: → creates proposal document + issue
 - \`proposal:\` - Formal proposal → creates proposal document + issue
 - \`prd: [name]\` - Convert proposal to PRD → invokes IDPF-PRD workflow
 
@@ -111,12 +294,39 @@ function generateCommandsHelp() {
     }
 
     // Detect and show IDPF framework commands
-    const frameworkCommands = getFrameworkCommands();
-    if (frameworkCommands) {
-        help += frameworkCommands;
+    const framework = detectFramework();
+    if (framework) {
+        help += '\n' + getFrameworkDetailedCommands(framework);
     }
 
+    // Cache the result
+    saveToCache('commandsHelp', help);
+
     return help;
+}
+
+/**
+ * Get detailed commands (used by list-commands)
+ * @param {boolean} forceRefresh - If true, bypass cache and regenerate
+ */
+function getDetailedCommands(forceRefresh = false) {
+    // Try cache first (unless refresh requested)
+    const cached = getFromCache('detailedCommands', forceRefresh);
+    if (cached) return cached;
+
+    const framework = detectFramework();
+    let result;
+
+    if (framework) {
+        result = getFrameworkDetailedCommands(framework);
+    } else {
+        result = getFrameworkSelectionHelp();
+    }
+
+    // Cache the result
+    saveToCache('detailedCommands', result);
+
+    return result;
 }
 
 /**
@@ -132,9 +342,13 @@ function getSlashCommands() {
         const files = fs.readdirSync(commandsDir).filter(f => f.endsWith('.md'));
         for (const file of files) {
             const filePath = path.join(commandsDir, file);
-            const content = fs.readFileSync(filePath, 'utf8');
+            // Read only first 500 bytes for frontmatter (optimization)
+            const fd = fs.openSync(filePath, 'r');
+            const buffer = Buffer.alloc(500);
+            fs.readSync(fd, buffer, 0, 500, 0);
+            fs.closeSync(fd);
+            const content = buffer.toString('utf8');
 
-            // Extract description from frontmatter
             const frontmatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
             if (frontmatterMatch) {
                 const descMatch = frontmatterMatch[1].match(/description:\s*(.+)/);
@@ -146,124 +360,23 @@ function getSlashCommands() {
                 }
             }
         }
-    } catch (e) {
-        // Silently fail if can't read commands
-    }
+    } catch (e) {}
 
     return commands;
 }
 
 /**
- * Detect active IDPF framework and return relevant commands.
- * Returns full detailed commands (same as List-Commands) for consistency.
+ * Get framework-specific detailed commands
  */
-function getFrameworkCommands() {
-    const cwd = process.cwd();
-
-    // Check for framework-config.json (user projects)
-    const configPath = path.join(cwd, 'framework-config.json');
-    let activeFramework = null;
-
-    try {
-        if (fs.existsSync(configPath)) {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            // Support both old (config.framework) and new (config.projectType.processFramework) formats
-            activeFramework = config.projectType?.processFramework || config.framework;
-        }
-    } catch (e) {}
-
-    // Check for IDPF directories (framework dev or direct usage)
-    if (!activeFramework) {
-        if (fs.existsSync(path.join(cwd, 'IDPF-Agile'))) {
-            activeFramework = 'IDPF-Agile';
-        } else if (fs.existsSync(path.join(cwd, 'IDPF-Structured'))) {
-            activeFramework = 'IDPF-Structured';
-        } else if (fs.existsSync(path.join(cwd, 'IDPF-Vibe'))) {
-            activeFramework = 'IDPF-Vibe';
-        }
+function getFrameworkDetailedCommands(framework) {
+    switch (framework) {
+        case 'IDPF-Agile': return getAgileDetailedCommands();
+        case 'IDPF-Structured': return getStructuredDetailedCommands();
+        case 'IDPF-Vibe': return getVibeDetailedCommands();
+        case 'IDPF-PRD': return getPRDDetailedCommands();
+        case 'IDPF-LTS': return getLTSDetailedCommands();
+        default: return getFrameworkSelectionHelp();
     }
-
-    if (!activeFramework) return null;
-
-    // Return framework-specific detailed commands (same as List-Commands)
-    if (activeFramework === 'IDPF-Agile' || activeFramework === 'agile') {
-        return '\n' + getAgileDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-Structured' || activeFramework === 'structured') {
-        return '\n' + getStructuredDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-Vibe' || (activeFramework && activeFramework.startsWith('vibe'))) {
-        return '\n' + getVibeDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-PRD' || activeFramework === 'prd') {
-        return '\n' + getPRDDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-LTS' || activeFramework === 'lts') {
-        return '\n' + getLTSDetailedCommands();
-    }
-
-    return null;
-}
-
-/**
- * Generate detailed command list based on active framework
- */
-function generateDetailedCommands() {
-    const cwd = process.cwd();
-    let activeFramework = null;
-
-    // Check for framework-config.json (user projects)
-    const configPath = path.join(cwd, 'framework-config.json');
-    try {
-        if (fs.existsSync(configPath)) {
-            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            // Support both old (config.framework) and new (config.projectType.processFramework) formats
-            activeFramework = config.projectType?.processFramework || config.framework;
-        }
-    } catch (e) {}
-
-    // Check for IDPF directories (framework dev or direct usage)
-    if (!activeFramework) {
-        if (fs.existsSync(path.join(cwd, 'IDPF-Agile'))) {
-            activeFramework = 'IDPF-Agile';
-        } else if (fs.existsSync(path.join(cwd, 'IDPF-Structured'))) {
-            activeFramework = 'IDPF-Structured';
-        } else if (fs.existsSync(path.join(cwd, 'IDPF-Vibe'))) {
-            activeFramework = 'IDPF-Vibe';
-        } else if (fs.existsSync(path.join(cwd, 'IDPF-PRD'))) {
-            activeFramework = 'IDPF-PRD';
-        } else if (fs.existsSync(path.join(cwd, 'IDPF-LTS'))) {
-            activeFramework = 'IDPF-LTS';
-        }
-    }
-
-    // Return framework-specific detailed commands
-    if (activeFramework === 'IDPF-Agile' || activeFramework === 'agile') {
-        return getAgileDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-Structured' || activeFramework === 'structured') {
-        return getStructuredDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-Vibe' || (activeFramework && activeFramework.startsWith('vibe'))) {
-        return getVibeDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-PRD' || activeFramework === 'prd') {
-        return getPRDDetailedCommands();
-    }
-
-    if (activeFramework === 'IDPF-LTS' || activeFramework === 'lts') {
-        return getLTSDetailedCommands();
-    }
-
-    // Fallback: show all frameworks available
-    return getFrameworkSelectionHelp();
 }
 
 function getAgileDetailedCommands() {
@@ -274,7 +387,6 @@ function getAgileDetailedCommands() {
 | Command | Description |
 |---------|-------------|
 | \`Create-Backlog\` | Generate initial product backlog from project vision |
-| \`Show-Backlog\` | Display current product backlog |
 | \`Add-Story\` | User describes a new story to add to backlog |
 | \`Refine-Story [ID]\` | Update/clarify an existing story |
 | \`Estimate-Story [ID]\` | Re-estimate story points |
@@ -327,11 +439,19 @@ function getAgileDetailedCommands() {
 
 | Command | Description |
 |---------|-------------|
-| \`Project-Status\` | Overall project health dashboard |
 | \`Velocity-Report\` | Show velocity trends across sprints |
 | \`Push-Changes\` | Commit and push current work |
-| \`Create-Release\` | Tag a release version |
 | \`Project-Complete\` | Finalize project and create final PR |
+
+---
+
+### Release Lifecycle Commands
+
+| Command | Slash Command | Description |
+|---------|---------------|-------------|
+| \`Open-Release\` | \`/open-release\` | Open release branch and tracker |
+| \`Prepare-Release\` | \`/prepare-release\` | Validate, merge to main, tag, deploy |
+| \`Close-Release\` | \`/close-release\` | Generate notes, create GitHub Release, cleanup |
 
 ---
 
@@ -407,10 +527,18 @@ function getStructuredDetailedCommands() {
 
 | Command | Description |
 |---------|-------------|
-| \`Project-Status\` | Overall project health dashboard |
 | \`Push-Changes\` | Commit and push current work |
-| \`Create-Release\` | Tag a release version |
 | \`Project-Complete\` | Finalize project and create final PR |
+
+---
+
+### Release Lifecycle Commands
+
+| Command | Slash Command | Description |
+|---------|---------------|-------------|
+| \`Open-Release\` | \`/open-release\` | Open release branch and tracker |
+| \`Prepare-Release\` | \`/prepare-release\` | Validate, merge to main, tag, deploy |
+| \`Close-Release\` | \`/close-release\` | Generate notes, create GitHub Release, cleanup |
 
 ---
 
