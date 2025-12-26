@@ -4,24 +4,29 @@ Add a new domain specialist to your project that wasn't selected during installa
 
 ## All Available Specialists
 
-1. Full-Stack-Developer
-2. Backend-Specialist
-3. Frontend-Specialist
-4. DevOps-Engineer
+1. Accessibility-Specialist
+2. API-Integration-Specialist
+3. Backend-Specialist
+4. Cloud-Solutions-Architect
 5. Database-Engineer
-6. API-Integration-Specialist
-7. Security-Engineer
-8. Platform-Engineer
-9. Mobile-Specialist
-10. Data-Engineer
-11. QA-Test-Engineer
-12. Cloud-Solutions-Architect
-13. SRE-Specialist
-14. Embedded-Systems-Engineer
-15. ML-Engineer
+6. Data-Engineer
+7. Desktop-Application-Developer
+8. DevOps-Engineer
+9. Embedded-Systems-Engineer
+10. Frontend-Specialist
+11. Full-Stack-Developer
+12. Game-Developer
+13. Graphics-Engineer-Specialist
+14. ML-Engineer
+15. Mobile-Specialist
 16. Performance-Engineer
-17. PRD-Analyst
-18. Accessibility-Specialist
+17. Platform-Engineer
+18. PRD-Analyst
+19. QA-Test-Engineer
+20. Security-Engineer
+21. SRE-Specialist
+22. Systems-Programmer-Specialist
+23. Technical-Writer-Specialist
 
 ## Currently Installed
 
@@ -72,24 +77,29 @@ Edit `framework-config.json`:
 
 Read the new specialist's instruction file:
 
-- Full-Stack-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Full-Stack-Developer.md`
-- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
-- Frontend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Frontend-Specialist.md`
-- DevOps-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/DevOps-Engineer.md`
-- Database-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Database-Engineer.md`
-- API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
-- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
-- Platform-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Platform-Engineer.md`
-- Mobile-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Mobile-Specialist.md`
-- Data-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Data-Engineer.md`
-- QA-Test-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/QA-Test-Engineer.md`
-- Cloud-Solutions-Architect: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Cloud-Solutions-Architect.md`
-- SRE-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/SRE-Specialist.md`
-- Embedded-Systems-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Embedded-Systems-Engineer.md`
-- ML-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/ML-Engineer.md`
-- Performance-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Performance-Engineer.md`
-- PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
 - Accessibility-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Accessibility-Specialist.md`
+- API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
+- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
+- Cloud-Solutions-Architect: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Cloud-Solutions-Architect.md`
+- Database-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Database-Engineer.md`
+- Data-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Data-Engineer.md`
+- Desktop-Application-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Desktop-Application-Developer.md`
+- DevOps-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/DevOps-Engineer.md`
+- Embedded-Systems-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Embedded-Systems-Engineer.md`
+- Frontend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Frontend-Specialist.md`
+- Full-Stack-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Full-Stack-Developer.md`
+- Game-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Game-Developer.md`
+- Graphics-Engineer-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Graphics-Engineer-Specialist.md`
+- ML-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/ML-Engineer.md`
+- Mobile-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Mobile-Specialist.md`
+- Performance-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Performance-Engineer.md`
+- Platform-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Platform-Engineer.md`
+- PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
+- QA-Test-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/QA-Test-Engineer.md`
+- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
+- SRE-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/SRE-Specialist.md`
+- Systems-Programmer-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Systems-Programmer-Specialist.md`
+- Technical-Writer-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Technical-Writer-Specialist.md`
 
 ### Step 5: Confirm Addition
 
@@ -111,24 +121,29 @@ Use /switch-role to change between installed specialists.
 
 ## File Paths
 
-- Full-Stack-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Full-Stack-Developer.md`
-- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
-- Frontend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Frontend-Specialist.md`
-- DevOps-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/DevOps-Engineer.md`
-- Database-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Database-Engineer.md`
-- API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
-- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
-- Platform-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Platform-Engineer.md`
-- Mobile-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Mobile-Specialist.md`
-- Data-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Data-Engineer.md`
-- QA-Test-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/QA-Test-Engineer.md`
-- Cloud-Solutions-Architect: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Cloud-Solutions-Architect.md`
-- SRE-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/SRE-Specialist.md`
-- Embedded-Systems-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Embedded-Systems-Engineer.md`
-- ML-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/ML-Engineer.md`
-- Performance-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Performance-Engineer.md`
-- PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
 - Accessibility-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Accessibility-Specialist.md`
+- API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
+- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
+- Cloud-Solutions-Architect: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Cloud-Solutions-Architect.md`
+- Database-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Database-Engineer.md`
+- Data-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Data-Engineer.md`
+- Desktop-Application-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Desktop-Application-Developer.md`
+- DevOps-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/DevOps-Engineer.md`
+- Embedded-Systems-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Embedded-Systems-Engineer.md`
+- Frontend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Frontend-Specialist.md`
+- Full-Stack-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Full-Stack-Developer.md`
+- Game-Developer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Game-Developer.md`
+- Graphics-Engineer-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Graphics-Engineer-Specialist.md`
+- ML-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/ML-Engineer.md`
+- Mobile-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Mobile-Specialist.md`
+- Performance-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Performance-Engineer.md`
+- Platform-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Platform-Engineer.md`
+- PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
+- QA-Test-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/QA-Test-Engineer.md`
+- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
+- SRE-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/SRE-Specialist.md`
+- Systems-Programmer-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Systems-Programmer-Specialist.md`
+- Technical-Writer-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Technical-Writer-Specialist.md`
 
 ## Usage
 

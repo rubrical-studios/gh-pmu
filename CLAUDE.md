@@ -1,7 +1,7 @@
 # Claude Code - Project Instructions
 
-**Process Framework:** IDPF-Structured
-**Domain Specialists:** Backend-Specialist, API-Integration-Specialist, Security-Engineer, PRD-Analyst
+**Process Framework:** IDPF-Agile
+**Domain Specialists:** API-Integration-Specialist, Backend-Specialist, Database-Engineer, PRD-Analyst, Security-Engineer
 **Primary Specialist:** API-Integration-Specialist
 
 ---
@@ -31,7 +31,7 @@ Load detailed documentation when needed:
 
 | When Working On | Load File |
 |-----------------|-----------|
-| Framework workflow | `E:\Projects\virtual-ai-studio-dist/IDPF-Structured/Interactive Development Process Framework.md` |
+| Framework workflow | `E:\Projects\virtual-ai-studio-dist/IDPF-Agile/Agile-Core.md` |
 | Domain specialist | `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/{specialist}.md` |
 | Testing patterns | `.claude/skills/test-writing-patterns/SKILL.md` |
 
@@ -51,8 +51,6 @@ Load detailed documentation when needed:
 
 <!-- Add your project-specific instructions below this line -->
 
-⚠️Use absolute project paths for temp files.
-
 On session startup:
 
 1. display a random quote, then
@@ -60,3 +58,6 @@ On session startup:
 
 <!-- These will be preserved during framework updates -->
 
+---
+
+**End of Claude Code Instructions**

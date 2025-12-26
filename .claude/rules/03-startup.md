@@ -1,8 +1,8 @@
 # Session Startup
 
-**Version:** 1.0
-**Framework:** IDPF-Structured
-**Specialists:** Backend-Specialist, API-Integration-Specialist, Security-Engineer, PRD-Analyst
+**Version:** 0.15.2
+**Framework:** IDPF-Agile
+**Specialists:** API-Integration-Specialist, Backend-Specialist, Database-Engineer, PRD-Analyst, Security-Engineer
 **Primary Specialist:** API-Integration-Specialist
 
 ---
@@ -22,7 +22,7 @@ When starting a new session:
 
 | When Needed | Load From |
 |-------------|-----------|
-| Framework workflow | `E:\Projects\virtual-ai-studio-dist/IDPF-Structured/` |
+| Framework workflow | `E:\Projects\virtual-ai-studio-dist/IDPF-Agile/` |
 | Domain specialist | `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/{specialist}.md` |
 | Skill usage | `.claude/skills/{skill-name}/SKILL.md` |
 

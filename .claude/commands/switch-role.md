@@ -4,10 +4,11 @@ Switch to a different domain specialist role and make it the default for future 
 
 ## Available Roles
 
-1. Backend-Specialist
-2. API-Integration-Specialist
-3. Security-Engineer
+1. API-Integration-Specialist
+2. Backend-Specialist
+3. Database-Engineer
 4. PRD-Analyst
+5. Security-Engineer
 
 ## Instructions
 
@@ -23,14 +24,15 @@ Show available roles (mark current primary if set) and ask user to select one:
 
 ```
 Available roles:
-1. Backend-Specialist
-2. API-Integration-Specialist
-3. Security-Engineer
+1. API-Integration-Specialist
+2. Backend-Specialist
+3. Database-Engineer
 4. PRD-Analyst
+5. Security-Engineer
 
 Current default: [primarySpecialist or "None"]
 
-Select a role (1-4):
+Select a role (1-5):
 ```
 
 ### Step 3: Update Configuration (Persist Selection)
@@ -44,10 +46,11 @@ Edit `framework-config.json` to set the new `primarySpecialist` value.
 
 Read the new specialist's instruction file:
 
-- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
 - API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
-- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
+- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
+- Database-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Database-Engineer.md`
 - PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
+- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
 
 ### Step 5: Confirm Switch
 
@@ -74,10 +77,11 @@ Previous role instructions remain in conversation history but are explicitly dep
 
 ## File Paths
 
-- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
 - API-Integration-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/API-Integration-Specialist.md`
-- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
+- Backend-Specialist: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Backend-Specialist.md`
+- Database-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Database-Engineer.md`
 - PRD-Analyst: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/PRD-Analyst.md`
+- Security-Engineer: `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Security-Engineer.md`
 
 ## Usage
 

@@ -1,14 +1,15 @@
 {
   "frameworkPath": "E:\\Projects\\virtual-ai-studio-dist",
-  "installedVersion": "2.14.1",
-  "installedDate": "2025-12-15",
+  "installedVersion": "0.15.2",
+  "installedDate": "2025-12-26",
   "projectType": {
-    "processFramework": "IDPF-Structured",
+    "processFramework": "IDPF-Agile",
     "domainSpecialists": [
-      "Backend-Specialist",
       "API-Integration-Specialist",
-      "Security-Engineer",
-      "PRD-Analyst"
+      "Backend-Specialist",
+      "Database-Engineer",
+      "PRD-Analyst",
+      "Security-Engineer"
     ],
     "primarySpecialist": "API-Integration-Specialist"
   },
