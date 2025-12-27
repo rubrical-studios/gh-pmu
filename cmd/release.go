@@ -246,10 +246,11 @@ func newReleaseCloseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "close <release-name>",
 		Short: "Close a release",
-		Long: `Closes a release, generates artifacts, and optionally creates a git tag.
+		Long: `Closes a release and optionally creates a git tag.
 
 The release name must be specified explicitly (e.g., release/v2.0.0).
 Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
+Release artifacts should be created beforehand using /prepare-release.
 
 Examples:
   gh pmu release close release/v2.0.0
@@ -697,9 +698,8 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		return fmt.Errorf("release not found: %s", opts.releaseName)
 	}
 
-	// Extract version and codename from title
+	// Extract version from title
 	releaseVersion := extractReleaseVersion(targetRelease.Title)
-	codename := extractReleaseCodename(targetRelease.Title)
 
 	// Get project for field operations
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
@@ -843,45 +843,6 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		fmt.Fprintln(cmd.OutOrStdout())
 	}
 
-	// Create artifact directory (configurable via release.artifacts.directory)
-	artifactDir := fmt.Sprintf("%s/%s", cfg.GetArtifactDirectory(), releaseVersion)
-	err = client.MkdirAll(artifactDir)
-	if err != nil {
-		return fmt.Errorf("failed to create artifact directory: %w", err)
-	}
-
-	var artifactPaths []string
-
-	// Generate and write release-notes.md
-	if cfg.ShouldGenerateReleaseNotes() {
-		releaseNotesPath := fmt.Sprintf("%s/release-notes.md", artifactDir)
-		releaseNotesContent := generateReleaseNotesContent(releaseVersion, codename, targetRelease.Number, doneIssues)
-		err = client.WriteFile(releaseNotesPath, releaseNotesContent)
-		if err != nil {
-			return fmt.Errorf("failed to write release-notes.md: %w", err)
-		}
-		artifactPaths = append(artifactPaths, releaseNotesPath)
-	}
-
-	// Generate and write changelog.md
-	if cfg.ShouldGenerateChangelog() {
-		changelogPath := fmt.Sprintf("%s/changelog.md", artifactDir)
-		changelogContent := generateChangelogContent(releaseVersion, doneIssues)
-		err = client.WriteFile(changelogPath, changelogContent)
-		if err != nil {
-			return fmt.Errorf("failed to write changelog.md: %w", err)
-		}
-		artifactPaths = append(artifactPaths, changelogPath)
-	}
-
-	// Stage artifacts to git
-	if len(artifactPaths) > 0 {
-		err = client.GitAdd(artifactPaths...)
-		if err != nil {
-			return fmt.Errorf("failed to stage artifacts: %w", err)
-		}
-	}
-
 	// Create git tag if requested
 	if opts.tag {
 		tagMessage := fmt.Sprintf("Release %s", releaseVersion)
@@ -918,7 +879,6 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "✓ Release closed: %s\n", releaseVersion)
-	fmt.Fprintf(cmd.OutOrStdout(), "✓ Artifacts created in: %s\n", artifactDir)
 	if len(incompleteIssues) > 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(incompleteIssues))
 	}
