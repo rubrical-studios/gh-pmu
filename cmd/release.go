@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -1001,85 +1000,6 @@ func extractReleaseCodename(title string) string {
 		return title[start+1 : end]
 	}
 	return ""
-}
-
-// generateReleaseNotesContent generates the release notes content
-func generateReleaseNotesContent(version, codename string, trackerNumber int, issues []api.Issue) string {
-	var sb strings.Builder
-
-	// Header with version and codename
-	if codename != "" {
-		sb.WriteString(fmt.Sprintf("# Release %s (%s)\n\n", version, codename))
-	} else {
-		sb.WriteString(fmt.Sprintf("# Release %s\n\n", version))
-	}
-
-	// Date
-	sb.WriteString(fmt.Sprintf("**Date:** %s\n\n", time.Now().Format("2006-01-02")))
-
-	// Tracker issue reference
-	sb.WriteString(fmt.Sprintf("**Tracker:** #%d\n\n", trackerNumber))
-
-	// Group issues by label
-	enhancements := []api.Issue{}
-	bugFixes := []api.Issue{}
-	other := []api.Issue{}
-
-	for _, issue := range issues {
-		labeled := false
-		for _, label := range issue.Labels {
-			if label.Name == "enhancement" {
-				enhancements = append(enhancements, issue)
-				labeled = true
-				break
-			} else if label.Name == "bug" {
-				bugFixes = append(bugFixes, issue)
-				labeled = true
-				break
-			}
-		}
-		if !labeled {
-			other = append(other, issue)
-		}
-	}
-
-	if len(enhancements) > 0 {
-		sb.WriteString("## Features\n\n")
-		for _, issue := range enhancements {
-			sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(bugFixes) > 0 {
-		sb.WriteString("## Bug Fixes\n\n")
-		for _, issue := range bugFixes {
-			sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(other) > 0 {
-		sb.WriteString("## Other Changes\n\n")
-		for _, issue := range other {
-			sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-// generateChangelogContent generates the changelog content
-func generateChangelogContent(version string, issues []api.Issue) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", version, time.Now().Format("2006-01-02")))
-
-	for _, issue := range issues {
-		sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-	}
-
-	return sb.String()
 }
 
 // runReleaseListWithDeps is the testable entry point for release list
