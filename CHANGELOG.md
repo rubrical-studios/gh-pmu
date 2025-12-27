@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2025-12-26
+
+### Added
+- Sprint and release management commands for Claude Code integration
+  - `/assign-release`, `/close-release`, `/open-release`, `/switch-release`
+  - `/plan-sprint`, `/end-sprint`, `/sprint-status`, `/sprint-retro`, `/transfer-issue`
+- Beta deployment workflow proposal (#458)
+  - Side-by-side `gh pmu` + `gh pmub` installation design
+  - Prerelease versioning scheme (`v{current}+beta.N`)
+
+### Changed
+- `/prepare-release` command restored with full automation (#459)
+  - Merged old automation scripts into new 4-phase structure
+  - Added `--skip-coverage` flag support
+  - Restored: config verification, commit analysis, CI waiting, release monitoring
+  - Preserved: lifecycle diagram, `/close-release` integration
+
 ## [0.9.2] - 2025-12-23
 
 ### Added
