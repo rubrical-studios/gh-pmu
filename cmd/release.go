@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -246,10 +245,11 @@ func newReleaseCloseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "close <release-name>",
 		Short: "Close a release",
-		Long: `Closes a release, generates artifacts, and optionally creates a git tag.
+		Long: `Closes a release and optionally creates a git tag.
 
 The release name must be specified explicitly (e.g., release/v2.0.0).
 Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
+Release artifacts should be created beforehand using /prepare-release.
 
 Examples:
   gh pmu release close release/v2.0.0
@@ -697,9 +697,8 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		return fmt.Errorf("release not found: %s", opts.releaseName)
 	}
 
-	// Extract version and codename from title
+	// Extract version from title
 	releaseVersion := extractReleaseVersion(targetRelease.Title)
-	codename := extractReleaseCodename(targetRelease.Title)
 
 	// Get project for field operations
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
@@ -843,45 +842,6 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 		fmt.Fprintln(cmd.OutOrStdout())
 	}
 
-	// Create artifact directory (configurable via release.artifacts.directory)
-	artifactDir := fmt.Sprintf("%s/%s", cfg.GetArtifactDirectory(), releaseVersion)
-	err = client.MkdirAll(artifactDir)
-	if err != nil {
-		return fmt.Errorf("failed to create artifact directory: %w", err)
-	}
-
-	var artifactPaths []string
-
-	// Generate and write release-notes.md
-	if cfg.ShouldGenerateReleaseNotes() {
-		releaseNotesPath := fmt.Sprintf("%s/release-notes.md", artifactDir)
-		releaseNotesContent := generateReleaseNotesContent(releaseVersion, codename, targetRelease.Number, doneIssues)
-		err = client.WriteFile(releaseNotesPath, releaseNotesContent)
-		if err != nil {
-			return fmt.Errorf("failed to write release-notes.md: %w", err)
-		}
-		artifactPaths = append(artifactPaths, releaseNotesPath)
-	}
-
-	// Generate and write changelog.md
-	if cfg.ShouldGenerateChangelog() {
-		changelogPath := fmt.Sprintf("%s/changelog.md", artifactDir)
-		changelogContent := generateChangelogContent(releaseVersion, doneIssues)
-		err = client.WriteFile(changelogPath, changelogContent)
-		if err != nil {
-			return fmt.Errorf("failed to write changelog.md: %w", err)
-		}
-		artifactPaths = append(artifactPaths, changelogPath)
-	}
-
-	// Stage artifacts to git
-	if len(artifactPaths) > 0 {
-		err = client.GitAdd(artifactPaths...)
-		if err != nil {
-			return fmt.Errorf("failed to stage artifacts: %w", err)
-		}
-	}
-
 	// Create git tag if requested
 	if opts.tag {
 		tagMessage := fmt.Sprintf("Release %s", releaseVersion)
@@ -918,7 +878,6 @@ func runReleaseCloseWithDeps(cmd *cobra.Command, opts *releaseCloseOptions, cfg 
 
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "✓ Release closed: %s\n", releaseVersion)
-	fmt.Fprintf(cmd.OutOrStdout(), "✓ Artifacts created in: %s\n", artifactDir)
 	if len(incompleteIssues) > 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(incompleteIssues))
 	}
@@ -1041,85 +1000,6 @@ func extractReleaseCodename(title string) string {
 		return title[start+1 : end]
 	}
 	return ""
-}
-
-// generateReleaseNotesContent generates the release notes content
-func generateReleaseNotesContent(version, codename string, trackerNumber int, issues []api.Issue) string {
-	var sb strings.Builder
-
-	// Header with version and codename
-	if codename != "" {
-		sb.WriteString(fmt.Sprintf("# Release %s (%s)\n\n", version, codename))
-	} else {
-		sb.WriteString(fmt.Sprintf("# Release %s\n\n", version))
-	}
-
-	// Date
-	sb.WriteString(fmt.Sprintf("**Date:** %s\n\n", time.Now().Format("2006-01-02")))
-
-	// Tracker issue reference
-	sb.WriteString(fmt.Sprintf("**Tracker:** #%d\n\n", trackerNumber))
-
-	// Group issues by label
-	enhancements := []api.Issue{}
-	bugFixes := []api.Issue{}
-	other := []api.Issue{}
-
-	for _, issue := range issues {
-		labeled := false
-		for _, label := range issue.Labels {
-			if label.Name == "enhancement" {
-				enhancements = append(enhancements, issue)
-				labeled = true
-				break
-			} else if label.Name == "bug" {
-				bugFixes = append(bugFixes, issue)
-				labeled = true
-				break
-			}
-		}
-		if !labeled {
-			other = append(other, issue)
-		}
-	}
-
-	if len(enhancements) > 0 {
-		sb.WriteString("## Features\n\n")
-		for _, issue := range enhancements {
-			sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(bugFixes) > 0 {
-		sb.WriteString("## Bug Fixes\n\n")
-		for _, issue := range bugFixes {
-			sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(other) > 0 {
-		sb.WriteString("## Other Changes\n\n")
-		for _, issue := range other {
-			sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-		}
-		sb.WriteString("\n")
-	}
-
-	return sb.String()
-}
-
-// generateChangelogContent generates the changelog content
-func generateChangelogContent(version string, issues []api.Issue) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("## %s (%s)\n\n", version, time.Now().Format("2006-01-02")))
-
-	for _, issue := range issues {
-		sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
-	}
-
-	return sb.String()
 }
 
 // runReleaseListWithDeps is the testable entry point for release list

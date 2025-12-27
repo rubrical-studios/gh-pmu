@@ -585,7 +585,7 @@ gh pmu release remove 42
 # View current release
 gh pmu release current
 
-# Close release (generates artifacts)
+# Close release (closes tracker, optional tag)
 gh pmu release close
 
 # List release history

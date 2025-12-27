@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2025-12-26
+
+### Fixed
+- `gh pmu release close` no longer generates artifacts (#466)
+  - Artifact generation moved to `/prepare-release` Phase 2
+  - Prevents overwriting detailed release notes with auto-generated versions
+  - Removed REQ-020 tests (AC-020-1 through AC-020-4)
+
 ## [0.9.3] - 2025-12-26
 
 ### Added
