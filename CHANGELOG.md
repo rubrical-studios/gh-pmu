@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2025-12-28
+
+### Changed
+- Reorganize `.claude/scripts/` into purpose-based subdirectories (#469)
+  - `close-release/` - Release monitoring scripts
+  - `framework/` - Commit analysis, version recommendation, CI waiting
+  - `open-release/` - Config verification
+  - `prepare-release/` - Coverage analysis
+  - `shared/` - Common utilities (lib, sprint scripts, etc.)
+- Bump internal framework version to 0.16.0
+
+### Added
+- `/prepare-beta` command for beta release workflow
+- `.claude/extensions/` directory for custom extension points
+
 ## [0.9.4] - 2025-12-26
 
 ### Fixed
