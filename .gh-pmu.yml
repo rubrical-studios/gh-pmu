@@ -30,11 +30,6 @@ triage:
         query: is:issue is:open -has:estimate
         interactive:
             estimate: true
-release:
-    active:
-        - version: 0.9.4
-          tracker_issue: 467
-          track: patch
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -145,4 +140,4 @@ cache:
           state: CLOSED
         - number: 467
           title: 'Release: patch/v0.9.4'
-          state: OPEN
+          state: CLOSED
