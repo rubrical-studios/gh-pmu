@@ -1,6 +1,6 @@
 ---
 name: tdd-green-phase
-version: 1.0.0
+version: 0.16.0
 description: Guide through GREEN phase - minimal implementation to pass test
 ---
 # TDD GREEN Phase

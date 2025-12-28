@@ -1,6 +1,6 @@
 # Session Startup
 
-**Version:** 0.15.2
+**Version:** 0.16.0
 **Framework:** IDPF-Agile
 **Specialists:** API-Integration-Specialist, Backend-Specialist, Database-Engineer, PRD-Analyst, Security-Engineer
 **Primary Specialist:** API-Integration-Specialist

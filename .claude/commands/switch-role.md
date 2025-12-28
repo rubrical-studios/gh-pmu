@@ -1,3 +1,8 @@
+---
+version: 0.16.0
+description: Switch to a different domain specialist role
+---
+
 # Switch Domain Specialist Role
 
 Switch to a different domain specialist role and make it the default for future sessions.
