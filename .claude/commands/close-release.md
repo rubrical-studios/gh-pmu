@@ -1,24 +1,35 @@
 ---
+version: 0.16.0
 description: Close release with GitHub Release and cleanup
 argument-hint: [--skip-release-page]
 ---
 
-# Close Release
+<!-- EXTENSIBLE: v0.16.0 -->
+# /close-release
 
-Closes a release by creating a GitHub Release page and cleaning up the release branch.
+Closes a release by creating GitHub Release page and cleaning up.
+
+**Note:** This command makes NO commits to main. CHANGELOG was updated by `/prepare-release` and merged via PR.
+
+## Available Extension Points
+
+| Point | Location | Purpose |
+|-------|----------|---------|
+| `post-notes` | After Step 4 | Customize release notes format |
+| `pre-close` | Before Step 5 | Final verification before GitHub Release |
+| `post-github-release` | After Step 5 | Update release notes, cross-posting |
+| `post-cleanup` | After Step 7 | Notifications |
+
+---
 
 ## Prerequisites
 
-- Active release context (run `gh pmu release current` to verify)
-- Release has been deployed (tag exists on main)
-- All release issues are Done
-- On main branch (post-merge)
+- Active release context
+- Tag exists on main
+- All issues Done
+- On main branch
 
-## Arguments
-
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `--skip-release-page` | No | Skip GitHub Release page creation |
+---
 
 ## Workflow
 
@@ -28,24 +39,11 @@ Closes a release by creating a GitHub Release page and cleaning up the release b
 gh pmu release current
 ```
 
-If no release active, error and exit.
-
-Extract track and version from current release:
-- `release/v1.2.0` → track=`release`, version=`v1.2.0`
-- `patch/v1.1.1` → track=`patch`, version=`v1.1.1`
-- `hotfix/v1.0.1` → track=`hotfix`, version=`v1.0.1`
-
-### Step 2: Verify Deployment Complete
+### Step 2: Verify Tag Exists
 
 ```bash
-# Check that tag exists
 git tag -l "$VERSION"
-
-# Verify on main branch
-git branch --show-current
 ```
-
-If tag missing, warn that `/prepare-release` may not have completed.
 
 ### Step 3: Verify All Issues Done
 
@@ -53,11 +51,35 @@ If tag missing, warn that `/prepare-release` may not have completed.
 gh pmu release current --json issues
 ```
 
-If any issues not Done, warn user and confirm before proceeding.
+### Step 4: Verify Release Assets Uploaded
 
-### Step 4: Create GitHub Release
+```bash
+gh release view $VERSION --json assets | jq '.assets[].name'
+```
 
-Unless `--skip-release-page` is specified:
+Expected assets (from tag-triggered workflow):
+- darwin-amd64, darwin-arm64
+- linux-amd64, linux-arm64
+- windows-amd64.exe, windows-arm64.exe
+- checksums.txt
+
+<!-- USER-EXTENSION-START: post-notes -->
+<!-- Customize release notes format before GitHub Release creation -->
+<!-- USER-EXTENSION-END: post-notes -->
+
+<!-- USER-EXTENSION-START: pre-close -->
+### Verify All Platform Binaries
+
+Confirm all expected binaries are present:
+
+```bash
+gh release view $VERSION --json assets | jq '.assets | length'
+```
+
+**If any assets are missing, report warning before proceeding.**
+<!-- USER-EXTENSION-END: pre-close -->
+
+### Step 5: Create GitHub Release Page
 
 ```bash
 gh release create "$VERSION" \
@@ -65,55 +87,50 @@ gh release create "$VERSION" \
   --generate-notes
 ```
 
-### Step 5: Close Tracker Issue
+<!-- USER-EXTENSION-START: post-github-release -->
+### Update Release Notes
+
+```bash
+node .claude/scripts/framework/update-release-notes.js
+```
+
+Update release notes with formatted CHANGELOG content.
+<!-- USER-EXTENSION-END: post-github-release -->
+
+### Step 6: Close Tracker Issue
 
 ```bash
 gh pmu release close
 ```
 
-### Step 6: Delete Release Branch
+### Step 7: Delete Release Branch
 
 ```bash
-# Delete remote branch
 git push origin --delete "release/$VERSION"
-
-# Delete local branch (if not current)
 git branch -d "release/$VERSION"
 ```
 
-### Step 7: Report Completion
+<!-- USER-EXTENSION-START: post-cleanup -->
+<!-- USER-EXTENSION-END: post-cleanup -->
 
-Output:
+### Step 8: Report Completion
+
 ```
 Release $VERSION closed.
 
 GitHub Release: https://github.com/[owner]/[repo]/releases/tag/$VERSION
 
+Assets:
+  - darwin-amd64, darwin-arm64
+  - linux-amd64, linux-arm64
+  - windows-amd64.exe, windows-arm64.exe
+  - checksums.txt
+
 Cleanup:
   - Tracker issue closed
-  - Branch release/$VERSION deleted
+  - Branch deleted
 
 Release lifecycle complete!
-```
-
----
-
-## Release Lifecycle
-
-```
-/open-release v1.2.0
-    └── Creates branch + tracker
-         │
-         ▼
-    [Work on release branch]
-         │
-         ▼
-/prepare-release v1.2.0
-    └── PR → merge → tag → deploy
-         │
-         ▼
-/close-release              ◄── YOU ARE HERE
-    └── GitHub Release → cleanup
 ```
 
 ---

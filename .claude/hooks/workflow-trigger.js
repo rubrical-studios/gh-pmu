@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.15.2
+// **Version:** 0.16.0
 /**
  * workflow-trigger.js
  *
@@ -124,7 +124,7 @@ process.stdin.on('end', () => {
                 console.log(JSON.stringify(output));
                 process.exit(0);
 
-            } catch (error) {
+            } catch {
                 // Error checking - allow and let downstream handle (fail-open)
                 const output = {
                     systemMessage: `Success`,
@@ -164,7 +164,7 @@ process.stdin.on('end', () => {
         }
 
         process.exit(0);
-    } catch (e) {
+    } catch {
         process.exit(0);
     }
 });
@@ -184,7 +184,7 @@ function detectFramework() {
             const framework = config.projectType?.processFramework || config.framework;
             if (framework) return normalizeFramework(framework);
         }
-    } catch (e) {}
+    } catch { /* ignore */ }
 
     // Check for IDPF directories (framework dev or direct usage)
     const frameworks = ['IDPF-Agile', 'IDPF-Structured', 'IDPF-Vibe', 'IDPF-PRD', 'IDPF-LTS'];
@@ -240,7 +240,7 @@ function getFromCache(key, forceRefresh = false) {
                 return cache[key];
             }
         }
-    } catch (e) {}
+    } catch { /* ignore */ }
     return null;
 }
 
@@ -257,7 +257,7 @@ function saveToCache(key, value) {
         cache[key] = value;
         cache.timestamp = Date.now();
         fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
-    } catch (e) {}
+    } catch { /* ignore */ }
 }
 
 /**
@@ -360,7 +360,7 @@ function getSlashCommands() {
                 }
             }
         }
-    } catch (e) {}
+    } catch { /* ignore */ }
 
     return commands;
 }

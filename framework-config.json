@@ -1,9 +1,10 @@
 {
   "frameworkPath": "E:\\Projects\\virtual-ai-studio-dist",
-  "installedVersion": "0.15.2",
-  "installedDate": "2025-12-26",
+  "installedVersion": "0.16.0",
+  "installedDate": "2025-12-28",
   "projectType": {
     "processFramework": "IDPF-Agile",
+    "language": "go",
     "domainSpecialists": [
       "API-Integration-Specialist",
       "Backend-Specialist",
@@ -18,5 +19,44 @@
     "systemInstructions": true,
     "skills": true,
     "assistantGuidelines": true
+  },
+  "extensibleCommands": [
+    "open-release",
+    "prepare-release",
+    "prepare-beta",
+    "close-release"
+  ],
+  "frameworkScripts": {
+    "framework": [
+      "analyze-commits.js",
+      "recommend-version.js",
+      "wait-for-ci.js",
+      "update-release-notes.js"
+    ],
+    "shared": [
+      "assign-release.js",
+      "cleanup-release-assets.js",
+      "end-sprint.js",
+      "generate-changelog.js",
+      "plan-sprint.js",
+      "sprint-retro.js",
+      "sprint-status.js",
+      "switch-release.js",
+      "transfer-issue.js"
+    ],
+    "lib": [
+      "gh.js",
+      "git.js",
+      "output.js",
+      "poll.js"
+    ],
+    "hooks": [
+      "workflow-trigger.js"
+    ]
+  },
+  "userScripts": {
+    "open-release": ["verify-config.js"],
+    "prepare-release": ["coverage.js"],
+    "close-release": ["monitor-release.js"]
   }
 }

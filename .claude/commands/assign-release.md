@@ -1,4 +1,5 @@
 ---
+version: 0.16.0
 allowed-tools: Bash, AskUserQuestion
 description: Assign issues to a release (project)
 ---
@@ -8,7 +9,7 @@ Assign issues to a release.
 Run the assign-release script:
 
 ```bash
-node .claude/scripts/assign-release.js "$ARGUMENTS"
+node .claude/scripts/shared/assign-release.js "$ARGUMENTS"
 ```
 
 ## Handling "NO_RELEASE_FOUND" Output

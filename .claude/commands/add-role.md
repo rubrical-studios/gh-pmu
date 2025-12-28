@@ -1,3 +1,8 @@
+---
+version: 0.16.0
+description: Add a new domain specialist role to project
+---
+
 # Add Domain Specialist Role
 
 Add a new domain specialist to your project that wasn't selected during installation.
