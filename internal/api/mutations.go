@@ -103,8 +103,9 @@ type ReopenIssueInput struct {
 
 // UpdateIssueInput represents the input for updating an issue
 type UpdateIssueInput struct {
-	ID   graphql.ID     `json:"id"`
-	Body graphql.String `json:"body,omitempty"`
+	ID    graphql.ID     `json:"id"`
+	Body  graphql.String `json:"body,omitempty"`
+	Title graphql.String `json:"title,omitempty"`
 }
 
 // AddIssueToProject adds an issue to a GitHub Project V2
@@ -788,6 +789,37 @@ func (c *Client) UpdateIssueBody(issueID, body string) error {
 	err := c.gql.Mutate("UpdateIssue", &mutation, variables)
 	if err != nil {
 		return fmt.Errorf("failed to update issue body: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateIssueTitle updates the title of an issue
+func (c *Client) UpdateIssueTitle(issueID, title string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		UpdateIssue struct {
+			Issue struct {
+				ID string
+			}
+		} `graphql:"updateIssue(input: $input)"`
+	}
+
+	input := UpdateIssueInput{
+		ID:    graphql.ID(issueID),
+		Title: graphql.String(title),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("UpdateIssue", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update issue title: %w", err)
 	}
 
 	return nil
