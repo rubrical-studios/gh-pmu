@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
@@ -280,6 +281,102 @@ func TestRunEditWithDeps_CannotUseBothBodyAndBodyFile(t *testing.T) {
 	}
 	if !contains(err.Error(), "cannot use --body and --body-file together") {
 		t.Errorf("Expected 'cannot use --body and --body-file together' error, got: %s", err.Error())
+	}
+}
+
+// ============================================================================
+// Edit Command Error Handling Tests
+// ============================================================================
+
+func TestRunEditWithDeps_GetIssueError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	mock.getIssueErr = fmt.Errorf("issue not found")
+	cfg := testEditConfig()
+	cmd, _ := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber: 999,
+		title:       "New Title",
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when GetIssueByNumber fails")
+	}
+	if !contains(err.Error(), "failed to get issue") {
+		t.Errorf("Expected 'failed to get issue' error, got: %s", err.Error())
+	}
+}
+
+func TestRunEditWithDeps_UpdateTitleError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	mock.updateTitleErr = fmt.Errorf("update failed")
+	cfg := testEditConfig()
+	cmd, _ := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber: 123,
+		title:       "New Title",
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when UpdateIssueTitle fails")
+	}
+	if !contains(err.Error(), "failed to update title") {
+		t.Errorf("Expected 'failed to update title' error, got: %s", err.Error())
+	}
+}
+
+func TestRunEditWithDeps_UpdateBodyError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	mock.updateBodyErr = fmt.Errorf("update failed")
+	cfg := testEditConfig()
+	cmd, _ := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber: 123,
+		body:        "New body",
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when UpdateIssueBody fails")
+	}
+	if !contains(err.Error(), "failed to update body") {
+		t.Errorf("Expected 'failed to update body' error, got: %s", err.Error())
+	}
+}
+
+func TestRunEditWithDeps_AddLabelError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	mock.addLabelErr = fmt.Errorf("label not found")
+	cfg := testEditConfig()
+	cmd, _ := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber: 123,
+		addLabels:   []string{"nonexistent"},
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when AddLabelToIssue fails")
+	}
+	if !contains(err.Error(), "failed to add label") {
+		t.Errorf("Expected 'failed to add label' error, got: %s", err.Error())
 	}
 }
 
