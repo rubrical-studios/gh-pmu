@@ -36,11 +36,6 @@ Load detailed documentation when needed:
 
 ---
 
-## 
-
-
----
-
 ## Project-Specific Instructions
 
 <!-- Add your project-specific instructions below this line -->

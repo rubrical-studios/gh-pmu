@@ -243,22 +243,23 @@ func newReleaseCloseCommand() *cobra.Command {
 	opts := &releaseCloseOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "close <release-name>",
+		Use:   "close [release-name]",
 		Short: "Close a release",
 		Long: `Closes a release and optionally creates a git tag.
 
-The release name must be specified explicitly (e.g., release/v2.0.0).
+If no release name is specified and exactly one release is active, that release
+will be used. If multiple releases are active, you must specify which one to close.
+
 Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
 Release artifacts should be created beforehand using /prepare-release.
 
 Examples:
+  gh pmu release close                    # Uses current release if only one exists
   gh pmu release close release/v2.0.0
   gh pmu release close patch/v1.9.1 --tag
-  gh pmu release close release/v2.0.0 --yes`,
-		Args: cobra.ExactArgs(1),
+  gh pmu release close --yes`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts.releaseName = args[0]
-
 			cwd, err := os.Getwd()
 			if err != nil {
 				return fmt.Errorf("failed to get current directory: %w", err)
@@ -267,6 +268,20 @@ Examples:
 			if err != nil {
 				return fmt.Errorf("failed to load configuration: %w", err)
 			}
+
+			// If release name provided, use it
+			if len(args) == 1 {
+				opts.releaseName = args[0]
+			} else {
+				// No argument provided - resolve from active releases
+				client := api.NewClient()
+				releaseName, err := resolveCurrentRelease(cfg, client)
+				if err != nil {
+					return err
+				}
+				opts.releaseName = releaseName
+			}
+
 			client := api.NewClient()
 			return runReleaseCloseWithDeps(cmd, opts, cfg, client)
 		},
@@ -410,6 +425,48 @@ func findActiveRelease(issues []api.Issue) *api.Issue {
 		}
 	}
 	return nil
+}
+
+// findAllActiveReleases finds all active release trackers from a list of issues
+func findAllActiveReleases(issues []api.Issue) []api.Issue {
+	var releases []api.Issue
+	for i := range issues {
+		if strings.HasPrefix(issues[i].Title, "Release: ") {
+			releases = append(releases, issues[i])
+		}
+	}
+	return releases
+}
+
+// resolveCurrentRelease resolves the current release name when no argument is provided
+// Returns error if no releases or multiple releases are active
+func resolveCurrentRelease(cfg *config.Config, client releaseClient) (string, error) {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+	if err != nil {
+		return "", fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	activeReleases := findAllActiveReleases(issues)
+
+	switch len(activeReleases) {
+	case 0:
+		return "", fmt.Errorf("no active release found")
+	case 1:
+		// Extract release name from title (e.g., "Release: patch/0.9.7" -> "patch/0.9.7")
+		return extractReleaseVersion(activeReleases[0].Title), nil
+	default:
+		// Multiple releases - build error message with list
+		var names []string
+		for _, r := range activeReleases {
+			names = append(names, extractReleaseVersion(r.Title))
+		}
+		return "", fmt.Errorf("multiple active releases. Specify one: %s", strings.Join(names, ", "))
+	}
 }
 
 // validateVersion validates that a version string is valid semver format

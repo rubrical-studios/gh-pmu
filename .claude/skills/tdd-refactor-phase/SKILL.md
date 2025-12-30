@@ -1,6 +1,6 @@
 ---
 name: tdd-refactor-phase
-version: 0.16.0
+version: 1.0.0
 description: Guide through REFACTOR phase - improve code while maintaining green
 ---
 # TDD REFACTOR Phase

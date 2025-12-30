@@ -24,6 +24,7 @@ Use 'gh pmu <command> --help' for more information about a command.`,
 	cmd.AddCommand(newListCommand())
 	cmd.AddCommand(newViewCommand())
 	cmd.AddCommand(newCreateCommand())
+	cmd.AddCommand(newEditCommand())
 	cmd.AddCommand(newMoveCommand())
 	cmd.AddCommand(newCloseCommand())
 	cmd.AddCommand(newBoardCommand())

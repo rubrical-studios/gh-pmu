@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7] - 2025-12-30
+
+### Added
+- `gh pmu edit` command with body-file support (#480)
+  - `--body-file` / `-F` flag to read body from file
+  - `--title` / `-t` flag to update issue title
+  - `--body` / `-b` flag for inline body text
+  - `--label` / `-l` flag to add labels (repeatable)
+  - Completes body-file round-trip workflow: view → edit file → update
+- Lint gate in `/prepare-release` workflow (#478)
+  - Runs `golangci-lint` before tagging to prevent failed releases
+  - New script: `.claude/scripts/prepare-release/lint.js`
+
+### Changed
+- `gh pmu release close` now defaults to current release (#479)
+  - No argument required when exactly one release is active
+  - Shows error with list when multiple releases exist
+- Update framework to v0.17.1
+
 ## [0.9.6] - 2025-12-29
 
 ### Added

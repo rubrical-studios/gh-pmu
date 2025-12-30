@@ -1192,6 +1192,70 @@ func TestUpdateIssueInput_HasRequiredFields(t *testing.T) {
 }
 
 // ============================================================================
+// UpdateIssueTitle Tests
+// ============================================================================
+
+func TestUpdateIssueTitle_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.UpdateIssueTitle("issue-id", "new title")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestUpdateIssueTitle_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "UpdateIssue" {
+				t.Errorf("Expected mutation name 'UpdateIssue', got '%s'", name)
+			}
+
+			// Verify input type is UpdateIssueInput
+			input, ok := variables["input"].(UpdateIssueInput)
+			if !ok {
+				t.Fatal("Expected UpdateIssueInput type in variables")
+			}
+			if input.ID.(string) != "issue-456" {
+				t.Errorf("Expected ID 'issue-456', got '%v'", input.ID)
+			}
+			if string(input.Title) != "updated title" {
+				t.Errorf("Expected Title 'updated title', got '%s'", input.Title)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateIssueTitle("issue-456", "updated title")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestUpdateIssueTitle_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("mutation failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateIssueTitle("issue-id", "title")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to update issue title") {
+		t.Errorf("Expected 'failed to update issue title' error, got: %v", err)
+	}
+}
+
+// ============================================================================
 // SetProjectItemFieldWithFields Tests
 // ============================================================================
 

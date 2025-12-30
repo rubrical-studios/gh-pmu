@@ -1,17 +1,10 @@
 {
   "frameworkPath": "E:\\Projects\\virtual-ai-studio-dist",
-  "installedVersion": "0.17.0",
-  "installedDate": "2025-12-28",
+  "installedDate": "2025-12-30",
   "projectType": {
     "processFramework": "IDPF-Agile",
     "language": "go",
     "domainSpecialist": "Full-Stack-Developer"
-  },
-  "components": {
-    "frameworks": true,
-    "systemInstructions": true,
-    "skills": true,
-    "assistantGuidelines": true
   },
   "extensibleCommands": [
     "open-release",
@@ -48,8 +41,15 @@
     ]
   },
   "userScripts": {
-    "open-release": ["verify-config.js"],
-    "prepare-release": ["coverage.js"],
-    "close-release": ["monitor-release.js"]
-  }
+    "open-release": [
+      "verify-config.js"
+    ],
+    "prepare-release": [
+      "coverage.js"
+    ],
+    "close-release": [
+      "monitor-release.js"
+    ]
+  },
+  "frameworkVersion": "0.17.1"
 }

@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** 0.16.0
+**Version:** v0.17.1
 **Source:** Reference/GitHub-Workflow.md
 
 ---
@@ -61,17 +61,10 @@ gh extension install rubrical-studios/gh-pmu
 **Auto-Close:** Default Kanban template auto-closes issues when moved to `done`. `gh issue close` only needed for close reason or comment.
 
 ## Critical Rules
-- **NEVER close issues automatically** - Wait for "Done"
-- **NEVER skip STOP checkpoint** - Report and wait
-- **Issues stay open** until explicit approval
-- **NEVER mark Done with unchecked boxes** - All acceptance criteria must be checked
-- **In Review requires checkbox evaluation** - Check all criteria when moving to In Review
-- **NEVER close issues because code shipped** - Release != approval. Each issue needs separate "Done".
-- **NEVER use auto-close keywords** - No `Fixes/Closes/Resolves #XXX` until user says "Done"
-- **Use `Refs #XXX` for linking** - Links without auto-close
-- **NEVER push directly to main** - All work on release branches, merge via PR
-- **Work requires release** - `work #N` blocked if issue has no Release field
-- **Switch to release branch** - Before working, checkout the release branch
+- **Issues close ONLY when user says "Done"** - Never close automatically, skip STOP checkpoint, or close because code shipped
+- **Acceptance criteria must be checked** - All boxes checked before In Review or Done; evaluate criteria when moving to In Review
+- **No auto-close keywords until Done** - Use `Refs #XXX` (not `Fixes/Closes/Resolves #XXX`) until user approves
+- **All work on release branches** - Never push to main directly; work requires Release field; checkout release branch before working
 
 ### Commit Message Keywords
 | Phase | Use | Avoid |
@@ -88,10 +81,7 @@ gh extension install rubrical-studios/gh-pmu
 | IDPF-Vibe | Optional | - | - |
 
 ## Sprint-Release Binding
-- **Sprint belongs to one release** - Each sprint is scoped to exactly one release
-- **Sprint requires release context** - `gh pmu microsprint start` requires active release
-- **Sprint issues must match release** - All issues in sprint must be assigned to that release
-- **Sprint works on release branch** - Sprint work happens on the release's branch
+Each sprint scoped to one release; `microsprint start` requires active release; sprint issues must match release; work on release branch.
 
 ## Workflow Routing (CRITICAL)
 **Step 1: Determine Framework** from `.gh-pmu.yml` or labels:
@@ -100,24 +90,10 @@ gh extension install rubrical-studios/gh-pmu
 | IDPF-Agile | `epic` | `story` |
 | IDPF-Structured | `requirement` | `implementation`, `qa-automation`, `qa-manual` |
 
-**When user says "work #N":**
-```bash
-gh issue view [N] --repo {repository} --json labels --jq '.labels[].name'
-```
+**When user says "work #N":** `gh issue view [N] --repo {repository} --json labels --jq '.labels[].name'`
 
-### IDPF-Agile Routing
-```
-Has "epic" label? ─── YES ──► EPIC WORKFLOW (Section 4)
-         │
-         NO ──► STANDARD ISSUE WORKFLOW (Section 1)
-```
-
-### IDPF-Structured Routing
-```
-Has "requirement" label? ─── YES ──► REQUIREMENT WORKFLOW (Section 4-S)
-         │                           (implementation → qa-automation → qa-manual)
-         NO ──► STANDARD ISSUE WORKFLOW (Section 1)
-```
+**IDPF-Agile:** `epic` label? → Yes: EPIC WORKFLOW (Section 4) | No: STANDARD (Section 1)
+**IDPF-Structured:** `requirement` label? → Yes: REQUIREMENT WORKFLOW (Section 4-S) | No: STANDARD (Section 1)
 
 **Section 4-S: Requirement Workflow**
 1. `gh pmu move [req] --status in_progress`
@@ -210,52 +186,23 @@ If yes: `gh issue edit [parent] --add-label "epic"`, add "story" to sub-issues
 **Team model:** One active microsprint shared by team. Join/Wait/Cancel prompt if another is active.
 **Stale detection:** >24h old prompts Close/Abandon/Resume
 
-### 10. Release Workflow
-**Start:** `gh pmu release start --branch "release/v1.2.0"`
-**Add:** `gh pmu move [#] --release current` (recommended over `release add`)
-**Close:** `gh pmu release close [--tag]`
-**Artifacts:** `Releases/release/v1.2.0/release-notes.md`, `changelog.md`
-
-### 11. Patch Workflow
-**Note:** Uses `gh pmu release` with `patch/` branch naming.
-**Start:** `gh pmu release start --branch "patch/v1.1.5"`
+### 10-11. Release/Patch Workflow
+**Start:** `gh pmu release start --branch "release/v1.2.0"` (or `patch/v1.1.5` for patches)
 **Add:** `gh pmu move [#] --release current`
 **Close:** `gh pmu release close [--tag]`
-**Artifacts:** `Releases/patch/v1.1.5/patch-notes.md`, `changelog.md`
+**Artifacts:** `Releases/[release|patch]/vX.Y.Z/[release|patch]-notes.md`, `changelog.md`
 
 ### 12. PR-Only Main Merges
-**CRITICAL:** All work must go through PRs to main. Never push directly.
+All work via PRs to main. Never push directly.
+1. `gh pr create --base main --head release/vX.Y.Z`
+2. Wait for review/approval
+3. Merge via PR
 
-**When user requests merge to main:**
-1. Create PR from release branch: `gh pr create --base main --head release/vX.Y.Z`
-2. Fill in PR summary and test plan
-3. Wait for review/approval
-4. Merge via PR (never direct push)
-
-**Blocked Actions:**
-- `git push origin main` → Block with message: "Use PR to merge to main"
-- `git merge main` (on main branch) → Block
-- Any direct commits to main → Block
-
-**Allowed:**
-- Push to release/patch/hotfix branches
-- Create PRs to main
-- Merge PRs after approval
+**Blocked:** `git push origin main`, direct commits to main
+**Allowed:** Push to release/patch branches, create/merge PRs
 
 ## Visibility Commands
-```bash
-gh pmu board                    # Kanban view
-gh pmu board --status in_progress
-gh pmu list --status in_review
-gh pmu triage --query "..." --apply status:backlog
-gh pmu intake --apply "status:backlog,priority:p2"
-```
-
-## Shell Limitations
-**Heredocs with backticks fail.** Use `--body-file` with temp file instead.
-**Command substitution fails.** Run commands separately, use literal values.
-**Use relative paths for temp files.** Always use `.tmp-*` not absolute paths (e.g., `E:\...`). Windows backslashes get stripped by shell escaping.
-**Clean up temp files.** Delete temp files immediately after use (e.g., `rm .tmp-issue-*.md`).
+`gh pmu board` (Kanban), `gh pmu list --status [value]`, `gh pmu triage --query "..." --apply status:backlog`, `gh pmu intake --apply`
 
 ## CI/CD Rate Limiting
 See **ci-cd-pipeline-design** skill for GitHub API best practices: rate limits, auth strategies (PATs, GitHub Apps), exponential backoff, workflow cascade prevention.
