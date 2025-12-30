@@ -2582,3 +2582,150 @@ func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
 		t.Errorf("Expected Status field to be set to default 'Backlog', calls: %+v", mock.setFieldCalls)
 	}
 }
+
+// ============================================================================
+// Release Close Default to Current Tests (Issue #479)
+// ============================================================================
+
+func TestFindAllActiveReleases(t *testing.T) {
+	tests := []struct {
+		name     string
+		issues   []api.Issue
+		expected int
+	}{
+		{
+			name:     "no issues",
+			issues:   []api.Issue{},
+			expected: 0,
+		},
+		{
+			name: "no release issues",
+			issues: []api.Issue{
+				{Title: "Bug: something broken"},
+				{Title: "Feature: new thing"},
+			},
+			expected: 0,
+		},
+		{
+			name: "one release",
+			issues: []api.Issue{
+				{Title: "Release: v1.0.0"},
+			},
+			expected: 1,
+		},
+		{
+			name: "multiple releases",
+			issues: []api.Issue{
+				{Title: "Release: v1.0.0"},
+				{Title: "Release: patch/v1.0.1"},
+				{Title: "Bug: something"},
+			},
+			expected: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findAllActiveReleases(tt.issues)
+			if len(result) != tt.expected {
+				t.Errorf("findAllActiveReleases() returned %d releases, want %d", len(result), tt.expected)
+			}
+		})
+	}
+}
+
+func TestResolveCurrentRelease_NoActiveReleases(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{} // No active releases
+	cfg := testReleaseConfig()
+
+	// ACT
+	_, err := resolveCurrentRelease(cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when no active releases, got nil")
+	}
+	if err.Error() != "no active release found" {
+		t.Errorf("Expected 'no active release found' error, got: %s", err.Error())
+	}
+}
+
+func TestResolveCurrentRelease_OneActiveRelease(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{Title: "Release: patch/0.9.7"},
+	}
+	cfg := testReleaseConfig()
+
+	// ACT
+	releaseName, err := resolveCurrentRelease(cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if releaseName != "patch/0.9.7" {
+		t.Errorf("Expected 'patch/0.9.7', got '%s'", releaseName)
+	}
+}
+
+func TestResolveCurrentRelease_MultipleActiveReleases(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForRelease()
+	mock.openIssues = []api.Issue{
+		{Title: "Release: release/v1.0.0"},
+		{Title: "Release: patch/v1.0.1"},
+	}
+	cfg := testReleaseConfig()
+
+	// ACT
+	_, err := resolveCurrentRelease(cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when multiple active releases, got nil")
+	}
+	expectedMsg := "multiple active releases. Specify one: release/v1.0.0, patch/v1.0.1"
+	if err.Error() != expectedMsg {
+		t.Errorf("Expected '%s' error, got: %s", expectedMsg, err.Error())
+	}
+}
+
+func TestReleaseCloseCommand_AcceptsOptionalArgument(t *testing.T) {
+	cmd := NewRootCommand()
+	closeCmd, _, err := cmd.Find([]string{"release", "close"})
+	if err != nil {
+		t.Fatalf("release close command not found: %v", err)
+	}
+
+	// Should accept 0 arguments
+	if err := closeCmd.Args(closeCmd, []string{}); err != nil {
+		t.Errorf("Expected no error with 0 arguments, got: %v", err)
+	}
+
+	// Should accept 1 argument
+	if err := closeCmd.Args(closeCmd, []string{"release/v1.0.0"}); err != nil {
+		t.Errorf("Expected no error with 1 argument, got: %v", err)
+	}
+
+	// Should reject 2 arguments
+	if err := closeCmd.Args(closeCmd, []string{"release/v1.0.0", "extra"}); err == nil {
+		t.Error("Expected error with 2 arguments, got nil")
+	}
+}
+
+func TestReleaseCloseCommand_UseDescription(t *testing.T) {
+	cmd := NewRootCommand()
+	closeCmd, _, err := cmd.Find([]string{"release", "close"})
+	if err != nil {
+		t.Fatalf("release close command not found: %v", err)
+	}
+
+	// Should show optional argument in usage
+	if closeCmd.Use != "close [release-name]" {
+		t.Errorf("Expected Use 'close [release-name]', got '%s'", closeCmd.Use)
+	}
+}
