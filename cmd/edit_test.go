@@ -12,14 +12,14 @@ import (
 
 // mockEditClient implements editClient for testing
 type mockEditClient struct {
-	issue             *api.Issue
-	getIssueErr       error
-	updateBodyErr     error
-	updateTitleErr    error
-	addLabelErr       error
-	updateBodyCalls   []string
-	updateTitleCalls  []string
-	addLabelCalls     []string
+	issue            *api.Issue
+	getIssueErr      error
+	updateBodyErr    error
+	updateTitleErr   error
+	addLabelErr      error
+	updateBodyCalls  []string
+	updateTitleCalls []string
+	addLabelCalls    []string
 }
 
 func (m *mockEditClient) GetIssueByNumber(owner, repo string, number int) (*api.Issue, error) {
