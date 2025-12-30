@@ -28,9 +28,13 @@ fields:
 triage:
     estimate:
         query: is:issue is:open -has:estimate
-        apply: {}
         interactive:
             estimate: true
+release:
+    active:
+        - version: 0.9.7
+          tracker_issue: 481
+          track: patch
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -119,3 +123,8 @@ metadata:
         - name: Microsprint
           id: PVTF_lAHOAATLPs4BJeuXzg6bQ8Y
           data_type: TEXT
+cache:
+    releases:
+        - number: 481
+          title: 'Release: patch/0.9.7'
+          state: OPEN
