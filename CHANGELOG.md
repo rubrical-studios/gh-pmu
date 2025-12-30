@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.6] - 2025-12-29
+
+### Added
+- `--body-file` / `-b` flag to `view` command (#474)
+  - Writes issue body to `tmp/issue-{number}.md` for easy editing
+  - Creates `tmp/` directory automatically if it doesn't exist
+  - Outputs file path to stdout for scripting workflows
+
+### Changed
+- Migrate internal framework to v0.17.0
+
 ## [0.9.5] - 2025-12-28
 
 ### Changed
