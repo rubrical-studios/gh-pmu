@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -1052,5 +1054,140 @@ func TestSubProgressJSON_Structure(t *testing.T) {
 	}
 	if parsed.Percentage != 60 {
 		t.Errorf("Expected Percentage 60, got %d", parsed.Percentage)
+	}
+}
+
+// ============================================================================
+// Body File Tests
+// ============================================================================
+
+func TestViewCommand_HasBodyFileFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	viewCmd, _, err := cmd.Find([]string{"view"})
+	if err != nil {
+		t.Fatalf("view command not found: %v", err)
+	}
+
+	flag := viewCmd.Flags().Lookup("body-file")
+	if flag == nil {
+		t.Fatal("Expected --body-file flag to exist")
+	}
+
+	// Check shorthand
+	if flag.Shorthand != "b" {
+		t.Errorf("Expected --body-file shorthand to be 'b', got %s", flag.Shorthand)
+	}
+}
+
+func TestWriteBodyToFile_Success(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	err := writeBodyToFile(42, "Test body content\n\nWith multiple lines.")
+	if err != nil {
+		t.Fatalf("writeBodyToFile() error = %v", err)
+	}
+
+	// Verify file was created
+	filePath := filepath.Join("tmp", "issue-42.md")
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read created file: %v", err)
+	}
+
+	expected := "Test body content\n\nWith multiple lines."
+	if string(content) != expected {
+		t.Errorf("File content = %q, want %q", string(content), expected)
+	}
+}
+
+func TestWriteBodyToFile_CreatesTmpDirectory(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	// Verify tmp doesn't exist
+	if _, err := os.Stat("tmp"); !os.IsNotExist(err) {
+		t.Fatal("tmp directory should not exist before test")
+	}
+
+	err := writeBodyToFile(123, "Body content")
+	if err != nil {
+		t.Fatalf("writeBodyToFile() error = %v", err)
+	}
+
+	// Verify tmp directory was created
+	info, err := os.Stat("tmp")
+	if err != nil {
+		t.Fatalf("tmp directory should exist after writeBodyToFile: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("tmp should be a directory")
+	}
+}
+
+func TestWriteBodyToFile_EmptyBody(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	err := writeBodyToFile(99, "")
+	if err != nil {
+		t.Fatalf("writeBodyToFile() error = %v", err)
+	}
+
+	// Verify file was created with empty content
+	filePath := filepath.Join("tmp", "issue-99.md")
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read created file: %v", err)
+	}
+
+	if string(content) != "" {
+		t.Errorf("File content = %q, want empty string", string(content))
+	}
+}
+
+func TestRunViewWithDeps_BodyFile(t *testing.T) {
+	// Create a temp directory for testing
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(origDir)
+
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+		Body:   "This is the issue body for testing.",
+	}
+
+	cmd := newViewCommand()
+	opts := &viewOptions{bodyFile: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify file was created with correct content
+	filePath := filepath.Join("tmp", "issue-42.md")
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read created file: %v", err)
+	}
+
+	expected := "This is the issue body for testing."
+	if string(content) != expected {
+		t.Errorf("File content = %q, want %q", string(content), expected)
 	}
 }

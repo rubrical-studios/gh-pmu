@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ type viewOptions struct {
 	web      bool
 	comments bool
 	repo     string
+	bodyFile bool
 }
 
 func newViewCommand() *cobra.Command {
@@ -54,6 +56,7 @@ Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open issue in browser")
 	cmd.Flags().BoolVarP(&opts.comments, "comments", "c", false, "Show issue comments")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
+	cmd.Flags().BoolVarP(&opts.bodyFile, "body-file", "b", false, "Write issue body to tmp/issue-{number}.md")
 
 	return cmd
 }
@@ -125,6 +128,11 @@ func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, o
 	issue, fieldValues, err := client.GetIssueWithProjectFields(owner, repo, number)
 	if err != nil {
 		return fmt.Errorf("failed to get issue: %w", err)
+	}
+
+	// Handle --body-file flag: write body to tmp/issue-{number}.md
+	if opts.bodyFile {
+		return writeBodyToFile(issue.Number, issue.Body)
 	}
 
 	// Fetch sub-issues and parent issue in parallel
@@ -415,6 +423,27 @@ func renderProgressBar(completed, total, width int) string {
 
 	empty := width - filled
 	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", empty) + "]"
+}
+
+// writeBodyToFile writes the issue body to tmp/issue-{number}.md
+// Creates the tmp directory if it doesn't exist
+func writeBodyToFile(number int, body string) error {
+	// Create tmp directory if it doesn't exist
+	tmpDir := "tmp"
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return fmt.Errorf("failed to create tmp directory: %w", err)
+	}
+
+	// Write body to file
+	filename := fmt.Sprintf("issue-%d.md", number)
+	filePath := filepath.Join(tmpDir, filename)
+
+	if err := os.WriteFile(filePath, []byte(body), 0644); err != nil {
+		return fmt.Errorf("failed to write body file: %w", err)
+	}
+
+	fmt.Println(filePath)
+	return nil
 }
 
 // parseIssueNumber parses a string into an issue number

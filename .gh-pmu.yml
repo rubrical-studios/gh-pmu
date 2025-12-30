@@ -30,6 +30,11 @@ triage:
         query: is:issue is:open -has:estimate
         interactive:
             estimate: true
+release:
+    active:
+        - version: gh-pmu/tmp-issue
+          tracker_issue: 475
+          track: release
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -141,3 +146,6 @@ cache:
         - number: 467
           title: 'Release: patch/v0.9.4'
           state: CLOSED
+        - number: 475
+          title: 'Release: release/gh-pmu/tmp-issue'
+          state: OPEN
