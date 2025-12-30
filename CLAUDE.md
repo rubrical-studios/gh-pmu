@@ -1,7 +1,7 @@
 # Claude Code - Project Instructions
 
 **Process Framework:** IDPF-Agile
-**Domain Specialist:** Full-Stack-Developer
+**Domain Specialist:** Backend-Specialist
 
 ---
 
@@ -20,7 +20,7 @@ Rules are automatically loaded from `.claude/rules/`:
 
 This project uses the IDPF Framework ecosystem.
 **Configuration:** See `framework-config.json` for framework location and project type.
-**Framework Path:** `E:\Projects\virtual-ai-studio-dist`
+**Framework Path:** `E:\Projects\idpf-praxis-dist`
 
 ---
 
@@ -30,8 +30,8 @@ Load detailed documentation when needed:
 
 | When Working On | Load File |
 |-----------------|-----------|
-| Framework workflow | `E:\Projects\virtual-ai-studio-dist/IDPF-Agile/Agile-Core.md` |
-| Domain specialist | `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Base/{specialist}.md` |
+| Framework workflow | `E:\Projects\idpf-praxis-dist/IDPF-Agile/Agile-Core.md` |
+| Domain specialist | `E:\Projects\idpf-praxis-dist/System-Instructions/Domain/Base/{specialist}.md` |
 | Testing patterns | `.claude/skills/test-writing-patterns/SKILL.md` |
 
 ---

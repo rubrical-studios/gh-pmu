@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.17.1
+// **Version:** 0.18.0
 /**
  * workflow-trigger.js
  *
@@ -99,9 +99,9 @@ process.stdin.on('end', () => {
                 }
 
                 // Release assigned - allow and provide branch context
-                const branchName = release.startsWith('release/') || release.startsWith('patch/')
-                    ? release
-                    : `release/${release}`;
+                // Branch name IS the release name (already in [track]/[name] format)
+                // e.g., release/v1.2.0, patch/v1.1.5, idpf/to-praxis, hotfix/auth-bypass
+                const branchName = release;
 
                 let contextMessage = `[BRANCH-AWARE WORK]\n`;
                 contextMessage += `Issue #${issueNumber} is assigned to release: ${release}\n`;
