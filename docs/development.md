@@ -108,9 +108,21 @@ gh workflow run integration-tests.yml -f test_type=all
 
 ## Test Coverage
 
+[![codecov](https://codecov.io/gh/rubrical-studios/gh-pmu/graph/badge.svg)](https://codecov.io/gh/rubrical-studios/gh-pmu)
+
 Coverage reports are available on [Codecov](https://codecov.io/gh/rubrical-studios/gh-pmu).
 
-Coverage is uploaded automatically on every CI run. Click the Codecov badge in the README for detailed per-file breakdown.
+Coverage is uploaded automatically on every CI run. Click the badge above for detailed per-file breakdown.
+
+### Why Coverage is ~68%
+
+The practical coverage ceiling is 68-70% due to functions that are difficult to unit test:
+
+- **Interactive CLI** - Functions using `os.Stdin` for prompts (`runInit`, `runFilter`)
+- **External processes** - Functions calling `exec.Command` for git operations
+- **Terminal UI** - Kanban board and history rendering requiring visual verification
+
+These are tested manually. Refactoring for testability is tracked in issues #415 and #416.
 
 For comprehensive testing strategy, coverage targets, and functions excluded from unit testing, see [TESTING.md](../TESTING.md).
 

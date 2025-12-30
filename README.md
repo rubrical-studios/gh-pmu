@@ -1,7 +1,6 @@
 # gh-pmu
 
 [![CI](https://github.com/rubrical-studios/gh-pmu/actions/workflows/ci.yml/badge.svg)](https://github.com/rubrical-studios/gh-pmu/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/rubrical-studios/gh-pmu/graph/badge.svg)](https://codecov.io/gh/rubrical-studios/gh-pmu)
 [![Go Report Card](https://goreportcard.com/badge/github.com/rubrical-studios/gh-pmu)](https://goreportcard.com/report/github.com/rubrical-studios/gh-pmu)
 [![Release](https://img.shields.io/github/v/release/rubrical-studios/gh-pmu)](https://github.com/rubrical-studios/gh-pmu/releases/latest)
 [![License](https://img.shields.io/github/license/rubrical-studios/gh-pmu)](LICENSE)
@@ -61,6 +60,35 @@ gh pmu microsprint close --commit
 gh pmu release start --branch release/v1.2.0
 gh pmu release add 42
 gh pmu release close
+```
+
+## Standalone Usage
+
+`gh pmu` works as a standalone tool without any framework integration. The optional `framework` field in `.gh-pmu.yml` enables workflow restrictions when used with process frameworks like [IDPF](https://github.com/rubrical-studios/virtual-ai-studio).
+
+**Standalone (default):**
+- All commands work normally
+- No workflow routing or approval gates
+- Simple project management
+
+**With framework integration:**
+- Adds workflow restrictions and checkpoint discipline
+- Structured patterns (epic→story hierarchies)
+- Domain specialist role system
+
+To use standalone, simply omit the `framework` field from your config:
+
+```yaml
+project:
+  owner: your-org
+  number: 1
+repositories:
+  - your-org/your-repo
+fields:
+  status:
+    values: {backlog, in_progress, in_review, done}
+  priority:
+    values: {p0, p1, p2}
 ```
 
 ## Documentation
