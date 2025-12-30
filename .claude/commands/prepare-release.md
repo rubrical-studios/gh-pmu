@@ -1,10 +1,10 @@
 ---
-version: 0.16.0
+version: v0.17.1
 description: Prepare release with PR, merge to main, and tag
 argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
 ---
 
-<!-- EXTENSIBLE: v0.16.0 -->
+<!-- EXTENSIBLE: v0.17.1 -->
 # /prepare-release
 
 Validate, create PR to main, merge, and tag for deployment.
@@ -124,6 +124,18 @@ The script outputs JSON: `{"success": true/false, "message": "...", "data": {"co
 **If `success` is false, STOP and report the error.**
 
 Coverage metrics include total percentage and threshold comparison.
+
+### Lint Gate
+
+```bash
+node .claude/scripts/prepare-release/lint.js
+```
+
+The script outputs JSON: `{"success": true/false, "message": "..."}`
+
+**If `success` is false, STOP and report the error.**
+
+Runs `golangci-lint run --timeout=5m` to catch lint errors before tagging.
 <!-- USER-EXTENSION-END: post-validation -->
 
 **ASK USER:** Confirm validation passed.
@@ -224,6 +236,7 @@ Updates GitHub Release with formatted notes from CHANGELOG.
 - [ ] Config file clean
 - [ ] Commits analyzed
 - [ ] Coverage gate passed (or `--skip-coverage`)
+- [ ] Lint gate passed
 - [ ] Version confirmed
 - [ ] CI passing
 - [ ] CHANGELOG updated
