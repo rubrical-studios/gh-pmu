@@ -1,8 +1,7 @@
 # Claude Code - Project Instructions
 
 **Process Framework:** IDPF-Agile
-**Domain Specialists:** API-Integration-Specialist, Backend-Specialist, Database-Engineer, PRD-Analyst, Security-Engineer
-**Primary Specialist:** API-Integration-Specialist
+**Domain Specialist:** Full-Stack-Developer
 
 ---
 
@@ -32,17 +31,12 @@ Load detailed documentation when needed:
 | When Working On | Load File |
 |-----------------|-----------|
 | Framework workflow | `E:\Projects\virtual-ai-studio-dist/IDPF-Agile/Agile-Core.md` |
-| Domain specialist | `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/{specialist}.md` |
+| Domain specialist | `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Base/{specialist}.md` |
 | Testing patterns | `.claude/skills/test-writing-patterns/SKILL.md` |
 
 ---
 
-## Available Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/switch-role` | Switch active domain specialist mid-session |
-| `/add-role` | Add a new domain specialist to your project |
+## 
 
 
 ---
