@@ -1083,8 +1083,10 @@ func TestWriteBodyToFile_Success(t *testing.T) {
 	// Create a temp directory for testing
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	err := writeBodyToFile(42, "Test body content\n\nWith multiple lines.")
 	if err != nil {
@@ -1108,8 +1110,10 @@ func TestWriteBodyToFile_CreatesTmpDirectory(t *testing.T) {
 	// Create a temp directory for testing
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Verify tmp doesn't exist
 	if _, err := os.Stat("tmp"); !os.IsNotExist(err) {
@@ -1135,8 +1139,10 @@ func TestWriteBodyToFile_EmptyBody(t *testing.T) {
 	// Create a temp directory for testing
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	err := writeBodyToFile(99, "")
 	if err != nil {
@@ -1159,8 +1165,10 @@ func TestRunViewWithDeps_BodyFile(t *testing.T) {
 	// Create a temp directory for testing
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	mock := newMockViewClient()
 	mock.issue = &api.Issue{
