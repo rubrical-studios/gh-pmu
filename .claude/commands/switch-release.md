@@ -1,5 +1,5 @@
 ---
-version: v0.17.1
+version: "0.18.0"
 allowed-tools: Bash
 description: Switch release/sprint context (project)
 ---

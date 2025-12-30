@@ -1,5 +1,6 @@
 # GitHub Workflow Integration
-**Version:** v0.17.1
+**Version:** v0.18.0
+**Source:** Reference/GitHub-Workflow.md
 **Source:** Reference/GitHub-Workflow.md
 
 ---
@@ -35,9 +36,10 @@ gh extension install rubrical-studios/gh-pmu
 **Issue Management:**
 | Command | Replaces |
 |---------|----------|
-| `gh pmu create --title "..." --status backlog --assignee @me` | `gh issue create` + `gh pmu move` |
+| `gh pmu create --title "..." [-F body.md] --status backlog --assignee @me` | `gh issue create` + `gh pmu move` |
 | `gh pmu move [#] --status [value]` | - |
-| `gh pmu view [#]` | `gh issue view` |
+| `gh pmu view [#] [-b]` | `gh issue view` |
+| `gh pmu edit [#] [-F body.md]` | Update issue body/title; -F reads body from file | `gh issue edit` |
 | `gh pmu list --status [value]` | - |
 | `gh pmu board` | - |
 
@@ -114,12 +116,14 @@ Create issue → Report number → **Wait for "work"**
 
 ## BLOCKING: Status Change Prerequisites
 **Before `--status in_review`:**
-1. `gh issue view [#] --json body -q '.body' > .tmp-issue-[#].md`
+1. `gh pmu view [#] --body-file` (creates tmp/issue-[#].md)
 2. Review checkboxes, change `[ ]` to `[x]` for completed
-3. `gh issue edit [#] --body-file .tmp-issue-[#].md`
-4. `rm .tmp-issue-[#].md`
+3. `gh pmu edit [#] -F tmp/issue-[#].md`
+4. `rm tmp/issue-[#].md`
 5. Verify: `gh issue view [#] --json body | grep -c "\[x\]"`
 6. Now: `gh pmu move [#] --status in_review`
+
+**Self-check:** If you find yourself running `gh pmu move --status in_review` without having just run `gh pmu edit -F`, STOP - you skipped steps 1-5.
 
 **Before `--status done`:**
 1. `gh issue view [#] --json body | grep "\[ \]"`
