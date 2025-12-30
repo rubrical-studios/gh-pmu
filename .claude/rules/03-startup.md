@@ -1,6 +1,6 @@
 # Session Startup
 
-**Version:** 0.16.0
+**Version:** 0.17.1
 **Framework:** IDPF-Agile
 **Domain Specialist:** Full-Stack-Developer
 
@@ -11,8 +11,8 @@
 When starting a new session:
 
 1. **Confirm Date**: State the date from environment info
-2. **Load Primary Specialist**: Read `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Base/Full-Stack-Developer.md`
-3. **Report Ready**: Confirm initialization complete with "Active Role: API-Integration-Specialist"
+2. **Load Specialist**: Read `E:\Projects\virtual-ai-studio-dist/System-Instructions/Domain/Base/Full-Stack-Developer.md`
+3. **Report Ready**: Confirm initialization complete with "Active Role: Full-Stack-Developer"
 4. **Ask**: What would you like to work on?
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: test-writing-patterns
-version: 0.16.0
+version: 1.0.0
 description: Test structure, patterns, assertions, and test doubles
 ---
 # Test Writing Patterns

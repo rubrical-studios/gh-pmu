@@ -1,10 +1,10 @@
 ---
-version: 0.16.0
+version: v0.17.1
 description: Open a new release with branch and tracker
-argument-hint: <version> (e.g., v1.2.0)
+argument-hint: <branch> (e.g., release/v1.2.0, patch/v1.9.1)
 ---
 
-<!-- EXTENSIBLE: v0.16.0 -->
+<!-- EXTENSIBLE: vv0.17.1 -->
 # /open-release
 
 Opens a new release branch and creates a tracker issue.
@@ -30,7 +30,14 @@ Opens a new release branch and creates a tracker issue.
 
 ### Step 1: Validate Arguments
 
-Version must be provided (e.g., `v1.2.0`). Add `v` prefix if missing.
+Branch name must follow `[prefix]/[name]` format:
+- Exactly one `/` separator required
+- Both prefix and name must be non-empty
+
+**Valid:** `release/v1.2.0`, `patch/v1.9.1`, `idpf/domain-reorg`, `hotfix/auth-bypass`
+**Invalid:** `v1.2.0` (no `/`), `release/` (empty name), `a/b/c` (multiple `/`)
+
+If invalid, report error and stop.
 
 ### Step 2: Check Working Directory
 
@@ -53,13 +60,13 @@ The script outputs JSON: `{"success": true/false, "message": "..."}`
 ### Step 3: Create Release
 
 ```bash
-gh pmu release start --branch "release/$VERSION"
+gh pmu release start --branch "$BRANCH"
 ```
 
 ### Step 4: Switch to Release Branch
 
 ```bash
-git checkout "release/$VERSION"
+git checkout "$BRANCH"
 ```
 
 <!-- USER-EXTENSION-START: post-create -->
@@ -68,15 +75,15 @@ git checkout "release/$VERSION"
 ### Step 5: Report Completion
 
 ```
-Release $VERSION opened.
+Release opened.
 
-Branch: release/$VERSION
+Branch: $BRANCH
 Tracker: #[issue-number]
 
 Next steps:
 1. Assign issues: gh pmu move [#] --release current
 2. Work issues: work #N
-3. When ready: /prepare-release $VERSION
+3. When ready: /prepare-release
 4. After deploy: /close-release
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: tdd-red-phase
-version: 0.16.0
+version: 1.0.0
 description: Guide through RED phase - writing failing tests and verifying failures
 ---
 # TDD RED Phase
