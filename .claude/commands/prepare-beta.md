@@ -1,10 +1,10 @@
 ---
-version: "0.18.0"
+version: "0.20.0"
 description: Tag beta from feature branch (no merge to main)
 argument-hint: [--skip-coverage] [--dry-run] [--help]
 ---
 
-<!-- EXTENSIBLE: vv0.18.0 -->
+<!-- EXTENSIBLE: vv0.20.0 -->
 # /prepare-beta
 
 Tag a beta release from feature branch without merging to main.

@@ -1,10 +1,10 @@
 ---
-version: "0.18.0"
+version: "0.20.0"
 description: Open a new release with branch and tracker
 argument-hint: <branch> (e.g., release/v1.2.0, patch/v1.9.1)
 ---
 
-<!-- EXTENSIBLE: vv0.18.0 -->
+<!-- EXTENSIBLE: vv0.20.0 -->
 # /open-release
 
 Opens a new release branch and creates a tracker issue.

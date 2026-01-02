@@ -1,4 +1,5 @@
 # RED Phase Checklist
+**Version:** 0.19.0
 
 Quick reference for completing RED phase successfully.
 
@@ -36,7 +37,7 @@ Quick reference for completing RED phase successfully.
 
 - [ ] Test failure verified and documented
 - [ ] Ready to implement minimum code to pass test
-- [ ] User has communicated "Done-Next-Step"
+- [ ] Proceed autonomously to GREEN phase
 
 ---
 
