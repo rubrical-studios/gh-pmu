@@ -234,3 +234,21 @@ func TestRunView_Integration_ProjectFields(t *testing.T) {
 	testutil.AssertContains(t, result.Stdout, "Status:")
 	testutil.AssertContains(t, result.Stdout, "Priority:")
 }
+
+// TestRunView_Integration_BodyStdout tests --body-stdout flag outputs raw body
+func TestRunView_Integration_BodyStdout(t *testing.T) {
+	testutil.RequireTestEnv(t)
+
+	result := testutil.RunCommand(t, "view", "1", "--body-stdout")
+
+	testutil.AssertExitCode(t, result, 0)
+
+	// Output should be raw body content only (no headers, no formatting)
+	// Should NOT contain view metadata like "State:", "URL:", "Project Fields:"
+	testutil.AssertNotContains(t, result.Stdout, "State:")
+	testutil.AssertNotContains(t, result.Stdout, "URL:")
+	testutil.AssertNotContains(t, result.Stdout, "Project Fields:")
+
+	// Seed issue #1 has body content "Body of seed issue 1"
+	testutil.AssertContains(t, result.Stdout, "Body of seed issue 1")
+}

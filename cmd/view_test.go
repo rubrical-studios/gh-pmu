@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1197,5 +1198,98 @@ func TestRunViewWithDeps_BodyFile(t *testing.T) {
 	expected := "This is the issue body for testing."
 	if string(content) != expected {
 		t.Errorf("File content = %q, want %q", string(content), expected)
+	}
+}
+
+// ============================================================================
+// Body Stdout Tests
+// ============================================================================
+
+func TestViewCommand_HasBodyStdoutFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	viewCmd, _, err := cmd.Find([]string{"view"})
+	if err != nil {
+		t.Fatalf("view command not found: %v", err)
+	}
+
+	flag := viewCmd.Flags().Lookup("body-stdout")
+	if flag == nil {
+		t.Fatal("Expected --body-stdout flag to exist")
+	}
+
+	// body-stdout has no shorthand (b is taken by body-file)
+	if flag.Shorthand != "" {
+		t.Errorf("Expected --body-stdout to have no shorthand, got %s", flag.Shorthand)
+	}
+}
+
+func TestRunViewWithDeps_BodyStdout(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+		Body:   "This is the issue body for stdout testing.",
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := newViewCommand()
+	opts := &viewOptions{bodyStdout: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	// Restore stdout and read captured output
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := "This is the issue body for stdout testing."
+	if buf.String() != expected {
+		t.Errorf("stdout output = %q, want %q", buf.String(), expected)
+	}
+}
+
+func TestRunViewWithDeps_BodyStdout_EmptyBody(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 99,
+		Title:  "Empty Body Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/99",
+		Author: api.Actor{Login: "testuser"},
+		Body:   "",
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := newViewCommand()
+	opts := &viewOptions{bodyStdout: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 99)
+
+	// Restore stdout and read captured output
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if buf.String() != "" {
+		t.Errorf("stdout output = %q, want empty string", buf.String())
 	}
 }
