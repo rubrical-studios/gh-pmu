@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** v0.18.0
+**Version:** 0.18.0
 **Source:** Reference/GitHub-Workflow.md
 **Source:** Reference/GitHub-Workflow.md
 
@@ -77,9 +77,7 @@ gh extension install rubrical-studios/gh-pmu
 ## Framework Applicability
 | Framework | Microsprint | Release | Patch |
 |-----------|:-----------:|:-------:|:-----:|
-| IDPF-Agile | Primary | Optional | - |
-| IDPF-Structured | Optional | Primary | - |
-| IDPF-LTS | - | - | Primary |
+| IDPF-Agile | Primary | Optional | Optional |
 | IDPF-Vibe | Optional | - | - |
 
 ## Sprint-Release Binding
@@ -90,18 +88,10 @@ Each sprint scoped to one release; `microsprint start` requires active release; 
 | Framework | Parent Label | Child Labels |
 |-----------|--------------|--------------|
 | IDPF-Agile | `epic` | `story` |
-| IDPF-Structured | `requirement` | `implementation`, `qa-automation`, `qa-manual` |
 
 **When user says "work #N":** `gh issue view [N] --repo {repository} --json labels --jq '.labels[].name'`
 
 **IDPF-Agile:** `epic` label? → Yes: EPIC WORKFLOW (Section 4) | No: STANDARD (Section 1)
-**IDPF-Structured:** `requirement` label? → Yes: REQUIREMENT WORKFLOW (Section 4-S) | No: STANDARD (Section 1)
-
-**Section 4-S: Requirement Workflow**
-1. `gh pmu move [req] --status in_progress`
-2. `gh pmu sub list [req]` → Work sub-issues: implementation first, then qa-*
-3. When all done → `gh pmu move [req] --status in_review`
-4. **STOP** → `gh pmu move [req] --status done --recursive --yes`
 
 **Trigger Words (Create Issue First):**
 | Trigger | Section |
@@ -166,7 +156,6 @@ If yes: `gh issue edit [parent] --add-label "epic"`, add "story" to sub-issues
 
 ### 5. PRD to Issues
 - **Agile:** `Create-Backlog` → Epics + Stories (see IDPF-Agile/Agile-Commands.md)
-- **Structured:** `Create-Requirements` → REQ issues with Implementation + QA sub-issues
 
 ### 6. Reopen Workflow
 `gh issue reopen [#]` → `gh pmu move [#] --status ready`

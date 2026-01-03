@@ -27,11 +27,12 @@ type viewClient interface {
 }
 
 type viewOptions struct {
-	json     bool
-	web      bool
-	comments bool
-	repo     string
-	bodyFile bool
+	json       bool
+	web        bool
+	comments   bool
+	repo       string
+	bodyFile   bool
+	bodyStdout bool
 }
 
 func newViewCommand() *cobra.Command {
@@ -57,6 +58,7 @@ Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
 	cmd.Flags().BoolVarP(&opts.comments, "comments", "c", false, "Show issue comments")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 	cmd.Flags().BoolVarP(&opts.bodyFile, "body-file", "b", false, "Write issue body to tmp/issue-{number}.md")
+	cmd.Flags().BoolVar(&opts.bodyStdout, "body-stdout", false, "Output issue body to stdout (raw markdown)")
 
 	return cmd
 }
@@ -133,6 +135,12 @@ func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, o
 	// Handle --body-file flag: write body to tmp/issue-{number}.md
 	if opts.bodyFile {
 		return writeBodyToFile(issue.Number, issue.Body)
+	}
+
+	// Handle --body-stdout flag: output body directly to stdout
+	if opts.bodyStdout {
+		fmt.Print(issue.Body)
+		return nil
 	}
 
 	// Fetch sub-issues and parent issue in parallel

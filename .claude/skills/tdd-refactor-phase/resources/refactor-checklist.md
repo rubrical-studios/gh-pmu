@@ -1,4 +1,5 @@
 # REFACTOR Phase Checklist
+**Version:** 0.19.0
 
 Quick reference for completing REFACTOR phase successfully.
 
@@ -47,7 +48,7 @@ Quick reference for completing REFACTOR phase successfully.
 - [ ] All tests are green
 - [ ] Code quality improved OR preserved
 - [ ] Ready to start next RED phase
-- [ ] User has communicated "Done-Next-Step"
+- [ ] Proceed autonomously to next behavior or story completion
 
 ---
 

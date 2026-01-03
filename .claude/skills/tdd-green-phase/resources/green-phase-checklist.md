@@ -1,4 +1,5 @@
 # GREEN Phase Checklist
+**Version:** 0.19.0
 
 Quick reference for completing GREEN phase successfully.
 
@@ -37,7 +38,7 @@ Quick reference for completing GREEN phase successfully.
 - [ ] Implementation is minimal but complete
 - [ ] No broken tests exist
 - [ ] Ready for refactoring analysis
-- [ ] User has communicated "Done-Next-Step"
+- [ ] Proceed autonomously to REFACTOR phase
 
 ---
 

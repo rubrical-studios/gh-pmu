@@ -1,87 +1,90 @@
 ---
 name: tdd-refactor-phase
-version: 1.0.0
-description: Guide through REFACTOR phase - improve code while maintaining green
+description: Guide experienced developers through REFACTOR phase of TDD cycle - improving code quality while maintaining green tests
+license: Complete terms in LICENSE.txt
 ---
+
 # TDD REFACTOR Phase
+**Version:** 0.19.0
+**Source:** Skills/tdd-refactor-phase/SKILL.md
+
+Guide through REFACTOR phase: improving code quality while keeping tests green.
+
 ## When to Use
-- After GREEN phase success
-- Test passes, implementation works
-- Code quality needs improvement
+- GREEN phase complete with passing test
+- Proceeding autonomously after GREEN phase
+- Code works but could be improved
 
-## REFACTOR Phase Goal
-**Improve code quality while keeping tests green.**
+## Objectives
+1. **Improve code quality** - Cleaner, more maintainable
+2. **Keep tests green** - No behavior changes
 
-## Refactoring Assessment
-### When to Refactor
-- Code duplication exists
-- Functions too long (>20 lines)
-- Poor naming
-- Obvious improvements
-- Code smells detected
-
-### When to Skip
-- Code is already clean
-- Small, simple implementation
-- User wants to move to next feature
-
-## Refactoring Categories
-| Category | Examples |
-|----------|----------|
-| **Naming** | Variables, functions, classes |
-| **Structure** | Extract method, inline function |
-| **Duplication** | DRY violations |
-| **Simplification** | Complex conditionals, magic numbers |
+**Refactoring IS:** Improving structure without changing behavior
+**Refactoring IS NOT:** Adding features, fixing bugs, breaking tests
 
 ## Workflow
-### Step 1: Identify Improvements
-- Run tests to establish green baseline
-- Identify refactoring opportunities
-- Prioritize by impact
 
-### Step 2: Apply Small Changes
-**Single Code Block Format:**
+**Step 1: Analyze Opportunities**
+ASSISTANT instructs: "Ask Claude Code: Analyze this code for refactoring opportunities"
+Identify: Duplication, long functions, unclear names, complex logic
+
+**Step 2: Evaluate Suggestions**
+- **Refactor Now:** Clear improvement, low risk, high value
+- **Skip:** Premature abstraction, high risk, over-engineering
+
+**Step 3: Apply Refactoring (Single Code Block)**
 ```
-TASK: Refactor [specific improvement]
-STEP 1: Open file
-STEP 2: Apply specific refactoring
-STEP 3: Save file
-STEP 4: Run ALL tests
-STEP 5: Verify ALL tests pass
-STEP 6: Report: Do all tests still pass?
+TASK: [Description]
+STEP 1: Open implementation file
+STEP 2: Navigate to code
+STEP 3: Apply refactored code
+STEP 4: Explanation of improvements
+STEP 5: Save file
+STEP 6: Run full test suite
+STEP 7: Verify ALL tests still PASS
+STEP 8: Report: All tests green?
 ```
 
-### Step 3: Verify Green Maintained
-- [ ] Specific refactoring applied
-- [ ] ALL tests still pass
-- [ ] No new functionality added
+**Step 4: Verify Tests Remain Green**
+- Run FULL test suite
+- ALL tests must pass
+- **If any fail → ROLLBACK immediately**
 
-### Step 4: Iterate or Complete
-**Tests pass:** Continue or → "Done-Next-Step" → Next RED
-**Tests fail:** ROLLBACK immediately → Fix → Retry
-
-## Rollback Protocol
-If tests fail after refactoring:
-```
-TASK: Rollback failed refactoring
-STEP 1: Revert changes (git checkout or manual)
-STEP 2: Run tests
-STEP 3: Verify green restored
-STEP 4: Smaller refactoring attempt
-```
+**Step 5: Complete**
+- Refactoring applied + tests green → Continue with next behavior or Story-Complete
+- Refactoring skipped → Continue with next behavior or Story-Complete
 
 ## Best Practices
-- Small, incremental changes
-- Run tests after EACH change
-- Don't add functionality
-- Keep commits atomic
+1. Refactor in small steps (test after each)
+2. One refactoring at a time
+3. **Keep tests green** (rollback if broken)
+4. Refactor for clarity, not cleverness
+
+## Common Refactorings
+- Extract Variable/Function
+- Rename for Clarity
+- Eliminate Duplication
+- Simplify Conditional Logic
+
+## When to Skip
+- Only one use of code (Rule of Three)
+- Code already clear
+- High risk, low value
+- Premature abstraction
 
 ## Anti-Patterns
-❌ Large refactoring without test runs
-❌ Adding features during refactor
-❌ Ignoring test failures
-❌ Skipping rollback when tests break
+- Refactoring without tests
+- Accepting broken tests
+- Big bang refactoring
+- Mixing refactor + features
 
-## Flows To
-- Back to `tdd-red-phase` - Next feature iteration
-- `tdd-failure-recovery` - If unexpected test behavior
+## Checklist
+- [ ] Claude Code analyzed code
+- [ ] ASSISTANT evaluated suggestions
+- [ ] If applied: All tests PASS
+- [ ] If skipped: Valid reason documented
+- [ ] Ready to continue with next behavior or Story-Complete
+
+---
+
+**End of TDD REFACTOR Phase Skill**

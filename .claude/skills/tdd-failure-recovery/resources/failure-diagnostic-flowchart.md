@@ -1,4 +1,5 @@
 # TDD Failure Diagnostic Flowchart
+**Version:** 0.19.0
 
 Quick decision tree for diagnosing and recovering from unexpected test behaviors.
 
@@ -196,21 +197,21 @@ Check:    Fix test
 
 ---
 
-## General Recovery Commands
+## General Recovery Procedure
 
-### Rollback Previous Step
+### Rollback to Previous State
 
 ```
-User: "Rollback-Previous-Step"
+Issue detected (tests broken, wrong path)
          ↓
-Restore previous code state
+Restore previous code state (git checkout or undo)
          ↓
 Run tests to verify green
          ↓
-Decide next action:
+Resume TDD cycle:
 - Try different approach
 - Skip change
-- Ask for guidance
+- Proceed to next behavior
 ```
 
 ---

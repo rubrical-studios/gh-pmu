@@ -24,6 +24,7 @@ type editOptions struct {
 	title       string
 	body        string
 	bodyFile    string
+	bodyStdin   bool
 	addLabels   []string
 }
 
@@ -60,6 +61,7 @@ Examples:
 	cmd.Flags().StringVarP(&opts.title, "title", "t", "", "New issue title")
 	cmd.Flags().StringVarP(&opts.body, "body", "b", "", "New issue body")
 	cmd.Flags().StringVarP(&opts.bodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
+	cmd.Flags().BoolVar(&opts.bodyStdin, "body-stdin", false, "Read body from stdin (raw markdown)")
 	cmd.Flags().StringArrayVarP(&opts.addLabels, "label", "l", nil, "Add labels (can be specified multiple times)")
 
 	return cmd
@@ -100,13 +102,23 @@ func runEdit(cmd *cobra.Command, opts *editOptions) error {
 // runEditWithDeps is the testable implementation of runEdit
 func runEditWithDeps(cmd *cobra.Command, opts *editOptions, cfg *config.Config, client editClient, owner, repo string) error {
 	// Validate that at least one edit option is provided
-	if opts.title == "" && opts.body == "" && opts.bodyFile == "" && len(opts.addLabels) == 0 {
-		return fmt.Errorf("at least one of --title, --body, --body-file, or --label is required")
+	if opts.title == "" && opts.body == "" && opts.bodyFile == "" && !opts.bodyStdin && len(opts.addLabels) == 0 {
+		return fmt.Errorf("at least one of --title, --body, --body-file, --body-stdin, or --label is required")
 	}
 
 	// Cannot use --body and --body-file together
 	if opts.body != "" && opts.bodyFile != "" {
 		return fmt.Errorf("cannot use --body and --body-file together")
+	}
+
+	// Cannot use --body-stdin with --body or --body-file
+	if opts.bodyStdin && (opts.body != "" || opts.bodyFile != "") {
+		return fmt.Errorf("cannot use --body-stdin with --body or --body-file")
+	}
+
+	// Convert --body-stdin to internal --body-file="-" representation
+	if opts.bodyStdin {
+		opts.bodyFile = "-"
 	}
 
 	// Get the issue to edit

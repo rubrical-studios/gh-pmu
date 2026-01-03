@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-01-03
+
+### Added
+- `--body-stdout` flag for `gh pmu view` command (#487)
+  - Outputs raw issue body (markdown) directly to stdout
+  - Enables AI assistants to capture body without temp file
+- `--body-stdin` flag for `gh pmu edit` command (#488)
+  - Reads body content from stdin (raw markdown)
+  - Mutually exclusive with `--body` and `--body-file`
+  - Supports piped input: `echo "$BODY" | gh pmu edit 123 --body-stdin`
+
+### Changed
+- Streamlined body editing workflow reduces tool calls from 5+ to 2-3 (#486)
+- Update internal framework to v0.20.1 with charter support
+
 ## [0.9.7] - 2025-12-30
 
 ### Added

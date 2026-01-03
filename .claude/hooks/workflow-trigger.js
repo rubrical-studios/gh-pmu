@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.18.0
+// **Version:** 0.20.0
 /**
  * workflow-trigger.js
  *
@@ -187,7 +187,7 @@ function detectFramework() {
     } catch (e) {}
 
     // Check for IDPF directories (framework dev or direct usage)
-    const frameworks = ['IDPF-Agile', 'IDPF-Structured', 'IDPF-Vibe', 'IDPF-PRD', 'IDPF-LTS'];
+    const frameworks = ['IDPF-Agile', 'IDPF-Vibe', 'IDPF-PRD'];
     for (const fw of frameworks) {
         if (fs.existsSync(path.join(cwd, fw))) {
             return fw;
@@ -203,10 +203,8 @@ function detectFramework() {
 function normalizeFramework(name) {
     const lower = name.toLowerCase();
     if (lower === 'agile' || lower === 'idpf-agile') return 'IDPF-Agile';
-    if (lower === 'structured' || lower === 'idpf-structured') return 'IDPF-Structured';
     if (lower.startsWith('vibe') || lower === 'idpf-vibe') return 'IDPF-Vibe';
     if (lower === 'prd' || lower === 'idpf-prd') return 'IDPF-PRD';
-    if (lower === 'lts' || lower === 'idpf-lts') return 'IDPF-LTS';
     return name;
 }
 
@@ -371,10 +369,8 @@ function getSlashCommands() {
 function getFrameworkDetailedCommands(framework) {
     switch (framework) {
         case 'IDPF-Agile': return getAgileDetailedCommands();
-        case 'IDPF-Structured': return getStructuredDetailedCommands();
         case 'IDPF-Vibe': return getVibeDetailedCommands();
         case 'IDPF-PRD': return getPRDDetailedCommands();
-        case 'IDPF-LTS': return getLTSDetailedCommands();
         default: return getFrameworkSelectionHelp();
     }
 }
@@ -476,81 +472,6 @@ function getAgileDetailedCommands() {
 | \`Review-Last\` | Review ASSISTANT's most recent reply for accuracy |`;
 }
 
-function getStructuredDetailedCommands() {
-    return `## IDPF-Structured Commands - Full List
-
-### TDD Workflow Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Done-Next-Step\` | Current TDD iteration successful, proceed to next |
-| \`Rollback-Previous-Step\` | Undo last iteration |
-| \`Run-Tests\` | Execute full test suite |
-| \`Show-Coverage\` | Display test coverage report |
-| \`Refactor-Now\` | Dedicated refactoring session |
-
----
-
-### TDD Phase Skills
-
-| Skill | Description |
-|-------|-------------|
-| \`tdd-red-phase\` | RED phase - write failing test first |
-| \`tdd-green-phase\` | GREEN phase - minimal code to pass |
-| \`tdd-refactor-phase\` | REFACTOR phase - improve without changing behavior |
-| \`tdd-failure-recovery\` | When tests behave unexpectedly |
-| \`test-writing-patterns\` | Test structure and assertion guidance |
-
----
-
-### Requirement Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Show-Requirements\` | Display all requirements from PRD |
-| \`Start-Requirement [REQ-XXX]\` | Begin work on specific requirement |
-| \`Requirement-Complete [REQ-XXX]\` | Mark requirement as implemented |
-| \`Show-Progress\` | Display implementation progress |
-
----
-
-### GitHub Issue Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Create-Issues\` | Create GitHub issues from PRD (auto-detects framework) |
-| \`Create-Issues-Structured\` | Explicit Structured issue creation |
-
----
-
-### Project Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Push-Changes\` | Commit and push current work |
-| \`Project-Complete\` | Finalize project and create final PR |
-
----
-
-### Release Lifecycle Commands
-
-| Command | Slash Command | Description |
-|---------|---------------|-------------|
-| \`Open-Release\` | \`/open-release\` | Open release branch and tracker |
-| \`Prepare-Release\` | \`/prepare-release\` | Validate, merge to main, tag, deploy |
-| \`Close-Release\` | \`/close-release\` | Generate notes, create GitHub Release, cleanup |
-
----
-
-### Utility Commands
-
-| Command | Description |
-|---------|-------------|
-| \`List-Commands\` | Show all available commands with descriptions |
-| \`Help [command]\` | Get detailed help for specific command |
-| \`Review-Last\` | Review ASSISTANT's most recent reply for accuracy |`;
-}
-
 function getVibeDetailedCommands() {
     return `## IDPF-Vibe Commands - Full List
 
@@ -571,7 +492,7 @@ IDPF-Vibe uses conversational development. No strict commands required.
 
 | Command | Description |
 |---------|-------------|
-| \`Formalize\` | Ready to transition to Structured or Agile |
+| \`Formalize\` | Ready to transition to Agile |
 | \`Extract-PRD\` | Generate PRD from current implementation |
 | \`Add-Tests\` | Begin adding test coverage |
 
@@ -647,58 +568,6 @@ function getPRDDetailedCommands() {
 | \`Review-Last\` | Review ASSISTANT's most recent reply |`;
 }
 
-function getLTSDetailedCommands() {
-    return `## IDPF-LTS Commands - Full List
-
-### Maintenance Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Show-Status\` | Display system health and metrics |
-| \`Review-Logs\` | Analyze recent log entries |
-| \`Check-Dependencies\` | Review dependency versions and updates |
-
----
-
-### Bug Fix Workflow
-
-| Command | Description |
-|---------|-------------|
-| \`Report-Bug\` | Document a new bug |
-| \`Investigate-Bug [ID]\` | Begin bug investigation |
-| \`Fix-Bug [ID]\` | Implement bug fix |
-| \`Verify-Fix [ID]\` | Confirm fix resolves issue |
-
----
-
-### Security Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Security-Audit\` | Run security assessment |
-| \`Apply-Patch [CVE]\` | Apply security patch |
-| \`Review-Vulnerabilities\` | Check for known vulnerabilities |
-
----
-
-### Release Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Prepare-Patch\` | Prepare patch release |
-| \`Create-Hotfix\` | Create emergency hotfix |
-| \`Deploy-Release\` | Deploy to production |
-
----
-
-### Utility Commands
-
-| Command | Description |
-|---------|-------------|
-| \`List-Commands\` | Show all available commands |
-| \`Help [command]\` | Get detailed help for specific command |`;
-}
-
 function getFrameworkSelectionHelp() {
     return `## No Active Framework Detected
 
@@ -711,10 +580,8 @@ To see framework-specific commands, either:
 
 2. **Available frameworks:**
    - \`IDPF-Agile\` - Sprint-based development with user stories
-   - \`IDPF-Structured\` - TDD with fixed requirements
    - \`IDPF-Vibe\` - Exploratory development
    - \`IDPF-PRD\` - Requirements engineering
-   - \`IDPF-LTS\` - Long-term support/maintenance
 
 3. **Quick start:** Type \`commands\` to see workflow triggers and slash commands.`;
 }

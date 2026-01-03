@@ -35,6 +35,9 @@ release:
         - version: 0.9.7
           tracker_issue: 481
           track: patch
+        - version: speedup
+          tracker_issue: 489
+          track: ghpmu
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -127,4 +130,7 @@ cache:
     releases:
         - number: 481
           title: 'Release: patch/0.9.7'
+          state: OPEN
+        - number: 489
+          title: 'Release: ghpmu/speedup'
           state: OPEN

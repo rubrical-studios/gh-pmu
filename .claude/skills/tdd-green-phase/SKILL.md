@@ -1,73 +1,82 @@
 ---
 name: tdd-green-phase
-version: 1.0.0
-description: Guide through GREEN phase - minimal implementation to pass test
+description: Guide experienced developers through GREEN phase of TDD cycle - writing minimal implementation to pass failing tests
+license: Complete terms in LICENSE.txt
 ---
+
 # TDD GREEN Phase
+**Version:** 0.19.0
+**Source:** Skills/tdd-green-phase/SKILL.md
+
+Guide through GREEN phase: implementing minimum code to make failing test pass.
+
 ## When to Use
-- After RED phase success
-- User reports "Done-Next-Step" with verified failing test
-- Test exists and fails correctly
+- RED phase test verified as failing
+- Proceeding autonomously after RED phase
+- Moving from RED to GREEN in TDD cycle
 
-## GREEN Phase Goal
-**Write minimum code to make the test pass.**
+## Objective
+**Write the minimum code to make the test pass.**
 
-## Core Principle: YAGNI
-"You Aren't Gonna Need It" - Implement only what the test requires.
-```
-✓ Return hardcoded value if test only checks one case
-✓ Add minimal logic to pass assertion
-✗ Add error handling not tested
-✗ Add features not required by test
-✗ Optimize before test passes
-```
+**Correct:** Implements exactly what test requires, simplest solution
+**Incorrect:** Over-engineers, adds untested features, premature optimization
 
 ## Workflow
-### Step 1: Analyze Failing Test
-- What assertion is failing?
-- What's the minimum to pass?
 
-### Step 2: Write Minimal Implementation
-**Single Code Block Format:**
+**Step 1: Understand Test Requirements**
+- What behavior is expected?
+- What inputs/outputs?
+- What edge cases covered?
+
+**Step 2: Plan Minimal Implementation**
+Avoid: Features not in test, abstractions not needed, premature optimization
+
+**Step 3: Implement (Single Code Block)**
 ```
-TASK: Implement minimal code to pass test
+TASK: [Description]
 STEP 1: Open implementation file
-STEP 2: Write minimum code to satisfy test
-STEP 3: Save file
-STEP 4: Run test command
-STEP 5: Verify test PASSES
-STEP 6: Report: Does test pass now?
+STEP 2: Navigate to location
+STEP 3: Add/modify implementation code
+STEP 4: Context about choices
+STEP 5: Save file
+STEP 6: Run test command
+STEP 7: Verify test PASSES
+STEP 8: Report: Did test pass?
 ```
 
-### Step 3: Execute and Verify
-- [ ] Implementation compiled/ran without errors
-- [ ] Test NOW PASSES
-- [ ] No other tests broken
+**Step 4: Verify Success**
+- [ ] Test executed without errors
+- [ ] Test passed (green)
+- [ ] No other tests broke
+- [ ] Implementation is minimal
 
-### Step 4: Analyze Result
-**Test passes:** GREEN complete → "Done-Next-Step" → REFACTOR
-**Test still fails:** Analyze → Fix implementation → Retry
-**Other tests break:** Fix without breaking new test
+**Step 5: Analyze**
+- Passes → Proceed autonomously to REFACTOR phase
+- Still fails → Revise implementation
+- Other tests fail → Fix regressions first
+
+## Principles
+1. **YAGNI:** Implement only what test requires
+2. **Simplest Thing:** Hard-coded values acceptable if test passes
+3. **Let Tests Drive Design:** Test tells you the interface
+4. **Hard-Code First:** Generalize when more tests require it
 
 ## Implementation Strategies
-| Test Case | Minimum Implementation |
-|-----------|----------------------|
-| Single input/output | Return constant |
-| Multiple inputs | Simple conditional |
-| Pattern | Minimal algorithm |
-
-## Best Practices
-- Don't add functionality not tested
-- Don't optimize yet
-- Don't refactor yet
-- Keep implementation simple
+- **Fake It:** Return expected value (temporary)
+- **Obvious Implementation:** Straightforward solution
+- **Triangulation:** Multiple tests force generalization
 
 ## Anti-Patterns
-❌ Adding "obvious" features not tested
-❌ Error handling for cases not tested
-❌ Refactoring during GREEN phase
-❌ Breaking existing tests
+- Feature creep (adding untested features)
+- Optimization before profiling
+- Copy-paste without understanding
 
-## Flows To
-- `tdd-refactor-phase` - Next phase after GREEN success
-- `tdd-failure-recovery` - If tests behave unexpectedly
+## Checklist
+- [ ] Target test now PASSES
+- [ ] Implementation is minimal
+- [ ] No regressions (full suite green)
+- [ ] Ready to proceed to REFACTOR phase
+
+---
+
+**End of TDD GREEN Phase Skill**

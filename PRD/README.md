@@ -7,9 +7,7 @@ This directory contains Product Requirements Documents for your project.
 1. Choose a PRD template based on your framework:
 
    **IDPF-Agile:**
-
    - `PRD-Agile-Lightweight.md` - Epic/Story input
-
 
 
 2. Rename to `PRD-[YourProjectName].md`
