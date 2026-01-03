@@ -1,10 +1,10 @@
 ---
-version: "0.20.0"
+version: "v0.20.1"
 description: Close release with GitHub Release and cleanup
 argument-hint: [--skip-release-page]
 ---
 
-<!-- EXTENSIBLE: vv0.20.0 -->
+<!-- EXTENSIBLE: v0.17.0 -->
 # /close-release
 
 Closes a release by creating GitHub Release page and cleaning up.

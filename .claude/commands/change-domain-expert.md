@@ -1,5 +1,5 @@
 ---
-version: "0.18.0"
+version: "0.20.1"
 description: Change domain specialist for this project
 argument-hint: [specialist-name] (optional)
 ---
@@ -12,7 +12,7 @@ Change the active domain specialist for this project.
 
 ## Prerequisites
 
-- Framework vv0.18.0+ installed
+- Framework v0.17.0+ installed
 - `framework-config.json` exists in project root
 
 ---
