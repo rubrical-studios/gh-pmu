@@ -1,6 +1,6 @@
 {
-  "frameworkVersion": "0.20.1",
-  "installedDate": "2026-01-03",
+  "frameworkVersion": "0.20.3",
+  "installedDate": "2026-01-05",
   "extensibleCommands": [
     "open-release",
     "prepare-release",
