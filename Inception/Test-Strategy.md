@@ -1,12 +1,12 @@
-# Test Strategy: {project-name}
+# Test Strategy: gh-pmu
 
-**Last Updated:** {date}
+**Last Updated:** 2026-01-04
 
 ---
 
 ## Testing Philosophy
 
-{Brief statement of testing approach and priorities}
+Multi-layer testing with emphasis on table-driven unit tests and integration tests with mocked API client. UAT tests validate end-to-end workflows.
 
 ---
 
@@ -14,9 +14,9 @@
 
 | Level | Coverage | Approach |
 |-------|----------|----------|
-| Unit | {target %}  | {framework, style} |
-| Integration | {target %} | {approach} |
-| E2E | {target %} | {framework, scope} |
+| Unit | ~75% | Table-driven tests, standard `testing` package |
+| Integration | ~60% | Mocked API client, command execution |
+| E2E/UAT | Critical paths | Epic-based acceptance scenarios |
 
 ---
 
@@ -24,22 +24,23 @@
 
 ### Unit Tests
 
-- **Framework:** {test framework}
-- **Location:** {test directory}
-- **Naming:** {convention}
-- **Coverage Target:** {X%}
+- **Framework:** Go standard `testing` package
+- **Location:** `*_test.go` alongside source files
+- **Naming:** `TestFunctionName_Scenario`
+- **Coverage Target:** 70%+
 
 ### Integration Tests
 
-- **Framework:** {test framework}
-- **Scope:** {what integrations are tested}
-- **Environment:** {test database, mocks, etc.}
+- **Framework:** Go `testing` with build tags
+- **Location:** `*_integration_test.go` files
+- **Scope:** Command execution with mocked API
+- **Environment:** Mock client, test fixtures
 
 ### End-to-End Tests
 
-- **Framework:** {E2E framework}
-- **Scope:** {critical user flows}
-- **Environment:** {staging, docker, etc.}
+- **Framework:** UAT tests (`uat_*_test.go`)
+- **Scope:** Full user workflows (epic → story completion)
+- **Environment:** Mocked API, realistic scenarios
 
 ---
 
@@ -47,9 +48,9 @@
 
 | Gate | Criteria | Enforcement |
 |------|----------|-------------|
-| Pre-commit | | |
-| PR Merge | | |
-| Release | | |
+| Pre-commit | `go test ./...`, `go vet` | Developer discipline |
+| PR Merge | All tests pass, coverage maintained | GitHub Actions |
+| Release | Integration + UAT pass | Manual verification |
 
 ---
 
@@ -57,9 +58,9 @@
 
 | Type | Approach |
 |------|----------|
-| Unit test data | Fixtures / Factories / Inline |
-| Integration test data | Seeded DB / Mocks |
-| E2E test data | Test environment / Snapshots |
+| Unit test data | Inline fixtures, table-driven |
+| Integration test data | `testdata/` directory, mock responses |
+| E2E test data | Realistic scenarios with mock API |
 
 ---
 
@@ -67,25 +68,40 @@
 
 ### Performance Testing
 
-{Approach if applicable, or "Not in scope for MVP"}
+Informal benchmarks for startup time and API call latency. Target < 500ms startup.
 
 ### Security Testing
 
-{Approach if applicable, or "Manual review"}
+Manual review of authentication flow (delegated to gh CLI). No credential storage to test.
 
 ### Accessibility Testing
 
-{Approach if applicable, or "Not applicable"}
+Not applicable (terminal CLI).
 
 ---
 
 ## Definition of "Tested"
 
 A feature is considered tested when:
-- [ ] Unit tests cover core logic
-- [ ] Integration tests verify external dependencies
-- [ ] E2E tests cover critical paths (if applicable)
-- [ ] All tests pass in CI
+- [x] Unit tests cover core logic and edge cases
+- [x] Integration tests verify command execution
+- [x] Error paths are tested
+- [x] All tests pass in CI
+
+---
+
+## Test Files Reference
+
+| Command | Unit Tests | Integration Tests |
+|---------|-----------|-------------------|
+| list | `list_test.go` | `list_integration_test.go` |
+| create | `create_test.go` | `create_integration_test.go` |
+| view | `view_test.go` | `view_integration_test.go` |
+| edit | `edit_test.go` | `edit_integration_test.go` |
+| move | `move_test.go` | `move_integration_test.go` |
+| sub | `sub_test.go` | `sub_*_integration_test.go` |
+| microsprint | `microsprint_test.go` | - |
+| release | `release_test.go` | - |
 
 ---
 
