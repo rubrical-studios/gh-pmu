@@ -92,6 +92,16 @@ node .claude/scripts/framework/recommend-version.js
 ```
 
 Uses the commit analysis to recommend a version bump.
+
+### Documentation Review
+
+Check if docs need updates based on changes:
+
+- [ ] `docs/commands.md` - if commands/flags changed
+- [ ] `docs/configuration.md` - if config options changed
+- [ ] `README.md` - if user-facing features changed
+
+**Only update if changes affect documentation.**
 <!-- USER-EXTENSION-END: post-analysis -->
 
 **ASK USER:** Confirm version before proceeding.
@@ -101,7 +111,24 @@ Uses the commit analysis to recommend a version bump.
 ## Phase 2: Validation (Framework-Provided)
 
 <!-- USER-EXTENSION-START: pre-validation -->
-<!-- Setup: start containers, pull fixtures, prepare environment -->
+### Handle Incomplete Issues
+
+If incomplete issues exist, prompt user:
+- Transfer to next release
+- Return to backlog
+- Block release (cannot proceed with open issues)
+
+### Lint Gate
+
+```bash
+node .claude/scripts/prepare-release/lint.js
+```
+
+The script outputs JSON: `{"success": true/false, "message": "..."}`
+
+**If `success` is false, STOP and report the error.**
+
+Runs `golangci-lint run --timeout=5m` to catch lint errors before tagging.
 <!-- USER-EXTENSION-END: pre-validation -->
 
 ### Step 2.1: Run Tests
@@ -124,6 +151,17 @@ The script outputs JSON: `{"success": true/false, "message": "...", "data": {"co
 **If `success` is false, STOP and report the error.**
 
 Coverage metrics include total percentage and threshold comparison.
+
+**Configuration** (`.gh-pmu.yml`):
+```yaml
+release:
+  coverage:
+    enabled: true
+    threshold: 80
+    skip_patterns:
+      - "*_test.go"
+      - "mock_*.go"
+```
 <!-- USER-EXTENSION-END: post-validation -->
 
 **ASK USER:** Confirm validation passed.
@@ -180,7 +218,14 @@ git pull origin main
 ```
 
 <!-- USER-EXTENSION-START: pre-tag -->
-<!-- Final gate before tagging - add sign-off checks here -->
+### Important Rules
+
+1. **NEVER skip CI verification** - Always wait for green CI
+2. **NEVER auto-create tags** - Always get user confirmation
+3. **NEVER guess version numbers** - Base on actual commit analysis
+4. **ALWAYS show changes before committing** - User must approve
+5. **NEVER declare release complete after pushing tag** - Monitor until assets uploaded
+6. **ALWAYS verify release assets exist** - Run `gh release view` to confirm
 <!-- USER-EXTENSION-END: pre-tag -->
 
 ### Step 4.3: Tag and Push
@@ -214,6 +259,25 @@ node .claude/scripts/framework/update-release-notes.js
 ```
 
 Updates GitHub Release with formatted notes from CHANGELOG.
+
+### Clean Up Old Release Assets (Optional)
+
+```bash
+node .claude/scripts/shared/cleanup-release-assets.js --keep 3 --dry-run
+```
+
+Options:
+- `--keep <n>` - Releases to keep assets for (default: 3)
+- `--dry-run` - Preview without deleting
+
+**Preview first with `--dry-run`.**
+
+### Post-Release Reminder
+
+**Releasing code does NOT close related issues.**
+
+Issues included in this release still require explicit user approval ("Done") to close.
+Do NOT auto-close issues just because they shipped.
 <!-- USER-EXTENSION-END: post-tag -->
 
 ---
@@ -223,6 +287,7 @@ Updates GitHub Release with formatted notes from CHANGELOG.
 **Before tagging:**
 - [ ] Config file clean
 - [ ] Commits analyzed
+- [ ] Lint gate passed
 - [ ] Coverage gate passed (or `--skip-coverage`)
 - [ ] Version confirmed
 - [ ] CI passing
