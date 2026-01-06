@@ -26,6 +26,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Usage changed from `<issue-number>...` to `<issue-number> [issue-number...]`
   - Short description updated to "Update project fields for multiple issues at once"
 
+### Fixed
+- Document root cause of GitHub Project automation moving issues back to "In Progress" (#498)
+  - "Pull request linked to issue" workflow triggers on `Fixes #XXX` cross-references
+  - Recommended solution: Disable the automation or use `Refs #XXX` in PR bodies
+
+### Documentation
+- Migrate USER-EXTENSION content into prepare-release.md (#499)
+  - Added Documentation Review checklist to post-analysis
+  - Added Handle Incomplete Issues and Lint Gate to pre-validation
+  - Added Coverage Configuration example to post-validation
+  - Added Important Rules (6 guardrails) to pre-tag
+  - Added Cleanup Assets and Post-Release Reminder to post-tag
+- Add `edit` and `comment` commands to docs/commands.md
+- Add `--body-stdin` flag documentation for `create` command
+
 ## [0.10.0] - 2026-01-03
 
 ### Added
