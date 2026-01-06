@@ -15,8 +15,8 @@ type mockCommentClient struct {
 	comment *api.Comment
 
 	// Error injection
-	getIssueErr      error
-	addCommentErr    error
+	getIssueErr   error
+	addCommentErr error
 }
 
 func newMockCommentClient() *mockCommentClient {
