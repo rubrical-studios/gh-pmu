@@ -44,8 +44,8 @@ func newMoveCommand() *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "move <issue-number>...",
-		Short: "Update project fields for one or more issues",
+		Use:   "move <issue-number> [issue-number...]",
+		Short: "Update project fields for multiple issues at once",
 		Long: `Update project field values for one or more issues.
 
 Changes the status, priority, or other project fields for issues

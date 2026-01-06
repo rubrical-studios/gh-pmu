@@ -26,6 +26,7 @@ type editOptions struct {
 	bodyFile    string
 	bodyStdin   bool
 	addLabels   []string
+	repo        string
 }
 
 func newEditCommand() *cobra.Command {
@@ -45,7 +46,8 @@ Examples:
   gh pmu edit 123 --body-file tmp/issue-123.md
   gh pmu edit 123 --title "New title"
   gh pmu edit 123 --label bug --label urgent
-  gh pmu edit 123 --body-file issue.md --title "Updated" --label fix`,
+  gh pmu edit 123 --body-file issue.md --title "Updated" --label fix
+  gh pmu edit 123 --body "Updated body" --repo owner/repo`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var issueNum int
@@ -63,6 +65,7 @@ Examples:
 	cmd.Flags().StringVarP(&opts.bodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	cmd.Flags().BoolVar(&opts.bodyStdin, "body-stdin", false, "Read body from stdin (raw markdown)")
 	cmd.Flags().StringArrayVarP(&opts.addLabels, "label", "l", nil, "Add labels (can be specified multiple times)")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
 }
@@ -84,14 +87,25 @@ func runEdit(cmd *cobra.Command, opts *editOptions) error {
 	}
 
 	// Determine repository
-	if len(cfg.Repositories) == 0 {
-		return fmt.Errorf("no repository configured")
+	var owner, repo string
+	if opts.repo != "" {
+		// Use --repo flag
+		repoParts := strings.Split(opts.repo, "/")
+		if len(repoParts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
+		}
+		owner, repo = repoParts[0], repoParts[1]
+	} else {
+		// Use config
+		if len(cfg.Repositories) == 0 {
+			return fmt.Errorf("no repository configured")
+		}
+		repoParts := strings.Split(cfg.Repositories[0], "/")
+		if len(repoParts) != 2 {
+			return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
+		}
+		owner, repo = repoParts[0], repoParts[1]
 	}
-	repoParts := strings.Split(cfg.Repositories[0], "/")
-	if len(repoParts) != 2 {
-		return fmt.Errorf("invalid repository format in config: %s", cfg.Repositories[0])
-	}
-	owner, repo := repoParts[0], repoParts[1]
 
 	// Create API client
 	client := api.NewClient()
