@@ -12,6 +12,8 @@ Project Management:
   list        List issues with project metadata
   view        View issue with project fields
   create      Create issue with project fields
+  edit        Edit issue body and metadata
+  comment     Add comment to an issue
   move        Update issue project fields
   close       Close issue with optional reason
   board       View project board in terminal
@@ -189,7 +191,8 @@ gh pmu create --title "Security fix" --label bug --label security
 **Flags matching `gh issue create`:**
 | Flag | Purpose |
 |------|---------|
-| `--body-file` / `-F` | Read body text from file (use "-" for stdin) |
+| `--body-file` / `-F` | Read body text from file |
+| `--body-stdin` | Read body text from standard input |
 | `--editor` / `-e` | Open editor to compose body |
 | `--template` / `-T` | Use issue template from `.github/ISSUE_TEMPLATE/` |
 | `--web` / `-w` | Open browser after creating issue |
@@ -200,6 +203,78 @@ gh pmu create --title "Security fix" --label bug --label security
   • Status → Backlog
   • Priority → P2
 🔗 https://github.com/myorg/app/issues/51
+```
+
+### edit
+
+Edit issue body and metadata.
+
+```bash
+# Edit issue body interactively
+gh pmu edit 42
+
+# Export body to file for editing
+gh pmu edit 42 --body-file issue.md
+
+# Update body from file
+gh pmu edit 42 -F issue.md
+
+# Read body from stdin
+gh pmu edit 42 --body-stdin
+
+# Output body to stdout (for piping)
+gh pmu edit 42 --body-stdout
+
+# Edit issue in different repository
+gh pmu edit 42 --repo owner/other-repo
+```
+
+**Flags:**
+| Flag | Purpose |
+|------|---------|
+| `--body-file` / `-F` | Read body from file, or export to file if used alone |
+| `--body-stdin` | Read body from standard input |
+| `--body-stdout` | Output current body to stdout |
+| `--repo` / `-R` | Specify repository (owner/repo format) |
+
+**Output:**
+```
+✓ Updated issue #42
+🔗 https://github.com/myorg/app/issues/42
+```
+
+### comment
+
+Add a comment to an issue.
+
+```bash
+# Add comment with inline body
+gh pmu comment 42 --body "This looks good!"
+
+# Add comment from file
+gh pmu comment 42 -F comment.md
+
+# Add comment from stdin (useful for piping)
+echo "LGTM" | gh pmu comment 42 --body-stdin
+
+# Comment on issue in different repository
+gh pmu comment 42 --body "Fixed in main" --repo owner/other-repo
+```
+
+**Flags:**
+| Flag | Purpose |
+|------|---------|
+| `--body` / `-b` | Comment body text |
+| `--body-file` / `-F` | Read comment body from file |
+| `--body-stdin` | Read comment body from standard input |
+| `--repo` / `-R` | Specify repository (owner/repo format) |
+
+**Note:** Exactly one of `--body`, `--body-file`, or `--body-stdin` is required.
+
+**Output:**
+```
+✓ Added comment to issue #42
+🔗 https://github.com/myorg/app/issues/42
 ```
 
 ### move
