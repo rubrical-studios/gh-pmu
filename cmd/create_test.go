@@ -2255,3 +2255,78 @@ func TestRunCreateFromFileWithDeps_MissingTitle(t *testing.T) {
 		t.Errorf("expected 'title is required in file' error, got: %v", err)
 	}
 }
+
+// ============================================================================
+// Issue #491: --body-stdin Tests
+// ============================================================================
+
+func TestCreateCommand_HasBodyStdinFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	createCmd, _, err := cmd.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("create command not found: %v", err)
+	}
+
+	flag := createCmd.Flags().Lookup("body-stdin")
+	if flag == nil {
+		t.Fatal("Expected --body-stdin flag to exist")
+	}
+	if flag.Value.Type() != "bool" {
+		t.Errorf("Expected --body-stdin to be bool, got %s", flag.Value.Type())
+	}
+}
+
+func TestRunCreateWithDeps_BodyStdinAndBodyMutuallyExclusive(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{
+		title:     "Test Issue",
+		body:      "Body from flag",
+		bodyStdin: true,
+	}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for mutually exclusive flags")
+	}
+	if !strings.Contains(err.Error(), "cannot use --body and --body-stdin together") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunCreateWithDeps_BodyStdinAndBodyFileMutuallyExclusive(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	// Create a temp file for body-file
+	tmpfile, err := os.CreateTemp("", "body-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	if _, err := tmpfile.WriteString("Body from file"); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := newCreateCommand()
+	opts := &createOptions{
+		title:     "Test Issue",
+		bodyFile:  tmpfile.Name(),
+		bodyStdin: true,
+	}
+	err = runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+
+	if err == nil {
+		t.Fatal("expected error for mutually exclusive flags")
+	}
+	if !strings.Contains(err.Error(), "cannot use --body-file and --body-stdin together") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}

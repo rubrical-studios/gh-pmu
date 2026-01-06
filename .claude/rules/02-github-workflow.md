@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** 0.18.0
+**Version:** 0.20.1
 **Source:** Reference/GitHub-Workflow.md
 **Source:** Reference/GitHub-Workflow.md
 
@@ -38,10 +38,12 @@ gh extension install rubrical-studios/gh-pmu
 |---------|----------|
 | `gh pmu create --title "..." [-F body.md] --status backlog --assignee @me` | `gh issue create` + `gh pmu move` |
 | `gh pmu move [#] --status [value]` | - |
-| `gh pmu view [#] [-b]` | `gh issue view` |
-| `gh pmu edit [#] [-F body.md]` | Update issue body/title; -F reads body from file | `gh issue edit` |
+| `gh pmu view [#] [-b] [-c] [-w]` | `gh issue view` |
+| `gh pmu edit [#] [-F body.md] [--body-stdin]` | `gh issue edit` |
 | `gh pmu list --status [value]` | - |
 | `gh pmu board` | - |
+
+**View/Edit flags:** `-b` exports body to file; `-c` shows comments; `-w` opens in browser; `-F` reads body from file; `--body-stdin` reads from stdin; `--body-stdout` outputs to stdout
 
 **Sub-Issue Management:**
 | Command | Replaces |

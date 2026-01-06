@@ -1107,3 +1107,52 @@ func (c *Client) FieldExists(projectID, fieldName string) (bool, error) {
 	}
 	return false, nil
 }
+
+// AddIssueComment adds a comment to an issue
+func (c *Client) AddIssueComment(issueID, body string) (*Comment, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		AddComment struct {
+			CommentEdge struct {
+				Node struct {
+					ID        string
+					Body      string
+					CreatedAt string
+					Author    struct {
+						Login string
+					}
+				}
+			}
+		} `graphql:"addComment(input: $input)"`
+	}
+
+	input := AddCommentInput{
+		SubjectID: graphql.ID(issueID),
+		Body:      graphql.String(body),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("AddComment", &mutation, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add comment: %w", err)
+	}
+
+	return &Comment{
+		ID:        mutation.AddComment.CommentEdge.Node.ID,
+		Body:      mutation.AddComment.CommentEdge.Node.Body,
+		Author:    mutation.AddComment.CommentEdge.Node.Author.Login,
+		CreatedAt: mutation.AddComment.CommentEdge.Node.CreatedAt,
+	}, nil
+}
+
+// AddCommentInput represents the input for adding a comment
+type AddCommentInput struct {
+	SubjectID graphql.ID     `json:"subjectId"`
+	Body      graphql.String `json:"body"`
+}

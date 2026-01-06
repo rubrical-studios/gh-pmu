@@ -1,20 +1,20 @@
-# Milestones: {project-name}
+# Milestones: gh-pmu
 
-**Last Updated:** {date}
+**Last Updated:** 2026-01-04
 
 ---
 
 ## Current Focus
 
-**Target:** {MVP / v1.0 / vX.Y.Z / Sprint N}
-**Status:** {Planning / In Progress / Complete}
-**Target Date:** {date or "ongoing"}
+**Target:** v0.10.0 (Released)
+**Status:** Complete
+**Target Date:** 2026-01-03
 
 ### Objectives
 
-- [ ] {Objective 1}
-- [ ] {Objective 2}
-- [ ] {Objective 3}
+- [x] Add `--body-stdout` flag for streamlined body export
+- [x] Add `--body-stdin` flag for piped body input
+- [x] Improve edit workflow for AI-assisted development
 
 ---
 
@@ -22,47 +22,50 @@
 
 | Milestone | Target Date | Key Deliverables | Status |
 |-----------|-------------|------------------|--------|
-| {M1} | | | |
-| {M2} | | | |
-| {M3} | | | |
+| v0.10.0 | 2026-01-03 | Body editing enhancements | Complete |
+| v0.9.7 | Ongoing | Patch fixes, stability | In Progress |
+| v0.11.0 | TBD | Based on backlog priority | Planning |
 
 ---
 
 ## Milestone Details
 
-### {Milestone 1 Name}
+### v0.10.0 - Body Editing Enhancements
 
-**Target:** {date}
-**Status:** {Planning / In Progress / Complete / Blocked}
+**Target:** 2026-01-03
+**Status:** Complete
 
 **Scope:**
-- {Deliverable 1}
-- {Deliverable 2}
+- `--body-stdout` flag for `gh pmu view`
+- `--body-stdin` flag for `gh pmu edit`
+- Streamlined piping workflow
 
 **Success Criteria:**
-- [ ] {Criterion 1}
-- [ ] {Criterion 2}
+- [x] Flags implemented and tested
+- [x] Documentation updated
+- [x] CHANGELOG entry added
 
 **Dependencies:**
-- {Dependency 1}
+- None
 
 ---
 
-### {Milestone 2 Name}
+### v0.9.7 - Patch Track
 
-**Target:** {date}
-**Status:** {Planning / In Progress / Complete / Blocked}
+**Target:** Ongoing
+**Status:** In Progress
 
 **Scope:**
-- {Deliverable 1}
-- {Deliverable 2}
+- Bug fixes from user reports
+- Stability improvements
+- Documentation corrections
 
 **Success Criteria:**
-- [ ] {Criterion 1}
-- [ ] {Criterion 2}
+- [ ] All P0 bugs resolved
+- [ ] No regressions
 
 **Dependencies:**
-- {Dependency 1}
+- User feedback via GitHub Issues
 
 ---
 
@@ -70,8 +73,9 @@
 
 | Version | Type | Target | Key Features |
 |---------|------|--------|--------------|
-| | Major / Minor / Patch | | |
-| | | | |
+| v0.10.0 | Minor | Released | Body editing |
+| v0.9.7 | Patch | In Progress | Bug fixes |
+| v0.11.0 | Minor | TBD | Backlog-driven |
 
 ---
 
@@ -79,7 +83,9 @@
 
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
-| | | | |
+| GitHub API changes | Low | High | Version pinning, tests |
+| Breaking gh changes | Low | Medium | Pin go-gh version |
+| Scope creep | Medium | Medium | Strict PR review |
 
 ---
 

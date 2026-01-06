@@ -1,6 +1,6 @@
-# Constraints: {project-name}
+# Constraints: gh-pmu
 
-**Last Updated:** {date}
+**Last Updated:** 2026-01-04
 
 ---
 
@@ -10,22 +10,26 @@
 
 | Technology | Reason | Flexibility |
 |------------|--------|-------------|
-| | | None / Low / Medium |
-| | | |
+| Go 1.22+ | Module features, gh ecosystem | None |
+| go-gh SDK | GitHub CLI extension system | None |
+| GraphQL | Projects v2 field mutations | None |
+| Cobra | CLI framework standard | Low |
 
 ### Prohibited Technologies
 
 | Technology | Reason |
 |------------|--------|
-| | |
+| CGO | Cross-compilation complexity |
+| External databases | CLI should be stateless |
+| Web frameworks | Terminal-only tool |
 
 ### Compatibility Requirements
 
 | Requirement | Specification |
 |-------------|---------------|
-| Browser support | |
-| OS support | |
-| API compatibility | |
+| OS support | Windows, macOS, Linux |
+| gh CLI version | v2.0+ |
+| GitHub | Projects v2 (not classic) |
 
 ---
 
@@ -35,23 +39,24 @@
 
 | Aspect | Value |
 |--------|-------|
-| Team size | |
-| Availability | |
-| Expertise gaps | |
+| Team size | Solo developer |
+| Availability | Part-time |
+| Development style | AI-assisted |
 
 ### Budget
 
 | Category | Constraint |
 |----------|------------|
-| Infrastructure | |
-| Third-party services | |
-| Tools/licenses | |
+| Infrastructure | GitHub Actions free tier |
+| Third-party services | None required |
+| Tools/licenses | Open source only |
 
 ### Timeline
 
 | Milestone | Deadline | Flexibility |
 |-----------|----------|-------------|
-| | | Hard / Soft / TBD |
+| Releases | As needed | Soft |
+| Bug fixes | P0 < 1 week | Hard |
 
 ---
 
@@ -61,13 +66,16 @@
 
 | Stakeholder | Requirement | Priority |
 |-------------|-------------|----------|
-| | | |
+| Users | Stable CLI interface | P0 |
+| Contributors | Clear documentation | P1 |
+| Ecosystem | gh extension compatibility | P0 |
 
 ### Regulatory/Compliance
 
 | Regulation | Requirement | Impact |
 |------------|-------------|--------|
-| | | |
+| MIT License | Attribution required | Low |
+| No PII | No data collection | None |
 
 ---
 
@@ -77,17 +85,17 @@
 
 | Constraint | Specification |
 |------------|---------------|
-| Hosting | |
-| Regions | |
-| Availability target | |
+| Hosting | GitHub Releases |
+| Distribution | GoReleaser cross-compile |
+| Updates | `gh extension upgrade` |
 
 ### Security
 
 | Constraint | Requirement |
 |------------|-------------|
-| Authentication | |
-| Data handling | |
-| Audit requirements | |
+| Authentication | Delegated to gh CLI |
+| Data handling | No local storage of secrets |
+| Audit requirements | None (via GitHub audit log) |
 
 ---
 
@@ -95,7 +103,9 @@
 
 | Constraint A | vs | Constraint B | Decision |
 |--------------|----|--------------|---------|
-| | | | |
+| Feature richness | vs | Binary size | Keep < 15MB |
+| API completeness | vs | Rate limits | Batch where possible |
+| Cross-platform | vs | Native features | Go standard library |
 
 ---
 

@@ -1,7 +1,7 @@
-# Project Charter Details: {project-name}
+# Project Charter Details: gh-pmu
 
-**Generated:** {date}
-**Last Updated:** {date}
+**Generated:** 2026-01-04
+**Last Updated:** 2026-01-04
 
 ---
 
@@ -9,22 +9,29 @@
 
 ### Problem Statement
 
-{What problem does this project solve?}
+Managing GitHub Projects through the `gh` CLI is fragmented. Project field updates, sub-issue relationships, and workflow automation require multiple tools or manual GraphQL queries. Developers need a unified interface to streamline issue tracking with project metadata in a single command.
 
 ### Target Users
 
-{Who is this for? What are their needs?}
+- Developers using GitHub Projects for issue tracking
+- Teams managing complex issue hierarchies (epics, stories, tasks)
+- Solo developers and small teams wanting CLI-first project management
+- AI-assisted development workflows (Claude Code, Copilot Workspace)
 
 ### Value Proposition
 
-{Why will users choose this over alternatives?}
+- **Unified commands**: Combine issue operations with project field updates
+- **Sub-issue hierarchy**: Native parent-child relationships with progress tracking
+- **Batch operations**: Automate intake, triage, and issue splitting
+- **Workflow automation**: Microsprint and release management with artifact generation
+- **Terminal-native**: Kanban board visualization without leaving the CLI
 
 ### Success Criteria
 
-{How do we know this project is successful?}
-- Criterion 1
-- Criterion 2
-- Criterion 3
+- Extension installed via `gh extension install`
+- Reduces project management commands by 50%+ vs raw `gh` CLI
+- Sub-issue hierarchy visible in GitHub Projects UI
+- Microsprint/release workflows generate standard artifacts
 
 ---
 
@@ -32,19 +39,25 @@
 
 ### In Scope (Current Release)
 
-- [ ] Feature/capability 1
-- [ ] Feature/capability 2
-- [ ] Feature/capability 3
+- [x] Project initialization and configuration
+- [x] Issue CRUD with project field support
+- [x] Sub-issue hierarchy (add, create, list, remove)
+- [x] Batch operations (intake, triage, split)
+- [x] Terminal Kanban board
+- [x] Microsprint workflow with retrospectives
+- [x] Release workflow with artifact generation
 
 ### Out of Scope
 
-- Explicitly excluded item 1
-- Explicitly excluded item 2
+- GitHub Issues API replacement (uses native `gh` for issue operations)
+- Web UI (terminal-only)
+- Multi-organization support in single config
 
 ### Key User Workflows
 
-1. **Primary workflow:** {description}
-2. **Secondary workflow:** {description}
+1. **Issue tracking**: `gh pmu list` → `gh pmu view 42` → `gh pmu move 42 --status done`
+2. **Sub-issue management**: `gh pmu sub create --parent 42 --title "Subtask"` → `gh pmu sub list 42`
+3. **Sprint workflow**: `gh pmu microsprint start` → `gh pmu microsprint add 42` → `gh pmu microsprint close`
 
 ---
 
@@ -54,27 +67,29 @@
 
 | Layer | Technology | Rationale |
 |-------|------------|-----------|
-| Language | | |
-| Framework | | |
-| Database | | |
-| Infrastructure | | |
+| Language | Go 1.22 | CLI performance, static binary, `gh` ecosystem |
+| Framework | Cobra | Standard for Go CLI applications |
+| API | GitHub GraphQL | Project field mutations require GraphQL |
+| Config | YAML | Human-readable, git-friendly |
 
 ### Architecture Style
 
-{Monolith, microservices, serverless, CLI, desktop app, etc.}
+CLI Extension - Single binary that extends GitHub CLI (`gh`) with project management commands.
 
 ### Key Technical Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| | | |
-| | | |
+| GraphQL vs REST | GraphQL | Projects v2 requires GraphQL for mutations |
+| Config format | YAML | Matches `gh` ecosystem conventions |
+| Alias system | Field value aliases | User-friendly status names (e.g., `in_progress` vs `47fc9ee4`) |
 
 ### Technical Risks
 
 | Risk | Probability | Mitigation |
 |------|-------------|------------|
-| | | |
+| GitHub API changes | Medium | Version pinning, integration tests |
+| Rate limiting | Low | Batched queries, caching |
 
 ---
 
@@ -82,20 +97,21 @@
 
 ### Testing Strategy
 
-- **Unit tests:** {approach}
-- **Integration tests:** {approach}
-- **E2E tests:** {approach}
+- **Unit tests:** Table-driven tests for command parsing, validation
+- **Integration tests:** Mock API client, end-to-end command execution
+- **UAT tests:** Epic-based user acceptance scenarios
 
 ### Coverage Target
 
-{X% or qualitative description}
+70%+ line coverage (see `coverage.html`)
 
 ### Definition of Done
 
 A feature is complete when:
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Criterion 3
+- [x] Unit tests pass
+- [x] Integration tests pass
+- [x] Documentation updated
+- [x] CHANGELOG entry added
 
 ---
 
@@ -103,20 +119,21 @@ A feature is complete when:
 
 ### Timeline
 
-{Deadline, or "ongoing"}
+Ongoing development, release-driven cadence
 
 ### Resources
 
-{Budget, team size, or "solo developer"}
+Solo developer with AI-assisted development
 
 ### Technical Constraints
 
-- Must use: {required technologies}
-- Cannot use: {prohibited technologies}
+- Must use: `gh` CLI SDK (go-gh)
+- Must support: Windows, macOS, Linux
+- Must work with: GitHub Projects v2
 
 ### Compliance
 
-{Regulations if applicable, or "None"}
+None (MIT licensed open source)
 
 ---
 
@@ -124,14 +141,15 @@ A feature is complete when:
 
 ### Current Target
 
-**MVP / v1.0 / Next Release:** {description}
+**v0.10.0**: Enhanced body editing with streaming support
 
 ### Milestone Roadmap
 
 | Milestone | Target | Criteria |
 |-----------|--------|----------|
-| | | |
-| | | |
+| v0.9.x | Patch | Bug fixes, stability |
+| v0.10.0 | Current | Body editing enhancements |
+| v0.11.0 | Next | TBD based on backlog |
 
 ---
 
@@ -139,7 +157,7 @@ A feature is complete when:
 
 | Date | Change | Author |
 |------|--------|--------|
-| {date} | Initial charter created | {author} |
+| 2026-01-04 | Charter extracted from codebase | Claude |
 
 ---
 

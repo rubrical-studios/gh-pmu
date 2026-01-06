@@ -1,29 +1,31 @@
-# Project Charter: {project-name}
+# Project Charter: gh-pmu
 
-**Status:** Draft | Active | Complete
-**Last Updated:** {date}
+**Status:** Active
+**Last Updated:** 2026-01-04
 
 ## Vision
 
-{1-2 sentence summary of what we're building and why}
+A GitHub CLI extension that streamlines project workflows by unifying issue tracking, sub-issue hierarchy, and workflow automation into a single cohesive tool.
 
 ## Current Focus
 
-{Current release/milestone target}
+v0.10.0 - Enhanced body editing with `--body-stdout` and `--body-stdin` flags
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Language | {language} |
-| Framework | {framework} |
-| Database | {database} |
+| Language | Go 1.22 |
+| Framework | Cobra CLI |
+| API | GitHub GraphQL (go-gh, shurcooL-graphql) |
 
 ## In Scope (Current)
 
-- {Priority 1}
-- {Priority 2}
-- {Priority 3}
+- Project field management (status, priority, custom fields)
+- Sub-issue hierarchy with progress tracking
+- Batch operations (intake, triage, split)
+- Workflow automation (microsprint, release)
+- Terminal Kanban board visualization
 
 ---
 *See Inception/ for full specifications*

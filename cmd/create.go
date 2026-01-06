@@ -32,6 +32,7 @@ type createOptions struct {
 	title       string
 	body        string
 	bodyFile    string
+	bodyStdin   bool
 	editor      bool
 	template    string
 	web         bool
@@ -68,6 +69,7 @@ any specified field values (status, priority) are set.`,
 	cmd.Flags().StringVarP(&opts.title, "title", "t", "", "Issue title (required for non-interactive mode)")
 	cmd.Flags().StringVarP(&opts.body, "body", "b", "", "Issue body")
 	cmd.Flags().StringVarP(&opts.bodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
+	cmd.Flags().BoolVar(&opts.bodyStdin, "body-stdin", false, "Read body text from standard input")
 	cmd.Flags().BoolVarP(&opts.editor, "editor", "e", false, "Open editor to write the body")
 	cmd.Flags().StringVarP(&opts.template, "template", "T", "", "Template name to use as starting body text")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open the browser after creating the issue")
@@ -154,6 +156,21 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 	// Handle non-interactive mode
 	title := opts.title
 	body := opts.body
+
+	// Process --body-stdin: read body from stdin
+	if opts.bodyStdin {
+		if body != "" {
+			return fmt.Errorf("cannot use --body and --body-stdin together")
+		}
+		if opts.bodyFile != "" {
+			return fmt.Errorf("cannot use --body-file and --body-stdin together")
+		}
+		content, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read body from stdin: %w", err)
+		}
+		body = string(content)
+	}
 
 	// Process --body-file: read body from file
 	if opts.bodyFile != "" {

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-01-05
+
+### Added
+- `gh pmu comment` subcommand for adding comments to issues (#491)
+  - `--body` / `-b` flag for inline comment text
+  - `--body-file` / `-F` flag to read comment from file
+  - `--body-stdin` flag to read comment from stdin
+  - `--repo` / `-R` flag for cross-repository comments
+- `--body-stdin` flag for `gh pmu create` command (#491)
+  - Reads body content from stdin
+  - Mutually exclusive with `--body` and `--body-file`
+- `--repo` / `-R` flag for `gh pmu edit` command (#492)
+  - Enables editing issues in repositories other than the configured default
+
+### Changed
+- `gh pmu move` help text now clearly indicates multiple issue support (#494)
+  - Usage changed from `<issue-number>...` to `<issue-number> [issue-number...]`
+  - Short description updated to "Update project fields for multiple issues at once"
+
 ## [0.10.0] - 2026-01-03
 
 ### Added

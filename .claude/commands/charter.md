@@ -1,5 +1,5 @@
 ---
-version: "v0.20.1"
+version: "v0.20.3"
 description: View, create, or manage project charter
 argument-hint: "[update|refresh|validate]"
 ---
@@ -21,6 +21,35 @@ Context-aware charter command. Shows summary if exists, starts creation if missi
 
 ---
 
+## Template Detection
+
+When checking if `CHARTER.md` is a template vs a completed charter:
+
+**Detection Pattern:**
+```
+Regex: /{[a-z][a-z0-9-]*}/
+```
+
+**Common Placeholders:**
+
+| Pattern | Context |
+|---------|---------|
+| `{project-name}` | Title line |
+| `{date}` | Last Updated field |
+| `{language}` | Tech Stack table |
+| `{framework}` | Tech Stack table |
+| `{database}` | Tech Stack table |
+
+**Edge Cases:**
+
+| Scenario | Handling |
+|----------|----------|
+| ANY placeholder present | Treat as template |
+| Literal braces in content | Regex avoids false positives (requires lowercase letter after `{`) |
+| Empty sections, no placeholders | Treat as complete (user can elaborate later) |
+
+---
+
 ## Workflow
 
 ### /charter (No Arguments)
@@ -31,12 +60,31 @@ Context-aware charter command. Shows summary if exists, starts creation if missi
 test -f CHARTER.md
 ```
 
-**If CHARTER.md exists:**
+**Step 2: If CHARTER.md exists, check for template placeholders**
+
+Detect if the file is an unfilled template by checking for placeholder patterns:
+
+```
+Regex: /{[a-z][a-z0-9-]*}/
+```
+
+Common placeholders: `{project-name}`, `{date}`, `{language}`, `{framework}`, `{database}`
+
+```bash
+# Template detection (conceptual)
+grep -E '\{[a-z][a-z0-9-]*\}' CHARTER.md
+```
+
+**If CHARTER.md is a TEMPLATE (has placeholders):**
+→ Treat as "no charter" and proceed to Step 3 (Extraction/Inception)
+
+**If CHARTER.md is COMPLETE (no placeholders):**
 1. Read and display charter summary
 2. Show: Project name, vision, current focus, tech stack
 3. Mention: "Run `/charter update` to modify, `/charter validate` to check scope"
 
-**If CHARTER.md does not exist:**
+**Step 3: If no charter OR template detected**
+
 1. Check if codebase has existing code
 2. If has code → Offer extraction mode (analyze existing code)
 3. If empty → Offer inception mode (guided questions)

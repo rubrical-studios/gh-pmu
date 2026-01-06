@@ -491,3 +491,74 @@ func TestRunEditWithDeps_BodyStdinCountsAsOption(t *testing.T) {
 		t.Errorf("--body-stdin should count as a valid option, got: %s", err.Error())
 	}
 }
+
+// ============================================================================
+// Issue #492: --repo flag Tests
+// ============================================================================
+
+func TestEditCommand_HasRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	editCmd, _, err := cmd.Find([]string{"edit"})
+	if err != nil {
+		t.Fatalf("edit command not found: %v", err)
+	}
+
+	flag := editCmd.Flags().Lookup("repo")
+	if flag == nil {
+		t.Fatal("Expected --repo flag to exist")
+	}
+	if flag.Shorthand != "R" {
+		t.Errorf("Expected shorthand 'R', got '%s'", flag.Shorthand)
+	}
+}
+
+func TestRunEditWithDeps_UsesRepoFromOptions(t *testing.T) {
+	// When --repo is provided, it should use that repo instead of config
+	mock := setupMockForEdit()
+	cfg := testEditConfig()
+	cmd, buf := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber: 123,
+		title:       "New Title",
+		repo:        "otherowner/otherrepo",
+	}
+
+	// The mock will be called with otherowner/otherrepo
+	// (we verify by checking success - the mock doesn't care about owner/repo)
+	err := runEditWithDeps(cmd, opts, cfg, mock, "otherowner", "otherrepo")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !contains(output, "Updated issue #123") {
+		t.Errorf("Expected success output, got: %s", output)
+	}
+}
+
+func TestRunEditWithDeps_CrossRepoEditing(t *testing.T) {
+	// Verify cross-repo editing works with different owner/repo
+	mock := setupMockForEdit()
+	cfg := testEditConfig()
+	cmd, buf := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber: 456,
+		body:        "Updated body content",
+	}
+
+	// Call with a different repo than config
+	err := runEditWithDeps(cmd, opts, cfg, mock, "differentowner", "differentrepo")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !contains(output, "Updated issue #456") {
+		t.Errorf("Expected success output, got: %s", output)
+	}
+	if len(mock.updateBodyCalls) != 1 || mock.updateBodyCalls[0] != "Updated body content" {
+		t.Errorf("Expected body update call, got: %v", mock.updateBodyCalls)
+	}
+}
