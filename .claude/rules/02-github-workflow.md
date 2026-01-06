@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** 0.20.1
+**Version:** 0.21.0
 **Source:** Reference/GitHub-Workflow.md
 **Source:** Reference/GitHub-Workflow.md
 
@@ -36,10 +36,11 @@ gh extension install rubrical-studios/gh-pmu
 **Issue Management:**
 | Command | Replaces |
 |---------|----------|
-| `gh pmu create --title "..." [-F body.md] --status backlog --assignee @me` | `gh issue create` + `gh pmu move` |
-| `gh pmu move [#] --status [value]` | - |
+| `gh pmu create --title "..." [-F body.md] [--body-stdin] --status backlog --assignee @me` | `gh issue create` + `gh pmu move` |
+| `gh pmu move [#...] --status [value]` | - |
 | `gh pmu view [#] [-b] [-c] [-w]` | `gh issue view` |
-| `gh pmu edit [#] [-F body.md] [--body-stdin]` | `gh issue edit` |
+| `gh pmu edit [#] [-F body.md] [-R repo] [--body-stdin]` | `gh issue edit` |
+| `gh pmu comment [#] [-b "..."] [-F file] [-R repo]` | `gh issue comment` |
 | `gh pmu list --status [value]` | - |
 | `gh pmu board` | - |
 
@@ -108,19 +109,27 @@ Create issue → Report number → **Wait for "work"**
 
 ## BLOCKING: Status Change Prerequisites
 **Before `--status in_review`:**
-1. `gh pmu view [#] --body-file` (creates tmp/issue-[#].md)
+1. `gh pmu view [#] --body-stdout > .tmp-body.md`
 2. Review checkboxes, change `[ ]` to `[x]` for completed
-3. `gh pmu edit [#] -F tmp/issue-[#].md`
-4. `rm tmp/issue-[#].md`
-5. Verify: `gh issue view [#] --json body | grep -c "\[x\]"`
-6. Now: `gh pmu move [#] --status in_review`
+3. `gh pmu edit [#] -F .tmp-body.md && rm .tmp-body.md`
+4. Verify: `gh issue view [#] --json body | grep -c "\[x\]"`
+5. Now: `gh pmu move [#] --status in_review`
 
-**Self-check:** If you find yourself running `gh pmu move --status in_review` without having just run `gh pmu edit -F`, STOP - you skipped steps 1-5.
+**Self-check:** If you find yourself running `gh pmu move --status in_review` without having just run `gh pmu edit -F`, STOP - you skipped steps 1-3.
 
 **Before `--status done`:**
 1. `gh issue view [#] --json body | grep "\[ \]"`
 2. If ANY unchecked boxes → DO NOT PROCEED
 3. Now: `gh pmu move [#] --status done`
+
+### Post-Deployment Criteria
+Criteria with keywords ("after deployment", "after release", "post-deployment", "on next release", "in production", "dist repo") cannot be verified until after deployment.
+
+**Workflow:**
+1. Create testing issue: `gh pmu create --title "[QA] Verify: {criterion}" --label qa-manual --label testing --status backlog`
+2. Link: `gh pmu sub add [original] [testing-issue]`
+3. Update original: `- [x] {criterion} → #XXX`
+4. Proceed with In Review/Done
 
 ## Workflows
 ### 1. Standard Issue (Bug/Enhancement)

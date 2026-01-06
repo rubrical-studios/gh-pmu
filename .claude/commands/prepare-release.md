@@ -1,5 +1,5 @@
 ---
-version: "v0.20.3"
+version: "v0.21.1"
 description: Prepare release with PR, merge to main, and tag
 argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
 ---
@@ -170,9 +170,12 @@ release:
 
 ## Phase 3: Prepare (Framework-Provided)
 
-### Step 3.1: Update CHANGELOG.md
+### Step 3.1: Update Version Files
 
-Follow Keep a Changelog format.
+| File | Action |
+|------|--------|
+| `CHANGELOG.md` | Add new section following Keep a Changelog format |
+| `README.md` | Update version badge or header |
 
 ### Step 3.2: Commit Preparation
 
@@ -287,7 +290,6 @@ Do NOT auto-close issues just because they shipped.
 **Before tagging:**
 - [ ] Config file clean
 - [ ] Commits analyzed
-- [ ] Lint gate passed
 - [ ] Coverage gate passed (or `--skip-coverage`)
 - [ ] Version confirmed
 - [ ] CI passing
@@ -301,9 +303,23 @@ Do NOT auto-close issues just because they shipped.
 
 ---
 
+## STOP — Workflow Boundary
+
+**This command ends here.** Do not proceed to `/close-release` actions.
+
+### What `/prepare-release` does NOT do:
+
+- ❌ Close the release in project tracker
+- ❌ Run `gh pmu release close`
+- ❌ Mark tracker issue as complete
+- ❌ Archive release artifacts
+- ❌ Update release notes in tracker
+
+---
+
 ## Next Step
 
-After deployment verified, run `/close-release`.
+After deployment verified, run `/close-release` separately to finalize.
 
 ---
 

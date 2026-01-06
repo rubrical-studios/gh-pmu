@@ -1,5 +1,5 @@
 ---
-version: "v0.20.3"
+version: "v0.21.1"
 description: Tag beta from feature branch (no merge to main)
 argument-hint: [--skip-coverage] [--dry-run] [--help]
 ---
@@ -83,7 +83,17 @@ Recommend beta version (e.g., `v1.0.0-beta.1`).
 ## Phase 2: Validation
 
 <!-- USER-EXTENSION-START: pre-validation -->
-<!-- Setup: prepare test environment for beta validation -->
+### Lint Gate
+
+```bash
+node .claude/scripts/prepare-release/lint.js
+```
+
+The script outputs JSON: `{"success": true/false, "message": "..."}`
+
+**If `success` is false, STOP and report the error.**
+
+Runs `golangci-lint run --timeout=5m` to catch lint errors before tagging.
 <!-- USER-EXTENSION-END: pre-validation -->
 
 ```bash
@@ -111,6 +121,15 @@ node .claude/scripts/prepare-release/coverage.js
 Update CHANGELOG.md with beta section.
 
 <!-- USER-EXTENSION-START: post-prepare -->
+### Wait for CI
+
+```bash
+node .claude/scripts/framework/wait-for-ci.js
+```
+
+The script polls CI status every 60 seconds (5-minute timeout).
+
+**If CI fails, STOP and report the error.**
 <!-- USER-EXTENSION-END: post-prepare -->
 
 ---
@@ -126,7 +145,23 @@ git push origin $(git branch --show-current)
 ```
 
 <!-- USER-EXTENSION-START: pre-tag -->
-<!-- Final gate: sign-off checks before beta tag -->
+### Important Rules
+
+1. **NEVER skip CI verification** - Always wait for green CI
+2. **NEVER auto-create tags** - Always get user confirmation
+3. **NEVER guess version numbers** - Base on actual commit analysis
+4. **ALWAYS show changes before committing** - User must approve
+5. **NEVER declare release complete after pushing tag** - Monitor until assets uploaded
+
+### Beta Tag Authorization
+
+The pre-push hook blocks version tags. For beta tags, authorize before pushing:
+
+```bash
+echo 'beta-authorized' > .release-authorized
+git push origin $VERSION
+rm .release-authorized
+```
 <!-- USER-EXTENSION-END: pre-tag -->
 
 ### Step 4.2: Create Beta Tag
@@ -148,7 +183,41 @@ node .claude/scripts/close-release/monitor-release.js
 ```
 
 Monitor beta build and asset upload.
+
+### Update Release Notes
+
+```bash
+node .claude/scripts/framework/update-release-notes.js
+```
+
+Updates GitHub Release with formatted notes from CHANGELOG.
+
+### Post-Release Reminder
+
+**Releasing a beta does NOT close related issues.**
+
+Issues included in this beta still require explicit user approval ("Done") to close.
+Do NOT auto-close issues just because a beta shipped.
 <!-- USER-EXTENSION-END: post-tag -->
+
+---
+
+## Summary Checklist
+
+**Before tagging:**
+- [ ] Config file clean
+- [ ] Commits analyzed
+- [ ] Lint gate passed
+- [ ] Coverage gate passed (or `--skip-coverage`)
+- [ ] Version confirmed
+- [ ] CI passing
+- [ ] CHANGELOG updated
+
+**After tagging:**
+- [ ] Beta tag authorized and pushed
+- [ ] All CI jobs completed
+- [ ] Release assets uploaded
+- [ ] Release notes updated
 
 ---
 
