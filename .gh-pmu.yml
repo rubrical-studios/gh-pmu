@@ -35,6 +35,9 @@ release:
         - version: 0.9.7
           tracker_issue: 481
           track: patch
+        - version: no-release
+          tracker_issue: 502
+          track: ghpmu
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -161,3 +164,6 @@ cache:
         - number: 495
           title: 'Release: patch/0.10.1'
           state: CLOSED
+        - number: 502
+          title: 'Release: ghpmu/no-release'
+          state: OPEN
