@@ -700,7 +700,7 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 	}
 
 	// Update cache with new microsprint tracker
-	cfg.UpdateCachedTracker("microsprint", config.CachedTracker{
+	cfg.UpdateCachedMicrosprint(config.CachedTracker{
 		Number: issue.Number,
 		Title:  title,
 		State:  "OPEN",
@@ -871,7 +871,7 @@ func runMicrosprintCloseWithDeps(cmd *cobra.Command, opts *microsprintCloseOptio
 	}
 
 	// Update cache to mark tracker as closed
-	cfg.UpdateCachedTracker("microsprint", config.CachedTracker{
+	cfg.UpdateCachedMicrosprint(config.CachedTracker{
 		Number: activeTracker.Number,
 		Title:  activeTracker.Title,
 		State:  "CLOSED",

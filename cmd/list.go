@@ -171,7 +171,7 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 			// Resolve "current" to active release
 			parts := strings.Split(repoFilter, "/")
 			if len(parts) == 2 {
-				releaseIssues, err := client.GetOpenIssuesByLabel(parts[0], parts[1], "release")
+				releaseIssues, err := client.GetOpenIssuesByLabel(parts[0], parts[1], "branch")
 				if err == nil {
 					for _, issue := range releaseIssues {
 						if strings.HasPrefix(issue.Title, "Release: ") {

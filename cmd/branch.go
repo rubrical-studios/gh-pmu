@@ -1,0 +1,1140 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/spf13/cobra"
+)
+
+// branchClient defines the interface for branch operations
+// This allows mocking in tests
+type branchClient interface {
+	// CreateIssue creates a new issue in the repository
+	CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error)
+	// GetOpenIssuesByLabel returns open issues with a specific label
+	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
+	// GetClosedIssuesByLabel returns closed issues with a specific label
+	GetClosedIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
+	// AddIssueToProject adds an issue to a project and returns the item ID
+	AddIssueToProject(projectID, issueID string) (string, error)
+	// SetProjectItemField sets a field value on a project item
+	SetProjectItemField(projectID, itemID, fieldID, value string) error
+	// GetProject returns project details
+	GetProject(owner string, number int) (*api.Project, error)
+	// GetIssueByNumber returns an issue by its number
+	GetIssueByNumber(owner, repo string, number int) (*api.Issue, error)
+	// GetProjectItemID returns the project item ID for an issue
+	GetProjectItemID(projectID, issueID string) (string, error)
+	// GetProjectItemFieldValue returns the current value of a field on a project item
+	GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error)
+	// GetIssuesByRelease returns issues assigned to a specific release
+	GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error)
+	// GetProjectItems returns all items in a project with their field values
+	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	// UpdateIssueBody updates an issue's body
+	UpdateIssueBody(issueID, body string) error
+	// WriteFile writes content to a file path
+	WriteFile(path, content string) error
+	// MkdirAll creates a directory and all parents
+	MkdirAll(path string) error
+	// GitAdd stages files to git
+	GitAdd(paths ...string) error
+	// CloseIssue closes an issue
+	CloseIssue(issueID string) error
+	// ReopenIssue reopens a closed issue
+	ReopenIssue(issueID string) error
+	// GitTag creates an annotated git tag
+	GitTag(tag, message string) error
+	// GitCheckoutNewBranch creates and checks out a new git branch
+	GitCheckoutNewBranch(branch string) error
+}
+
+// branchStartOptions holds the options for the branch start command
+type branchStartOptions struct {
+	branchName string
+}
+
+// branchAddOptions holds the options for the branch add command
+type branchAddOptions struct {
+	issueNumber int
+}
+
+// branchRemoveOptions holds the options for the branch remove command
+type branchRemoveOptions struct {
+	issueNumber int
+}
+
+// branchCurrentOptions holds the options for the branch current command
+type branchCurrentOptions struct {
+	refresh bool
+}
+
+// branchCloseOptions holds the options for the branch close command
+type branchCloseOptions struct {
+	tag        bool
+	yes        bool
+	branchName string
+}
+
+// branchListOptions holds the options for the branch list command
+type branchListOptions struct {}
+
+// newBranchCommand creates the branch command group
+func newBranchCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "branch",
+		Short: "Manage tracked branches",
+		Long:  `Branch commands for managing release, patch, and feature branches.`,
+	}
+
+	cmd.AddCommand(newBranchStartCommand())
+	cmd.AddCommand(newBranchAddCommand())
+	cmd.AddCommand(newBranchRemoveCommand())
+	cmd.AddCommand(newBranchCurrentCommand())
+	cmd.AddCommand(newBranchCloseCommand())
+	cmd.AddCommand(newBranchReopenCommand())
+	cmd.AddCommand(newBranchListCommand())
+
+	return cmd
+}
+
+// newBranchStartCommand creates the branch start subcommand
+func newBranchStartCommand() *cobra.Command {
+	opts := &branchStartOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start tracking a new branch",
+		Long: `Creates a tracker issue for a new branch and creates the git branch.
+
+The --name flag is required and specifies the branch name to create.
+The branch name is used literally for the tracker title, Release field,
+and artifact directory.
+
+Examples:
+  gh pmu branch start --name release/v2.0.0
+  gh pmu branch start --name patch/v1.9.1
+  gh pmu branch start --name hotfix-auth-bypass`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			client := api.NewClient()
+			return runBranchStartWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.branchName, "name", "", "Branch name to track (required)")
+	_ = cmd.MarkFlagRequired("name")
+
+	return cmd
+}
+
+// newBranchAddCommand creates the release add subcommand
+func newBranchAddCommand() *cobra.Command {
+	opts := &branchAddOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "add <issue-number>",
+		Short: "Add an issue to the current release",
+		Long:  `Assigns an issue to the active release by setting its Release field.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var issueNum int
+			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runBranchAddWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// newBranchRemoveCommand creates the release remove subcommand
+func newBranchRemoveCommand() *cobra.Command {
+	opts := &branchRemoveOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "remove <issue-number>",
+		Short: "Remove an issue from the current release",
+		Long:  `Clears the Release field from an issue.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var issueNum int
+			if _, err := fmt.Sscanf(args[0], "%d", &issueNum); err != nil {
+				return fmt.Errorf("invalid issue number: %s", args[0])
+			}
+			opts.issueNumber = issueNum
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runBranchRemoveWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// newBranchCurrentCommand creates the release current subcommand
+func newBranchCurrentCommand() *cobra.Command {
+	opts := &branchCurrentOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "current",
+		Short: "Show the active release",
+		Long:  `Displays details about the currently active release.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runBranchCurrentWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.refresh, "refresh", false, "Update tracker issue body with current issue list")
+
+	return cmd
+}
+
+// newBranchCloseCommand creates the release close subcommand
+func newBranchCloseCommand() *cobra.Command {
+	opts := &branchCloseOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "close [release-name]",
+		Short: "Close a release",
+		Long: `Closes a release and optionally creates a git tag.
+
+If no release name is specified and exactly one release is active, that release
+will be used. If multiple releases are active, you must specify which one to close.
+
+Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
+Release artifacts should be created beforehand using /prepare-release.
+
+Examples:
+  gh pmu release close                    # Uses current release if only one exists
+  gh pmu release close release/v2.0.0
+  gh pmu release close patch/v1.9.1 --tag
+  gh pmu release close --yes`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			// If release name provided, use it
+			if len(args) == 1 {
+				opts.branchName = args[0]
+			} else {
+				// No argument provided - resolve from active releases
+				client := api.NewClient()
+				releaseName, err := resolveCurrentBranch(cfg, client)
+				if err != nil {
+					return err
+				}
+				opts.branchName = releaseName
+			}
+
+			client := api.NewClient()
+			return runBranchCloseWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.tag, "tag", false, "Create a git tag for the release")
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt")
+
+	return cmd
+}
+
+// newBranchListCommand creates the release list subcommand
+func newBranchListCommand() *cobra.Command {
+	opts := &branchListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all releases",
+		Long:  `Displays a table of all releases sorted by version.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+			client := api.NewClient()
+			return runBranchListWithDeps(cmd, opts, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+// runBranchStartWithDeps is the testable entry point for branch start
+// It receives all dependencies as parameters for easy mocking in tests
+func runBranchStartWithDeps(cmd *cobra.Command, opts *branchStartOptions, cfg *config.Config, client branchClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Check for existing active branch tracker
+	existingIssues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get existing branches: %w", err)
+	}
+
+	// Find any active branch tracker
+	activeBranch := findActiveBranch(existingIssues)
+	if activeBranch != nil {
+		return fmt.Errorf("active branch exists: %s", activeBranch.Title)
+	}
+
+	// Create the git branch
+	err = client.GitCheckoutNewBranch(opts.branchName)
+	if err != nil {
+		return fmt.Errorf("failed to create branch: %w", err)
+	}
+
+	// Use branch name for tracker title and Release field
+	title := fmt.Sprintf("Branch: %s", opts.branchName)
+	body := generateBranchTrackerTemplate(opts.branchName)
+
+	// Create tracker issue with branch label
+	labels := []string{"branch"}
+	issue, err := client.CreateIssue(owner, repo, title, body, labels)
+	if err != nil {
+		return fmt.Errorf("failed to create tracker issue: %w", err)
+	}
+
+	// Get project
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Add issue to project
+	itemID, err := client.AddIssueToProject(project.ID, issue.ID)
+	if err != nil {
+		return fmt.Errorf("failed to add issue to project: %w", err)
+	}
+
+	// Set status to In Progress
+	statusField, ok := cfg.Fields["status"]
+	if ok {
+		statusValue := statusField.Values["in_progress"]
+		if statusValue == "" {
+			statusValue = "In progress"
+		}
+		err = client.SetProjectItemField(project.ID, itemID, statusField.Field, statusValue)
+		if err != nil {
+			return fmt.Errorf("failed to set status: %w", err)
+		}
+	}
+
+
+	// Output confirmation
+	fmt.Fprintf(cmd.OutOrStdout(), "Created branch: %s\n", opts.branchName)
+	fmt.Fprintf(cmd.OutOrStdout(), "Started tracking: %s\n", title)
+	fmt.Fprintf(cmd.OutOrStdout(), "Tracker issue: #%d\n", issue.Number)
+
+	return nil
+}
+
+// isBranchTracker checks if an issue title matches the branch tracker format
+// Supports both "Branch: " (new) and "Release: " (legacy) prefixes
+func isBranchTracker(title string) bool {
+	return strings.HasPrefix(title, "Branch: ") || strings.HasPrefix(title, "Release: ")
+}
+
+// findActiveBranch finds any active branch tracker from a list of issues
+// Returns nil if no active branch is found
+// Supports both "Branch: " and "Release: " (legacy) title formats
+func findActiveBranch(issues []api.Issue) *api.Issue {
+	for i := range issues {
+		if isBranchTracker(issues[i].Title) {
+			return &issues[i]
+		}
+	}
+	return nil
+}
+
+// findAllActiveBranches finds all active branch trackers from a list of issues
+// Supports both "Branch: " and "Release: " (legacy) title formats
+func findAllActiveBranches(issues []api.Issue) []api.Issue {
+	var branches []api.Issue
+	for i := range issues {
+		if isBranchTracker(issues[i].Title) {
+			branches = append(branches, issues[i])
+		}
+	}
+	return branches
+}
+
+// resolveCurrentBranch resolves the current branch name when no argument is provided
+// Returns error if no branches or multiple branches are active
+func resolveCurrentBranch(cfg *config.Config, client branchClient) (string, error) {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return "", fmt.Errorf("failed to get branch issues: %w", err)
+	}
+
+	activeBranches := findAllActiveBranches(issues)
+
+	switch len(activeBranches) {
+	case 0:
+		return "", fmt.Errorf("no active branch found")
+	case 1:
+		// Extract branch name from title (e.g., "Branch: patch/0.9.7" -> "patch/0.9.7")
+		return extractBranchVersion(activeBranches[0].Title), nil
+	default:
+		// Multiple branches - build error message with list
+		var names []string
+		for _, b := range activeBranches {
+			names = append(names, extractBranchVersion(b.Title))
+		}
+		return "", fmt.Errorf("multiple active branches. Specify one: %s", strings.Join(names, ", "))
+	}
+}
+
+// runBranchAddWithDeps is the testable entry point for branch add
+// It receives all dependencies as parameters for easy mocking in tests
+func runBranchAddWithDeps(cmd *cobra.Command, opts *branchAddOptions, cfg *config.Config, client branchClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get open release issues
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	// Find active release tracker
+	activeRelease := findActiveBranch(issues)
+	if activeRelease == nil {
+		return fmt.Errorf("no active release found")
+	}
+
+	// Extract version from title (e.g., "Release: v1.2.0" or "Release: v1.2.0 (Phoenix)" -> "v1.2.0")
+	releaseVersion := extractBranchVersion(activeRelease.Title)
+
+	// Get the issue to add
+	issue, err := client.GetIssueByNumber(owner, repo, opts.issueNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get issue #%d: %w", opts.issueNumber, err)
+	}
+
+	// Get project
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Get project item ID for the issue
+	itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get project item for issue #%d: %w", opts.issueNumber, err)
+	}
+
+	// Set the Release text field
+	releaseField, ok := cfg.Fields["release"]
+	if !ok {
+		return fmt.Errorf("release field not configured")
+	}
+
+	err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, releaseVersion)
+	if err != nil {
+		return fmt.Errorf("failed to set release field: %w", err)
+	}
+
+	// Output confirmation (AC-019-2)
+	fmt.Fprintf(cmd.OutOrStdout(), "Added #%d to release %s\n", opts.issueNumber, releaseVersion)
+
+	return nil
+}
+
+// extractBranchVersion extracts the version from a branch tracker title
+// Supports both "Branch: " and "Release: " (legacy) prefixes
+// e.g., "Branch: v1.2.0" -> "v1.2.0", "Release: v1.2.0 (Phoenix)" -> "v1.2.0"
+func extractBranchVersion(title string) string {
+	// Remove "Branch: " or "Release: " prefix
+	version := strings.TrimPrefix(title, "Branch: ")
+	version = strings.TrimPrefix(version, "Release: ")
+	// If there's a codename in parentheses, remove it
+	if idx := strings.Index(version, " ("); idx > 0 {
+		version = version[:idx]
+	}
+	return version
+}
+
+// runBranchRemoveWithDeps is the testable entry point for release remove
+// It receives all dependencies as parameters for easy mocking in tests
+func runBranchRemoveWithDeps(cmd *cobra.Command, opts *branchRemoveOptions, cfg *config.Config, client branchClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get open release issues
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	// Find active release tracker
+	activeRelease := findActiveBranch(issues)
+	if activeRelease == nil {
+		return fmt.Errorf("no active release found")
+	}
+
+	// Extract version from title
+	releaseVersion := extractBranchVersion(activeRelease.Title)
+
+	// Get the issue to remove
+	issue, err := client.GetIssueByNumber(owner, repo, opts.issueNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get issue #%d: %w", opts.issueNumber, err)
+	}
+
+	// Get project
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Get project item ID for the issue
+	itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get project item for issue #%d: %w", opts.issueNumber, err)
+	}
+
+	// Get release field config
+	releaseField, ok := cfg.Fields["release"]
+	if !ok {
+		return fmt.Errorf("release field not configured")
+	}
+
+	// Check current field value (AC-039-3)
+	currentValue, err := client.GetProjectItemFieldValue(project.ID, itemID, releaseField.Field)
+	if err != nil {
+		return fmt.Errorf("failed to get current release field value: %w", err)
+	}
+
+	// If not assigned to a release, warn and return
+	if currentValue == "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Issue #%d is not assigned to a release\n", opts.issueNumber)
+		return nil
+	}
+
+	// Clear the Release text field (AC-039-1)
+	err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
+	if err != nil {
+		return fmt.Errorf("failed to clear release field: %w", err)
+	}
+
+	// Output confirmation (AC-039-2)
+	fmt.Fprintf(cmd.OutOrStdout(), "Removed #%d from release %s\n", opts.issueNumber, releaseVersion)
+
+	return nil
+}
+
+// runBranchCurrentWithDeps is the testable entry point for release current
+// It receives all dependencies as parameters for easy mocking in tests
+func runBranchCurrentWithDeps(cmd *cobra.Command, opts *branchCurrentOptions, cfg *config.Config, client branchClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get open release issues
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	// Find active release tracker
+	activeRelease := findActiveBranch(issues)
+	if activeRelease == nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "No active release\n")
+		return nil
+	}
+
+	// Extract version from title
+	releaseVersion := extractBranchVersion(activeRelease.Title)
+
+	// Get project to query items
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Get all project items and filter by release field
+	items, err := client.GetProjectItems(project.ID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get project items: %w", err)
+	}
+
+	// Filter items by Release field matching releaseVersion
+	var releaseIssues []api.Issue
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+		// Check if this item has a Release field matching the target version
+		for _, fv := range item.FieldValues {
+			if fv.Field == "Release" && fv.Value == releaseVersion {
+				releaseIssues = append(releaseIssues, *item.Issue)
+				break
+			}
+		}
+	}
+
+	// Display release details (AC-036-1)
+	fmt.Fprintf(cmd.OutOrStdout(), "Current Release: %s\n", releaseVersion)
+	fmt.Fprintf(cmd.OutOrStdout(), "Tracker: #%d\n", activeRelease.Number)
+	fmt.Fprintf(cmd.OutOrStdout(), "Issues: %d\n", len(releaseIssues))
+
+	// If refresh flag is set, update tracker issue body (AC-036-3)
+	if opts.refresh {
+		body := generateBranchTrackerBody(releaseIssues)
+		err = client.UpdateIssueBody(activeRelease.ID, body)
+		if err != nil {
+			return fmt.Errorf("failed to update tracker body: %w", err)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Tracker body updated\n")
+	}
+
+	return nil
+}
+
+// generateBranchTrackerBody generates the body content for a release tracker issue
+func generateBranchTrackerBody(issues []api.Issue) string {
+	var sb strings.Builder
+	sb.WriteString("## Issues in this release\n\n")
+	for _, issue := range issues {
+		sb.WriteString(fmt.Sprintf("- #%d %s\n", issue.Number, issue.Title))
+	}
+	return sb.String()
+}
+
+// generateBranchTrackerTemplate generates the initial body template for a branch tracker issue
+func generateBranchTrackerTemplate(branchName string) string {
+	return fmt.Sprintf(`> **Branch Tracker Issue**
+>
+> This issue tracks the branch %s. It is managed by gh pmu branch commands.
+>
+> **Do not manually:**
+> - Close or reopen this issue
+> - Change the title
+> - Remove the %s label
+
+## Commands
+
+- %s - Add issues to this branch
+- %s - Remove issues from this branch
+- %s - Close this branch
+
+## Issues in this branch
+
+_Issues are tracked via the Release field in the project._
+`,
+		"`"+branchName+"`",
+		"`branch`",
+		"`gh pmu branch add <issue>`",
+		"`gh pmu branch remove <issue>`",
+		"`gh pmu branch close "+branchName+"`",
+	)
+}
+
+// runBranchCloseWithDeps is the testable entry point for release close
+// It receives all dependencies as parameters for easy mocking in tests
+func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *config.Config, client branchClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get open release issues
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get release issues: %w", err)
+	}
+
+	// Find the specified branch by name (supports both "Branch: " and "Release: " formats)
+	var targetBranch *api.Issue
+	expectedTitleNew := fmt.Sprintf("Branch: %s", opts.branchName)
+	expectedTitleLegacy := fmt.Sprintf("Release: %s", opts.branchName)
+	for i := range issues {
+		title := issues[i].Title
+		if title == expectedTitleNew || strings.HasPrefix(title, expectedTitleNew+" (") ||
+			title == expectedTitleLegacy || strings.HasPrefix(title, expectedTitleLegacy+" (") {
+			targetBranch = &issues[i]
+			break
+		}
+	}
+	if targetBranch == nil {
+		return fmt.Errorf("branch not found: %s", opts.branchName)
+	}
+
+	// Extract version from title
+	releaseVersion := extractBranchVersion(targetBranch.Title)
+
+	// Get project for field operations
+	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
+	if err != nil {
+		return fmt.Errorf("failed to get project: %w", err)
+	}
+
+	// Get all project items and filter by release field
+	items, err := client.GetProjectItems(project.ID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get project items: %w", err)
+	}
+
+	// Filter items by Release field matching releaseVersion
+	var releaseIssues []api.Issue
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+		// Check if this item has a Release field matching the target version
+		for _, fv := range item.FieldValues {
+			if fv.Field == "Release" && fv.Value == releaseVersion {
+				releaseIssues = append(releaseIssues, *item.Issue)
+				break
+			}
+		}
+	}
+
+	// Count done vs incomplete issues
+	var doneIssues, incompleteIssues []api.Issue
+	for _, issue := range releaseIssues {
+		if issue.State == "CLOSED" || issue.State == "closed" {
+			doneIssues = append(doneIssues, issue)
+		} else {
+			incompleteIssues = append(incompleteIssues, issue)
+		}
+	}
+
+	// Show release summary
+	fmt.Fprintf(cmd.OutOrStdout(), "Closing release: %s\n", opts.branchName)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Tracker issue: #%d\n", targetBranch.Number)
+	fmt.Fprintf(cmd.OutOrStdout(), "  Issues in release: %d (%d done, %d incomplete)\n",
+		len(releaseIssues), len(doneIssues), len(incompleteIssues))
+	fmt.Fprintln(cmd.OutOrStdout())
+
+	// Separate incomplete issues into parking lot and to-move categories
+	var parkingLotIssues, issuesToMove []api.Issue
+	statusFieldName := "Status"
+	if statusField, ok := cfg.Fields["status"]; ok && statusField.Field != "" {
+		statusFieldName = statusField.Field
+	}
+	parkingLotValue := "Parking Lot"
+	if statusField, ok := cfg.Fields["status"]; ok {
+		if val, exists := statusField.Values["parking_lot"]; exists {
+			parkingLotValue = val
+		}
+	}
+
+	for _, issue := range incompleteIssues {
+		itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+		if err != nil {
+			// Can't determine status, include in move list
+			issuesToMove = append(issuesToMove, issue)
+			continue
+		}
+
+		status, _ := client.GetProjectItemFieldValue(project.ID, itemID, statusFieldName)
+		if status == parkingLotValue {
+			parkingLotIssues = append(parkingLotIssues, issue)
+		} else {
+			issuesToMove = append(issuesToMove, issue)
+		}
+	}
+
+	// Warn about incomplete issues and confirm
+	if len(incompleteIssues) > 0 {
+		if len(issuesToMove) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "⚠️  %d issue(s) are not done. They will be moved to backlog.\n", len(issuesToMove))
+		}
+		if len(parkingLotIssues) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "ℹ️  Skipping %d Parking Lot issue(s).\n", len(parkingLotIssues))
+		}
+
+		if !opts.yes {
+			fmt.Fprint(cmd.OutOrStdout(), "Proceed? (y/n): ")
+			var response string
+			_, _ = fmt.Scanln(&response)
+			response = strings.ToLower(strings.TrimSpace(response))
+			if response != "y" && response != "yes" {
+				fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				return nil
+			}
+		}
+		fmt.Fprintln(cmd.OutOrStdout())
+
+		// Move non-parking-lot incomplete issues to backlog and clear Release/Microsprint fields
+		if len(issuesToMove) > 0 {
+			fmt.Fprintln(cmd.OutOrStdout(), "Moving incomplete issues to backlog...")
+
+			for _, issue := range issuesToMove {
+				// Get project item ID
+				itemID, err := client.GetProjectItemID(project.ID, issue.ID)
+				if err != nil {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  Warning: could not find project item for #%d: %v\n", issue.Number, err)
+					continue
+				}
+
+				// Clear Release field
+				if releaseField, ok := cfg.Fields["release"]; ok {
+					_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
+				}
+
+				// Clear Microsprint field
+				if microsprintField, ok := cfg.Fields["microsprint"]; ok {
+					_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, "")
+				}
+
+				// Set status to backlog
+				if statusField, ok := cfg.Fields["status"]; ok {
+					backlogValue := statusField.Values["backlog"]
+					if backlogValue == "" {
+						backlogValue = "Backlog"
+					}
+					_ = client.SetProjectItemField(project.ID, itemID, statusField.Field, backlogValue)
+				}
+
+				fmt.Fprintf(cmd.OutOrStdout(), "  #%d - %s\n", issue.Number, issue.Title)
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
+		}
+	} else if !opts.yes {
+		// Confirm even without incomplete issues
+		fmt.Fprint(cmd.OutOrStdout(), "Proceed? (y/n): ")
+		var response string
+		_, _ = fmt.Scanln(&response)
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+			return nil
+		}
+		fmt.Fprintln(cmd.OutOrStdout())
+	}
+
+	// Create git tag if requested
+	if opts.tag {
+		tagMessage := fmt.Sprintf("Release %s", releaseVersion)
+		err = client.GitTag(releaseVersion, tagMessage)
+		if err != nil {
+			return fmt.Errorf("failed to create git tag: %w", err)
+		}
+	}
+
+	// Close the tracker issue
+	err = client.CloseIssue(targetBranch.ID)
+	if err != nil {
+		return fmt.Errorf("failed to close tracker issue: %w", err)
+	}
+
+	// Output confirmation
+	fmt.Fprintf(cmd.OutOrStdout(), "✓ Release closed: %s\n", releaseVersion)
+	if len(incompleteIssues) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(incompleteIssues))
+	}
+	if opts.tag {
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ Tag created: %s\n", releaseVersion)
+	}
+
+	return nil
+}
+
+// newBranchReopenCommand creates the release reopen subcommand
+func newBranchReopenCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reopen <branch-name>",
+		Short: "Reopen a closed branch",
+		Long: `Reopens a previously closed branch tracker issue.
+
+Use this to continue work on a branch after it has been closed.
+The branch name must be specified explicitly.
+
+Examples:
+  gh pmu branch reopen release/v2.0.0
+  gh pmu branch reopen patch/v1.9.1`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			branchName := args[0]
+
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+
+			cfg, err := config.LoadFromDirectory(cwd)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w\nRun 'gh pmu init' to create a configuration file", err)
+			}
+
+			if err := cfg.Validate(); err != nil {
+				return fmt.Errorf("invalid configuration: %w", err)
+			}
+
+			client := api.NewClient()
+			return runBranchReopenWithDeps(cmd, branchName, cfg, client)
+		},
+	}
+
+	return cmd
+}
+
+func runBranchReopenWithDeps(cmd *cobra.Command, branchName string, cfg *config.Config, client branchClient) error {
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Get closed branch issues
+	issues, err := client.GetClosedIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get closed branch issues: %w", err)
+	}
+
+	// Find the specified branch by name (supports both "Branch: " and "Release: " formats)
+	var targetBranch *api.Issue
+	expectedTitleNew := fmt.Sprintf("Branch: %s", branchName)
+	expectedTitleLegacy := fmt.Sprintf("Release: %s", branchName)
+	for i := range issues {
+		title := issues[i].Title
+		if title == expectedTitleNew || strings.HasPrefix(title, expectedTitleNew+" (") ||
+			title == expectedTitleLegacy || strings.HasPrefix(title, expectedTitleLegacy+" (") {
+			targetBranch = &issues[i]
+			break
+		}
+	}
+
+	if targetBranch == nil {
+		return fmt.Errorf("closed branch not found: %s", branchName)
+	}
+
+	// Reopen the tracker issue
+	err = client.ReopenIssue(targetBranch.ID)
+	if err != nil {
+		return fmt.Errorf("failed to reopen tracker issue: %w", err)
+	}
+
+	branchVersion := extractBranchVersion(targetBranch.Title)
+	fmt.Fprintf(cmd.OutOrStdout(), "Reopened branch %s (tracker #%d)\n", branchVersion, targetBranch.Number)
+
+	return nil
+}
+
+// extractBranchCodename extracts the codename from a release title
+// e.g., "Release: v1.2.0 (Phoenix)" -> "Phoenix", "Release: v1.2.0" -> ""
+func extractBranchCodename(title string) string {
+	start := strings.Index(title, "(")
+	end := strings.Index(title, ")")
+	if start > 0 && end > start {
+		return title[start+1 : end]
+	}
+	return ""
+}
+
+// runBranchListWithDeps is the testable entry point for branch list
+// It receives all dependencies as parameters for easy mocking in tests
+func runBranchListWithDeps(cmd *cobra.Command, opts *branchListOptions, cfg *config.Config, client branchClient) error {
+	var branches []branchInfo
+
+	// Fetch from API
+	owner, repo, err := parseOwnerRepo(cfg)
+	if err != nil {
+		return err
+	}
+
+	openIssues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get open branches: %w", err)
+	}
+
+	closedIssues, err := client.GetClosedIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return fmt.Errorf("failed to get closed branches: %w", err)
+	}
+
+	// Combine and filter for branch trackers (supports both "Branch: " and "Release: " formats)
+	for _, issue := range openIssues {
+		if isBranchTracker(issue.Title) {
+			branches = append(branches, extractBranchInfo(issue, "Active"))
+		}
+	}
+	for _, issue := range closedIssues {
+		if isBranchTracker(issue.Title) {
+			branches = append(branches, extractBranchInfo(issue, "Closed"))
+		}
+	}
+
+	if len(branches) == 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "No branches found\n")
+		return nil
+	}
+
+	// Sort by version descending
+	sortBranchesByVersionDesc(branches)
+
+	// Display table
+	fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-15s %-10s %-10s\n", "VERSION", "CODENAME", "TRACKER", "STATUS")
+	fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-15s %-10s %-10s\n", "-------", "--------", "-------", "------")
+	for _, b := range branches {
+		codenameDisplay := b.codename
+		if codenameDisplay == "" {
+			codenameDisplay = "-"
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%-12s %-15s #%-9d %-10s\n", b.version, codenameDisplay, b.trackerNum, b.status)
+	}
+
+	return nil
+}
+
+// branchInfo holds parsed release information
+type branchInfo struct {
+	version    string
+	codename   string
+	trackerNum int
+	status     string
+}
+
+// extractBranchInfo extracts release information from an issue
+func extractBranchInfo(issue api.Issue, status string) branchInfo {
+	version := extractBranchVersion(issue.Title)
+	codename := extractBranchCodename(issue.Title)
+	return branchInfo{
+		version:    version,
+		codename:   codename,
+		trackerNum: issue.Number,
+		status:     status,
+	}
+}
+
+// sortBranchesByVersionDesc sorts releases by version in descending order
+func sortBranchesByVersionDesc(releases []branchInfo) {
+	// Simple bubble sort for version comparison
+	for i := 0; i < len(releases)-1; i++ {
+		for j := 0; j < len(releases)-i-1; j++ {
+			if compareVersions(releases[j].version, releases[j+1].version) < 0 {
+				releases[j], releases[j+1] = releases[j+1], releases[j]
+			}
+		}
+	}
+}
+
+// branchActiveEntry represents an active branch for config storage
+type branchActiveEntry struct {
+	Version      string `yaml:"version"`
+	TrackerIssue int    `yaml:"tracker_issue"`
+	Started      string `yaml:"started"`
+	Track        string `yaml:"track"`
+}
+
+// parseBranchTitle parses a branch tracker title into version and track
+// Supports both "Branch: " and "Release: " (legacy) prefixes
+// Examples:
+//
+//	"Branch: v1.2.0" -> version="1.2.0", track="stable"
+//	"Release: v1.2.0 (Phoenix)" -> version="1.2.0", track="stable"
+//	"Branch: patch/1.1.1" -> version="1.1.1", track="patch"
+//	"Release: beta/2.0.0" -> version="2.0.0", track="beta"
+func parseBranchTitle(title string) (version, track string) {
+	// Remove "Branch: " or "Release: " prefix
+	remainder := strings.TrimPrefix(title, "Branch: ")
+	remainder = strings.TrimPrefix(remainder, "Release: ")
+
+	// Remove codename suffix if present (e.g., " (Phoenix)")
+	if idx := strings.Index(remainder, " ("); idx != -1 {
+		remainder = remainder[:idx]
+	}
+
+	// Check for track prefix (e.g., "patch/", "beta/")
+	if strings.Contains(remainder, "/") {
+		parts := strings.SplitN(remainder, "/", 2)
+		track = parts[0]
+		version = strings.TrimPrefix(parts[1], "v")
+	} else {
+		// Default track is "stable", version starts with v
+		track = "stable"
+		version = strings.TrimPrefix(remainder, "v")
+	}
+
+	return version, track
+}
+
+// SyncActiveBranches queries open branch issues and returns active branch entries
+func SyncActiveBranches(client branchClient, owner, repo string) ([]branchActiveEntry, error) {
+	issues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get branch issues: %w", err)
+	}
+
+	var entries []branchActiveEntry
+	for _, issue := range issues {
+		if !isBranchTracker(issue.Title) {
+			continue
+		}
+
+		version, track := parseBranchTitle(issue.Title)
+		entries = append(entries, branchActiveEntry{
+			Version:      version,
+			TrackerIssue: issue.Number,
+			Started:      "",
+			Track:        track,
+		})
+	}
+
+	return entries, nil
+}

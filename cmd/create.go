@@ -291,7 +291,7 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 		releaseValue := opts.release
 		if opts.release == "current" {
 			// Resolve "current" to active release - will be implemented with #371
-			releaseIssues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
+			releaseIssues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
 			if err != nil {
 				return fmt.Errorf("failed to get release issues: %w", err)
 			}

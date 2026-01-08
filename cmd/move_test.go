@@ -1434,7 +1434,7 @@ func TestRunMoveWithDeps_ReleaseExplicitValue(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 
-	opts := &moveOptions{release: "v1.2.0"}
+	opts := &moveOptions{branch: "v1.2.0"}
 
 	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
 	if err != nil {
@@ -1457,7 +1457,7 @@ func TestRunMoveWithDeps_ReleaseExplicitValue(t *testing.T) {
 func TestRunMoveWithDeps_ReleaseCurrent(t *testing.T) {
 	mock := setupMockWithIssue(42, "Test Issue", "item-42")
 	// Add active release
-	mock.openIssuesByLabel["release"] = []api.Issue{
+	mock.openIssuesByLabel["branch"] = []api.Issue{
 		{
 			ID:     "TRACKER_200",
 			Number: 200,
@@ -1472,14 +1472,14 @@ func TestRunMoveWithDeps_ReleaseCurrent(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 
-	opts := &moveOptions{release: "current"}
+	opts := &moveOptions{branch: "current"}
 
 	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Verify Release field was set to active release name
+	// Verify Release field was set to active branch name
 	found := false
 	for _, update := range mock.fieldUpdates {
 		if update.fieldName == "Release" && update.value == "v1.3.0" {
@@ -1494,8 +1494,8 @@ func TestRunMoveWithDeps_ReleaseCurrent(t *testing.T) {
 
 func TestRunMoveWithDeps_ReleaseCurrentNoActive(t *testing.T) {
 	mock := setupMockWithIssue(42, "Test Issue", "item-42")
-	// No active release
-	mock.openIssuesByLabel["release"] = []api.Issue{}
+	// No active branch
+	mock.openIssuesByLabel["branch"] = []api.Issue{}
 	cfg := testMoveConfig()
 
 	cmd := &cobra.Command{}
@@ -1503,15 +1503,15 @@ func TestRunMoveWithDeps_ReleaseCurrentNoActive(t *testing.T) {
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 
-	opts := &moveOptions{release: "current"}
+	opts := &moveOptions{branch: "current"}
 
 	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
 	if err == nil {
-		t.Fatal("Expected error when no active release")
+		t.Fatal("Expected error when no active branch")
 	}
 
-	if !strings.Contains(err.Error(), "no active release") {
-		t.Errorf("Expected error to mention 'no active release', got: %v", err)
+	if !strings.Contains(err.Error(), "no active branch") {
+		t.Errorf("Expected error to mention 'no active branch', got: %v", err)
 	}
 }
 

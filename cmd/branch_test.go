@@ -14,9 +14,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// setupReleaseTestDir creates a temp directory with a .gh-pmu.yml config file
+// setupBranchTestDir creates a temp directory with a .gh-pmu.yml config file
 // and changes to that directory. Returns cleanup function to restore original dir.
-func setupReleaseTestDir(t *testing.T, cfg *config.Config) func() {
+func setupBranchTestDir(t *testing.T, cfg *config.Config) func() {
 	t.Helper()
 
 	// Save original directory
@@ -45,8 +45,8 @@ func setupReleaseTestDir(t *testing.T, cfg *config.Config) func() {
 	}
 }
 
-// mockReleaseClient implements releaseClient for testing
-type mockReleaseClient struct {
+// mockBranchClient implements branchClient for testing
+type mockBranchClient struct {
 	// Return values
 	createdIssue           *api.Issue
 	openIssues             []api.Issue
@@ -96,7 +96,7 @@ type gitTagCall struct {
 	message string
 }
 
-func (m *mockReleaseClient) CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error) {
+func (m *mockBranchClient) CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error) {
 	m.createIssueCalls = append(m.createIssueCalls, createIssueCall{
 		owner:  owner,
 		repo:   repo,
@@ -110,21 +110,21 @@ func (m *mockReleaseClient) CreateIssue(owner, repo, title, body string, labels 
 	return m.createdIssue, nil
 }
 
-func (m *mockReleaseClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+func (m *mockBranchClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
 	if m.getOpenIssuesErr != nil {
 		return nil, m.getOpenIssuesErr
 	}
 	return m.openIssues, nil
 }
 
-func (m *mockReleaseClient) GetClosedIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
+func (m *mockBranchClient) GetClosedIssuesByLabel(owner, repo, label string) ([]api.Issue, error) {
 	if m.getClosedIssuesErr != nil {
 		return nil, m.getClosedIssuesErr
 	}
 	return m.closedIssues, nil
 }
 
-func (m *mockReleaseClient) AddIssueToProject(projectID, issueID string) (string, error) {
+func (m *mockBranchClient) AddIssueToProject(projectID, issueID string) (string, error) {
 	m.addToProjectCalls = append(m.addToProjectCalls, addToProjectCall{
 		projectID: projectID,
 		issueID:   issueID,
@@ -135,7 +135,7 @@ func (m *mockReleaseClient) AddIssueToProject(projectID, issueID string) (string
 	return m.addedItemID, nil
 }
 
-func (m *mockReleaseClient) SetProjectItemField(projectID, itemID, fieldID, value string) error {
+func (m *mockBranchClient) SetProjectItemField(projectID, itemID, fieldID, value string) error {
 	m.setFieldCalls = append(m.setFieldCalls, setFieldCall{
 		projectID: projectID,
 		itemID:    itemID,
@@ -145,21 +145,21 @@ func (m *mockReleaseClient) SetProjectItemField(projectID, itemID, fieldID, valu
 	return m.setFieldErr
 }
 
-func (m *mockReleaseClient) GetProject(owner string, number int) (*api.Project, error) {
+func (m *mockBranchClient) GetProject(owner string, number int) (*api.Project, error) {
 	if m.getProjectErr != nil {
 		return nil, m.getProjectErr
 	}
 	return m.project, nil
 }
 
-func (m *mockReleaseClient) GetIssueByNumber(owner, repo string, number int) (*api.Issue, error) {
+func (m *mockBranchClient) GetIssueByNumber(owner, repo string, number int) (*api.Issue, error) {
 	if m.getIssueErr != nil {
 		return nil, m.getIssueErr
 	}
 	return m.issueByNumber, nil
 }
 
-func (m *mockReleaseClient) GetProjectItemID(projectID, issueID string) (string, error) {
+func (m *mockBranchClient) GetProjectItemID(projectID, issueID string) (string, error) {
 	if m.getProjectItemErr != nil {
 		return "", m.getProjectItemErr
 	}
@@ -174,7 +174,7 @@ func (m *mockReleaseClient) GetProjectItemID(projectID, issueID string) (string,
 	return m.projectItemID, nil
 }
 
-func (m *mockReleaseClient) GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error) {
+func (m *mockBranchClient) GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error) {
 	if m.getProjectItemFieldErr != nil {
 		return "", m.getProjectItemFieldErr
 	}
@@ -187,21 +187,21 @@ func (m *mockReleaseClient) GetProjectItemFieldValue(projectID, itemID, fieldID 
 	return m.projectItemFieldValue, nil
 }
 
-func (m *mockReleaseClient) GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error) {
+func (m *mockBranchClient) GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error) {
 	if m.getReleaseIssuesErr != nil {
 		return nil, m.getReleaseIssuesErr
 	}
 	return m.releaseIssues, nil
 }
 
-func (m *mockReleaseClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+func (m *mockBranchClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
 	if m.getProjectItemsErr != nil {
 		return nil, m.getProjectItemsErr
 	}
 	return m.projectItems, nil
 }
 
-func (m *mockReleaseClient) UpdateIssueBody(issueID, body string) error {
+func (m *mockBranchClient) UpdateIssueBody(issueID, body string) error {
 	m.updateIssueBodyCalls = append(m.updateIssueBodyCalls, updateIssueBodyCall{
 		issueID: issueID,
 		body:    body,
@@ -209,7 +209,7 @@ func (m *mockReleaseClient) UpdateIssueBody(issueID, body string) error {
 	return nil
 }
 
-func (m *mockReleaseClient) WriteFile(path, content string) error {
+func (m *mockBranchClient) WriteFile(path, content string) error {
 	m.writeFileCalls = append(m.writeFileCalls, writeFileCall{
 		path:    path,
 		content: content,
@@ -217,32 +217,32 @@ func (m *mockReleaseClient) WriteFile(path, content string) error {
 	return nil
 }
 
-func (m *mockReleaseClient) MkdirAll(path string) error {
+func (m *mockBranchClient) MkdirAll(path string) error {
 	return nil
 }
 
-func (m *mockReleaseClient) GitAdd(paths ...string) error {
+func (m *mockBranchClient) GitAdd(paths ...string) error {
 	m.gitAddCalls = append(m.gitAddCalls, gitAddCall{
 		paths: paths,
 	})
 	return nil
 }
 
-func (m *mockReleaseClient) CloseIssue(issueID string) error {
+func (m *mockBranchClient) CloseIssue(issueID string) error {
 	m.closeIssueCalls = append(m.closeIssueCalls, closeIssueCall{
 		issueID: issueID,
 	})
 	return nil
 }
 
-func (m *mockReleaseClient) ReopenIssue(issueID string) error {
+func (m *mockBranchClient) ReopenIssue(issueID string) error {
 	if m.reopenIssueErr != nil {
 		return m.reopenIssueErr
 	}
 	return nil
 }
 
-func (m *mockReleaseClient) GitTag(tag, message string) error {
+func (m *mockBranchClient) GitTag(tag, message string) error {
 	m.gitTagCalls = append(m.gitTagCalls, gitTagCall{
 		tag:     tag,
 		message: message,
@@ -250,12 +250,12 @@ func (m *mockReleaseClient) GitTag(tag, message string) error {
 	return nil
 }
 
-func (m *mockReleaseClient) GitCheckoutNewBranch(branch string) error {
+func (m *mockBranchClient) GitCheckoutNewBranch(branch string) error {
 	return nil
 }
 
-// testReleaseConfig returns a test configuration for release tests
-func testReleaseConfig() *config.Config {
+// testBranchConfig returns a test configuration for release tests
+func testBranchConfig() *config.Config {
 	return &config.Config{
 		Project: config.Project{
 			Owner:  "testowner",
@@ -273,14 +273,14 @@ func testReleaseConfig() *config.Config {
 	}
 }
 
-// setupMockForRelease creates a mock configured for release start tests
-func setupMockForRelease() *mockReleaseClient {
-	return &mockReleaseClient{
+// setupMockForBranch creates a mock configured for release start tests
+func setupMockForBranch() *mockBranchClient {
+	return &mockBranchClient{
 		openIssues: []api.Issue{}, // No active releases
 		createdIssue: &api.Issue{
 			ID:     "ISSUE_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			URL:    "https://github.com/testowner/testrepo/issues/100",
 		},
 		project: &api.Project{
@@ -293,7 +293,7 @@ func setupMockForRelease() *mockReleaseClient {
 }
 
 // Helper to create a test command with captured output
-func newTestReleaseCmd() (*cobra.Command, *bytes.Buffer) {
+func newTestBranchCmd() (*cobra.Command, *bytes.Buffer) {
 	cmd := &cobra.Command{Use: "release"}
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -305,23 +305,23 @@ func newTestReleaseCmd() (*cobra.Command, *bytes.Buffer) {
 // REQ-017: Start Release
 // =============================================================================
 
-// AC-017-1: Given `release start --branch release/v1.2.0`, Then tracker issue created: "Release: release/v1.2.0"
-func TestRunReleaseStartWithDeps_CreatesTrackerIssue(t *testing.T) {
+// AC-017-1: Given `release start --branch release/v1.2.0`, Then tracker issue created: "Branch: release/v1.2.0"
+func TestRunBranchStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	mock := setupMockForBranch()
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		branch: "release/v1.2.0",
+	cmd, _ := newTestBranchCmd()
+	opts := &branchStartOptions{
+		branchName: "release/v1.2.0",
 	}
 
-	expectedTitle := "Release: release/v1.2.0"
+	expectedTitle := "Branch: release/v1.2.0"
 
 	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+	err := runBranchStartWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -341,21 +341,21 @@ func TestRunReleaseStartWithDeps_CreatesTrackerIssue(t *testing.T) {
 	}
 }
 
-// AC-017-3: Given tracker issue created, Then has `release` label
-func TestRunReleaseStartWithDeps_HasReleaseLabel(t *testing.T) {
+// AC-017-3: Given tracker issue created, Then has `branch` label
+func TestRunBranchStartWithDeps_HasBranchLabel(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	mock := setupMockForBranch()
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		branch: "release/v1.2.0",
+	cmd, _ := newTestBranchCmd()
+	opts := &branchStartOptions{
+		branchName: "release/v1.2.0",
 	}
 
 	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+	err := runBranchStartWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -369,67 +369,67 @@ func TestRunReleaseStartWithDeps_HasReleaseLabel(t *testing.T) {
 	call := mock.createIssueCalls[0]
 	hasLabel := false
 	for _, label := range call.labels {
-		if label == "release" {
+		if label == "branch" {
 			hasLabel = true
 			break
 		}
 	}
 	if !hasLabel {
-		t.Errorf("Expected 'release' label, got labels: %v", call.labels)
+		t.Errorf("Expected 'branch' label, got labels: %v", call.labels)
 	}
 }
 
-// AC-017-4: Given active release exists, When running `release start`, Then error: "Active release exists"
-func TestRunReleaseStartWithDeps_ActiveReleaseExists_ReturnsError(t *testing.T) {
+// AC-017-4: Given active branch exists, When running `release start`, Then error: "Active release exists"
+func TestRunBranchStartWithDeps_ActiveReleaseExists_ReturnsError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	// Simulate an existing active release
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "EXISTING_RELEASE",
 			Number: 50,
-			Title:  "Release: release/v1.1.0",
+			Title:  "Branch: release/v1.1.0",
 			State:  "OPEN",
 		},
 	}
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		branch: "release/v1.2.0",
+	cmd, _ := newTestBranchCmd()
+	opts := &branchStartOptions{
+		branchName: "release/v1.2.0",
 	}
 
 	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+	err := runBranchStartWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
-		t.Fatalf("Expected error for active release exists, got nil")
+		t.Fatalf("Expected error for active branch exists, got nil")
 	}
 
 	errMsg := err.Error()
-	if !strings.Contains(strings.ToLower(errMsg), "active release") {
-		t.Errorf("Expected error to mention 'active release', got: %s", errMsg)
+	if !strings.Contains(strings.ToLower(errMsg), "active branch") {
+		t.Errorf("Expected error to mention 'active branch', got: %s", errMsg)
 	}
 }
 
 // Test that release is added to project and status set to In Progress
-func TestRunReleaseStartWithDeps_AddsToProjectAndSetsStatus(t *testing.T) {
+func TestRunBranchStartWithDeps_AddsToProjectAndSetsStatus(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	mock := setupMockForBranch()
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseStartOptions{
-		branch: "release/v1.2.0",
+	cmd, _ := newTestBranchCmd()
+	opts := &branchStartOptions{
+		branchName: "release/v1.2.0",
 	}
 
 	// ACT
-	err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+	err := runBranchStartWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -459,7 +459,7 @@ func TestRunReleaseStartWithDeps_AddsToProjectAndSetsStatus(t *testing.T) {
 // =============================================================================
 
 // AC-018-1: Given `release start --version 1.2.0`, Then accepted (valid semver)
-func TestValidateVersion_ValidSemver_Accepted(t *testing.T) {
+func TestBranchValidateVersion_ValidSemver_Accepted(t *testing.T) {
 	validVersions := []string{
 		"1.2.0",
 		"0.1.0",
@@ -476,7 +476,7 @@ func TestValidateVersion_ValidSemver_Accepted(t *testing.T) {
 }
 
 // AC-018-2: Given `release start --version 1.2`, Then error: "Invalid version format. Use semver: X.Y.Z"
-func TestValidateVersion_InvalidFormat_ReturnsError(t *testing.T) {
+func TestBranchValidateVersion_InvalidFormat_ReturnsError(t *testing.T) {
 	invalidVersions := []string{
 		"1.2",
 		"1",
@@ -501,7 +501,7 @@ func TestValidateVersion_InvalidFormat_ReturnsError(t *testing.T) {
 }
 
 // AC-018-3: Given `release start --version v1.2.0`, Then accepted (v prefix allowed)
-func TestValidateVersion_VPrefixAllowed(t *testing.T) {
+func TestBranchValidateVersion_VPrefixAllowed(t *testing.T) {
 	versionsWithPrefix := []string{
 		"v1.2.0",
 		"v0.1.0",
@@ -517,29 +517,29 @@ func TestValidateVersion_VPrefixAllowed(t *testing.T) {
 }
 
 // Test that branch names are used literally
-func TestRunReleaseStartWithDeps_BranchNameUsedLiterally(t *testing.T) {
+func TestRunBranchStartWithDeps_BranchNameUsedLiterally(t *testing.T) {
 	testCases := []struct {
 		branch        string
 		expectedTitle string
 	}{
-		{"release/v1.2.0", "Release: release/v1.2.0"},
-		{"patch/v1.1.1", "Release: patch/v1.1.1"},
-		{"hotfix-auth-bypass", "Release: hotfix-auth-bypass"},
+		{"release/v1.2.0", "Branch: release/v1.2.0"},
+		{"patch/v1.1.1", "Branch: patch/v1.1.1"},
+		{"hotfix-auth-bypass", "Branch: hotfix-auth-bypass"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.branch, func(t *testing.T) {
-			mock := setupMockForRelease()
-			cfg := testReleaseConfig()
-			cleanup := setupReleaseTestDir(t, cfg)
+			mock := setupMockForBranch()
+			cfg := testBranchConfig()
+			cleanup := setupBranchTestDir(t, cfg)
 			defer cleanup()
 
-			cmd, _ := newTestReleaseCmd()
-			opts := &releaseStartOptions{
-				branch: tc.branch,
+			cmd, _ := newTestBranchCmd()
+			opts := &branchStartOptions{
+				branchName: tc.branch,
 			}
 
-			err := runReleaseStartWithDeps(cmd, opts, cfg, mock)
+			err := runBranchStartWithDeps(cmd, opts, cfg, mock)
 			if err != nil {
 				t.Fatalf("Expected no error, got: %v", err)
 			}
@@ -561,15 +561,15 @@ func TestRunReleaseStartWithDeps_BranchNameUsedLiterally(t *testing.T) {
 
 // AC-019-1: Given active release v1.2.0, When running `release add 42`,
 // Then Release field on #42 set to "v1.2.0"
-func TestRunReleaseAddWithDeps_SetsReleaseField(t *testing.T) {
+func TestRunBranchAddWithDeps_SetsReleaseField(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	// Active release exists
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -582,21 +582,21 @@ func TestRunReleaseAddWithDeps_SetsReleaseField(t *testing.T) {
 	// Project item for issue 42
 	mock.projectItemID = "ITEM_42"
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	// Add release field to config
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseAddOptions{
+	cmd, _ := newTestBranchCmd()
+	opts := &branchAddOptions{
 		issueNumber: 42,
 	}
 
 	// ACT
-	err := runReleaseAddWithDeps(cmd, opts, cfg, mock)
+	err := runBranchAddWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -618,14 +618,14 @@ func TestRunReleaseAddWithDeps_SetsReleaseField(t *testing.T) {
 }
 
 // AC-019-2: Given issue added, Then output: "Added #42 to release v1.2.0"
-func TestRunReleaseAddWithDeps_OutputsConfirmation(t *testing.T) {
+func TestRunBranchAddWithDeps_OutputsConfirmation(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -636,20 +636,20 @@ func TestRunReleaseAddWithDeps_OutputsConfirmation(t *testing.T) {
 	}
 	mock.projectItemID = "ITEM_42"
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseAddOptions{
+	cmd, buf := newTestBranchCmd()
+	opts := &branchAddOptions{
 		issueNumber: 42,
 	}
 
 	// ACT
-	err := runReleaseAddWithDeps(cmd, opts, cfg, mock)
+	err := runBranchAddWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -663,24 +663,24 @@ func TestRunReleaseAddWithDeps_OutputsConfirmation(t *testing.T) {
 	}
 }
 
-// Test error when no active release exists
-func TestRunReleaseAddWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
+// Test error when no active branch exists
+func TestRunBranchAddWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{} // No active release
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseAddOptions{
+	cmd, _ := newTestBranchCmd()
+	opts := &branchAddOptions{
 		issueNumber: 42,
 	}
 
 	// ACT
-	err := runReleaseAddWithDeps(cmd, opts, cfg, mock)
+	err := runBranchAddWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
@@ -689,7 +689,7 @@ func TestRunReleaseAddWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "no active release") {
-		t.Errorf("Expected error to mention 'no active release', got: %s", errMsg)
+		t.Errorf("Expected error to mention 'no active branch', got: %s", errMsg)
 	}
 }
 
@@ -699,14 +699,14 @@ func TestRunReleaseAddWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 
 // AC-039-1: Given issue #42 assigned to release, When running `release remove 42`,
 // Then Release Text field cleared (set to empty)
-func TestRunReleaseRemoveWithDeps_ClearsReleaseField(t *testing.T) {
+func TestRunBranchRemoveWithDeps_ClearsReleaseField(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -718,18 +718,18 @@ func TestRunReleaseRemoveWithDeps_ClearsReleaseField(t *testing.T) {
 	mock.projectItemID = "ITEM_42"
 	mock.projectItemFieldValue = "v1.2.0" // Currently assigned
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseRemoveOptions{
+	cmd, _ := newTestBranchCmd()
+	opts := &branchRemoveOptions{
 		issueNumber: 42,
 	}
 
 	// ACT
-	err := runReleaseRemoveWithDeps(cmd, opts, cfg, mock)
+	err := runBranchRemoveWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -747,14 +747,14 @@ func TestRunReleaseRemoveWithDeps_ClearsReleaseField(t *testing.T) {
 }
 
 // AC-039-2: Given field cleared, Then output confirms "Removed #42 from release vX.Y.Z"
-func TestRunReleaseRemoveWithDeps_OutputsConfirmation(t *testing.T) {
+func TestRunBranchRemoveWithDeps_OutputsConfirmation(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -766,18 +766,18 @@ func TestRunReleaseRemoveWithDeps_OutputsConfirmation(t *testing.T) {
 	mock.projectItemID = "ITEM_42"
 	mock.projectItemFieldValue = "v1.2.0"
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
 
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseRemoveOptions{
+	cmd, buf := newTestBranchCmd()
+	opts := &branchRemoveOptions{
 		issueNumber: 42,
 	}
 
 	// ACT
-	err := runReleaseRemoveWithDeps(cmd, opts, cfg, mock)
+	err := runBranchRemoveWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -793,14 +793,14 @@ func TestRunReleaseRemoveWithDeps_OutputsConfirmation(t *testing.T) {
 
 // AC-039-3: Given issue not in any release, When running `release remove 42`,
 // Then warning: "Issue #42 is not assigned to a release"
-func TestRunReleaseRemoveWithDeps_WarnsIfNotAssigned(t *testing.T) {
+func TestRunBranchRemoveWithDeps_WarnsIfNotAssigned(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -812,18 +812,18 @@ func TestRunReleaseRemoveWithDeps_WarnsIfNotAssigned(t *testing.T) {
 	mock.projectItemID = "ITEM_42"
 	mock.projectItemFieldValue = "" // Not assigned
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["release"] = config.Field{
 		Field: "Release",
 	}
 
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseRemoveOptions{
+	cmd, buf := newTestBranchCmd()
+	opts := &branchRemoveOptions{
 		issueNumber: 42,
 	}
 
 	// ACT
-	err := runReleaseRemoveWithDeps(cmd, opts, cfg, mock)
+	err := runBranchRemoveWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -846,14 +846,14 @@ func TestRunReleaseRemoveWithDeps_WarnsIfNotAssigned(t *testing.T) {
 // =============================================================================
 
 // AC-036-1: Given active release, When running `release current`, Then displays details
-func TestRunReleaseCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
+func TestRunBranchCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0 (Phoenix)",
+			Title:  "Branch: v1.2.0 (Phoenix)",
 			State:  "OPEN",
 		},
 	}
@@ -882,12 +882,12 @@ func TestRunReleaseCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
 		},
 	}
 
-	cfg := testReleaseConfig()
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseCurrentOptions{}
+	cfg := testBranchConfig()
+	cmd, buf := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
 
 	// ACT
-	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -907,17 +907,17 @@ func TestRunReleaseCurrentWithDeps_DisplaysActiveDetails(t *testing.T) {
 }
 
 // AC-036-2: Given no active release, Then message: "No active release"
-func TestRunReleaseCurrentWithDeps_NoActiveRelease(t *testing.T) {
+func TestRunBranchCurrentWithDeps_NoActiveRelease(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{} // No active release
 
-	cfg := testReleaseConfig()
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseCurrentOptions{}
+	cfg := testBranchConfig()
+	cmd, buf := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
 
 	// ACT
-	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -932,14 +932,14 @@ func TestRunReleaseCurrentWithDeps_NoActiveRelease(t *testing.T) {
 }
 
 // AC-036-3: Given `--refresh` flag, Then tracker issue body updated
-func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
+func TestRunBranchCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -961,14 +961,14 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 		},
 	}
 
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCurrentOptions{
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{
 		refresh: true,
 	}
 
 	// ACT
-	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -988,20 +988,20 @@ func TestRunReleaseCurrentWithDeps_RefreshUpdatesTrackerBody(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCurrentWithDeps_GetProjectError(t *testing.T) {
+func TestRunBranchCurrentWithDeps_GetProjectError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
 	}
 	mock.getProjectErr = errors.New("failed to get project")
 
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCurrentOptions{}
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
 
 	// ACT
-	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
@@ -1012,20 +1012,20 @@ func TestRunReleaseCurrentWithDeps_GetProjectError(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCurrentWithDeps_GetProjectItemsError(t *testing.T) {
+func TestRunBranchCurrentWithDeps_GetProjectItemsError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
 	}
 	mock.getProjectItemsErr = errors.New("failed to get project items")
 
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCurrentOptions{}
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
 
 	// ACT
-	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
@@ -1036,11 +1036,11 @@ func TestRunReleaseCurrentWithDeps_GetProjectItemsError(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCurrentWithDeps_SkipsNilIssues(t *testing.T) {
+func TestRunBranchCurrentWithDeps_SkipsNilIssues(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
 	}
 	mock.projectItems = []api.ProjectItem{
 		{
@@ -1066,12 +1066,12 @@ func TestRunReleaseCurrentWithDeps_SkipsNilIssues(t *testing.T) {
 		},
 	}
 
-	cfg := testReleaseConfig()
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseCurrentOptions{}
+	cfg := testBranchConfig()
+	cmd, buf := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
 
 	// ACT
-	err := runReleaseCurrentWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1084,28 +1084,28 @@ func TestRunReleaseCurrentWithDeps_SkipsNilIssues(t *testing.T) {
 }
 
 // Test that release close closes the tracker issue
-func TestRunReleaseCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
+func TestRunBranchCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
 	mock.releaseIssues = []api.Issue{}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1123,20 +1123,20 @@ func TestRunReleaseCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 }
 
 // Test error when no active release
-func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
+func TestRunBranchCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{} // No active release
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
@@ -1144,28 +1144,28 @@ func TestRunReleaseCloseWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	}
 
 	errMsg := err.Error()
-	if !strings.Contains(errMsg, "release not found") {
-		t.Errorf("Expected error to mention 'release not found', got: %s", errMsg)
+	if !strings.Contains(errMsg, "branch not found") {
+		t.Errorf("Expected error to mention 'branch not found', got: %s", errMsg)
 	}
 }
 
-func TestRunReleaseCloseWithDeps_GetProjectError(t *testing.T) {
+func TestRunBranchCloseWithDeps_GetProjectError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
 	}
 	mock.getProjectErr = errors.New("failed to get project")
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
@@ -1176,23 +1176,23 @@ func TestRunReleaseCloseWithDeps_GetProjectError(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCloseWithDeps_GetProjectItemsError(t *testing.T) {
+func TestRunBranchCloseWithDeps_GetProjectItemsError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{ID: "TRACKER_123", Number: 100, Title: "Release: v1.2.0", State: "OPEN"},
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
 	}
 	mock.getProjectItemsErr = errors.New("failed to get project items")
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
@@ -1208,32 +1208,32 @@ func TestRunReleaseCloseWithDeps_GetProjectItemsError(t *testing.T) {
 // =============================================================================
 
 // AC-021-1: Given `release close --tag`, Then `git tag -a v1.2.0 -m "Release v1.2.0"` executed
-func TestRunReleaseCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
+func TestRunBranchCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
 	mock.releaseIssues = []api.Issue{}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{
-		releaseName: "v1.2.0",
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{
+		branchName: "v1.2.0",
 		yes:         true,
 		tag:         true,
 	}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1258,32 +1258,32 @@ func TestRunReleaseCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
 // This is verified by NOT having a GitPush call in the implementation
 
 // AC-021-3: Given `release close` (no --tag), Then no tag created
-func TestRunReleaseCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
+func TestRunBranchCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
 	mock.releaseIssues = []api.Issue{}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{
-		releaseName: "v1.2.0",
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{
+		branchName: "v1.2.0",
 		yes:         true,
 		tag:         false, // No --tag flag
 	}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1301,14 +1301,14 @@ func TestRunReleaseCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
 // =============================================================================
 
 // AC-022-1: Given `release list`, Then table: Version, Codename, Tracker#, Issues, Date, Status
-func TestRunReleaseListWithDeps_DisplaysReleaseTable(t *testing.T) {
+func TestRunBranchListWithDeps_DisplaysReleaseTable(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_200",
 			Number: 200,
-			Title:  "Release: v2.0.0 (Phoenix)",
+			Title:  "Branch: v2.0.0 (Phoenix)",
 			State:  "OPEN",
 		},
 	}
@@ -1316,20 +1316,20 @@ func TestRunReleaseListWithDeps_DisplaysReleaseTable(t *testing.T) {
 		{
 			ID:     "TRACKER_100",
 			Number: 100,
-			Title:  "Release: v1.0.0",
+			Title:  "Branch: v1.0.0",
 			State:  "CLOSED",
 		},
 	}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseListOptions{}
+	cmd, buf := newTestBranchCmd()
+	opts := &branchListOptions{}
 
 	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+	err := runBranchListWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1362,40 +1362,40 @@ func TestRunReleaseListWithDeps_DisplaysReleaseTable(t *testing.T) {
 }
 
 // AC-022-2: Given multiple releases, Then sorted by version descending
-func TestRunReleaseListWithDeps_SortedByVersionDescending(t *testing.T) {
+func TestRunBranchListWithDeps_SortedByVersionDescending(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{}
 	mock.closedIssues = []api.Issue{
 		{
 			ID:     "TRACKER_100",
 			Number: 100,
-			Title:  "Release: v1.0.0",
+			Title:  "Branch: v1.0.0",
 			State:  "CLOSED",
 		},
 		{
 			ID:     "TRACKER_300",
 			Number: 300,
-			Title:  "Release: v3.0.0",
+			Title:  "Branch: v3.0.0",
 			State:  "CLOSED",
 		},
 		{
 			ID:     "TRACKER_200",
 			Number: 200,
-			Title:  "Release: v2.0.0",
+			Title:  "Branch: v2.0.0",
 			State:  "CLOSED",
 		},
 	}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseListOptions{}
+	cmd, buf := newTestBranchCmd()
+	opts := &branchListOptions{}
 
 	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+	err := runBranchListWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1418,21 +1418,21 @@ func TestRunReleaseListWithDeps_SortedByVersionDescending(t *testing.T) {
 }
 
 // Test no releases shows message
-func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
+func TestRunBranchListWithDeps_NoReleases(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{}
 	mock.closedIssues = []api.Issue{}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseListOptions{}
+	cmd, buf := newTestBranchCmd()
+	opts := &branchListOptions{}
 
 	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+	err := runBranchListWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -1440,269 +1440,156 @@ func TestRunReleaseListWithDeps_NoReleases(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "No releases found") {
-		t.Errorf("Expected output to contain 'No releases found', got '%s'", output)
-	}
-}
-
-// Test release list uses cache when available
-func TestRunReleaseListWithDeps_UsesCache(t *testing.T) {
-	// ARRANGE
-	mock := setupMockForRelease()
-	// API should NOT be called since we have cache
-	mock.getOpenIssuesErr = errors.New("should not be called")
-	mock.getClosedIssuesErr = errors.New("should not be called")
-
-	cfg := testReleaseConfig()
-	// Add cached data
-	cfg.Cache = &config.Cache{
-		Releases: []config.CachedTracker{
-			{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
-			{Number: 200, Title: "Release: v2.0.0 (Phoenix)", State: "OPEN"},
-		},
-	}
-	cleanup := setupReleaseTestDir(t, cfg)
-	defer cleanup()
-
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseListOptions{refresh: false}
-
-	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
-
-	// ASSERT
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	output := buf.String()
-	if !strings.Contains(output, "v1.0.0") {
-		t.Errorf("Expected output to contain 'v1.0.0' from cache, got '%s'", output)
-	}
-	if !strings.Contains(output, "v2.0.0") {
-		t.Errorf("Expected output to contain 'v2.0.0' from cache, got '%s'", output)
-	}
-	if !strings.Contains(output, "Phoenix") {
-		t.Errorf("Expected output to contain 'Phoenix' codename from cache, got '%s'", output)
-	}
-}
-
-// Test release list with --refresh flag bypasses cache
-func TestRunReleaseListWithDeps_RefreshBypassesCache(t *testing.T) {
-	// ARRANGE
-	mock := setupMockForRelease()
-	mock.openIssues = []api.Issue{
-		{ID: "TRACKER_300", Number: 300, Title: "Release: v3.0.0", State: "OPEN"},
-	}
-	mock.closedIssues = []api.Issue{}
-
-	cfg := testReleaseConfig()
-	// Add stale cached data
-	cfg.Cache = &config.Cache{
-		Releases: []config.CachedTracker{
-			{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
-		},
-	}
-	cleanup := setupReleaseTestDir(t, cfg)
-	defer cleanup()
-
-	cmd, buf := newTestReleaseCmd()
-	opts := &releaseListOptions{refresh: true} // Force refresh
-
-	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
-
-	// ASSERT
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	output := buf.String()
-	// Should contain fresh API data, not stale cache
-	if !strings.Contains(output, "v3.0.0") {
-		t.Errorf("Expected output to contain 'v3.0.0' from API, got '%s'", output)
+	if !strings.Contains(output, "No branches found") {
+		t.Errorf("Expected output to contain 'No branches found', got '%s'", output)
 	}
 }
 
 // Test release list API error handling
-func TestRunReleaseListWithDeps_OpenIssuesError(t *testing.T) {
+func TestRunBranchListWithDeps_OpenIssuesError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.getOpenIssuesErr = errors.New("API error")
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseListOptions{}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchListOptions{}
 
 	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+	err := runBranchListWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "failed to get open releases") {
-		t.Errorf("Expected error about open releases, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to get open branches") {
+		t.Errorf("Expected error about open branches, got: %v", err)
 	}
 }
 
-func TestRunReleaseListWithDeps_ClosedIssuesError(t *testing.T) {
+func TestRunBranchListWithDeps_ClosedIssuesError(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{}
 	mock.getClosedIssuesErr = errors.New("API error")
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseListOptions{}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchListOptions{}
 
 	// ACT
-	err := runReleaseListWithDeps(cmd, opts, cfg, mock)
+	err := runBranchListWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "failed to get closed releases") {
-		t.Errorf("Expected error about closed releases, got: %v", err)
-	}
-}
-
-// Test releasesFromCache helper function
-func TestReleasesFromCache(t *testing.T) {
-	cached := []config.CachedTracker{
-		{Number: 100, Title: "Release: v1.0.0", State: "CLOSED"},
-		{Number: 200, Title: "Release: v2.0.0 (Phoenix)", State: "OPEN"},
-		{Number: 300, Title: "Not a release", State: "OPEN"}, // Should be filtered out
-	}
-
-	releases := releasesFromCache(cached)
-
-	if len(releases) != 2 {
-		t.Fatalf("Expected 2 releases, got %d", len(releases))
-	}
-
-	// Check first release
-	if releases[0].version != "v1.0.0" {
-		t.Errorf("Expected version 'v1.0.0', got '%s'", releases[0].version)
-	}
-	if releases[0].status != "Released" {
-		t.Errorf("Expected status 'Released' for CLOSED, got '%s'", releases[0].status)
-	}
-
-	// Check second release
-	if releases[1].version != "v2.0.0" {
-		t.Errorf("Expected version 'v2.0.0', got '%s'", releases[1].version)
-	}
-	if releases[1].codename != "Phoenix" {
-		t.Errorf("Expected codename 'Phoenix', got '%s'", releases[1].codename)
-	}
-	if releases[1].status != "Active" {
-		t.Errorf("Expected status 'Active' for OPEN, got '%s'", releases[1].status)
+	if !strings.Contains(err.Error(), "failed to get closed branches") {
+		t.Errorf("Expected error about closed branches, got: %v", err)
 	}
 }
 
 // ============================================================================
-// runReleaseReopenWithDeps Tests
+// runBranchReopenWithDeps Tests
 // ============================================================================
 
-func TestRunReleaseReopenWithDeps_Success(t *testing.T) {
-	mock := setupMockForRelease()
+func TestRunBranchReopenWithDeps_Success(t *testing.T) {
+	mock := setupMockForBranch()
 	mock.closedIssues = []api.Issue{
-		{ID: "closed-1", Number: 100, Title: "Release: v1.0.0"},
+		{ID: "closed-1", Number: 100, Title: "Branch: v1.0.0"},
 	}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, buf := newTestReleaseCmd()
+	cmd, buf := newTestBranchCmd()
 
-	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	err := runBranchReopenWithDeps(cmd, "v1.0.0", cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "Reopened release v1.0.0") {
-		t.Errorf("expected 'Reopened release v1.0.0' in output, got: %s", output)
+	if !strings.Contains(output, "Reopened branch v1.0.0") {
+		t.Errorf("expected 'Reopened branch v1.0.0' in output, got: %s", output)
 	}
 }
 
-func TestRunReleaseReopenWithDeps_WithCodename(t *testing.T) {
-	mock := setupMockForRelease()
+func TestRunBranchReopenWithDeps_WithCodename(t *testing.T) {
+	mock := setupMockForBranch()
 	mock.closedIssues = []api.Issue{
-		{ID: "closed-1", Number: 100, Title: "Release: v1.0.0 (Phoenix)"},
+		{ID: "closed-1", Number: 100, Title: "Branch: v1.0.0 (Phoenix)"},
 	}
 
-	cfg := testReleaseConfig()
-	cleanup := setupReleaseTestDir(t, cfg)
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, buf := newTestReleaseCmd()
+	cmd, buf := newTestBranchCmd()
 
-	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	err := runBranchReopenWithDeps(cmd, "v1.0.0", cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "Reopened release v1.0.0") {
-		t.Errorf("expected 'Reopened release v1.0.0' in output, got: %s", output)
+	if !strings.Contains(output, "Reopened branch v1.0.0") {
+		t.Errorf("expected 'Reopened branch v1.0.0' in output, got: %s", output)
 	}
 }
 
-func TestRunReleaseReopenWithDeps_ReleaseNotFound(t *testing.T) {
-	mock := setupMockForRelease()
+func TestRunBranchReopenWithDeps_ReleaseNotFound(t *testing.T) {
+	mock := setupMockForBranch()
 	mock.closedIssues = []api.Issue{
-		{ID: "closed-1", Number: 100, Title: "Release: v2.0.0"},
+		{ID: "closed-1", Number: 100, Title: "Branch: v2.0.0"},
 	}
 
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
 
-	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	err := runBranchReopenWithDeps(cmd, "v1.0.0", cfg, mock)
 	if err == nil {
-		t.Fatal("expected error for release not found")
+		t.Fatal("expected error for branch not found")
 	}
-	if !strings.Contains(err.Error(), "closed release not found") {
-		t.Errorf("expected 'closed release not found' error, got: %v", err)
+	if !strings.Contains(err.Error(), "closed branch not found") {
+		t.Errorf("expected 'closed branch not found' error, got: %v", err)
 	}
 }
 
-func TestRunReleaseReopenWithDeps_GetClosedIssuesError(t *testing.T) {
-	mock := setupMockForRelease()
+func TestRunBranchReopenWithDeps_GetClosedIssuesError(t *testing.T) {
+	mock := setupMockForBranch()
 	mock.getClosedIssuesErr = errors.New("API error")
 
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
 
-	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	err := runBranchReopenWithDeps(cmd, "v1.0.0", cfg, mock)
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "failed to get closed release issues") {
-		t.Errorf("expected 'failed to get closed release issues' error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to get closed branch issues") {
+		t.Errorf("expected 'failed to get closed branch issues' error, got: %v", err)
 	}
 }
 
-func TestRunReleaseReopenWithDeps_ReopenError(t *testing.T) {
-	mock := setupMockForRelease()
+func TestRunBranchReopenWithDeps_ReopenError(t *testing.T) {
+	mock := setupMockForBranch()
 	mock.closedIssues = []api.Issue{
-		{ID: "closed-1", Number: 100, Title: "Release: v1.0.0"},
+		{ID: "closed-1", Number: 100, Title: "Branch: v1.0.0"},
 	}
 	mock.reopenIssueErr = errors.New("reopen failed")
 
-	cfg := testReleaseConfig()
-	cmd, _ := newTestReleaseCmd()
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
 
-	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	err := runBranchReopenWithDeps(cmd, "v1.0.0", cfg, mock)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1711,14 +1598,14 @@ func TestRunReleaseReopenWithDeps_ReopenError(t *testing.T) {
 	}
 }
 
-func TestRunReleaseReopenWithDeps_NoRepositories(t *testing.T) {
-	mock := setupMockForRelease()
-	cfg := testReleaseConfig()
+func TestRunBranchReopenWithDeps_NoRepositories(t *testing.T) {
+	mock := setupMockForBranch()
+	cfg := testBranchConfig()
 	cfg.Repositories = []string{}
 
-	cmd, _ := newTestReleaseCmd()
+	cmd, _ := newTestBranchCmd()
 
-	err := runReleaseReopenWithDeps(cmd, "v1.0.0", cfg, mock)
+	err := runBranchReopenWithDeps(cmd, "v1.0.0", cfg, mock)
 	if err == nil {
 		t.Fatal("expected error for no repositories")
 	}
@@ -1728,27 +1615,27 @@ func TestRunReleaseReopenWithDeps_NoRepositories(t *testing.T) {
 }
 
 // =============================================================================
-// generateReleaseTrackerTemplate Tests
+// generateBranchTrackerTemplate Tests
 // =============================================================================
 
-func TestGenerateReleaseTrackerTemplate_ContainsBranchName(t *testing.T) {
+func TestGenerateBranchTrackerTemplate_ContainsBranchName(t *testing.T) {
 	branch := "release/v1.2.0"
-	result := generateReleaseTrackerTemplate(branch)
+	result := generateBranchTrackerTemplate(branch)
 
 	if !strings.Contains(result, "`"+branch+"`") {
 		t.Errorf("Template should contain branch name in backticks, got: %s", result)
 	}
 }
 
-func TestGenerateReleaseTrackerTemplate_ContainsWarnings(t *testing.T) {
-	result := generateReleaseTrackerTemplate("release/v1.0.0")
+func TestGenerateBranchTrackerTemplate_ContainsWarnings(t *testing.T) {
+	result := generateBranchTrackerTemplate("release/v1.0.0")
 
 	warnings := []string{
-		"**Release Tracker Issue**",
+		"**Branch Tracker Issue**",
 		"**Do not manually:**",
 		"Close or reopen this issue",
 		"Change the title",
-		"Remove the `release` label",
+		"Remove the `branch` label",
 	}
 
 	for _, warning := range warnings {
@@ -1758,14 +1645,14 @@ func TestGenerateReleaseTrackerTemplate_ContainsWarnings(t *testing.T) {
 	}
 }
 
-func TestGenerateReleaseTrackerTemplate_ContainsCommands(t *testing.T) {
+func TestGenerateBranchTrackerTemplate_ContainsCommands(t *testing.T) {
 	branch := "release/v1.0.0"
-	result := generateReleaseTrackerTemplate(branch)
+	result := generateBranchTrackerTemplate(branch)
 
 	commands := []string{
-		"`gh pmu release add <issue>`",
-		"`gh pmu release remove <issue>`",
-		"`gh pmu release close " + branch + "`",
+		"`gh pmu branch add <issue>`",
+		"`gh pmu branch remove <issue>`",
+		"`gh pmu branch close " + branch + "`",
 	}
 
 	for _, cmd := range commands {
@@ -1775,18 +1662,18 @@ func TestGenerateReleaseTrackerTemplate_ContainsCommands(t *testing.T) {
 	}
 }
 
-func TestGenerateReleaseTrackerTemplate_ContainsIssuesSection(t *testing.T) {
-	result := generateReleaseTrackerTemplate("release/v1.0.0")
+func TestGenerateBranchTrackerTemplate_ContainsIssuesSection(t *testing.T) {
+	result := generateBranchTrackerTemplate("release/v1.0.0")
 
-	if !strings.Contains(result, "## Issues in this release") {
-		t.Error("Template should contain 'Issues in this release' section")
+	if !strings.Contains(result, "## Issues in this branch") {
+		t.Error("Template should contain 'Issues in this branch' section")
 	}
 	if !strings.Contains(result, "Release field in the project") {
 		t.Error("Template should explain issues are tracked via the Release field")
 	}
 }
 
-func TestGenerateReleaseTrackerTemplate_DifferentBranchFormats(t *testing.T) {
+func TestGenerateBranchTrackerTemplate_DifferentBranchFormats(t *testing.T) {
 	tests := []struct {
 		branch string
 	}{
@@ -1798,18 +1685,18 @@ func TestGenerateReleaseTrackerTemplate_DifferentBranchFormats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.branch, func(t *testing.T) {
-			result := generateReleaseTrackerTemplate(tt.branch)
+			result := generateBranchTrackerTemplate(tt.branch)
 			if !strings.Contains(result, "`"+tt.branch+"`") {
 				t.Errorf("Template should contain branch name %q in backticks", tt.branch)
 			}
-			if !strings.Contains(result, "gh pmu release close "+tt.branch) {
+			if !strings.Contains(result, "gh pmu branch close "+tt.branch) {
 				t.Errorf("Template should contain close command with branch name %q", tt.branch)
 			}
 		})
 	}
 }
 
-func TestCalculateNextVersions(t *testing.T) {
+func TestBranchCalculateNextVersions(t *testing.T) {
 	tests := []struct {
 		name           string
 		currentVersion string
@@ -1880,24 +1767,24 @@ func TestCalculateNextVersions(t *testing.T) {
 // Command Flag Existence Tests
 // =============================================================================
 
-func TestReleaseStartCommand_HasBranchFlag(t *testing.T) {
+func TestBranchStartCommand_HasNameFlag(t *testing.T) {
 	cmd := NewRootCommand()
-	startCmd, _, err := cmd.Find([]string{"release", "start"})
+	startCmd, _, err := cmd.Find([]string{"branch", "start"})
 	if err != nil {
-		t.Fatalf("release start command not found: %v", err)
+		t.Fatalf("branch start command not found: %v", err)
 	}
 
-	flag := startCmd.Flags().Lookup("branch")
+	flag := startCmd.Flags().Lookup("name")
 	if flag == nil {
-		t.Fatal("Expected --branch flag to exist")
+		t.Fatal("Expected --name flag to exist")
 	}
 }
 
-func TestReleaseCloseCommand_Flags(t *testing.T) {
+func TestBranchCloseCommand_Flags(t *testing.T) {
 	cmd := NewRootCommand()
-	closeCmd, _, err := cmd.Find([]string{"release", "close"})
+	closeCmd, _, err := cmd.Find([]string{"branch", "close"})
 	if err != nil {
-		t.Fatalf("release close command not found: %v", err)
+		t.Fatalf("branch close command not found: %v", err)
 	}
 
 	tests := []struct {
@@ -1921,11 +1808,11 @@ func TestReleaseCloseCommand_Flags(t *testing.T) {
 	}
 }
 
-func TestReleaseCurrentCommand_HasRefreshFlag(t *testing.T) {
+func TestBranchCurrentCommand_HasRefreshFlag(t *testing.T) {
 	cmd := NewRootCommand()
-	currentCmd, _, err := cmd.Find([]string{"release", "current"})
+	currentCmd, _, err := cmd.Find([]string{"branch", "current"})
 	if err != nil {
-		t.Fatalf("release current command not found: %v", err)
+		t.Fatalf("branch current command not found: %v", err)
 	}
 
 	flag := currentCmd.Flags().Lookup("refresh")
@@ -1934,11 +1821,11 @@ func TestReleaseCurrentCommand_HasRefreshFlag(t *testing.T) {
 	}
 }
 
-func TestReleaseAddCommand_Structure(t *testing.T) {
+func TestBranchAddCommand_Structure(t *testing.T) {
 	cmd := NewRootCommand()
-	addCmd, _, err := cmd.Find([]string{"release", "add"})
+	addCmd, _, err := cmd.Find([]string{"branch", "add"})
 	if err != nil {
-		t.Fatalf("release add command not found: %v", err)
+		t.Fatalf("branch add command not found: %v", err)
 	}
 
 	if addCmd.Use != "add <issue-number>" {
@@ -1954,11 +1841,11 @@ func TestReleaseAddCommand_Structure(t *testing.T) {
 	}
 }
 
-func TestReleaseRemoveCommand_Structure(t *testing.T) {
+func TestBranchRemoveCommand_Structure(t *testing.T) {
 	cmd := NewRootCommand()
-	removeCmd, _, err := cmd.Find([]string{"release", "remove"})
+	removeCmd, _, err := cmd.Find([]string{"branch", "remove"})
 	if err != nil {
-		t.Fatalf("release remove command not found: %v", err)
+		t.Fatalf("branch remove command not found: %v", err)
 	}
 
 	if removeCmd.Use != "remove <issue-number>" {
@@ -1974,11 +1861,11 @@ func TestReleaseRemoveCommand_Structure(t *testing.T) {
 	}
 }
 
-func TestReleaseListCommand_Structure(t *testing.T) {
+func TestBranchListCommand_Structure(t *testing.T) {
 	cmd := NewRootCommand()
-	listCmd, _, err := cmd.Find([]string{"release", "list"})
+	listCmd, _, err := cmd.Find([]string{"branch", "list"})
 	if err != nil {
-		t.Fatalf("release list command not found: %v", err)
+		t.Fatalf("branch list command not found: %v", err)
 	}
 
 	if listCmd.Use != "list" {
@@ -1990,15 +1877,15 @@ func TestReleaseListCommand_Structure(t *testing.T) {
 	}
 }
 
-func TestReleaseReopenCommand_Structure(t *testing.T) {
+func TestBranchReopenCommand_Structure(t *testing.T) {
 	cmd := NewRootCommand()
-	reopenCmd, _, err := cmd.Find([]string{"release", "reopen"})
+	reopenCmd, _, err := cmd.Find([]string{"branch", "reopen"})
 	if err != nil {
-		t.Fatalf("release reopen command not found: %v", err)
+		t.Fatalf("branch reopen command not found: %v", err)
 	}
 
-	if reopenCmd.Use != "reopen <release-name>" {
-		t.Errorf("Expected Use 'reopen <release-name>', got %s", reopenCmd.Use)
+	if reopenCmd.Use != "reopen <branch-name>" {
+		t.Errorf("Expected Use 'reopen <branch-name>', got %s", reopenCmd.Use)
 	}
 
 	// Requires exactly 1 argument
@@ -2010,7 +1897,7 @@ func TestReleaseReopenCommand_Structure(t *testing.T) {
 	}
 }
 
-func TestCompareVersions_EdgeCases(t *testing.T) {
+func TestBranchCompareVersions_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name     string
 		a        string
@@ -2042,14 +1929,14 @@ func TestCompareVersions_EdgeCases(t *testing.T) {
 // Parking Lot Exclusion Tests
 // ============================================================================
 
-func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
+func TestRunBranchCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2093,7 +1980,7 @@ func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 		"ITEM_3": "Ready",
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["status"] = config.Field{
 		Field: "Status",
 		Values: map[string]string{
@@ -2101,14 +1988,14 @@ func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 			"parking_lot": "Parking Lot",
 		},
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, output := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, output := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2133,14 +2020,14 @@ func TestRunReleaseCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
+func TestRunBranchCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
 	// ARRANGE: All incomplete issues are in Parking Lot
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2172,7 +2059,7 @@ func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
 		"ITEM_2": "Parking Lot",
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["status"] = config.Field{
 		Field: "Status",
 		Values: map[string]string{
@@ -2180,14 +2067,14 @@ func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
 			"parking_lot": "Parking Lot",
 		},
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, output := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, output := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2213,14 +2100,14 @@ func TestRunReleaseCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
+func TestRunBranchCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 	// ARRANGE: No parking_lot value configured, should use default "Parking Lot"
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2252,7 +2139,7 @@ func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 		"ITEM_2": "In Progress",
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	// Status field configured but no parking_lot alias
 	cfg.Fields["status"] = config.Field{
 		Field: "Status",
@@ -2260,14 +2147,14 @@ func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 			"backlog": "Backlog",
 		},
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, output := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, output := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2281,14 +2168,14 @@ func TestRunReleaseCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) {
+func TestRunBranchCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) {
 	// ARRANGE: Incomplete issues that need to be moved to backlog
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2310,7 +2197,7 @@ func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T)
 		"ITEM_1": "In Progress",
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["status"] = config.Field{
 		Field: "Status",
 		Values: map[string]string{
@@ -2323,14 +2210,14 @@ func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T)
 	cfg.Fields["microsprint"] = config.Field{
 		Field: "Microsprint",
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2374,14 +2261,14 @@ func TestRunReleaseCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T)
 	}
 }
 
-func TestRunReleaseCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *testing.T) {
+func TestRunBranchCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *testing.T) {
 	// ARRANGE: GetProjectItemID fails for one issue but succeeds for another
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2412,23 +2299,23 @@ func TestRunReleaseCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *t
 		"ITEM_2": "In Progress",
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["status"] = config.Field{
 		Field: "Status",
 		Values: map[string]string{
 			"backlog": "Backlog",
 		},
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
+	cmd, _ := newTestBranchCmd()
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT: Should succeed overall
 	if err != nil {
@@ -2453,14 +2340,14 @@ func TestRunReleaseCloseWithDeps_GetProjectItemIDError_ContinuesWithWarning(t *t
 	}
 }
 
-func TestRunReleaseCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
+func TestRunBranchCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
 	// ARRANGE: All release issues are closed (done)
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2482,21 +2369,21 @@ func TestRunReleaseCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
 		},
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	cfg.Fields["status"] = config.Field{
 		Field: "Status",
 		Values: map[string]string{
 			"backlog": "Backlog",
 		},
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, output := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, output := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2521,14 +2408,14 @@ func TestRunReleaseCloseWithDeps_AllIssuesDone_NoMoveToBacklog(t *testing.T) {
 	}
 }
 
-func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
+func TestRunBranchCloseWithDeps_DefaultBacklogValue(t *testing.T) {
 	// ARRANGE: Status field has no backlog alias defined
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
 		{
 			ID:     "TRACKER_123",
 			Number: 100,
-			Title:  "Release: v1.2.0",
+			Title:  "Branch: v1.2.0",
 			State:  "OPEN",
 		},
 	}
@@ -2550,20 +2437,20 @@ func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
 		"ITEM_1": "In Progress",
 	}
 
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 	// Status field with empty values map (no backlog alias)
 	cfg.Fields["status"] = config.Field{
 		Field:  "Status",
 		Values: map[string]string{}, // No backlog alias
 	}
-	cleanup := setupReleaseTestDir(t, cfg)
+	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
-	cmd, _ := newTestReleaseCmd()
-	opts := &releaseCloseOptions{releaseName: "v1.2.0", yes: true}
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
 
 	// ACT
-	err := runReleaseCloseWithDeps(cmd, opts, cfg, mock)
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2587,7 +2474,7 @@ func TestRunReleaseCloseWithDeps_DefaultBacklogValue(t *testing.T) {
 // Release Close Default to Current Tests (Issue #479)
 // ============================================================================
 
-func TestFindAllActiveReleases(t *testing.T) {
+func TestFindAllActiveBranches(t *testing.T) {
 	tests := []struct {
 		name     string
 		issues   []api.Issue
@@ -2609,15 +2496,15 @@ func TestFindAllActiveReleases(t *testing.T) {
 		{
 			name: "one release",
 			issues: []api.Issue{
-				{Title: "Release: v1.0.0"},
+				{Title: "Branch: v1.0.0"},
 			},
 			expected: 1,
 		},
 		{
 			name: "multiple releases",
 			issues: []api.Issue{
-				{Title: "Release: v1.0.0"},
-				{Title: "Release: patch/v1.0.1"},
+				{Title: "Branch: v1.0.0"},
+				{Title: "Branch: patch/v1.0.1"},
 				{Title: "Bug: something"},
 			},
 			expected: 2,
@@ -2626,42 +2513,42 @@ func TestFindAllActiveReleases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := findAllActiveReleases(tt.issues)
+			result := findAllActiveBranches(tt.issues)
 			if len(result) != tt.expected {
-				t.Errorf("findAllActiveReleases() returned %d releases, want %d", len(result), tt.expected)
+				t.Errorf("findAllActiveBranches() returned %d releases, want %d", len(result), tt.expected)
 			}
 		})
 	}
 }
 
-func TestResolveCurrentRelease_NoActiveReleases(t *testing.T) {
+func TestResolveCurrentBranch_NoActiveReleases(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{} // No active releases
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 
 	// ACT
-	_, err := resolveCurrentRelease(cfg, mock)
+	_, err := resolveCurrentBranch(cfg, mock)
 
 	// ASSERT
 	if err == nil {
 		t.Fatal("Expected error when no active releases, got nil")
 	}
-	if err.Error() != "no active release found" {
-		t.Errorf("Expected 'no active release found' error, got: %s", err.Error())
+	if err.Error() != "no active branch found" {
+		t.Errorf("Expected 'no active branch found' error, got: %s", err.Error())
 	}
 }
 
-func TestResolveCurrentRelease_OneActiveRelease(t *testing.T) {
+func TestResolveCurrentBranch_OneActiveRelease(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{Title: "Release: patch/0.9.7"},
+		{Title: "Branch: patch/0.9.7"},
 	}
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 
 	// ACT
-	releaseName, err := resolveCurrentRelease(cfg, mock)
+	releaseName, err := resolveCurrentBranch(cfg, mock)
 
 	// ASSERT
 	if err != nil {
@@ -2672,33 +2559,33 @@ func TestResolveCurrentRelease_OneActiveRelease(t *testing.T) {
 	}
 }
 
-func TestResolveCurrentRelease_MultipleActiveReleases(t *testing.T) {
+func TestResolveCurrentBranch_MultipleActiveReleases(t *testing.T) {
 	// ARRANGE
-	mock := setupMockForRelease()
+	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
-		{Title: "Release: release/v1.0.0"},
-		{Title: "Release: patch/v1.0.1"},
+		{Title: "Branch: release/v1.0.0"},
+		{Title: "Branch: patch/v1.0.1"},
 	}
-	cfg := testReleaseConfig()
+	cfg := testBranchConfig()
 
 	// ACT
-	_, err := resolveCurrentRelease(cfg, mock)
+	_, err := resolveCurrentBranch(cfg, mock)
 
 	// ASSERT
 	if err == nil {
-		t.Fatal("Expected error when multiple active releases, got nil")
+		t.Fatal("Expected error when multiple active branches, got nil")
 	}
-	expectedMsg := "multiple active releases. Specify one: release/v1.0.0, patch/v1.0.1"
+	expectedMsg := "multiple active branches. Specify one: release/v1.0.0, patch/v1.0.1"
 	if err.Error() != expectedMsg {
 		t.Errorf("Expected '%s' error, got: %s", expectedMsg, err.Error())
 	}
 }
 
-func TestReleaseCloseCommand_AcceptsOptionalArgument(t *testing.T) {
+func TestBranchCloseCommand_AcceptsOptionalArgument(t *testing.T) {
 	cmd := NewRootCommand()
-	closeCmd, _, err := cmd.Find([]string{"release", "close"})
+	closeCmd, _, err := cmd.Find([]string{"branch", "close"})
 	if err != nil {
-		t.Fatalf("release close command not found: %v", err)
+		t.Fatalf("branch close command not found: %v", err)
 	}
 
 	// Should accept 0 arguments
@@ -2717,11 +2604,11 @@ func TestReleaseCloseCommand_AcceptsOptionalArgument(t *testing.T) {
 	}
 }
 
-func TestReleaseCloseCommand_UseDescription(t *testing.T) {
+func TestBranchCloseCommand_UseDescription(t *testing.T) {
 	cmd := NewRootCommand()
-	closeCmd, _, err := cmd.Find([]string{"release", "close"})
+	closeCmd, _, err := cmd.Find([]string{"branch", "close"})
 	if err != nil {
-		t.Fatalf("release close command not found: %v", err)
+		t.Fatalf("branch close command not found: %v", err)
 	}
 
 	// Should show optional argument in usage

@@ -15,7 +15,7 @@ type moveOptions struct {
 	status      string
 	priority    string
 	microsprint string
-	release     string
+	branch      string // branch field (formerly release)
 	backlog     bool
 	recursive   bool
 	depth       int
@@ -67,16 +67,16 @@ Examples:
   # Set both status and priority
   gh pmu move 42 --status done --priority p1
 
-  # Add issue to the current active release
-  gh pmu move 42 --release current
+  # Add issue to the current active branch
+  gh pmu move 42 --branch current
 
-  # Add issue to a specific release
-  gh pmu move 42 --release v1.2.0
+  # Add issue to a specific branch
+  gh pmu move 42 --branch release/v1.2.0
 
   # Add issue to the current active microsprint
   gh pmu move 42 --microsprint current
 
-  # Return an issue to backlog (clears release and microsprint)
+  # Return an issue to backlog (clears branch and microsprint)
   gh pmu move 42 --backlog
 
   # Recursively update an epic and all its sub-issues
@@ -104,12 +104,14 @@ Examples:
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Set microsprint field (use 'current' for active microsprint)")
 	cmd.Flags().StringVar(&opts.microsprint, "sprint", "", "Alias for --microsprint")
 	cmd.MarkFlagsMutuallyExclusive("microsprint", "sprint") // Can't use both at once
-	cmd.Flags().StringVar(&opts.release, "release", "", "Set release field (use 'current' for active release)")
-	cmd.Flags().BoolVar(&opts.backlog, "backlog", false, "Clear release and microsprint fields (return to backlog)")
+	cmd.Flags().StringVarP(&opts.branch, "branch", "b", "", "Set branch field (use 'current' for active branch)")
+	cmd.Flags().StringVar(&opts.branch, "release", "", "[DEPRECATED] Use --branch instead")
+	cmd.MarkFlagsMutuallyExclusive("branch", "release") // Can't use both at once
+	cmd.Flags().BoolVar(&opts.backlog, "backlog", false, "Clear branch and microsprint fields (return to backlog)")
 	cmd.Flags().BoolVarP(&opts.recursive, "recursive", "r", false, "Apply changes to all sub-issues recursively")
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
-	cmd.Flags().BoolVarP(&opts.force, "force", "f", false, "Bypass checkbox validation (still requires body and release)")
+	cmd.Flags().BoolVarP(&opts.force, "force", "f", false, "Bypass checkbox validation (still requires body and branch)")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt for recursive operations")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
@@ -130,13 +132,13 @@ type issueInfo struct {
 
 func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 	// Validate at least one flag is provided
-	if opts.status == "" && opts.priority == "" && opts.microsprint == "" && opts.release == "" && !opts.backlog {
-		return fmt.Errorf("at least one of --status, --priority, --microsprint, --release, or --backlog is required")
+	if opts.status == "" && opts.priority == "" && opts.microsprint == "" && opts.branch == "" && !opts.backlog {
+		return fmt.Errorf("at least one of --status, --priority, --microsprint, --branch, or --backlog is required")
 	}
 
-	// Validate --backlog cannot be combined with --release or --microsprint
-	if opts.backlog && (opts.release != "" || opts.microsprint != "") {
-		return fmt.Errorf("--backlog cannot be combined with --release or --microsprint")
+	// Validate --backlog cannot be combined with --branch or --microsprint
+	if opts.backlog && (opts.branch != "" || opts.microsprint != "") {
+		return fmt.Errorf("--backlog cannot be combined with --branch or --microsprint")
 	}
 
 	// Load configuration
@@ -318,23 +320,25 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		}
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Microsprint -> %s", microsprintValue))
 	}
-	if opts.release != "" {
-		if opts.release == "current" {
+	if opts.branch != "" {
+		if opts.branch == "current" {
 			firstOwner := issuesToUpdate[0].Owner
 			firstRepo := issuesToUpdate[0].Repo
-			releaseIssues, err := client.GetOpenIssuesByLabel(firstOwner, firstRepo, "release")
+			branchIssues, err := client.GetOpenIssuesByLabel(firstOwner, firstRepo, "branch")
 			if err != nil {
-				return fmt.Errorf("failed to get release issues: %w", err)
+				return fmt.Errorf("failed to get branch issues: %w", err)
 			}
-			activeTracker := findActiveReleaseForMove(releaseIssues)
+			activeTracker := findActiveBranchForMove(branchIssues)
 			if activeTracker == nil {
-				return fmt.Errorf("no active release found")
+				return fmt.Errorf("no active branch found")
 			}
-			releaseValue = strings.TrimPrefix(activeTracker.Title, "Release: ")
+			// Support both "Branch: " and "Release: " prefixes for backwards compatibility
+			releaseValue = strings.TrimPrefix(activeTracker.Title, "Branch: ")
+			releaseValue = strings.TrimPrefix(releaseValue, "Release: ")
 		} else {
-			releaseValue = opts.release
+			releaseValue = opts.branch
 		}
-		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Release -> %s", releaseValue))
+		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Branch -> %s", releaseValue))
 	}
 
 	// Validate IDPF rules before making any changes (all-or-nothing)
@@ -348,7 +352,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		var activeReleases []string
 		if len(issuesToUpdate) > 0 {
 			firstIssue := issuesToUpdate[0]
-			releaseIssues, err := client.GetOpenIssuesByLabel(firstIssue.Owner, firstIssue.Repo, "release")
+			releaseIssues, err := client.GetOpenIssuesByLabel(firstIssue.Owner, firstIssue.Repo, "branch")
 			if err == nil {
 				activeReleases = discoverActiveReleases(releaseIssues)
 			}
@@ -609,12 +613,12 @@ func findActiveMicrosprintForMove(issues []api.Issue) *api.Issue {
 	return nil
 }
 
-// findActiveReleaseForMove finds the active release tracker from a list of issues
-// Returns the first open release issue found (there should only be one active at a time)
-func findActiveReleaseForMove(issues []api.Issue) *api.Issue {
-	prefix := "Release: "
+// findActiveBranchForMove finds the active branch tracker from a list of issues
+// Returns the first open branch issue found (there should only be one active at a time)
+// Supports both "Branch: " (new) and "Release: " (legacy) prefixes for backwards compatibility
+func findActiveBranchForMove(issues []api.Issue) *api.Issue {
 	for i := range issues {
-		if strings.HasPrefix(issues[i].Title, prefix) {
+		if strings.HasPrefix(issues[i].Title, "Branch: ") || strings.HasPrefix(issues[i].Title, "Release: ") {
 			return &issues[i]
 		}
 	}
