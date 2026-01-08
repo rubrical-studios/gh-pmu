@@ -1228,8 +1228,8 @@ func TestRunBranchCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
 	cmd, _ := newTestBranchCmd()
 	opts := &branchCloseOptions{
 		branchName: "v1.2.0",
-		yes:         true,
-		tag:         true,
+		yes:        true,
+		tag:        true,
 	}
 
 	// ACT
@@ -1278,8 +1278,8 @@ func TestRunBranchCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
 	cmd, _ := newTestBranchCmd()
 	opts := &branchCloseOptions{
 		branchName: "v1.2.0",
-		yes:         true,
-		tag:         false, // No --tag flag
+		yes:        true,
+		tag:        false, // No --tag flag
 	}
 
 	// ACT

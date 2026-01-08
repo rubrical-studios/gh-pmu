@@ -81,7 +81,7 @@ type branchCloseOptions struct {
 }
 
 // branchListOptions holds the options for the branch list command
-type branchListOptions struct {}
+type branchListOptions struct{}
 
 // newBranchCommand creates the branch command group
 func newBranchCommand() *cobra.Command {
@@ -372,7 +372,6 @@ func runBranchStartWithDeps(cmd *cobra.Command, opts *branchStartOptions, cfg *c
 			return fmt.Errorf("failed to set status: %w", err)
 		}
 	}
-
 
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "Created branch: %s\n", opts.branchName)
