@@ -38,6 +38,9 @@ release:
         - version: no-release
           tracker_issue: 502
           track: ghpmu
+        - version: retire-code
+          tracker_issue: 507
+          track: config
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX
@@ -166,4 +169,7 @@ cache:
           state: CLOSED
         - number: 502
           title: 'Release: ghpmu/no-release'
+          state: OPEN
+        - number: 507
+          title: 'Release: config/retire-code'
           state: OPEN

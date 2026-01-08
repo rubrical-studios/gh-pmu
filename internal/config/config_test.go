@@ -1572,44 +1572,6 @@ release:
 	}
 }
 
-// TestHasCachedReleases tests the HasCachedReleases method
-func TestHasCachedReleases(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *Config
-		expected bool
-	}{
-		{
-			name:     "nil cache",
-			cfg:      &Config{},
-			expected: false,
-		},
-		{
-			name:     "empty cache",
-			cfg:      &Config{Cache: &Cache{}},
-			expected: false,
-		},
-		{
-			name: "with cached releases",
-			cfg: &Config{
-				Cache: &Cache{
-					Releases: []CachedTracker{{Number: 1, Title: "Release: v1.0.0", State: "OPEN"}},
-				},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.cfg.HasCachedReleases()
-			if result != tt.expected {
-				t.Errorf("HasCachedReleases() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 // TestHasCachedMicrosprints tests the HasCachedMicrosprints method
 func TestHasCachedMicrosprints(t *testing.T) {
 	tests := []struct {
@@ -1648,27 +1610,6 @@ func TestHasCachedMicrosprints(t *testing.T) {
 	}
 }
 
-// TestSetCachedReleases tests the SetCachedReleases method
-func TestSetCachedReleases(t *testing.T) {
-	cfg := &Config{}
-	trackers := []CachedTracker{
-		{Number: 1, Title: "Release: v1.0.0", State: "OPEN"},
-		{Number: 2, Title: "Release: v0.9.0", State: "CLOSED"},
-	}
-
-	cfg.SetCachedReleases(trackers)
-
-	if cfg.Cache == nil {
-		t.Fatal("Expected Cache to be initialized")
-	}
-	if len(cfg.Cache.Releases) != 2 {
-		t.Errorf("Expected 2 cached releases, got %d", len(cfg.Cache.Releases))
-	}
-	if cfg.Cache.Releases[0].Number != 1 {
-		t.Errorf("Expected first release number 1, got %d", cfg.Cache.Releases[0].Number)
-	}
-}
-
 // TestSetCachedMicrosprints tests the SetCachedMicrosprints method
 func TestSetCachedMicrosprints(t *testing.T) {
 	cfg := &Config{}
@@ -1687,50 +1628,11 @@ func TestSetCachedMicrosprints(t *testing.T) {
 	}
 }
 
-// TestUpdateCachedTracker tests the UpdateCachedTracker method
-func TestUpdateCachedTracker(t *testing.T) {
-	t.Run("add new release tracker", func(t *testing.T) {
-		cfg := &Config{}
-		cfg.UpdateCachedTracker("release", CachedTracker{
-			Number: 1,
-			Title:  "Release: v1.0.0",
-			State:  "OPEN",
-		})
-
-		if cfg.Cache == nil {
-			t.Fatal("Expected Cache to be initialized")
-		}
-		if len(cfg.Cache.Releases) != 1 {
-			t.Errorf("Expected 1 cached release, got %d", len(cfg.Cache.Releases))
-		}
-	})
-
-	t.Run("update existing release tracker", func(t *testing.T) {
-		cfg := &Config{
-			Cache: &Cache{
-				Releases: []CachedTracker{
-					{Number: 1, Title: "Release: v1.0.0", State: "OPEN"},
-				},
-			},
-		}
-
-		cfg.UpdateCachedTracker("release", CachedTracker{
-			Number: 1,
-			Title:  "Release: v1.0.0",
-			State:  "CLOSED",
-		})
-
-		if len(cfg.Cache.Releases) != 1 {
-			t.Errorf("Expected 1 cached release, got %d", len(cfg.Cache.Releases))
-		}
-		if cfg.Cache.Releases[0].State != "CLOSED" {
-			t.Errorf("Expected state CLOSED, got %s", cfg.Cache.Releases[0].State)
-		}
-	})
-
+// TestUpdateCachedMicrosprint tests the UpdateCachedMicrosprint method
+func TestUpdateCachedMicrosprint(t *testing.T) {
 	t.Run("add new microsprint tracker", func(t *testing.T) {
 		cfg := &Config{}
-		cfg.UpdateCachedTracker("microsprint", CachedTracker{
+		cfg.UpdateCachedMicrosprint(CachedTracker{
 			Number: 10,
 			Title:  "Microsprint: 2025-12-23-a",
 			State:  "OPEN",
@@ -1744,41 +1646,26 @@ func TestUpdateCachedTracker(t *testing.T) {
 		}
 	})
 
-	t.Run("invalid tracker type ignored", func(t *testing.T) {
-		cfg := &Config{}
-		cfg.UpdateCachedTracker("invalid", CachedTracker{
-			Number: 1,
-			Title:  "Test",
-			State:  "OPEN",
-		})
-
-		if cfg.Cache != nil && (len(cfg.Cache.Releases) > 0 || len(cfg.Cache.Microsprints) > 0) {
-			t.Error("Expected no trackers to be added for invalid type")
-		}
-	})
-}
-
-// TestGetCachedReleases tests the GetCachedReleases method
-func TestGetCachedReleases(t *testing.T) {
-	t.Run("nil cache returns nil", func(t *testing.T) {
-		cfg := &Config{}
-		result := cfg.GetCachedReleases()
-		if result != nil {
-			t.Errorf("Expected nil, got %v", result)
-		}
-	})
-
-	t.Run("returns cached releases", func(t *testing.T) {
+	t.Run("update existing microsprint tracker", func(t *testing.T) {
 		cfg := &Config{
 			Cache: &Cache{
-				Releases: []CachedTracker{
-					{Number: 1, Title: "Release: v1.0.0", State: "OPEN"},
+				Microsprints: []CachedTracker{
+					{Number: 10, Title: "Microsprint: 2025-12-23-a", State: "OPEN"},
 				},
 			},
 		}
-		result := cfg.GetCachedReleases()
-		if len(result) != 1 {
-			t.Errorf("Expected 1 release, got %d", len(result))
+
+		cfg.UpdateCachedMicrosprint(CachedTracker{
+			Number: 10,
+			Title:  "Microsprint: 2025-12-23-a",
+			State:  "CLOSED",
+		})
+
+		if len(cfg.Cache.Microsprints) != 1 {
+			t.Errorf("Expected 1 cached microsprint, got %d", len(cfg.Cache.Microsprints))
+		}
+		if cfg.Cache.Microsprints[0].State != "CLOSED" {
+			t.Errorf("Expected state CLOSED, got %s", cfg.Cache.Microsprints[0].State)
 		}
 	})
 }

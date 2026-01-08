@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-01-08
+
+### Changed
+- Rename `gh pmu release` command to `gh pmu branch` (#508)
+  - All subcommands remain the same: `start`, `current`, `add`, `remove`, `close`, `list`
+  - Tracker issues now use `branch` label instead of `release`
+- Change tracker label from `release` to `branch` (#505)
+  - Migration support: `gh pmu init` automatically migrates legacy labels
+- Remove unused `release.active` config section (#504)
+  - Active releases now tracked via `branch` label on tracker issues
+  - Simplifies config file and reduces maintenance overhead
+
+### Documentation
+- Update `docs/commands.md` to reflect `branch` command rename
+
 ## [0.10.1] - 2026-01-05
 
 ### Added

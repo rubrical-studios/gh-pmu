@@ -36,7 +36,7 @@ Utilities:
 
 Workflow Commands:
   microsprint Manage microsprints for IDPF-Agile development
-  release     Manage releases for IDPF-Structured development
+  branch      Manage branches for IDPF-Structured development
   validation  Manage status transition validation rules
 
 Flags:
@@ -639,33 +639,33 @@ gh pmu microsprint resolve
 - `Microsprints/{name}/review.md` - Issue summary
 - `Microsprints/{name}/retro.md` - Retrospective notes
 
-### release
+### branch
 
-Manage releases for IDPF-Structured development (branch-based deployment).
+Manage branches for IDPF-Structured development (branch-based deployment).
 
 ```bash
-# Start a new release (creates git branch and tracker issue)
-gh pmu release start --branch release/v2.0.0
+# Start a new branch (creates git branch and tracker issue)
+gh pmu branch start --branch release/v2.0.0
 
-# Start a patch release
-gh pmu release start --branch patch/v1.9.1
+# Start a patch branch
+gh pmu branch start --branch patch/v1.9.1
 
-# Start a hotfix
-gh pmu release start --branch hotfix-auth-bypass
+# Start a hotfix branch
+gh pmu branch start --branch hotfix-auth-bypass
 
-# Manage issues in release
-gh pmu release add 42
-gh pmu release remove 42
+# Manage issues in branch
+gh pmu branch add 42
+gh pmu branch remove 42
 
-# View current release
-gh pmu release current
+# View current branch
+gh pmu branch current
 
-# Close release (closes tracker, optional tag)
-gh pmu release close
+# Close branch (closes tracker, optional tag)
+gh pmu branch close
 
-# List release history
-gh pmu release list
-gh pmu release list --refresh         # Force API fetch, update cache
+# List branch history
+gh pmu branch list
+gh pmu branch list --refresh         # Force API fetch, update cache
 ```
 
 **Notes:**

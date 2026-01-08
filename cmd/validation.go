@@ -156,20 +156,27 @@ func isReleaseActiveInContext(activeReleases []string, releaseName string) bool 
 	return false
 }
 
-// discoverActiveReleases fetches active release names from GitHub issues with "release" label
-// Returns the extracted release names (e.g., "v1.2.0") from issue titles like "Release: v1.2.0"
+// discoverActiveReleases fetches active branch names from GitHub issues with "branch" label
+// Returns the extracted branch names (e.g., "release/v1.2.0") from issue titles like "Branch: release/v1.2.0"
+// Supports both "Branch: " (new) and "Release: " (legacy) prefixes for backwards compatibility
 func discoverActiveReleases(issues []api.Issue) []string {
 	var releases []string
 	for _, issue := range issues {
-		if strings.HasPrefix(issue.Title, "Release: ") {
-			// Extract version from title (e.g., "Release: v1.2.0" or "Release: v1.2.0 (Phoenix)")
-			version := strings.TrimPrefix(issue.Title, "Release: ")
-			// Remove codename in parentheses if present
-			if idx := strings.Index(version, " ("); idx > 0 {
-				version = version[:idx]
-			}
-			releases = append(releases, strings.TrimSpace(version))
+		var version string
+		if strings.HasPrefix(issue.Title, "Branch: ") {
+			// Extract version from title (e.g., "Branch: release/v1.2.0" or "Branch: release/v1.2.0 (Phoenix)")
+			version = strings.TrimPrefix(issue.Title, "Branch: ")
+		} else if strings.HasPrefix(issue.Title, "Release: ") {
+			// Legacy format: "Release: v1.2.0" or "Release: v1.2.0 (Phoenix)"
+			version = strings.TrimPrefix(issue.Title, "Release: ")
+		} else {
+			continue
 		}
+		// Remove codename in parentheses if present
+		if idx := strings.Index(version, " ("); idx > 0 {
+			version = version[:idx]
+		}
+		releases = append(releases, strings.TrimSpace(version))
 	}
 	return releases
 }

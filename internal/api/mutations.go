@@ -1156,3 +1156,90 @@ type AddCommentInput struct {
 	SubjectID graphql.ID     `json:"subjectId"`
 	Body      graphql.String `json:"body"`
 }
+
+// DeleteLabel deletes a label from a repository
+func (c *Client) DeleteLabel(owner, repo, labelName string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	// Get the label ID first
+	labelID, err := c.getLabelID(owner, repo, labelName)
+	if err != nil {
+		return fmt.Errorf("failed to get label ID: %w", err)
+	}
+
+	var mutation struct {
+		DeleteLabel struct {
+			ClientMutationID string
+		} `graphql:"deleteLabel(input: $input)"`
+	}
+
+	input := DeleteLabelInput{
+		ID: graphql.ID(labelID),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err = c.gql.Mutate("DeleteLabel", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to delete label: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteLabelInput represents the input for deleting a label
+type DeleteLabelInput struct {
+	ID graphql.ID `json:"id"`
+}
+
+// UpdateLabel updates a label's properties in a repository
+func (c *Client) UpdateLabel(owner, repo, labelName, newName, newColor, newDescription string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	// Get the label ID first
+	labelID, err := c.getLabelID(owner, repo, labelName)
+	if err != nil {
+		return fmt.Errorf("failed to get label ID: %w", err)
+	}
+
+	var mutation struct {
+		UpdateLabel struct {
+			Label struct {
+				ID   string
+				Name string
+			}
+		} `graphql:"updateLabel(input: $input)"`
+	}
+
+	input := UpdateLabelInput{
+		ID:          graphql.ID(labelID),
+		Name:        graphql.String(newName),
+		Color:       graphql.String(newColor),
+		Description: graphql.String(newDescription),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err = c.gql.Mutate("UpdateLabel", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to update label: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateLabelInput represents the input for updating a label
+type UpdateLabelInput struct {
+	ID          graphql.ID     `json:"id"`
+	Name        graphql.String `json:"name,omitempty"`
+	Color       graphql.String `json:"color,omitempty"`
+	Description graphql.String `json:"description,omitempty"`
+}

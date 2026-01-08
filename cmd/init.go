@@ -64,16 +64,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	u.Header("gh-pmu init", "Configure project management settings")
 	fmt.Fprintln(cmd.OutOrStdout())
 
-	// Check if config already exists and preserve framework and active releases
+	// Check if config already exists and preserve framework
 	var existingFramework string
-	var existingActiveReleases []ReleaseActiveEntry
 	if _, err := os.Stat(".gh-pmu.yml"); err == nil {
-		// Try to load existing config to preserve framework and active releases
-		if existingCfg, err := loadExistingConfigFull("."); err == nil {
-			if existingCfg.Framework != "" {
-				existingFramework = existingCfg.Framework
-			}
-			existingActiveReleases = existingCfg.ActiveReleases
+		// Try to load existing config to preserve framework
+		if existingCfg, err := loadExistingFramework("."); err == nil {
+			existingFramework = existingCfg
 		}
 		u.Warning("Configuration file .gh-pmu.yml already exists")
 		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Overwrite?", "y/N"))
@@ -298,6 +294,38 @@ func runInit(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// Migrate legacy "release" label to "branch" (if needed)
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Info("Checking for label migrations...")
+		legacyReleaseExists, _ := client.LabelExists(repoOwner, repoName, "release")
+		branchExists, _ := client.LabelExists(repoOwner, repoName, "branch")
+
+		if legacyReleaseExists {
+			if !branchExists {
+				// Rename "release" to "branch"
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), "Migrating 'release' label to 'branch'...")
+				spinner.Start()
+				err := client.UpdateLabel(repoOwner, repoName, "release", "branch", "0e8a16", "Branch tracker issue")
+				spinner.Stop()
+				if err != nil {
+					u.Warning(fmt.Sprintf("Could not migrate release label: %v", err))
+				} else {
+					u.Success("Migrated 'release' label to 'branch'")
+				}
+			} else {
+				// Both exist - delete the legacy "release" label
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), "Removing legacy 'release' label...")
+				spinner.Start()
+				err := client.DeleteLabel(repoOwner, repoName, "release")
+				spinner.Stop()
+				if err != nil {
+					u.Warning(fmt.Sprintf("Could not remove legacy release label: %v", err))
+				} else {
+					u.Success("Removed legacy 'release' label")
+				}
+			}
+		}
+
 		// Check and create required labels (IDPF only)
 		fmt.Fprintln(cmd.OutOrStdout())
 		u.Info("Checking repository labels...")
@@ -306,7 +334,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			color       string
 			description string
 		}{
-			{"release", "0e8a16", "Release tracker issue"},
+			{"branch", "0e8a16", "Branch tracker issue"},
 			{"microsprint", "1d76db", "Microsprint tracker issue"},
 		}
 
@@ -337,21 +365,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 	// Refetch fields after potential creation
 	fields, _ := client.GetProjectFields(selectedProject.ID)
 
-	// Sync active releases from tracker issues
-	fmt.Fprintln(cmd.OutOrStdout())
-	u.Info("Syncing active releases...")
-	activeReleases, releaseResults, err := syncActiveReleases(client, repoOwner, repoName)
-	if err != nil {
-		u.Warning(fmt.Sprintf("Could not sync releases: %v", err))
-	} else if len(releaseResults) > 0 {
-		for _, r := range releaseResults {
-			u.Success(fmt.Sprintf("Found active release: %s (track: %s, tracker: #%d, issues: %d)",
-				r.Entry.Version, r.Entry.Track, r.Entry.TrackerIssue, r.IssueCount))
-		}
-	} else {
-		u.Info("No active releases found")
-	}
-
 	// Convert to metadata
 	metadata := &ProjectMetadata{
 		ProjectID: selectedProject.ID,
@@ -380,12 +393,9 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Framework:     framework,
 	}
 
-	// Merge existing active releases with newly discovered ones (additive, no duplicates)
-	mergedReleases := mergeActiveReleases(existingActiveReleases, activeReleases)
-
 	// Write config
 	cwd, _ := os.Getwd()
-	if err := writeConfigWithMetadata(cwd, cfg, metadata, mergedReleases); err != nil {
+	if err := writeConfigWithMetadata(cwd, cfg, metadata); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
@@ -434,35 +444,23 @@ func detectRepository() string {
 	return parseGitRemote(strings.TrimSpace(string(output)))
 }
 
-// existingConfigFull holds framework and active releases for preservation during re-init
-type existingConfigFull struct {
-	Framework      string `yaml:"framework"`
-	ActiveReleases []ReleaseActiveEntry
-}
-
-// existingConfigRaw is used for YAML unmarshaling to get release.active
+// existingConfigRaw is used for YAML unmarshaling to get framework
 type existingConfigRaw struct {
 	Framework string `yaml:"framework"`
-	Release   struct {
-		Active []ReleaseActiveEntry `yaml:"active"`
-	} `yaml:"release"`
 }
 
-// loadExistingConfigFull loads framework and active releases from existing config
-func loadExistingConfigFull(dir string) (*existingConfigFull, error) {
+// loadExistingFramework loads framework from existing config
+func loadExistingFramework(dir string) (string, error) {
 	configPath := filepath.Join(dir, ".gh-pmu.yml")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	var raw existingConfigRaw
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, err
+		return "", err
 	}
-	return &existingConfigFull{
-		Framework:      raw.Framework,
-		ActiveReleases: raw.Release.Active,
-	}, nil
+	return raw.Framework, nil
 }
 
 // splitRepository splits "owner/repo" into owner and repo parts.
@@ -571,18 +569,6 @@ type TriageApply struct {
 }
 
 // ConfigFileWithMetadata extends ConfigFile with metadata section.
-// ReleaseConfig holds release-related configuration
-type ReleaseConfig struct {
-	Active []ReleaseActiveEntry `yaml:"active,omitempty"`
-}
-
-// ReleaseActiveEntry represents an active release
-type ReleaseActiveEntry struct {
-	Version      string `yaml:"version"`
-	TrackerIssue int    `yaml:"tracker_issue"`
-	Track        string `yaml:"track"`
-}
-
 type ConfigFileWithMetadata struct {
 	Project      ProjectConfig           `yaml:"project"`
 	Repositories []string                `yaml:"repositories"`
@@ -590,7 +576,6 @@ type ConfigFileWithMetadata struct {
 	Defaults     DefaultsConfig          `yaml:"defaults"`
 	Fields       map[string]FieldMapping `yaml:"fields"`
 	Triage       map[string]TriageRule   `yaml:"triage,omitempty"`
-	Release      ReleaseConfig           `yaml:"release,omitempty"`
 	Metadata     MetadataSection         `yaml:"metadata"`
 }
 
@@ -668,7 +653,7 @@ func writeConfig(dir string, cfg *InitConfig) error {
 }
 
 // writeConfigWithMetadata writes the configuration with project metadata.
-func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetadata, activeReleases []ReleaseActiveEntry) error {
+func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetadata) error {
 	// Safety check: prevent accidental writes to repo root during tests
 	if protectRepoRoot && isRepoRoot(dir) {
 		return ErrRepoRootProtected
@@ -716,9 +701,6 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 				},
 			},
 		},
-		Release: ReleaseConfig{
-			Active: activeReleases,
-		},
 		Metadata: MetadataSection{
 			Project: MetadataProject{
 				ID: metadata.ProjectID,
@@ -738,106 +720,6 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 	}
 
 	return nil
-}
-
-// ReleaseDiscoveryResult holds release info with issue count for display
-type ReleaseDiscoveryResult struct {
-	Entry      ReleaseActiveEntry
-	IssueCount int
-}
-
-// syncActiveReleases queries open release issues and returns active release entries with issue counts
-func syncActiveReleases(client *api.Client, owner, repo string) ([]ReleaseActiveEntry, []ReleaseDiscoveryResult, error) {
-	issues, err := client.GetOpenIssuesByLabel(owner, repo, "release")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get release issues: %w", err)
-	}
-
-	var entries []ReleaseActiveEntry
-	var results []ReleaseDiscoveryResult
-	for _, issue := range issues {
-		if !strings.HasPrefix(issue.Title, "Release: ") {
-			continue
-		}
-
-		version, track := parseReleaseTitleForInit(issue.Title)
-
-		// Get the release field value to count issues
-		releaseFieldValue := extractReleaseVersionForInit(issue.Title)
-		releaseIssues, _ := client.GetIssuesByRelease(owner, repo, releaseFieldValue)
-		issueCount := len(releaseIssues)
-
-		entry := ReleaseActiveEntry{
-			Version:      version,
-			TrackerIssue: issue.Number,
-			Track:        track,
-		}
-		entries = append(entries, entry)
-		results = append(results, ReleaseDiscoveryResult{
-			Entry:      entry,
-			IssueCount: issueCount,
-		})
-	}
-
-	return entries, results, nil
-}
-
-// extractReleaseVersionForInit extracts the release field value from a title
-func extractReleaseVersionForInit(title string) string {
-	// Remove "Release: " prefix
-	version := strings.TrimPrefix(title, "Release: ")
-	// Remove codename if present
-	if idx := strings.Index(version, " ("); idx > 0 {
-		version = version[:idx]
-	}
-	return version
-}
-
-// parseReleaseTitleForInit parses a release title into version and track
-func parseReleaseTitleForInit(title string) (version, track string) {
-	// Remove "Release: " prefix
-	remainder := strings.TrimPrefix(title, "Release: ")
-
-	// Remove codename suffix if present (e.g., " (Phoenix)")
-	if idx := strings.Index(remainder, " ("); idx != -1 {
-		remainder = remainder[:idx]
-	}
-
-	// Check for track prefix (e.g., "patch/", "beta/")
-	if strings.Contains(remainder, "/") {
-		parts := strings.SplitN(remainder, "/", 2)
-		track = parts[0]
-		version = strings.TrimPrefix(parts[1], "v")
-	} else {
-		// Default track is "stable", version starts with v
-		track = "stable"
-		version = strings.TrimPrefix(remainder, "v")
-	}
-
-	return version, track
-}
-
-// mergeActiveReleases merges existing releases with newly discovered ones (additive, no duplicates)
-func mergeActiveReleases(existing, discovered []ReleaseActiveEntry) []ReleaseActiveEntry {
-	// Start with discovered releases (fresh from GitHub)
-	result := make([]ReleaseActiveEntry, len(discovered))
-	copy(result, discovered)
-
-	// Create a map of tracker issue numbers for quick duplicate detection
-	seen := make(map[int]bool)
-	for _, r := range discovered {
-		seen[r.TrackerIssue] = true
-	}
-
-	// Add existing releases that aren't already in discovered (handles releases that may have been added manually)
-	for _, r := range existing {
-		if !seen[r.TrackerIssue] {
-			result = append(result, r)
-			seen[r.TrackerIssue] = true
-		}
-	}
-
-	return result
 }
 
 // buildFieldMappingsFromMetadata builds field mappings dynamically from project metadata.
