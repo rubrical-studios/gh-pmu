@@ -311,7 +311,6 @@ func runInit(cmd *cobra.Command, args []string) error {
 					u.Warning(fmt.Sprintf("Could not migrate release label: %v", err))
 				} else {
 					u.Success("Migrated 'release' label to 'branch'")
-					branchExists = true // Now branch exists after migration
 				}
 			} else {
 				// Both exist - delete the legacy "release" label
