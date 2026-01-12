@@ -1,23 +1,27 @@
 #!/usr/bin/env node
-// **Version:** 0.15.2
+// **Version:** 0.23.4
 /**
- * assign-release.js
+ * assign-branch.js
  *
- * Interactive script to assign issues to releases.
- * Used by /assign-release slash command.
+ * Interactive script to assign issues to branches.
+ * Used by /assign-branch slash command.
  *
  * Implements: REQ-007 (Assign-Release Command)
  * Source: PRD/PRD-Release-and-Sprint-Workflow.md
  *
  * Usage:
- *   node assign-release.js                     # Interactive mode
- *   node assign-release.js release/v1.0 123    # Direct assignment (fast - skips epic check)
- *   node assign-release.js release/v1.0 --all  # Assign all unassigned to release
+ *   node assign-branch.js                     # Interactive mode
+ *   node assign-branch.js release/v1.0 123    # Direct assignment (fast - skips epic check)
+ *   node assign-branch.js release/v1.0 --all  # Assign all backlog issues
+ *   node assign-branch.js --add-ready         # Assign all ready issues (immediate)
  *
  * Flags:
- *   --all         Assign all unassigned backlog issues
+ *   --all         Assign all unassigned backlog issues (lists first without flag)
+ *   --add-ready   Assign all unassigned ready issues (immediate, no listing)
  *   --check-epic  Force epic detection for single issues (slower)
  *   --timing      Show timing information for performance debugging
+ *
+ * Note: --all and --add-ready are mutually exclusive.
  *
  * Performance notes:
  *   - gh pmu commands use local caching in .gh-pmu.yml (~50ms when cached)
@@ -44,10 +48,15 @@ function endTimer(name) {
     }
 }
 
+// Configuration constants
+const LARGE_SELECTION_THRESHOLD = 20;  // Warn when assigning more issues than this
+const PARALLEL_BATCH_SIZE = 5;         // Number of issues to assign in parallel
+const PARALLEL_THRESHOLD = 3;          // Use parallel assignment above this count
+
 function execSyncSafe(cmd) {
     try {
         return execSync(cmd, { encoding: 'utf-8' }).trim();
-    } catch (e) {
+    } catch {
         return null;
     }
 }
@@ -56,7 +65,7 @@ async function execAsyncSafe(cmd) {
     try {
         const { stdout } = await execAsync(cmd, { encoding: 'utf-8' });
         return stdout.trim();
-    } catch (e) {
+    } catch {
         return null;
     }
 }
@@ -78,7 +87,9 @@ function getLastVersion() {
                 };
             }
         }
-    } catch {}
+    } catch (err) {
+        if (showTiming) console.log(`  ⚠ getLastVersion failed: ${err.message}`);
+    }
     return null;
 }
 
@@ -89,7 +100,9 @@ async function getIssueLabels(issueNumber) {
     try {
         const result = await execAsyncSafe(`gh issue view ${issueNumber} --json labels -q ".labels[].name"`);
         return result ? result.split('\n').filter(l => l.trim()) : [];
-    } catch {}
+    } catch (err) {
+        if (showTiming) console.log(`  ⚠ getIssueLabels(${issueNumber}) failed: ${err.message}`);
+    }
     return [];
 }
 
@@ -100,18 +113,6 @@ function generateBranchSuggestions(lastVersion, userInput, labels) {
     const suggestions = [];
     const hasBugLabel = labels.some(l => l.toLowerCase() === 'bug' || l.toLowerCase() === 'hotfix');
     const hasFeatureLabel = labels.some(l => ['enhancement', 'feature', 'epic', 'story'].includes(l.toLowerCase()));
-
-    let userVersionHint = null;
-    if (userInput) {
-        const match = userInput.match(/v?(\d+)\.(\d+)(?:\.(\d+))?/);
-        if (match) {
-            userVersionHint = {
-                major: parseInt(match[1], 10),
-                minor: parseInt(match[2], 10),
-                patch: match[3] ? parseInt(match[3], 10) : 0
-            };
-        }
-    }
 
     if (lastVersion) {
         const nextPatch = `v${lastVersion.major}.${lastVersion.minor}.${lastVersion.patch + 1}`;
@@ -167,7 +168,8 @@ async function getSubIssueCountAsync(issueNumber) {
             if (Array.isArray(data)) return data.length;
         }
         return 0;
-    } catch {
+    } catch (err) {
+        if (showTiming) console.log(`  ⚠ getSubIssueCountAsync(${issueNumber}) failed: ${err.message}`);
         return 0;
     }
 }
@@ -196,29 +198,32 @@ async function getOpenReleases() {
             endTimer('getOpenReleases');
             return releases;
         }
-    } catch {}
+    } catch (err) {
+        if (showTiming) console.log(`  ⚠ getOpenReleases failed: ${err.message}`);
+    }
     endTimer('getOpenReleases');
     return [];
 }
 
 /**
- * Get backlog issues (gh pmu handles caching internally)
+ * Get issues by status (gh pmu handles caching internally)
+ * @param {string} status - Status to query (default: 'backlog')
  */
-async function getBacklogIssues() {
-    startTimer('getBacklogIssues');
+async function getIssuesByStatus(status = 'backlog') {
+    startTimer(`getIssuesByStatus(${status})`);
     try {
-        const result = await execAsyncSafe('gh pmu list --status backlog --json');
+        const result = await execAsyncSafe(`gh pmu list --status ${status} --json`);
         if (result) {
             const data = JSON.parse(result);
             const items = data.items || data || [];
             const filtered = items.filter(i => !i.fieldValues?.Release);
-            endTimer('getBacklogIssues');
+            endTimer(`getIssuesByStatus(${status})`);
             return filtered;
         }
     } catch {
-        console.error('Error fetching backlog issues');
+        console.error(`Error fetching ${status} issues`);
     }
-    endTimer('getBacklogIssues');
+    endTimer(`getIssuesByStatus(${status})`);
     return [];
 }
 
@@ -233,25 +238,60 @@ async function assignToRelease(issueNumber, release, useCurrent = false) {
             return false;
         }
         return true;
-    } catch {
+    } catch (err) {
+        if (showTiming) console.log(`  ⚠ assignToRelease(${issueNumber}) failed: ${err.message}`);
         return false;
     }
 }
 
+/**
+ * Assign all sub-issues of an epic to a release
+ * @returns {number} Count of successfully assigned sub-issues
+ */
+async function assignSubIssuesToRelease(issueNumber, release, useCurrent) {
+    const subResult = await execAsyncSafe(`gh pmu sub list ${issueNumber} --json`);
+    if (!subResult) return 0;
+
+    try {
+        const subData = JSON.parse(subResult);
+        const children = subData.children || [];
+        const results = await Promise.all(
+            children.map(sub => assignToRelease(sub.number || sub, release, useCurrent))
+        );
+        return results.filter(Boolean).length;
+    } catch (err) {
+        if (showTiming) console.log(`  ⚠ Failed to parse sub-issues for #${issueNumber}: ${err.message}`);
+        return 0;
+    }
+}
+
 async function main() {
-    const args = process.argv.slice(2);
+    let args = process.argv.slice(2);
+
+    // Handle space-separated arguments passed as a single string (from skill invocation)
+    // e.g., "#789 #790 #788" gets passed as one arg instead of three separate args
+    if (args.length === 1 && args[0].includes(' ')) {
+        args = args[0].split(/\s+/).filter(a => a.trim());
+    }
 
     // Parse args - order-independent parsing
     const assignAll = args.includes('--all');
+    const addReady = args.includes('--add-ready');
     const checkEpic = args.includes('--check-epic');
     showTiming = args.includes('--timing');
+
+    // Mutual exclusion check
+    if (assignAll && addReady) {
+        console.log('Error: --all and --add-ready are mutually exclusive.');
+        process.exit(1);
+    }
 
     // Auto-detect: arguments starting with # are issues, release/patch/hotfix prefixes are releases
     let release = args.find(a => a.startsWith('release/') || a.startsWith('patch/') || a.startsWith('hotfix/'));
     let issueNumbers = args.filter(a => a.match(/^#?\d+$/)).map(a => parseInt(a.replace('#', ''), 10));
     const userInput = args.find(a => !a.startsWith('-') && !a.startsWith('release/') && !a.startsWith('patch/') && !a.startsWith('hotfix/') && !a.match(/^#?\d+$/));
 
-    console.log('=== Assign-Release ===\n');
+    console.log('=== Assign-Branch ===\n');
     startTimer('total');
 
     // Step 1: Get releases (gh pmu handles caching internally)
@@ -298,8 +338,8 @@ async function main() {
         return;
     }
 
-    // Step 3: Single-release shortcut - if only one release and issues provided, use current
-    if (!release && currentRelease && issueNumbers.length > 0) {
+    // Step 3: Single-release shortcut - if only one release and issues/flags provided, use current
+    if (!release && currentRelease && (issueNumbers.length > 0 || addReady || assignAll)) {
         release = currentRelease;
         console.log(`Using current release: ${release}\n`);
     }
@@ -315,92 +355,111 @@ async function main() {
         console.log('');
         console.log('Usage:');
         if (releases.length === 1) {
-            console.log('  /assign-release #issue              # Assign to current release');
-            console.log('  /assign-release #issue #issue ...   # Assign multiple issues');
+            // Show quick workflow first when there's a current release
+            console.log('  /assign-branch --add-ready         # Quick: assign all ready issues');
+            console.log('  /assign-branch #issue              # Assign single issue');
+            console.log('  /assign-branch #issue #issue ...   # Assign multiple issues');
+        } else {
+            console.log('  /assign-branch --add-ready         # Assign all ready issues to current');
         }
-        console.log('  /assign-release #issue release/...  # Assign to specific release');
-        console.log('  /assign-release release/... #issue  # Same (order doesn\'t matter)');
-        console.log('  /assign-release release/... --all   # Assign all backlog issues');
+        console.log('  /assign-branch release/... #issue  # Assign to specific release');
+        console.log('  /assign-branch release/... --all   # Assign all backlog issues');
         console.log('');
         console.log('Examples:');
         if (currentRelease) {
-            console.log(`  /assign-release #123`);
-            console.log(`  /assign-release #123 #124 #125`);
+            console.log(`  /assign-branch --add-ready          # Most common workflow`);
+            console.log(`  /assign-branch #123`);
+            console.log(`  /assign-branch #123 #124 #125`);
         }
-        console.log(`  /assign-release ${releases[0].version} #123`);
-        console.log(`  /assign-release ${releases[0].version} --all\n`);
+        console.log(`  /assign-branch ${releases[0].version} #123`);
+        console.log(`  /assign-branch ${releases[0].version} --all\n`);
         endTimer('total');
         return;
     }
 
     // Step 5: Get issues to assign
     if (issueNumbers.length === 0) {
-        const backlog = await getBacklogIssues();
+        // Handle --add-ready: assign all Ready issues immediately
+        if (addReady) {
+            const ready = await getIssuesByStatus('ready');
 
-        if (backlog.length === 0) {
-            console.log('No unassigned backlog issues found.');
-            endTimer('total');
-            return;
-        }
+            if (ready.length === 0) {
+                console.log('No unassigned ready issues found.');
+                endTimer('total');
+                return;
+            }
 
-        if (assignAll) {
-            issueNumbers = backlog.map(i => i.number);
-            console.log(`Assigning all ${issueNumbers.length} unassigned backlog issues to ${release}...\n`);
+            issueNumbers = ready.map(i => i.number);
+            console.log(`Assigning all ${issueNumbers.length} ready issues to ${release}...\n`);
         } else {
-            // Group by type for display
-            const epics = backlog.filter(i => i.labels?.includes('epic'));
-            const bugs = backlog.filter(i => i.labels?.includes('bug'));
-            const enhancements = backlog.filter(i => i.labels?.includes('enhancement'));
-            const stories = backlog.filter(i => i.labels?.includes('story'));
-            const other = backlog.filter(i =>
-                !['epic', 'bug', 'enhancement', 'story'].some(l => i.labels?.includes(l))
-            );
+            // Handle backlog issues (--all or listing)
+            const backlog = await getIssuesByStatus('backlog');
 
-            console.log(`Unassigned backlog issues (${backlog.length} total):\n`);
+            if (backlog.length === 0) {
+                console.log('No unassigned backlog issues found.');
+                endTimer('total');
+                return;
+            }
 
-            // Fetch sub-issue counts in parallel for epics
-            if (epics.length > 0) {
-                console.log('── Epics ──');
-                startTimer('epicSubCounts');
-                const subCounts = await Promise.all(
-                    epics.map(i => getSubIssueCountAsync(i.number))
+            if (assignAll) {
+                issueNumbers = backlog.map(i => i.number);
+                console.log(`Assigning all ${issueNumbers.length} unassigned backlog issues to ${release}...\n`);
+            } else {
+                // Group by type for display
+                const epics = backlog.filter(i => i.labels?.includes('epic'));
+                const bugs = backlog.filter(i => i.labels?.includes('bug'));
+                const enhancements = backlog.filter(i => i.labels?.includes('enhancement'));
+                const stories = backlog.filter(i => i.labels?.includes('story'));
+                const other = backlog.filter(i =>
+                    !['epic', 'bug', 'enhancement', 'story'].some(l => i.labels?.includes(l))
                 );
-                endTimer('epicSubCounts');
-                epics.forEach((i, idx) => {
-                    console.log(`  #${i.number} - ${i.title} (${subCounts[idx]} sub-issues)`);
-                });
-            }
 
-            if (bugs.length > 0) {
-                console.log('\n── Bugs ──');
-                bugs.forEach(i => console.log(`  #${i.number} - ${i.title}`));
-            }
+                console.log(`Unassigned backlog issues (${backlog.length} total):\n`);
 
-            if (enhancements.length > 0) {
-                console.log('\n── Enhancements ──');
-                enhancements.forEach(i => console.log(`  #${i.number} - ${i.title}`));
-            }
+                // Fetch sub-issue counts in parallel for epics
+                if (epics.length > 0) {
+                    console.log('── Epics ──');
+                    startTimer('epicSubCounts');
+                    const subCounts = await Promise.all(
+                        epics.map(i => getSubIssueCountAsync(i.number))
+                    );
+                    endTimer('epicSubCounts');
+                    epics.forEach((i, idx) => {
+                        console.log(`  #${i.number} - ${i.title} (${subCounts[idx]} sub-issues)`);
+                    });
+                }
 
-            if (stories.length > 0) {
-                console.log('\n── Stories ──');
-                stories.forEach(i => console.log(`  #${i.number} - ${i.title}`));
-            }
+                if (bugs.length > 0) {
+                    console.log('\n── Bugs ──');
+                    bugs.forEach(i => console.log(`  #${i.number} - ${i.title}`));
+                }
 
-            if (other.length > 0) {
-                console.log('\n── Other ──');
-                other.forEach(i => console.log(`  #${i.number} - ${i.title}`));
-            }
+                if (enhancements.length > 0) {
+                    console.log('\n── Enhancements ──');
+                    enhancements.forEach(i => console.log(`  #${i.number} - ${i.title}`));
+                }
 
-            console.log('\n---');
-            console.log(`To assign specific issues: /assign-release ${release} #N #M ...`);
-            console.log(`To assign all: /assign-release ${release} --all`);
-            endTimer('total');
-            return;
+                if (stories.length > 0) {
+                    console.log('\n── Stories ──');
+                    stories.forEach(i => console.log(`  #${i.number} - ${i.title}`));
+                }
+
+                if (other.length > 0) {
+                    console.log('\n── Other ──');
+                    other.forEach(i => console.log(`  #${i.number} - ${i.title}`));
+                }
+
+                console.log('\n---');
+                console.log(`To assign specific issues: /assign-branch ${release} #N #M ...`);
+                console.log(`To assign all: /assign-branch ${release} --all`);
+                endTimer('total');
+                return;
+            }
         }
     }
 
     // Step 6: Confirm if large selection
-    if (issueNumbers.length >= 20) {
+    if (issueNumbers.length >= LARGE_SELECTION_THRESHOLD) {
         console.log(`WARNING: About to assign ${issueNumbers.length} issues to ${release}.`);
         console.log('If this is too many, cancel and specify individual issue numbers.\n');
     }
@@ -410,18 +469,16 @@ async function main() {
     let epicCount = 0;
     let subIssueCount = 0;
 
-    const shouldCheckEpic = checkEpic || issueNumbers.length > 1 || assignAll;
+    const shouldCheckEpic = checkEpic || issueNumbers.length > 1 || assignAll || addReady;
     const useCurrent = (currentRelease && release === currentRelease);
 
     console.log(`Assigning to ${release}${useCurrent ? ' (current)' : ''}:\n`);
 
     // For parallel assignment (when multiple issues)
-    if (issueNumbers.length > 3) {
+    if (issueNumbers.length > PARALLEL_THRESHOLD) {
         startTimer('parallelAssign');
-        // Batch assignments in groups of 5 for parallelization
-        const batchSize = 5;
-        for (let i = 0; i < issueNumbers.length; i += batchSize) {
-            const batch = issueNumbers.slice(i, i + batchSize);
+        for (let i = 0; i < issueNumbers.length; i += PARALLEL_BATCH_SIZE) {
+            const batch = issueNumbers.slice(i, i + PARALLEL_BATCH_SIZE);
             const results = await Promise.all(
                 batch.map(async (num) => {
                     let isEpic = false;
@@ -430,20 +487,7 @@ async function main() {
                         isEpic = labels.includes('epic');
                     }
 
-                    let subAssigned = 0;
-                    if (isEpic) {
-                        const subResult = await execAsyncSafe(`gh pmu sub list ${num} --json`);
-                        if (subResult) {
-                            try {
-                                const subData = JSON.parse(subResult);
-                                const children = subData.children || [];
-                                const subResults = await Promise.all(
-                                    children.map(sub => assignToRelease(sub.number || sub, release, useCurrent))
-                                );
-                                subAssigned = subResults.filter(Boolean).length;
-                            } catch {}
-                        }
-                    }
+                    const subAssigned = isEpic ? await assignSubIssuesToRelease(num, release, useCurrent) : 0;
 
                     const assigned = await assignToRelease(num, release, useCurrent);
                     return { num, isEpic, assigned, subAssigned };
@@ -472,20 +516,9 @@ async function main() {
 
             if (isEpic) {
                 epicCount++;
-                const subResult = await execAsyncSafe(`gh pmu sub list ${num} --json`);
-                if (subResult) {
-                    try {
-                        const subData = JSON.parse(subResult);
-                        const children = subData.children || [];
-                        for (const sub of children) {
-                            const subNum = sub.number || sub;
-                            if (await assignToRelease(subNum, release, useCurrent)) {
-                                subIssueCount++;
-                                totalAssigned++;
-                            }
-                        }
-                    } catch {}
-                }
+                const assigned = await assignSubIssuesToRelease(num, release, useCurrent);
+                subIssueCount += assigned;
+                totalAssigned += assigned;
             }
 
             if (await assignToRelease(num, release, useCurrent)) {
@@ -504,4 +537,31 @@ async function main() {
     endTimer('total');
 }
 
-main().catch(console.error);
+// Run main only when executed directly (not when required for testing)
+if (require.main === module) {
+    main().catch(console.error);
+}
+
+// Export functions for testing
+module.exports = {
+    getLastVersion,
+    getIssueLabels,
+    generateBranchSuggestions,
+    getSubIssueCountAsync,
+    getOpenReleases,
+    getIssuesByStatus,
+    assignToRelease,
+    assignSubIssuesToRelease,
+    main,
+    // Export helpers for testing
+    execSyncSafe,
+    execAsyncSafe,
+    startTimer,
+    endTimer,
+    // Export configuration constants
+    LARGE_SELECTION_THRESHOLD,
+    PARALLEL_BATCH_SIZE,
+    PARALLEL_THRESHOLD,
+    // Export for mocking
+    setShowTiming: (value) => { showTiming = value; }
+};

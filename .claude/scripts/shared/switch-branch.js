@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// **Version:** 0.15.2
+// **Version:** 0.23.4
 /**
- * switch-release.js
+ * switch-branch.js
  *
- * Switch between release and sprint contexts.
- * Used by /switch-release slash command.
+ * Switch between branch and sprint contexts.
+ * Used by /switch-branch slash command.
  *
  * Implements: REQ-009 (Sprint-Release Integration)
  * Source: PRD/PRD-Release-and-Sprint-Workflow.md
  *
  * Usage:
- *   node switch-release.js                    # Interactive mode
- *   node switch-release.js release/v1.0       # Direct release switch
+ *   node switch-branch.js                    # Interactive mode
+ *   node switch-branch.js release/v1.0       # Direct branch switch
  */
 
 const { execSync } = require('child_process');
@@ -19,7 +19,7 @@ const { execSync } = require('child_process');
 function exec(cmd) {
     try {
         return execSync(cmd, { encoding: 'utf-8' }).trim();
-    } catch (e) {
+    } catch (_e) {
         return null;
     }
 }
@@ -31,11 +31,13 @@ function getOpenReleases() {
             const data = JSON.parse(result);
             return data.releases || data.items || data || [];
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return [];
 }
 
-function getSprints(release) {
+function getSprints(_release) {
     try {
         const result = exec('gh pmu microsprint list --json');
         if (result) {
@@ -44,7 +46,9 @@ function getSprints(release) {
             // Filter to sprints for this release (if release field exists)
             return sprints;
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return [];
 }
 
@@ -61,7 +65,7 @@ function main() {
     const args = process.argv.slice(2);
     let release = args.find(a => a.startsWith('release/') || a.startsWith('patch/') || a.startsWith('hotfix/'));
 
-    console.log('=== Switch Release ===\n');
+    console.log('=== Switch Branch ===\n');
 
     const currentBranch = getCurrentBranch();
     console.log(`Current branch: ${currentBranch}\n`);
@@ -84,8 +88,8 @@ function main() {
             console.log(`  [${i + 1}] ${name}${marker}`);
         });
 
-        console.log('\nUsage: /switch-release <release>');
-        console.log('Example: /switch-release release/v2.0.0\n');
+        console.log('\nUsage: /switch-branch <branch>');
+        console.log('Example: /switch-branch release/v2.0.0\n');
         return;
     }
 
@@ -135,7 +139,7 @@ function main() {
         console.log('\nJoin a sprint with: gh pmu microsprint current');
     }
 
-    console.log('\n✓ Context switched to release: ' + release);
+    console.log('\n✓ Context switched to branch: ' + release);
 }
 
 main();

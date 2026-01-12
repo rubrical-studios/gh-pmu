@@ -1560,6 +1560,77 @@ func TestGetSubIssues_Success(t *testing.T) {
 	}
 }
 
+func TestGetSubIssues_Pagination(t *testing.T) {
+	callCount := 0
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetSubIssues" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				issue := repo.FieldByName("Issue")
+				subIssues := issue.FieldByName("SubIssues")
+				nodes := subIssues.FieldByName("Nodes")
+				pageInfo := subIssues.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+				newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+
+				node := reflect.New(nodeType).Elem()
+				if callCount == 1 {
+					// First page
+					node.FieldByName("ID").SetString("sub-1")
+					node.FieldByName("Number").SetInt(10)
+					node.FieldByName("Title").SetString("Sub-issue 1")
+					node.FieldByName("State").SetString("OPEN")
+					node.FieldByName("URL").SetString("https://github.com/owner/repo/issues/10")
+					repoField := node.FieldByName("Repository")
+					repoField.FieldByName("Name").SetString("repo")
+					ownerField := repoField.FieldByName("Owner")
+					ownerField.FieldByName("Login").SetString("owner")
+					pageInfo.FieldByName("HasNextPage").SetBool(true)
+					pageInfo.FieldByName("EndCursor").SetString("cursor1")
+				} else {
+					// Second page
+					node.FieldByName("ID").SetString("sub-2")
+					node.FieldByName("Number").SetInt(11)
+					node.FieldByName("Title").SetString("Sub-issue 2")
+					node.FieldByName("State").SetString("CLOSED")
+					node.FieldByName("URL").SetString("https://github.com/owner/repo/issues/11")
+					repoField := node.FieldByName("Repository")
+					repoField.FieldByName("Name").SetString("repo")
+					ownerField := repoField.FieldByName("Owner")
+					ownerField.FieldByName("Login").SetString("owner")
+					pageInfo.FieldByName("HasNextPage").SetBool(false)
+					pageInfo.FieldByName("EndCursor").SetString("")
+				}
+				newNodes.Index(0).Set(node)
+				nodes.Set(newNodes)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	subIssues, err := client.GetSubIssues("owner", "repo", 1)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls for pagination, got %d", callCount)
+	}
+	if len(subIssues) != 2 {
+		t.Fatalf("Expected 2 sub-issues from pagination, got %d", len(subIssues))
+	}
+	if subIssues[0].Number != 10 {
+		t.Errorf("Expected first sub-issue number 10, got %d", subIssues[0].Number)
+	}
+	if subIssues[1].Number != 11 {
+		t.Errorf("Expected second sub-issue number 11, got %d", subIssues[1].Number)
+	}
+}
+
 // ============================================================================
 // GetRepositoryIssues Tests - Improved Coverage
 // ============================================================================

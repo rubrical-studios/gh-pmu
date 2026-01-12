@@ -5,98 +5,116 @@ license: Complete terms in LICENSE.txt
 ---
 
 # TDD Failure Recovery
-**Version:** 0.19.0
-
-Guide through diagnosing and recovering from unexpected test behaviors.
+**Version:** {{VERSION}}
 
 ## When to Use
-- RED phase test passes unexpectedly
-- GREEN phase test still fails
-- REFACTOR phase breaks tests
-- Need to rollback to previous working state
 
-## Failure Scenarios
+- RED phase test passes unexpectedly (should fail)
+- GREEN phase test still fails (should pass)
+- REFACTOR phase breaks tests (should stay green)
+- Tests behave unpredictably or inconsistently
 
-### Scenario 1: RED Phase Test Passes
-**Expected:** Fail | **Actual:** Passes
+## Scenario 1: RED Phase Test Passes Unexpectedly
 
-**Causes:** Feature exists, test too permissive, test setup incorrect
+**Possible causes:**
+1. Feature already exists
+2. Test is too permissive
+3. Test setup incorrect
 
 **Recovery:**
-1. Verify test can fail (add intentional failure)
-2. Check for existing implementation (delete if found)
-3. Review test logic (correct assertion?)
-4. Revise test → Re-run → Verify fails
-5. Proceed autonomously to GREEN phase
+1. Add intentional failure to verify test can fail
+2. Check for existing implementation
+3. Review test logic
+4. Revise test and verify it fails
+5. Resume TDD cycle
 
-### Scenario 2: GREEN Phase Test Fails
-**Expected:** Pass | **Actual:** Fails
+## Scenario 2: GREEN Phase Test Still Fails
 
-**Causes:** Implementation incomplete, bugs, misunderstood requirements
+**Possible causes:**
+1. Implementation incomplete
+2. Implementation has bugs
+3. Test expectations misunderstood
 
 **Recovery:**
 1. Read failure message carefully
-2. Verify implementation matches requirements
-3. Fix syntax/logic errors
-4. Revise implementation → Re-run
-5. Run full suite (no regressions)
-6. Proceed autonomously to REFACTOR phase
+2. Verify implementation code
+3. Check test requirements
+4. Revise implementation
+5. Run full test suite
+6. Resume TDD cycle
 
-### Scenario 3: REFACTOR Breaks Tests
-**Expected:** Stay green | **Actual:** Fails
+## Scenario 3: REFACTOR Phase Breaks Tests
 
-**Recovery:**
-1. **IMMEDIATE ROLLBACK** - Return to last green
-2. Verify tests green again
-3. Options:
-   - Skip refactoring
-   - Try smaller refactoring
-   - Fix brittle test (if over-coupled)
-4. Continue with next behavior or Story-Complete
-
-### Scenario 4: Rollback Required
-When rollback to previous working state is needed.
-
-**Procedure (Single Code Block):**
-```
-TASK: Rollback to previous working state
-STEP 1: Identify changes to undo
-STEP 2: Restore previous code
-STEP 3: Verify file state matches pre-change
-STEP 4: Run full test suite
-STEP 5: Verify all tests GREEN
-STEP 6: Report: Tests green?
-```
-
-### Scenario 5: Inconsistent Test Results
-Tests pass sometimes, fail other times
-
-**Causes:** Order dependency, timing issues, external dependencies, random data
+**Possible causes:**
+1. Behavioral change introduced
+2. Breaking change in API
+3. Incomplete refactoring
+4. Test dependency on implementation
 
 **Recovery:**
-1. Isolate test (run alone, different order)
-2. Check test isolation (proper setup/teardown)
-3. Fix isolation issues (fixtures, mocks)
-4. Verify consistent pass/fail
+1. **IMMEDIATE ROLLBACK**
+2. Analyze what broke
+3. Decide: Skip, smaller refactoring, or fix test
+
+**Critical principle:**
+```
+TESTS MUST STAY GREEN
+If refactoring breaks tests -> ROLLBACK
+Do not proceed with broken tests
+```
+
+## Scenario 4: Rollback Procedure
+
+1. Identify changes to undo
+2. Restore previous code version
+3. Verify file state matches pre-change
+4. Run full test suite
+5. Verify all tests GREEN
+
+## Scenario 5: Inconsistent Test Results
+
+**Possible causes:**
+1. Test order dependency
+2. Timing issues
+3. External dependencies
+4. Random data in tests
+
+**Recovery:**
+1. Run failing test alone
+2. Check test isolation
+3. Fix with proper setup/teardown
+4. Verify consistency
 
 ## Diagnostic Flowchart
+
 ```
-Test failed unexpectedly → What phase?
-├─ RED (should fail, but passes) → Test invalid → Revise test
-├─ GREEN (should pass, but fails) → Impl incomplete → Revise impl
-└─ REFACTOR (should stay green) → ROLLBACK → Try smaller or skip
+Test failed unexpectedly -> What phase?
+
+RED: Should fail but passes -> Test invalid, revise test
+GREEN: Should pass but fails -> Implementation incomplete, revise impl
+REFACTOR: Should stay green but fails -> ROLLBACK immediately
 ```
 
 ## Prevention Strategies
-1. **Verify Each Phase:** Always run tests, don't assume
-2. **Clear Communication:** Report exact results
-3. **Maintain Green State:** Tests always green except during RED
 
-## Golden Rule
-```
-Tests should ALWAYS be green except during RED phase
-If not green when expected → STOP and recover
-```
+1. **Verify Each Phase** - Never assume, always run tests
+2. **Clear Communication** - Report exact results
+3. **Maintain Green State** - Tests green except during RED phase
+
+## Common Recovery Patterns
+
+| Pattern | Situation | Action |
+|---------|-----------|--------|
+| Reset | Confused state | Rollback to last green |
+| Minimal Fix | Small issue | Targeted correction |
+| Skip | Risk > reward | Defer to later |
+| Divide and Conquer | Large change broke | Break into smaller changes |
+
+## Resources
+
+- `resources/failure-diagnostic-flowchart.md`
+- `resources/recovery-procedures.md`
+- `resources/test-isolation-guide.md`
 
 ---
 

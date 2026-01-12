@@ -217,6 +217,119 @@ func TestResolveFieldValue_UnknownField_ReturnsOriginal(t *testing.T) {
 	}
 }
 
+func TestValidateFieldValue_ValidAlias_ReturnsNil(t *testing.T) {
+	// ARRANGE: Config with field aliases
+	cfg := &Config{
+		Fields: map[string]Field{
+			"status": {
+				Field: "Status",
+				Values: map[string]string{
+					"backlog":     "Backlog",
+					"in_progress": "In progress",
+					"done":        "Done",
+				},
+			},
+		},
+	}
+
+	// ACT: Validate valid alias
+	err := cfg.ValidateFieldValue("status", "backlog")
+
+	// ASSERT: Returns nil (valid)
+	if err != nil {
+		t.Errorf("Expected nil error for valid alias, got: %v", err)
+	}
+}
+
+func TestValidateFieldValue_InvalidValue_ReturnsError(t *testing.T) {
+	// ARRANGE: Config with field aliases
+	cfg := &Config{
+		Fields: map[string]Field{
+			"status": {
+				Field: "Status",
+				Values: map[string]string{
+					"backlog":     "Backlog",
+					"in_progress": "In progress",
+					"done":        "Done",
+				},
+			},
+		},
+	}
+
+	// ACT: Validate invalid value
+	err := cfg.ValidateFieldValue("status", "nonexistent")
+
+	// ASSERT: Returns error with available values
+	if err == nil {
+		t.Fatal("Expected error for invalid value, got nil")
+	}
+
+	errStr := err.Error()
+	if !strings.Contains(errStr, `invalid status value "nonexistent"`) {
+		t.Errorf("Expected error to contain invalid value message, got: %s", errStr)
+	}
+	if !strings.Contains(errStr, "Available values:") {
+		t.Errorf("Expected error to list available values, got: %s", errStr)
+	}
+}
+
+func TestValidateFieldValue_FieldNotConfigured_ReturnsNil(t *testing.T) {
+	// ARRANGE: Config without the field
+	cfg := &Config{
+		Fields: map[string]Field{},
+	}
+
+	// ACT: Validate value for unconfigured field
+	err := cfg.ValidateFieldValue("status", "anything")
+
+	// ASSERT: Returns nil (pass-through behavior)
+	if err != nil {
+		t.Errorf("Expected nil error for unconfigured field, got: %v", err)
+	}
+}
+
+func TestValidateFieldValue_CaseInsensitive(t *testing.T) {
+	// ARRANGE: Config with lowercase aliases
+	cfg := &Config{
+		Fields: map[string]Field{
+			"status": {
+				Field: "Status",
+				Values: map[string]string{
+					"backlog": "Backlog",
+				},
+			},
+		},
+	}
+
+	// ACT: Validate with uppercase input
+	err := cfg.ValidateFieldValue("status", "BACKLOG")
+
+	// ASSERT: Returns nil (case-insensitive match)
+	if err != nil {
+		t.Errorf("Expected nil error for case-insensitive match, got: %v", err)
+	}
+}
+
+func TestValidateFieldValue_FieldWithNoValues_ReturnsNil(t *testing.T) {
+	// ARRANGE: Config with field but no values defined
+	cfg := &Config{
+		Fields: map[string]Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{}, // Empty values
+			},
+		},
+	}
+
+	// ACT: Validate any value
+	err := cfg.ValidateFieldValue("status", "anything")
+
+	// ASSERT: Returns nil (no values to validate against)
+	if err != nil {
+		t.Errorf("Expected nil error when no values defined, got: %v", err)
+	}
+}
+
 func TestGetFieldName_WithMapping_ReturnsActualName(t *testing.T) {
 	// ARRANGE: Config with field mapping
 	cfg := &Config{
@@ -948,6 +1061,27 @@ func TestConfig_IsIDPF_WithEmpty(t *testing.T) {
 	cfg := &Config{Framework: ""}
 	if cfg.IsIDPF() {
 		t.Error("Expected IsIDPF() to return false for empty string")
+	}
+}
+
+func TestConfig_IsIDPF_WithIDPFAgile(t *testing.T) {
+	cfg := &Config{Framework: "IDPF-Agile"}
+	if !cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return true for 'IDPF-Agile'")
+	}
+}
+
+func TestConfig_IsIDPF_WithIDPFAgileLowercase(t *testing.T) {
+	cfg := &Config{Framework: "idpf-agile"}
+	if !cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return true for 'idpf-agile'")
+	}
+}
+
+func TestConfig_IsIDPF_WithMixedCase(t *testing.T) {
+	cfg := &Config{Framework: "Idpf"}
+	if !cfg.IsIDPF() {
+		t.Error("Expected IsIDPF() to return true for 'Idpf'")
 	}
 }
 

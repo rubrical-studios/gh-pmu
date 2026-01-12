@@ -1,3 +1,4 @@
+// **Version:** 0.20.0
 /**
  * lib/output.js - Output formatting utilities
  *

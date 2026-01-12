@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.15.2
+// **Version:** 0.20.0
 /**
  * plan-sprint.js
  *
@@ -19,7 +19,7 @@ const { execSync } = require('child_process');
 function exec(cmd) {
     try {
         return execSync(cmd, { encoding: 'utf-8' }).trim();
-    } catch (e) {
+    } catch (_e) {
         return null;
     }
 }
@@ -37,7 +37,9 @@ function getEpicsNotInSprint() {
                 ['Backlog', 'Ready'].includes(i.fieldValues?.Status)
             );
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return [];
 }
 
@@ -49,7 +51,9 @@ function getSubIssueCount(issueNumber) {
             if (data.children) return data.children.length;
             if (Array.isArray(data)) return data.length;
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return 0;
 }
 
@@ -60,7 +64,9 @@ function getCurrentRelease() {
             const data = JSON.parse(result);
             return data.name || data.version || data;
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return null;
 }
 
@@ -76,7 +82,7 @@ function main() {
     if (!release) {
         console.log('No active release context.');
         console.log('Start a release first: gh pmu release start --version "X.Y.Z"');
-        console.log('Then use /switch-release to set the release.');
+        console.log('Then use /switch-branch to set the release.');
         return;
     }
     console.log(`Release context: ${release}\n`);

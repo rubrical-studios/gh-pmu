@@ -16,17 +16,19 @@ type editClient interface {
 	GetIssueByNumber(owner, repo string, number int) (*api.Issue, error)
 	UpdateIssueBody(issueID, body string) error
 	UpdateIssueTitle(issueID, title string) error
-	AddLabelToIssue(issueID, labelName string) error
+	AddLabelToIssue(owner, repo, issueID, labelName string) error
+	RemoveLabelFromIssue(owner, repo, issueID, labelName string) error
 }
 
 type editOptions struct {
-	issueNumber int
-	title       string
-	body        string
-	bodyFile    string
-	bodyStdin   bool
-	addLabels   []string
-	repo        string
+	issueNumber  int
+	title        string
+	body         string
+	bodyFile     string
+	bodyStdin    bool
+	addLabels    []string
+	removeLabels []string
+	repo         string
 }
 
 func newEditCommand() *cobra.Command {
@@ -46,6 +48,7 @@ Examples:
   gh pmu edit 123 --body-file tmp/issue-123.md
   gh pmu edit 123 --title "New title"
   gh pmu edit 123 --label bug --label urgent
+  gh pmu edit 123 --remove-label old-label
   gh pmu edit 123 --body-file issue.md --title "Updated" --label fix
   gh pmu edit 123 --body "Updated body" --repo owner/repo`,
 		Args: cobra.ExactArgs(1),
@@ -65,6 +68,7 @@ Examples:
 	cmd.Flags().StringVarP(&opts.bodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	cmd.Flags().BoolVar(&opts.bodyStdin, "body-stdin", false, "Read body from stdin (raw markdown)")
 	cmd.Flags().StringArrayVarP(&opts.addLabels, "label", "l", nil, "Add labels (can be specified multiple times)")
+	cmd.Flags().StringArrayVar(&opts.removeLabels, "remove-label", nil, "Remove labels (can be specified multiple times)")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
@@ -116,8 +120,8 @@ func runEdit(cmd *cobra.Command, opts *editOptions) error {
 // runEditWithDeps is the testable implementation of runEdit
 func runEditWithDeps(cmd *cobra.Command, opts *editOptions, cfg *config.Config, client editClient, owner, repo string) error {
 	// Validate that at least one edit option is provided
-	if opts.title == "" && opts.body == "" && opts.bodyFile == "" && !opts.bodyStdin && len(opts.addLabels) == 0 {
-		return fmt.Errorf("at least one of --title, --body, --body-file, --body-stdin, or --label is required")
+	if opts.title == "" && opts.body == "" && opts.bodyFile == "" && !opts.bodyStdin && len(opts.addLabels) == 0 && len(opts.removeLabels) == 0 {
+		return fmt.Errorf("at least one of --title, --body, --body-file, --body-stdin, --label, or --remove-label is required")
 	}
 
 	// Cannot use --body and --body-file together
@@ -170,11 +174,21 @@ func runEditWithDeps(cmd *cobra.Command, opts *editOptions, cfg *config.Config, 
 	// Add labels if provided
 	if len(opts.addLabels) > 0 {
 		for _, label := range opts.addLabels {
-			if err := client.AddLabelToIssue(issue.ID, label); err != nil {
+			if err := client.AddLabelToIssue(owner, repo, issue.ID, label); err != nil {
 				return fmt.Errorf("failed to add label '%s': %w", label, err)
 			}
 		}
-		updates = append(updates, fmt.Sprintf("%d label(s)", len(opts.addLabels)))
+		updates = append(updates, fmt.Sprintf("%d label(s) added", len(opts.addLabels)))
+	}
+
+	// Remove labels if provided
+	if len(opts.removeLabels) > 0 {
+		for _, label := range opts.removeLabels {
+			if err := client.RemoveLabelFromIssue(owner, repo, issue.ID, label); err != nil {
+				return fmt.Errorf("failed to remove label '%s': %w", label, err)
+			}
+		}
+		updates = append(updates, fmt.Sprintf("%d label(s) removed", len(opts.removeLabels)))
 	}
 
 	// Output confirmation

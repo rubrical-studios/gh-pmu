@@ -14,6 +14,7 @@ import (
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -45,7 +46,6 @@ type createOptions struct {
 	milestone   string
 	repo        string
 	fromFile    string
-	interactive bool
 }
 
 func newCreateCommand() *cobra.Command {
@@ -76,13 +76,14 @@ any specified field values (status, priority) are set.`,
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field (e.g., backlog, in_progress)")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field (e.g., p0, p1, p2)")
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "M", "", "Set microsprint field (use 'current' for active microsprint)")
-	cmd.Flags().StringVarP(&opts.release, "release", "r", "", "Set release field (use 'current' for active release)")
+	cmd.Flags().StringVar(&opts.release, "branch", "", "Set branch field (use 'current' for active branch)")
+	cmd.Flags().StringVarP(&opts.release, "release", "r", "", "[DEPRECATED] Use --branch instead")
+	cmd.MarkFlagsMutuallyExclusive("branch", "release")
 	cmd.Flags().StringArrayVarP(&opts.labels, "label", "l", nil, "Add labels (can be specified multiple times)")
 	cmd.Flags().StringArrayVarP(&opts.assignees, "assignee", "a", nil, "Assign users (can be specified multiple times)")
 	cmd.Flags().StringVarP(&opts.milestone, "milestone", "m", "", "Set milestone (title or number)")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Target repository (owner/repo format)")
 	cmd.Flags().StringVarP(&opts.fromFile, "from-file", "f", "", "Create issue from YAML/JSON file")
-	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "Use interactive mode with prompts")
 
 	return cmd
 }
@@ -148,11 +149,6 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 		return runCreateFromFileWithDeps(cmd, opts, cfg, client, owner, repo)
 	}
 
-	// Handle interactive mode
-	if opts.interactive {
-		return fmt.Errorf("interactive mode not yet implemented")
-	}
-
 	// Handle non-interactive mode
 	title := opts.title
 	body := opts.body
@@ -206,7 +202,7 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 	}
 
 	if title == "" {
-		return fmt.Errorf("--title is required (use --interactive for prompted mode)")
+		return fmt.Errorf("--title is required")
 	}
 
 	// IDPF validation for create
@@ -312,7 +308,7 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 
 	// Process --web: open browser
 	if opts.web {
-		if err := openInBrowser(issue.URL); err != nil {
+		if err := ui.OpenInBrowser(issue.URL); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to open browser: %v\n", err)
 		}
 	}

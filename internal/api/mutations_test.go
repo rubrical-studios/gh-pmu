@@ -156,12 +156,216 @@ func TestRemoveSubIssue_NilClient(t *testing.T) {
 func TestAddLabelToIssue_NilClient(t *testing.T) {
 	client := &Client{gql: nil}
 
-	err := client.AddLabelToIssue("issue-id", "bug")
+	err := client.AddLabelToIssue("owner", "repo", "issue-id", "bug")
 	if err == nil {
 		t.Fatal("Expected error when gql is nil")
 	}
 	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
 		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestAddLabelToIssue_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				// Return a label ID
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				if repo.IsValid() {
+					label := repo.FieldByName("Label")
+					if label.IsValid() {
+						idField := label.FieldByName("ID")
+						if idField.IsValid() && idField.CanSet() {
+							idField.SetString("label-123")
+						}
+					}
+				}
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "AddLabelsToLabelable" {
+				// Mutation succeeds
+				return nil
+			}
+			return errors.New("unexpected mutation")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.AddLabelToIssue("owner", "repo", "issue-id", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestAddLabelToIssue_LabelNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				// Return empty label ID - label not found
+				return nil
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.AddLabelToIssue("owner", "repo", "issue-id", "nonexistent")
+
+	if err == nil {
+		t.Fatal("Expected error when label not found")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestAddLabelToIssue_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				// Return a label ID
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				if repo.IsValid() {
+					label := repo.FieldByName("Label")
+					if label.IsValid() {
+						idField := label.FieldByName("ID")
+						if idField.IsValid() && idField.CanSet() {
+							idField.SetString("label-123")
+						}
+					}
+				}
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "AddLabelsToLabelable" {
+				return errors.New("permission denied")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.AddLabelToIssue("owner", "repo", "issue-id", "bug")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to add label") {
+		t.Errorf("Expected 'failed to add label' error, got: %v", err)
+	}
+}
+
+func TestRemoveLabelFromIssue_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.RemoveLabelFromIssue("owner", "repo", "issue-id", "bug")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestRemoveLabelFromIssue_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				// Return a label ID
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				if repo.IsValid() {
+					label := repo.FieldByName("Label")
+					if label.IsValid() {
+						idField := label.FieldByName("ID")
+						if idField.IsValid() && idField.CanSet() {
+							idField.SetString("label-123")
+						}
+					}
+				}
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "RemoveLabelsFromLabelable" {
+				// Mutation succeeds
+				return nil
+			}
+			return errors.New("unexpected mutation")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.RemoveLabelFromIssue("owner", "repo", "issue-id", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestRemoveLabelFromIssue_LabelNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				// Return empty label ID - label not found
+				return nil
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.RemoveLabelFromIssue("owner", "repo", "issue-id", "nonexistent")
+
+	if err == nil {
+		t.Fatal("Expected error when label not found")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestRemoveLabelFromIssue_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				// Return a label ID
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				if repo.IsValid() {
+					label := repo.FieldByName("Label")
+					if label.IsValid() {
+						idField := label.FieldByName("ID")
+						if idField.IsValid() && idField.CanSet() {
+							idField.SetString("label-123")
+						}
+					}
+				}
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "RemoveLabelsFromLabelable" {
+				return errors.New("permission denied")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.RemoveLabelFromIssue("owner", "repo", "issue-id", "bug")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to remove label") {
+		t.Errorf("Expected 'failed to remove label' error, got: %v", err)
 	}
 }
 
@@ -262,17 +466,91 @@ func TestSetProjectItemField_NumberField_Success(t *testing.T) {
 	}
 }
 
-func TestSetProjectItemField_UnsupportedFieldType(t *testing.T) {
-	mock := createMockWithField("Date", "DATE", nil)
+func TestSetProjectItemField_NumberField_InvalidValue(t *testing.T) {
+	mock := createMockWithField("Points", "NUMBER", nil)
 
 	client := NewClientWithGraphQL(mock)
-	err := client.SetProjectItemField("proj-id", "item-id", "Date", "2024-01-15")
+	err := client.SetProjectItemField("proj-id", "item-id", "Points", "not-a-number")
+
+	if err == nil {
+		t.Fatal("Expected error when number value is invalid")
+	}
+	if !strings.Contains(err.Error(), "invalid number value") {
+		t.Errorf("Expected 'invalid number value' error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemField_NumberField_FloatValue(t *testing.T) {
+	mock := createMockWithField("Points", "NUMBER", nil)
+
+	client := NewClientWithGraphQL(mock)
+	err := client.SetProjectItemField("proj-id", "item-id", "Points", "3.14")
+
+	if err != nil {
+		t.Fatalf("Unexpected error for float value: %v", err)
+	}
+}
+
+func TestSetProjectItemField_UnsupportedFieldType(t *testing.T) {
+	mock := createMockWithField("CustomField", "ITERATION", nil)
+
+	client := NewClientWithGraphQL(mock)
+	err := client.SetProjectItemField("proj-id", "item-id", "CustomField", "some-value")
 
 	if err == nil {
 		t.Fatal("Expected error for unsupported field type")
 	}
 	if !strings.Contains(err.Error(), "unsupported field type") {
 		t.Errorf("Expected 'unsupported field type' error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemField_DateField_Success(t *testing.T) {
+	mock := createMockWithField("DueDate", "DATE", nil)
+
+	client := NewClientWithGraphQL(mock)
+	err := client.SetProjectItemField("proj-id", "item-id", "DueDate", "2024-01-15")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestSetProjectItemField_DateField_InvalidFormat(t *testing.T) {
+	mock := createMockWithField("DueDate", "DATE", nil)
+
+	client := NewClientWithGraphQL(mock)
+	err := client.SetProjectItemField("proj-id", "item-id", "DueDate", "15/01/2024")
+
+	if err == nil {
+		t.Fatal("Expected error when date format is invalid")
+	}
+	if !strings.Contains(err.Error(), "invalid date format") {
+		t.Errorf("Expected 'invalid date format' error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "expected YYYY-MM-DD") {
+		t.Errorf("Expected format hint in error, got: %v", err)
+	}
+}
+
+func TestSetProjectItemField_DateField_ClearWithEmpty(t *testing.T) {
+	mock := createMockWithField("DueDate", "DATE", nil)
+	clearCalled := false
+	mock.mutateFunc = func(name string, mutation interface{}, variables map[string]interface{}) error {
+		if name == "ClearProjectV2ItemFieldValue" {
+			clearCalled = true
+		}
+		return nil
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.SetProjectItemField("proj-id", "item-id", "DueDate", "")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !clearCalled {
+		t.Error("Expected ClearProjectV2ItemFieldValue mutation to be called")
 	}
 }
 
@@ -1379,15 +1657,32 @@ func TestSetProjectItemFieldWithFields_NumberField_Success(t *testing.T) {
 	}
 }
 
+func TestSetProjectItemFieldWithFields_NumberField_InvalidValue(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Points", DataType: "NUMBER"},
+	}
+
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Points", "invalid", fields)
+	if err == nil {
+		t.Fatal("Expected error when number value is invalid")
+	}
+	if !strings.Contains(err.Error(), "invalid number value") {
+		t.Errorf("Expected 'invalid number value' error, got: %v", err)
+	}
+}
+
 func TestSetProjectItemFieldWithFields_UnsupportedFieldType(t *testing.T) {
 	mock := &mockGraphQLClient{}
 	client := NewClientWithGraphQL(mock)
 
 	fields := []ProjectField{
-		{ID: "field-123", Name: "Date", DataType: "DATE"},
+		{ID: "field-123", Name: "Sprint", DataType: "ITERATION"},
 	}
 
-	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Date", "2024-01-15", fields)
+	err := client.SetProjectItemFieldWithFields("proj-id", "item-id", "Sprint", "Sprint 1", fields)
 	if err == nil {
 		t.Fatal("Expected error for unsupported field type")
 	}

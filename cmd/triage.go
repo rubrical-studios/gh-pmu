@@ -29,7 +29,7 @@ type triageClient interface {
 	GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error)
 	GetProject(owner string, number int) (*api.Project, error)
 	AddIssueToProject(projectID, issueID string) (string, error)
-	AddLabelToIssue(issueID, labelName string) error
+	AddLabelToIssue(owner, repo, issueID, labelName string) error
 	SetProjectItemField(projectID, itemID, fieldName, value string) error
 }
 
@@ -408,7 +408,9 @@ func applyTriageRules(client triageClient, cfg *config.Config, project *api.Proj
 	// Apply labels
 	if len(tc.Apply.Labels) > 0 {
 		for _, label := range tc.Apply.Labels {
-			if err := client.AddLabelToIssue(issue.ID, label); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.AddLabelToIssue(issue.Repository.Owner, issue.Repository.Name, issue.ID, label)
+			}, 3); err != nil {
 				// Log but don't fail - label might already exist
 				continue
 			}
@@ -420,7 +422,9 @@ func applyTriageRules(client triageClient, cfg *config.Config, project *api.Proj
 		fieldName := cfg.GetFieldName(field)
 		resolvedValue := cfg.ResolveFieldValue(field, value)
 
-		if err := client.SetProjectItemField(project.ID, itemID, fieldName, resolvedValue); err != nil {
+		if err := api.WithRetry(func() error {
+			return client.SetProjectItemField(project.ID, itemID, fieldName, resolvedValue)
+		}, 3); err != nil {
 			return fmt.Errorf("failed to set %s: %w", field, err)
 		}
 	}
@@ -618,7 +622,9 @@ func applyAdHocTriageRules(client triageClient, cfg *config.Config, project *api
 		fieldName := cfg.GetFieldName(field)
 		resolvedValue := cfg.ResolveFieldValue(field, value)
 
-		if err := client.SetProjectItemField(project.ID, itemID, fieldName, resolvedValue); err != nil {
+		if err := api.WithRetry(func() error {
+			return client.SetProjectItemField(project.ID, itemID, fieldName, resolvedValue)
+		}, 3); err != nil {
 			return fmt.Errorf("failed to set %s: %w", field, err)
 		}
 	}

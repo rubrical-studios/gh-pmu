@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -664,63 +665,86 @@ func splitRepoName(nameWithOwner string) []string {
 	return nil
 }
 
-// GetSubIssues fetches all sub-issues for a given issue
+// GetSubIssues fetches all sub-issues for a given issue with pagination support
 func (c *Client) GetSubIssues(owner, repo string, number int) ([]SubIssue, error) {
 	if c.gql == nil {
 		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
-	var query struct {
-		Repository struct {
-			Issue struct {
-				SubIssues struct {
-					Nodes []struct {
-						ID         string
-						Number     int
-						Title      string
-						State      string
-						URL        string `graphql:"url"`
-						Repository struct {
-							Name  string
-							Owner struct {
-								Login string
+	var subIssues []SubIssue
+	var cursor *graphql.String
+	pageCount := 0
+
+	for {
+		var query struct {
+			Repository struct {
+				Issue struct {
+					SubIssues struct {
+						Nodes []struct {
+							ID         string
+							Number     int
+							Title      string
+							State      string
+							URL        string `graphql:"url"`
+							Repository struct {
+								Name  string
+								Owner struct {
+									Login string
+								}
 							}
 						}
-					}
-				} `graphql:"subIssues(first: 50)"`
-			} `graphql:"issue(number: $number)"`
-		} `graphql:"repository(owner: $owner, name: $repo)"`
-	}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"subIssues(first: 100, after: $cursor)"`
+				} `graphql:"issue(number: $number)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}
 
-	gqlNumber, err := safeGraphQLInt(number)
-	if err != nil {
-		return nil, err
-	}
+		gqlNumber, err := safeGraphQLInt(number)
+		if err != nil {
+			return nil, err
+		}
 
-	variables := map[string]interface{}{
-		"owner":  graphql.String(owner),
-		"repo":   graphql.String(repo),
-		"number": gqlNumber,
-	}
+		variables := map[string]interface{}{
+			"owner":  graphql.String(owner),
+			"repo":   graphql.String(repo),
+			"number": gqlNumber,
+			"cursor": cursor,
+		}
 
-	err = c.gql.Query("GetSubIssues", &query, variables)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sub-issues for %s/%s#%d: %w", owner, repo, number, err)
-	}
+		err = c.gql.Query("GetSubIssues", &query, variables)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sub-issues for %s/%s#%d: %w", owner, repo, number, err)
+		}
 
-	var subIssues []SubIssue
-	for _, node := range query.Repository.Issue.SubIssues.Nodes {
-		subIssues = append(subIssues, SubIssue{
-			ID:     node.ID,
-			Number: node.Number,
-			Title:  node.Title,
-			State:  node.State,
-			URL:    node.URL,
-			Repository: Repository{
-				Owner: node.Repository.Owner.Login,
-				Name:  node.Repository.Name,
-			},
-		})
+		for _, node := range query.Repository.Issue.SubIssues.Nodes {
+			subIssues = append(subIssues, SubIssue{
+				ID:     node.ID,
+				Number: node.Number,
+				Title:  node.Title,
+				State:  node.State,
+				URL:    node.URL,
+				Repository: Repository{
+					Owner: node.Repository.Owner.Login,
+					Name:  node.Repository.Name,
+				},
+			})
+		}
+
+		pageCount++
+		if !query.Repository.Issue.SubIssues.PageInfo.HasNextPage {
+			break
+		}
+
+		endCursor := graphql.String(query.Repository.Issue.SubIssues.PageInfo.EndCursor)
+		cursor = &endCursor
+
+		// Warn if we're fetching many pages (performance awareness)
+		if pageCount >= 2 {
+			fmt.Fprintf(os.Stderr, "Note: Issue #%d has many sub-issues (%d+ fetched), this may take a moment...\n", number, len(subIssues))
+		}
 	}
 
 	return subIssues, nil

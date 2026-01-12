@@ -2018,6 +2018,11 @@ func TestRunBranchCloseWithDeps_SkipsParkingLotIssues(t *testing.T) {
 	if statusSetCount != 2 {
 		t.Errorf("Expected 2 issues moved to backlog, got %d. Calls: %+v", statusSetCount, mock.setFieldCalls)
 	}
+
+	// Verify output message reports correct count (2, not 3)
+	if !strings.Contains(outputStr, "2 issue(s) moved to backlog") {
+		t.Errorf("Expected output to say '2 issue(s) moved to backlog', got: %s", outputStr)
+	}
 }
 
 func TestRunBranchCloseWithDeps_AllParkingLotNoMoves(t *testing.T) {
@@ -2612,7 +2617,137 @@ func TestBranchCloseCommand_UseDescription(t *testing.T) {
 	}
 
 	// Should show optional argument in usage
-	if closeCmd.Use != "close [release-name]" {
-		t.Errorf("Expected Use 'close [release-name]', got '%s'", closeCmd.Use)
+	if closeCmd.Use != "close [branch-name]" {
+		t.Errorf("Expected Use 'close [branch-name]', got '%s'", closeCmd.Use)
+	}
+}
+
+func TestRunBranchCloseWithDeps_DryRun_ShowsPreview(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Branch: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.releaseIssues = []api.Issue{
+		{Number: 50, Title: "Incomplete Issue", State: "OPEN"},
+	}
+
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", dryRun: true}
+
+	// ACT
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error in dry-run mode, got: %v", err)
+	}
+
+	// Should not close tracker issue in dry-run
+	if len(mock.closeIssueCalls) != 0 {
+		t.Errorf("Expected 0 CloseIssue calls in dry-run, got %d", len(mock.closeIssueCalls))
+	}
+
+	// Should show preview
+	output := buf.String()
+	if !strings.Contains(output, "[DRY RUN]") {
+		t.Error("Expected output to contain '[DRY RUN]'")
+	}
+	if !strings.Contains(output, "Would close branch: v1.2.0") {
+		t.Error("Expected output to contain 'Would close branch: v1.2.0'")
+	}
+	if !strings.Contains(output, "Would close tracker issue #100") {
+		t.Error("Expected output to contain 'Would close tracker issue #100'")
+	}
+}
+
+func TestBranchCloseCommand_HasDryRunFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	closeCmd, _, err := cmd.Find([]string{"branch", "close"})
+	if err != nil {
+		t.Fatalf("branch close command not found: %v", err)
+	}
+
+	flag := closeCmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("Expected --dry-run flag to exist")
+	}
+
+	// Verify it's a boolean flag
+	if flag.Value.Type() != "bool" {
+		t.Errorf("Expected --dry-run to be bool, got %s", flag.Value.Type())
+	}
+}
+
+func TestParseBranchTitle(t *testing.T) {
+	tests := []struct {
+		name        string
+		title       string
+		wantVersion string
+		wantTrack   string
+	}{
+		{
+			name:        "simple version with Branch prefix",
+			title:       "Branch: v1.2.0",
+			wantVersion: "1.2.0",
+			wantTrack:   "stable",
+		},
+		{
+			name:        "simple version with Release prefix",
+			title:       "Release: v1.2.0",
+			wantVersion: "1.2.0",
+			wantTrack:   "stable",
+		},
+		{
+			name:        "version with codename",
+			title:       "Release: v1.2.0 (Phoenix)",
+			wantVersion: "1.2.0",
+			wantTrack:   "stable",
+		},
+		{
+			name:        "patch track",
+			title:       "Branch: patch/1.1.1",
+			wantVersion: "1.1.1",
+			wantTrack:   "patch",
+		},
+		{
+			name:        "beta track",
+			title:       "Release: beta/2.0.0",
+			wantVersion: "2.0.0",
+			wantTrack:   "beta",
+		},
+		{
+			name:        "patch track with v prefix",
+			title:       "Branch: patch/v1.1.1",
+			wantVersion: "1.1.1",
+			wantTrack:   "patch",
+		},
+		{
+			name:        "release track with codename",
+			title:       "Branch: release/v2.0.0 (Aurora)",
+			wantVersion: "2.0.0",
+			wantTrack:   "release",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotVersion, gotTrack := parseBranchTitle(tt.title)
+			if gotVersion != tt.wantVersion {
+				t.Errorf("parseBranchTitle(%q) version = %q, want %q", tt.title, gotVersion, tt.wantVersion)
+			}
+			if gotTrack != tt.wantTrack {
+				t.Errorf("parseBranchTitle(%q) track = %q, want %q", tt.title, gotTrack, tt.wantTrack)
+			}
+		})
 	}
 }

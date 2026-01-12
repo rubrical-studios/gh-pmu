@@ -43,7 +43,7 @@ func (m *mockTriageClient) AddIssueToProject(projectID, issueID string) (string,
 	return m.addToProjectItemID, m.addToProjectError
 }
 
-func (m *mockTriageClient) AddLabelToIssue(issueID, labelName string) error {
+func (m *mockTriageClient) AddLabelToIssue(owner, repo, issueID, labelName string) error {
 	m.addLabelCalls = append(m.addLabelCalls, labelName)
 	return m.addLabelError
 }

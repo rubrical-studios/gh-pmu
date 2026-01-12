@@ -229,25 +229,6 @@ func TestCreateCommand_HasFromFileFlag(t *testing.T) {
 	}
 }
 
-func TestCreateCommand_HasInteractiveFlag(t *testing.T) {
-	cmd := NewRootCommand()
-	createCmd, _, err := cmd.Find([]string{"create"})
-	if err != nil {
-		t.Fatalf("create command not found: %v", err)
-	}
-
-	flag := createCmd.Flags().Lookup("interactive")
-	if flag == nil {
-		t.Fatal("Expected --interactive flag to exist")
-	}
-	if flag.Shorthand != "i" {
-		t.Errorf("Expected shorthand 'i', got '%s'", flag.Shorthand)
-	}
-	if flag.Value.Type() != "bool" {
-		t.Errorf("Expected --interactive to be bool, got %s", flag.Value.Type())
-	}
-}
-
 // =============================================================================
 // REQ-006: Integration with Create Command
 // =============================================================================
@@ -2065,24 +2046,6 @@ func TestRunCreateWithDeps_NoActiveRelease(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no active release found") {
 		t.Errorf("expected 'no active release found' error, got: %v", err)
-	}
-}
-
-func TestRunCreateWithDeps_InteractiveModeNotImplemented(t *testing.T) {
-	mock := newMockCreateClient()
-	cfg := &config.Config{
-		Project: config.Project{Owner: "test-org", Number: 1},
-	}
-
-	cmd := newCreateCommand()
-	opts := &createOptions{interactive: true}
-	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
-
-	if err == nil {
-		t.Fatal("expected error for interactive mode")
-	}
-	if !strings.Contains(err.Error(), "interactive mode not yet implemented") {
-		t.Errorf("expected 'interactive mode not yet implemented' error, got: %v", err)
 	}
 }
 

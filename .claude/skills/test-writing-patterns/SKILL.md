@@ -1,122 +1,169 @@
 ---
 name: test-writing-patterns
-version: 1.0.0
-description: Test structure, patterns, assertions, and test doubles
+description: Guide experienced developers on test structure, patterns, assertions, and test doubles for effective test-driven development
+license: Complete terms in LICENSE.txt
 ---
+
 # Test Writing Patterns
+**Version:** {{VERSION}}
+
 ## When to Use
-- Need test structure guidance
-- Questions about test doubles (mock/stub/fake/spy)
-- Test organization questions
-- Framework-agnostic test patterns
+
+- User needs guidance on test structure
+- Questions about test organization
+- Need test double (mock/stub/fake) guidance
+- Uncertainty about assertion strategies
 
 ## Test Structure Patterns
+
 ### AAA Pattern (Arrange-Act-Assert)
+
 ```
-# Arrange - Set up test data and preconditions
-user = User(name="alice")
-calculator = Calculator()
-
-# Act - Execute behavior being tested
-result = calculator.add(2, 3)
-
-# Assert - Verify expected outcome
-assert result == 5
+ARRANGE: Set up test conditions and inputs
+ACT: Execute the behavior being tested
+ASSERT: Verify the expected outcome
 ```
 
-### Given-When-Then (BDD Style)
+### Given-When-Then Pattern (BDD Style)
+
 ```
-# Given - Preconditions
-given_user_exists("alice")
-
-# When - Action
-result = login("alice", "password")
-
-# Then - Verification
-then_user_is_authenticated(result)
-```
-
-## Test Doubles
-| Type | Purpose | When to Use |
-|------|---------|-------------|
-| **Mock** | Verify interactions | Check method was called |
-| **Stub** | Provide canned responses | Replace dependency output |
-| **Fake** | Working implementation | Lightweight replacement |
-| **Spy** | Record calls | Verify calls while keeping behavior |
-
-### Mock Example
-```python
-mock_db = Mock()
-service = UserService(db=mock_db)
-service.create_user("alice")
-mock_db.save.assert_called_once_with("alice")
-```
-
-### Stub Example
-```python
-stub_api = Mock()
-stub_api.get_user.return_value = {"name": "alice"}
-result = service.fetch_user(api=stub_api)
-assert result["name"] == "alice"
-```
-
-## Assertion Patterns
-### Good Assertions
-- Specific expected values
-- Descriptive failure messages
-- One concept per assertion
-```python
-assert result == 5, f"Expected 5, got {result}"
-assert user.is_active is True
-assert "error" in response.json()
-```
-
-### Poor Assertions
-```python
-assert result  # Not specific
-assert True  # Always passes
-assert result != None  # Use is not None
+GIVEN: Initial context/preconditions
+WHEN: Action/event occurs
+THEN: Expected outcomes
 ```
 
 ## Test Organization
+
+### File Organization
+
 ```
-tests/
-├── unit/           # Fast, isolated tests
-├── integration/    # Component interaction tests
-└── e2e/           # Full system tests
+Production:
+  src/services/user_service
+
+Tests:
+  tests/services/test_user_service
 ```
 
-### Naming Convention
+### Test Naming
+
 ```
 test_[unit]_[scenario]_[expected]
 
-test_add_two_positive_numbers_returns_sum
-test_login_invalid_password_returns_error
-test_create_user_duplicate_email_raises_exception
+Examples:
+- test_add_positive_numbers_returns_sum
+- test_get_user_when_not_found_returns_null
 ```
 
-## Common Test Patterns
-### Setup/Teardown
-- `setUp()` / `tearDown()` for each test
-- Fixtures for shared resources
-- Clean state between tests
+## Assertion Strategies
 
-### Parameterized Tests
-Run same test with different data:
-```python
-@pytest.mark.parametrize("a,b,expected", [(1,2,3), (0,0,0), (-1,1,0)])
-def test_add(a, b, expected):
+### Single Concept Per Test
+
+**Good:** All assertions verify the same concept
+**Poor:** Multiple unrelated assertions in one test
+
+### Common Assertion Types
+
+- **Equality:** `assert actual == expected`
+- **Truthiness:** `assert condition is true`
+- **Comparison:** `assert value > 0`
+- **Collection:** `assert item in collection`
+- **Exception:** `assert raises(ExpectedException)`
+
+## Test Doubles
+
+### Types
+
+| Type | Purpose | When to Use |
+|------|---------|-------------|
+| **Stub** | Provide predetermined responses | Control dependency behavior |
+| **Mock** | Verify interactions/calls | Check method was called |
+| **Fake** | Working simplified implementation | Integration testing |
+| **Spy** | Record calls while delegating | Need real behavior + verification |
+
+### Selection Guide
+
+```
+Need to control response? -> Stub
+Need to verify call made? -> Mock
+Need working but simple version? -> Fake
+Need real behavior + verification? -> Spy
+```
+
+## Test Isolation
+
+Each test should:
+- Set up its own data
+- Clean up after itself
+- Run in any order
+- Not depend on other tests
+
+## Test Data Strategies
+
+### Explicit Test Data
+```
+Good: user = create_user(name="Alice", age=30)
+Poor: user = create_user(name=random_string())
+```
+
+### Minimal Test Data
+Use simplest data that tests the behavior.
+
+## Testing Strategies by Type
+
+### Unit Tests
+- Test single unit
+- Fast execution
+- No external dependencies
+
+### Integration Tests
+- Test multiple units together
+- May use real dependencies
+
+### End-to-End Tests
+- Test complete user workflows
+- Use real system
+
+## Test Coverage
+
+**Coverage shows:**
+- Which code is executed by tests
+- Which code is NOT executed
+
+**Coverage does NOT mean:**
+- All behaviors tested
+- Tests are good quality
+- Code is correct
+
+## Test Smells
+
+| Smell | Fix |
+|-------|-----|
+| Test does too much | Split into focused tests |
+| Tests are brittle | Test behavior, not implementation |
+| Tests are slow | Use test doubles, optimize setup |
+| Tests are unclear | Better naming, clear AAA structure |
+| Tests depend on each other | Ensure test isolation |
+
+## Parameterized Tests
+
+```
+test_add_numbers:
+  parameters:
+    (2, 3, 5)
+    (-2, -3, -5)
+    (0, 0, 0)
+
+  for each (a, b, expected):
     assert add(a, b) == expected
 ```
 
-### Test Independence
-- Tests don't depend on each other
-- Tests can run in any order
-- Each test sets up its own state
+## Resources
 
-## Anti-Patterns
-❌ Tests depending on other tests
-❌ Testing implementation details
-❌ Slow tests in unit suite
-❌ No assertions
-❌ Commenting out failing tests
+- `resources/aaa-pattern-template.md`
+- `resources/test-doubles-guide.md`
+- `resources/assertion-patterns.md`
+- `resources/test-organization-examples.md`
+
+---
+
+**End of Test Writing Patterns Skill**

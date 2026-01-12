@@ -118,20 +118,20 @@ func validateStatusTransition(cfg *config.Config, ctx *issueValidationContext, t
 		if releaseValue == "" {
 			return &ValidationError{
 				IssueNumber: ctx.Number,
-				Message:     fmt.Sprintf("No release assignment. Cannot move from 'backlog' to '%s' without a release.", targetStatus),
-				Suggestion:  fmt.Sprintf("Use: gh pmu move %d --release \"release/vX.Y.Z\"", ctx.Number),
+				Message:     fmt.Sprintf("No branch assignment. Cannot move from 'backlog' to '%s' without a branch.", targetStatus),
+				Suggestion:  fmt.Sprintf("Use: gh pmu move %d --branch vX.Y.Z", ctx.Number),
 			}
 		}
 
 		// Validate release exists in active releases (if we have discovered releases)
 		if !isReleaseActiveInContext(ctx.ActiveReleases, releaseValue) {
-			suggestion := "Use 'gh pmu release start' to create a new release."
+			suggestion := "Use 'gh pmu branch start' to create a new branch."
 			if len(ctx.ActiveReleases) > 0 {
-				suggestion = fmt.Sprintf("Available releases: %s\n\n%s", strings.Join(ctx.ActiveReleases, ", "), suggestion)
+				suggestion = fmt.Sprintf("Available branches: %s\n\n%s", strings.Join(ctx.ActiveReleases, ", "), suggestion)
 			}
 			return &ValidationError{
 				IssueNumber: ctx.Number,
-				Message:     fmt.Sprintf("Release \"%s\" not found in active releases.", releaseValue),
+				Message:     fmt.Sprintf("Branch \"%s\" not found in active branches.", releaseValue),
 				Suggestion:  suggestion,
 			}
 		}

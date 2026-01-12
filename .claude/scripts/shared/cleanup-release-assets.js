@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// **Version:** 0.20.0
 /**
  * cleanup-release-assets.js - Clean up old release assets
  *
@@ -104,7 +105,7 @@ function deleteAsset(tagName, assetName, dryRun = false) {
     try {
         gh.exec(`release delete-asset ${tagName} "${assetName}" --yes`);
         return true;
-    } catch (err) {
+    } catch {
         return false;
     }
 }

@@ -89,10 +89,10 @@ process.stdin.on('end', () => {
                 const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
 
                 if (!release || release === '' || release === 'null') {
-                    // No release assigned - block with actionable message
+                    // No branch assigned - block with actionable message
                     const output = {
                         decision: 'block',
-                        reason: `Issue #${issueNumber} has no release assignment.\n\nUse: /assign-release #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --release "release/vX.Y.Z"`
+                        reason: `Issue #${issueNumber} has no branch assignment.\n\nUse: /assign-branch ${issueNumber} vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --branch vX.Y.Z`
                     };
                     console.log(JSON.stringify(output));
                     process.exit(0);
@@ -124,7 +124,7 @@ process.stdin.on('end', () => {
                 console.log(JSON.stringify(output));
                 process.exit(0);
 
-            } catch (error) {
+            } catch (_error) {
                 // Error checking - allow and let downstream handle (fail-open)
                 const output = {
                     systemMessage: `Success`,
@@ -164,7 +164,8 @@ process.stdin.on('end', () => {
         }
 
         process.exit(0);
-    } catch (e) {
+    } catch (_e) {
+        // Intentionally ignored
         process.exit(0);
     }
 });
@@ -184,7 +185,9 @@ function detectFramework() {
             const framework = config.projectType?.processFramework || config.framework;
             if (framework) return normalizeFramework(framework);
         }
-    } catch (e) {}
+    } catch (_e) {
+        // Intentionally ignored
+    }
 
     // Check for IDPF directories (framework dev or direct usage)
     const frameworks = ['IDPF-Agile', 'IDPF-Vibe', 'IDPF-PRD'];
@@ -238,7 +241,9 @@ function getFromCache(key, forceRefresh = false) {
                 return cache[key];
             }
         }
-    } catch (e) {}
+    } catch (_e) {
+        // Intentionally ignored
+    }
     return null;
 }
 
@@ -255,7 +260,9 @@ function saveToCache(key, value) {
         cache[key] = value;
         cache.timestamp = Date.now();
         fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
-    } catch (e) {}
+    } catch (_e) {
+        // Intentionally ignored
+    }
 }
 
 /**
@@ -358,7 +365,9 @@ function getSlashCommands() {
                 }
             }
         }
-    } catch (e) {}
+    } catch (_e) {
+        // Intentionally ignored
+    }
 
     return commands;
 }
@@ -382,22 +391,13 @@ function getAgileDetailedCommands() {
 
 | Command | Description |
 |---------|-------------|
-| \`Create-Backlog\` | Generate initial product backlog from project vision |
+| \`Create-Backlog\` | Create GitHub epics/stories from PRD |
 | \`Add-Story\` | User describes a new story to add to backlog |
 | \`Refine-Story [ID]\` | Update/clarify an existing story |
 | \`Estimate-Story [ID]\` | Re-estimate story points |
 | \`Prioritize-Backlog\` | Re-order stories by priority |
 | \`Split-Story [ID]\` | Break a large story into smaller stories |
 | \`Archive-Story [ID]\` | Move story to icebox |
-
----
-
-### GitHub Issue Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Create-Issues\` | Create GitHub issues from PRD/backlog (auto-detects framework) |
-| \`Create-Issues-Agile\` | Explicit Agile issue creation |
 
 ---
 
@@ -445,9 +445,10 @@ function getAgileDetailedCommands() {
 
 | Command | Slash Command | Description |
 |---------|---------------|-------------|
-| \`Open-Release\` | \`/open-release\` | Open release branch and tracker |
-| \`Prepare-Release\` | \`/prepare-release\` | Validate, merge to main, tag, deploy |
-| \`Close-Release\` | \`/close-release\` | Generate notes, create GitHub Release, cleanup |
+| \`Create-Branch\` | \`/create-branch\` | Create tracked branch with tracker issue |
+| \`Prepare-Release\` | \`/prepare-release\` | Validate, merge to main, tag, close, cleanup |
+| \`Merge-Branch\` | \`/merge-branch\` | Gated merge to main (non-release branches) |
+| \`Destroy-Branch\` | \`/destroy-branch\` | Cancel/abandon branch with cleanup |
 
 ---
 

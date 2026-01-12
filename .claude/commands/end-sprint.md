@@ -1,15 +1,10 @@
 ---
-version: "v0.21.1"
+version: "v0.23.4"
 allowed-tools: Bash
 description: End current sprint (project)
 ---
-
-End the current sprint, running review and retrospective.
-
-Run the end-sprint script:
-
+End current sprint with review and retrospective.
 ```bash
 node .claude/scripts/shared/end-sprint.js "$ARGUMENTS"
 ```
-
-Report the sprint closure to the user.
+Report sprint closure to user.

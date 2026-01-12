@@ -42,12 +42,12 @@ func TestValidateStatusTransition_BacklogToReadyWithoutRelease(t *testing.T) {
 		t.Errorf("Expected issue number 1, got %d", err.IssueNumber)
 	}
 
-	if !strings.Contains(err.Message, "No release assignment") {
-		t.Errorf("Expected message about release assignment, got: %s", err.Message)
+	if !strings.Contains(err.Message, "No branch assignment") {
+		t.Errorf("Expected message about branch assignment, got: %s", err.Message)
 	}
 
-	if !strings.Contains(err.Suggestion, "--release") {
-		t.Errorf("Expected suggestion with --release flag, got: %s", err.Suggestion)
+	if !strings.Contains(err.Suggestion, "--branch") {
+		t.Errorf("Expected suggestion with --branch flag, got: %s", err.Suggestion)
 	}
 }
 
@@ -387,14 +387,14 @@ func TestValidateStatusTransition_ForceDoesNotBypassReleaseRequirement(t *testin
 		Body:          "Content",
 	}
 
-	// Force should NOT bypass release requirement
+	// Force should NOT bypass branch requirement
 	err := validateStatusTransition(cfg, ctx, "ready", "", true)
 	if err == nil {
-		t.Fatal("Expected validation error for missing release even with --force")
+		t.Fatal("Expected validation error for missing branch even with --force")
 	}
 
-	if !strings.Contains(err.Message, "No release") {
-		t.Errorf("Expected error about release, got: %s", err.Message)
+	if !strings.Contains(err.Message, "No branch") {
+		t.Errorf("Expected error about branch, got: %s", err.Message)
 	}
 }
 
@@ -740,7 +740,7 @@ func TestValidationErrors_BatchCollection(t *testing.T) {
 	cfg := &config.Config{Framework: "IDPF"}
 	var errs ValidationErrors
 
-	// Issue 1: No release for backlog->ready
+	// Issue 1: No branch for backlog->ready
 	ctx1 := &issueValidationContext{
 		Number:        1,
 		CurrentStatus: "backlog",
@@ -800,7 +800,7 @@ func TestValidationErrors_PartialBatchSuccess(t *testing.T) {
 		errs.Add(*err)
 	}
 
-	// Invalid transition - no release
+	// Invalid transition - no branch
 	ctx2 := &issueValidationContext{
 		Number:        2,
 		CurrentStatus: "backlog",
@@ -1076,15 +1076,15 @@ func TestValidateStatusTransition_InvalidRelease(t *testing.T) {
 
 	err := validateStatusTransition(cfg, ctx, "ready", "v3.0.0", false)
 	if err == nil {
-		t.Fatal("Expected validation error for invalid release")
+		t.Fatal("Expected validation error for invalid branch")
 	}
 
-	if !strings.Contains(err.Message, "not found in active releases") {
-		t.Errorf("Expected message about invalid release, got: %s", err.Message)
+	if !strings.Contains(err.Message, "not found in active branches") {
+		t.Errorf("Expected message about invalid branch, got: %s", err.Message)
 	}
 
 	if !strings.Contains(err.Suggestion, "v1.0.0") {
-		t.Errorf("Expected suggestion to list available releases, got: %s", err.Suggestion)
+		t.Errorf("Expected suggestion to list available branches, got: %s", err.Suggestion)
 	}
 }
 
