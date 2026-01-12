@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -843,10 +844,10 @@ func TestOutputViewJSON_SubIssueProgress(t *testing.T) {
 	}
 }
 
-func TestOpenViewInBrowser(t *testing.T) {
+func TestOpenInBrowser(t *testing.T) {
 	// Test that function exists and handles URL parameter
 	// We can't actually test browser opening in unit tests
-	_ = openViewInBrowser
+	_ = ui.OpenInBrowser
 }
 
 func TestOutputViewTable_WithComments(t *testing.T) {

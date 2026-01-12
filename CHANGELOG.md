@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-01-12
+
+### Added
+- `--state` filter flag for `list` command to filter by issue state (open/closed) (#522)
+- `--remove-label` flag for `edit` command to remove labels from issues (#519)
+- `--dry-run` flag for `branch close` and `microsprint close` commands (#527)
+- DATE field type support in `SetProjectItemField` for date-based project fields (#518)
+- Progress indicator for recursive move operations showing per-issue status (#520)
+- Pagination support for `GetSubIssues` query to handle 50+ sub-issues (#521)
+- Rate limiting protection with exponential backoff for bulk operations (#525)
+- Status field value validation before setting, with helpful error messages (#523)
+
+### Fixed
+- `setNumberField` now parses value parameter instead of always setting 0 (#513)
+- `--label` flag in `edit` command now actually adds labels (#528)
+- `--interactive` flag removed from `create` command (was unimplemented stub) (#514)
+- `branch close` now reports correct count of moved issues (#515)
+- `GetSubIssueCounts` failures now warn and include items instead of silent exclusion (#516)
+- Consolidated duplicate `openInBrowser` implementations into `internal/ui` (#517)
+- Help text updated from "release" to "branch" terminology throughout (#512)
+- Error messages updated to reference "branch" instead of "release" (#511)
+
+### Changed
+- `IsIDPF()` now uses case-insensitive prefix matching for framework detection (#524)
+- Coverage threshold lowered from 80% to 70%
+
 ## [0.11.0] - 2026-01-08
 
 ### Changed

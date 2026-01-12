@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +31,7 @@ type listOptions struct {
 	release      string
 	noRelease    bool
 	microsprint  string
+	state        string
 	limit        int
 	hasSubIssues bool
 	json         bool
@@ -63,6 +63,7 @@ Use filters to narrow down the results.`,
 	cmd.Flags().StringVarP(&opts.release, "release", "r", "", "Filter by release (e.g., v1.0.0, current)")
 	cmd.Flags().BoolVar(&opts.noRelease, "no-release", false, "Filter to issues without a release assignment")
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Filter by microsprint (e.g., 2025-12-20-a, current)")
+	cmd.Flags().StringVar(&opts.state, "state", "", "Filter by issue state (open or closed)")
 	cmd.MarkFlagsMutuallyExclusive("release", "no-release")
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 0, "Limit number of results (0 for no limit)")
 	cmd.Flags().BoolVar(&opts.hasSubIssues, "has-sub-issues", false, "Filter to only show parent issues (issues with sub-issues)")
@@ -98,6 +99,14 @@ func runList(cmd *cobra.Command, opts *listOptions) error {
 
 // runListWithDeps is the testable implementation of runList
 func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, client listClient) error {
+	// Validate state filter
+	if opts.state != "" {
+		stateLower := strings.ToLower(opts.state)
+		if stateLower != "open" && stateLower != "closed" {
+			return fmt.Errorf("invalid --state value: expected 'open' or 'closed', got %q", opts.state)
+		}
+	}
+
 	// Get project
 	project, err := client.GetProject(cfg.Project.Owner, cfg.Project.Number)
 	if err != nil {
@@ -106,7 +115,7 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 
 	// Handle --web flag: open project in browser
 	if opts.web {
-		return openInBrowser(project.URL)
+		return ui.OpenInBrowser(project.URL)
 	}
 
 	// Build filter
@@ -214,9 +223,15 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 		items = filterByFieldValue(items, "Microsprint", targetMicrosprint)
 	}
 
+	// Apply state filter
+	if opts.state != "" {
+		items = filterByState(items, opts.state)
+	}
+
 	// Apply has-sub-issues filter
+	var hasSubIssuesFilterFailed bool
 	if opts.hasSubIssues {
-		items = filterByHasSubIssues(client, items)
+		items, hasSubIssuesFilterFailed = filterByHasSubIssues(cmd, client, items)
 	}
 
 	// Apply limit
@@ -225,11 +240,19 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 	}
 
 	// Output
+	var outputErr error
 	if opts.json {
-		return outputJSON(cmd, items)
+		outputErr = outputJSON(cmd, items)
+	} else {
+		outputErr = outputTable(cmd, items)
 	}
 
-	return outputTable(cmd, items)
+	// Print note if sub-issue filter had failures
+	if hasSubIssuesFilterFailed && outputErr == nil {
+		fmt.Fprintln(cmd.OutOrStdout(), "\nNote: some items included without sub-issue verification")
+	}
+
+	return outputErr
 }
 
 // filterByFieldValue filters items by a specific field value
@@ -266,9 +289,10 @@ func filterByEmptyField(items []api.ProjectItem, fieldName string) []api.Project
 
 // filterByHasSubIssues filters items to only those with sub-issues.
 // Uses a batch query to fetch sub-issue counts efficiently.
-func filterByHasSubIssues(client listClient, items []api.ProjectItem) []api.ProjectItem {
+// Returns the filtered items and a boolean indicating if any repo queries failed.
+func filterByHasSubIssues(cmd *cobra.Command, client listClient, items []api.ProjectItem) ([]api.ProjectItem, bool) {
 	if len(items) == 0 {
-		return nil
+		return nil, false
 	}
 
 	// Group items by repository for batch queries
@@ -293,10 +317,13 @@ func filterByHasSubIssues(client listClient, items []api.ProjectItem) []api.Proj
 
 	// Fetch sub-issue counts for each repository (one query per repo)
 	subIssueCounts := make(map[repoKey]map[int]int)
+	var failedRepos []repoKey
 	for key, numbers := range repoNumbers {
 		counts, err := client.GetSubIssueCounts(key.owner, key.repo, numbers)
 		if err != nil {
-			// On error, skip this repo's items
+			// Warn about the failure but don't exclude items
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: could not fetch sub-issue counts for %s/%s: %v\n", key.owner, key.repo, err)
+			failedRepos = append(failedRepos, key)
 			continue
 		}
 		subIssueCounts[key] = counts
@@ -307,6 +334,8 @@ func filterByHasSubIssues(client listClient, items []api.ProjectItem) []api.Proj
 	for key, keyItems := range repoItems {
 		counts, ok := subIssueCounts[key]
 		if !ok {
+			// Include items from failed repos (prefer false positives over silent exclusion)
+			filtered = append(filtered, keyItems...)
 			continue
 		}
 		for _, item := range keyItems {
@@ -316,7 +345,7 @@ func filterByHasSubIssues(client listClient, items []api.ProjectItem) []api.Proj
 		}
 	}
 
-	return filtered
+	return filtered, len(failedRepos) > 0
 }
 
 // getFieldValue gets a field value from an item
@@ -481,16 +510,18 @@ func filterBySearch(items []api.ProjectItem, search string) []api.ProjectItem {
 	return filtered
 }
 
-// openInBrowser opens the given URL in the default browser
-func openInBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", url)
-	default: // linux, freebsd, etc.
-		cmd = exec.Command("xdg-open", url)
+// filterByState filters items by GitHub issue state (open or closed)
+func filterByState(items []api.ProjectItem, state string) []api.ProjectItem {
+	var filtered []api.ProjectItem
+	stateLower := strings.ToLower(state)
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+		// Issue.State is OPEN or CLOSED (uppercase from GitHub API)
+		if strings.EqualFold(item.Issue.State, stateLower) {
+			filtered = append(filtered, item)
+		}
 	}
-	return cmd.Start()
+	return filtered
 }

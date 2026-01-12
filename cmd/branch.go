@@ -77,6 +77,7 @@ type branchCurrentOptions struct {
 type branchCloseOptions struct {
 	tag        bool
 	yes        bool
+	dryRun     bool
 	branchName string
 }
 
@@ -146,8 +147,8 @@ func newBranchAddCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "add <issue-number>",
-		Short: "Add an issue to the current release",
-		Long:  `Assigns an issue to the active release by setting its Release field.`,
+		Short: "Add an issue to the current branch",
+		Long:  `Assigns an issue to the active branch by setting its Release field.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var issueNum int
@@ -178,7 +179,7 @@ func newBranchRemoveCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "remove <issue-number>",
-		Short: "Remove an issue from the current release",
+		Short: "Remove an issue from the current branch",
 		Long:  `Clears the Release field from an issue.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -210,8 +211,8 @@ func newBranchCurrentCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "current",
-		Short: "Show the active release",
-		Long:  `Displays details about the currently active release.`,
+		Short: "Show the active branch",
+		Long:  `Displays details about the currently active branch.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -236,21 +237,21 @@ func newBranchCloseCommand() *cobra.Command {
 	opts := &branchCloseOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "close [release-name]",
-		Short: "Close a release",
-		Long: `Closes a release and optionally creates a git tag.
+		Use:   "close [branch-name]",
+		Short: "Close a branch",
+		Long: `Closes a branch and optionally creates a git tag.
 
-If no release name is specified and exactly one release is active, that release
-will be used. If multiple releases are active, you must specify which one to close.
+If no branch name is specified and exactly one branch is active, that branch
+will be used. If multiple branches are active, you must specify which one to close.
 
 Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
 Release artifacts should be created beforehand using /prepare-release.
 
 Examples:
-  gh pmu release close                    # Uses current release if only one exists
-  gh pmu release close release/v2.0.0
-  gh pmu release close patch/v1.9.1 --tag
-  gh pmu release close --yes`,
+  gh pmu branch close                    # Uses current branch if only one exists
+  gh pmu branch close release/v2.0.0
+  gh pmu branch close patch/v1.9.1 --tag
+  gh pmu branch close --yes`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
@@ -282,6 +283,7 @@ Examples:
 
 	cmd.Flags().BoolVar(&opts.tag, "tag", false, "Create a git tag for the release")
 	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt")
+	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Preview what would happen without making changes")
 
 	return cmd
 }
@@ -292,8 +294,8 @@ func newBranchListCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List all releases",
-		Long:  `Displays a table of all releases sorted by version.`,
+		Short: "List all branches",
+		Long:  `Displays a table of all branches sorted by version.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -799,6 +801,27 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 		}
 	}
 
+	// Dry-run mode: show preview and exit
+	if opts.dryRun {
+		fmt.Fprintln(cmd.OutOrStdout(), "[DRY RUN] Preview of changes:")
+		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprintf(cmd.OutOrStdout(), "Would close branch: %s\n", opts.branchName)
+		if len(issuesToMove) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "Would move %d incomplete issue(s) to backlog:\n", len(issuesToMove))
+			for _, issue := range issuesToMove {
+				fmt.Fprintf(cmd.OutOrStdout(), "  #%d - %s\n", issue.Number, issue.Title)
+			}
+		}
+		if len(parkingLotIssues) > 0 {
+			fmt.Fprintf(cmd.OutOrStdout(), "Would skip %d Parking Lot issue(s)\n", len(parkingLotIssues))
+		}
+		if opts.tag {
+			fmt.Fprintf(cmd.OutOrStdout(), "Would create git tag: %s\n", releaseVersion)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Would close tracker issue #%d\n", targetBranch.Number)
+		return nil
+	}
+
 	// Warn about incomplete issues and confirm
 	if len(incompleteIssues) > 0 {
 		if len(issuesToMove) > 0 {
@@ -885,8 +908,8 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "✓ Release closed: %s\n", releaseVersion)
-	if len(incompleteIssues) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(incompleteIssues))
+	if len(issuesToMove) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(issuesToMove))
 	}
 	if opts.tag {
 		fmt.Fprintf(cmd.OutOrStdout(), "✓ Tag created: %s\n", releaseVersion)

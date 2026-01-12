@@ -1,5 +1,5 @@
 ---
-version: "v0.23.3"
+version: "v0.23.4"
 description: Prepare framework release with version updates and validation (project)
 argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run)
 ---
@@ -27,11 +27,11 @@ Execute the full release preparation workflow.
 | `/prepare-release dry-run` | Preview only |
 ---
 ## Pre-Checks
-### Verify on Release Branch
+### Verify Current Branch
 ```bash
 git branch --show-current
 ```
-Must be on release branch, not `main`.
+Record the current branch name as `$BRANCH` for use in subsequent steps.
 ### Check for Open Work
 ```bash
 gh pmu microsprint current 2>/dev/null

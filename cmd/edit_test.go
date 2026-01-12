@@ -17,9 +17,11 @@ type mockEditClient struct {
 	updateBodyErr    error
 	updateTitleErr   error
 	addLabelErr      error
+	removeLabelErr   error
 	updateBodyCalls  []string
 	updateTitleCalls []string
 	addLabelCalls    []string
+	removeLabelCalls []string
 }
 
 func (m *mockEditClient) GetIssueByNumber(owner, repo string, number int) (*api.Issue, error) {
@@ -39,9 +41,14 @@ func (m *mockEditClient) UpdateIssueTitle(issueID, title string) error {
 	return m.updateTitleErr
 }
 
-func (m *mockEditClient) AddLabelToIssue(issueID, labelName string) error {
+func (m *mockEditClient) AddLabelToIssue(owner, repo, issueID, labelName string) error {
 	m.addLabelCalls = append(m.addLabelCalls, labelName)
 	return m.addLabelErr
+}
+
+func (m *mockEditClient) RemoveLabelFromIssue(owner, repo, issueID, labelName string) error {
+	m.removeLabelCalls = append(m.removeLabelCalls, labelName)
+	return m.removeLabelErr
 }
 
 func setupMockForEdit() *mockEditClient {
@@ -377,6 +384,98 @@ func TestRunEditWithDeps_AddLabelError(t *testing.T) {
 	}
 	if !contains(err.Error(), "failed to add label") {
 		t.Errorf("Expected 'failed to add label' error, got: %s", err.Error())
+	}
+}
+
+func TestRunEditWithDeps_RemovesLabels(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	cfg := testEditConfig()
+	cmd, buf := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber:  123,
+		removeLabels: []string{"old-label", "deprecated"},
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(mock.removeLabelCalls) != 2 {
+		t.Errorf("Expected 2 remove label calls, got: %d", len(mock.removeLabelCalls))
+	}
+	output := buf.String()
+	if !contains(output, "2 label(s) removed") {
+		t.Errorf("Expected output to contain '2 label(s) removed', got: %s", output)
+	}
+}
+
+func TestRunEditWithDeps_RemoveLabelError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	mock.removeLabelErr = fmt.Errorf("label not found")
+	cfg := testEditConfig()
+	cmd, _ := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber:  123,
+		removeLabels: []string{"nonexistent"},
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error when RemoveLabelFromIssue fails")
+	}
+	if !contains(err.Error(), "failed to remove label") {
+		t.Errorf("Expected 'failed to remove label' error, got: %s", err.Error())
+	}
+}
+
+func TestRunEditWithDeps_AddAndRemoveLabels(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForEdit()
+	cfg := testEditConfig()
+	cmd, buf := newTestEditCmd()
+	opts := &editOptions{
+		issueNumber:  123,
+		addLabels:    []string{"new-label"},
+		removeLabels: []string{"old-label"},
+	}
+
+	// ACT
+	err := runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(mock.addLabelCalls) != 1 {
+		t.Errorf("Expected 1 add label call, got: %d", len(mock.addLabelCalls))
+	}
+	if len(mock.removeLabelCalls) != 1 {
+		t.Errorf("Expected 1 remove label call, got: %d", len(mock.removeLabelCalls))
+	}
+	output := buf.String()
+	if !contains(output, "added") || !contains(output, "removed") {
+		t.Errorf("Expected output to contain both 'added' and 'removed', got: %s", output)
+	}
+}
+
+func TestEditCommand_HasRemoveLabelFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	editCmd, _, err := cmd.Find([]string{"edit"})
+	if err != nil {
+		t.Fatalf("edit command not found: %v", err)
+	}
+
+	flag := editCmd.Flags().Lookup("remove-label")
+	if flag == nil {
+		t.Fatal("Expected --remove-label flag to exist")
 	}
 }
 

@@ -199,6 +199,38 @@ func (c *Config) ResolveFieldValue(fieldKey, alias string) string {
 	return alias
 }
 
+// ValidateFieldValue checks if the given value is a valid alias for the field.
+// Returns an error listing available values if the value is not found.
+// Returns nil if the field is not configured (allowing pass-through behavior).
+func (c *Config) ValidateFieldValue(fieldKey, value string) error {
+	field, ok := c.Fields[fieldKey]
+	if !ok {
+		// Field not configured, allow any value
+		return nil
+	}
+
+	if len(field.Values) == 0 {
+		// No values defined for field, allow any value
+		return nil
+	}
+
+	// Check if value exists in the field's values map (case-insensitive)
+	valueLower := strings.ToLower(value)
+	for alias := range field.Values {
+		if strings.ToLower(alias) == valueLower {
+			return nil
+		}
+	}
+
+	// Value not found, build error with available values
+	var available []string
+	for alias := range field.Values {
+		available = append(available, alias)
+	}
+
+	return fmt.Errorf("invalid %s value %q\nAvailable values: %s", fieldKey, value, strings.Join(available, ", "))
+}
+
 // GetFieldName returns the actual GitHub field name for a given key.
 // If no mapping exists, returns the original key unchanged.
 func (c *Config) GetFieldName(fieldKey string) string {
@@ -245,9 +277,11 @@ func (c *Config) Save(path string) error {
 }
 
 // IsIDPF returns true if the config uses IDPF framework validation.
+// Returns true for any framework value starting with "IDPF" (case-insensitive),
+// including "IDPF", "IDPF-Agile", "idpf", etc.
 // IDPF is the default framework when not specified.
 func (c *Config) IsIDPF() bool {
-	return c.Framework == "IDPF" || c.Framework == "idpf"
+	return strings.HasPrefix(strings.ToUpper(c.Framework), "IDPF")
 }
 
 // AddFieldMetadata adds or updates field metadata in the config

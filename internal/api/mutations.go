@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+	"time"
 
 	graphql "github.com/cli/shurcooL-graphql"
 )
@@ -189,6 +191,8 @@ func (c *Client) SetProjectItemFieldWithFields(projectID, itemID, fieldName, val
 		return c.setTextField(projectID, itemID, field.ID, value)
 	case "NUMBER":
 		return c.setNumberField(projectID, itemID, field.ID, value)
+	case "DATE":
+		return c.setDateField(projectID, itemID, field.ID, value)
 	default:
 		return fmt.Errorf("unsupported field type: %s", field.DataType)
 	}
@@ -264,6 +268,11 @@ func (c *Client) setTextField(projectID, itemID, fieldID, value string) error {
 }
 
 func (c *Client) setNumberField(projectID, itemID, fieldID, value string) error {
+	numValue, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fmt.Errorf("invalid number value %q: %w", value, err)
+	}
+
 	var mutation struct {
 		UpdateProjectV2ItemFieldValue struct {
 			ClientMutationID string `graphql:"clientMutationId"`
@@ -275,7 +284,7 @@ func (c *Client) setNumberField(projectID, itemID, fieldID, value string) error 
 		ItemID:    graphql.ID(itemID),
 		FieldID:   graphql.ID(fieldID),
 		Value: ProjectV2FieldValue{
-			Number: graphql.Float(0), // TODO: parse value to float
+			Number: graphql.Float(numValue),
 		},
 	}
 
@@ -283,9 +292,70 @@ func (c *Client) setNumberField(projectID, itemID, fieldID, value string) error 
 		"input": input,
 	}
 
-	err := c.gql.Mutate("UpdateProjectV2ItemFieldValue", &mutation, variables)
+	err = c.gql.Mutate("UpdateProjectV2ItemFieldValue", &mutation, variables)
 	if err != nil {
 		return fmt.Errorf("failed to set number field value: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) setDateField(projectID, itemID, fieldID, value string) error {
+	// Handle empty value to clear the date field
+	if value == "" {
+		var mutation struct {
+			ClearProjectV2ItemFieldValue struct {
+				ClientMutationID string `graphql:"clientMutationId"`
+			} `graphql:"clearProjectV2ItemFieldValue(input: $input)"`
+		}
+
+		input := struct {
+			ProjectID graphql.ID `json:"projectId"`
+			ItemID    graphql.ID `json:"itemId"`
+			FieldID   graphql.ID `json:"fieldId"`
+		}{
+			ProjectID: graphql.ID(projectID),
+			ItemID:    graphql.ID(itemID),
+			FieldID:   graphql.ID(fieldID),
+		}
+
+		err := c.gql.Mutate("ClearProjectV2ItemFieldValue", &mutation, map[string]interface{}{
+			"input": input,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to clear date field: %w", err)
+		}
+		return nil
+	}
+
+	// Validate date format (YYYY-MM-DD)
+	_, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return fmt.Errorf("invalid date format: expected YYYY-MM-DD, got %q", value)
+	}
+
+	var mutation struct {
+		UpdateProjectV2ItemFieldValue struct {
+			ClientMutationID string `graphql:"clientMutationId"`
+		} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
+	}
+
+	input := UpdateProjectV2ItemFieldValueInput{
+		ProjectID: graphql.ID(projectID),
+		ItemID:    graphql.ID(itemID),
+		FieldID:   graphql.ID(fieldID),
+		Value: ProjectV2FieldValue{
+			Date: graphql.String(value),
+		},
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err = c.gql.Mutate("UpdateProjectV2ItemFieldValue", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to set date field value: %w", err)
 	}
 
 	return nil
@@ -503,14 +573,88 @@ type ProjectV2SingleSelectFieldOptionInput struct {
 }
 
 // AddLabelToIssue adds a label to an issue
-func (c *Client) AddLabelToIssue(issueID, labelName string) error {
+func (c *Client) AddLabelToIssue(owner, repo, issueID, labelName string) error {
 	if c.gql == nil {
 		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
-	// Note: This requires finding the label ID first, which needs the repository
-	// For now, we'll skip this as it requires additional context
-	// A full implementation would use addLabelsToLabelable mutation
+	// Get the label ID first
+	labelID, err := c.getLabelID(owner, repo, labelName)
+	if err != nil {
+		return err
+	}
+
+	// Use addLabelsToLabelable mutation
+	var mutation struct {
+		AddLabelsToLabelable struct {
+			Labelable struct {
+				Labels struct {
+					TotalCount int
+				} `graphql:"labels(first: 0)"`
+			}
+		} `graphql:"addLabelsToLabelable(input: $input)"`
+	}
+
+	type AddLabelsToLabelableInput struct {
+		LabelableID graphql.ID   `json:"labelableId"`
+		LabelIDs    []graphql.ID `json:"labelIds"`
+	}
+
+	input := AddLabelsToLabelableInput{
+		LabelableID: graphql.ID(issueID),
+		LabelIDs:    []graphql.ID{graphql.ID(labelID)},
+	}
+
+	err = c.gql.Mutate("AddLabelsToLabelable", &mutation, map[string]interface{}{
+		"input": input,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add label: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveLabelFromIssue removes a label from an issue
+func (c *Client) RemoveLabelFromIssue(owner, repo, issueID, labelName string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	// Get the label ID first
+	labelID, err := c.getLabelID(owner, repo, labelName)
+	if err != nil {
+		return err
+	}
+
+	// Use removeLabelsFromLabelable mutation
+	var mutation struct {
+		RemoveLabelsFromLabelable struct {
+			Labelable struct {
+				Labels struct {
+					TotalCount int
+				} `graphql:"labels(first: 0)"`
+			}
+		} `graphql:"removeLabelsFromLabelable(input: $input)"`
+	}
+
+	type RemoveLabelsFromLabelableInput struct {
+		LabelableID graphql.ID   `json:"labelableId"`
+		LabelIDs    []graphql.ID `json:"labelIds"`
+	}
+
+	input := RemoveLabelsFromLabelableInput{
+		LabelableID: graphql.ID(issueID),
+		LabelIDs:    []graphql.ID{graphql.ID(labelID)},
+	}
+
+	err = c.gql.Mutate("RemoveLabelsFromLabelable", &mutation, map[string]interface{}{
+		"input": input,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove label: %w", err)
+	}
+
 	return nil
 }
 

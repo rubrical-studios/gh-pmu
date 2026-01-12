@@ -2289,3 +2289,66 @@ func TestGenerateMicrosprintTrackerTemplate_WithCustomName(t *testing.T) {
 		t.Errorf("Template should contain full custom name %q", name)
 	}
 }
+
+func TestRunMicrosprintCloseWithDeps_DryRun_ShowsPreview(t *testing.T) {
+	// ARRANGE
+	today := time.Now().Format("2006-01-02")
+	mock := setupMockForStart()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Microsprint: " + today + "-a",
+			State:  "OPEN",
+		},
+	}
+	cfg := testMicrosprintConfig()
+	cleanup := setupMicrosprintTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, buf := newTestMicrosprintCmd()
+	opts := &microsprintCloseOptions{dryRun: true}
+
+	// ACT
+	err := runMicrosprintCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error in dry-run mode, got: %v", err)
+	}
+
+	// Should not close tracker issue in dry-run
+	if len(mock.closeIssueCalls) != 0 {
+		t.Errorf("Expected 0 CloseIssue calls in dry-run, got %d", len(mock.closeIssueCalls))
+	}
+
+	// Should show preview
+	output := buf.String()
+	if !strings.Contains(output, "[DRY RUN]") {
+		t.Error("Expected output to contain '[DRY RUN]'")
+	}
+	if !strings.Contains(output, "Would close microsprint:") {
+		t.Error("Expected output to contain 'Would close microsprint:'")
+	}
+	if !strings.Contains(output, "Would close tracker issue #100") {
+		t.Error("Expected output to contain 'Would close tracker issue #100'")
+	}
+}
+
+func TestMicrosprintCloseCommand_HasDryRunFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	closeCmd, _, err := cmd.Find([]string{"microsprint", "close"})
+	if err != nil {
+		t.Fatalf("microsprint close command not found: %v", err)
+	}
+
+	flag := closeCmd.Flags().Lookup("dry-run")
+	if flag == nil {
+		t.Fatal("Expected --dry-run flag to exist")
+	}
+
+	// Verify it's a boolean flag
+	if flag.Value.Type() != "bool" {
+		t.Errorf("Expected --dry-run to be bool, got %s", flag.Value.Type())
+	}
+}

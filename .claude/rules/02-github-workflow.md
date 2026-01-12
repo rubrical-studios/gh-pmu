@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** v0.23.3
+**Version:** v0.23.4
 **Source:** Reference/GitHub-Workflow.md
 ---
 **MUST READ:** At session startup and after compaction.

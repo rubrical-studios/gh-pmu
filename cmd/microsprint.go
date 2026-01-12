@@ -61,6 +61,7 @@ type microsprintStartOptions struct {
 type microsprintCloseOptions struct {
 	skipRetro bool
 	commit    bool
+	dryRun    bool
 }
 
 // microsprintAddOptions holds the options for the microsprint add command
@@ -313,6 +314,7 @@ func newMicrosprintCloseCommand() *cobra.Command {
 
 	cmd.Flags().BoolVar(&opts.skipRetro, "skip-retro", false, "Skip retrospective prompts and generate empty template")
 	cmd.Flags().BoolVar(&opts.commit, "commit", false, "Automatically commit generated artifacts")
+	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Preview what would happen without making changes")
 
 	return cmd
 }
@@ -845,6 +847,20 @@ func runMicrosprintCloseWithDeps(cmd *cobra.Command, opts *microsprintCloseOptio
 		return fmt.Errorf("no active microsprint. Run 'gh pmu microsprint start' first")
 	}
 
+	// Dry-run mode: show preview and exit
+	microsprintName := strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
+	if opts.dryRun {
+		fmt.Fprintln(cmd.OutOrStdout(), "[DRY RUN] Preview of changes:")
+		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprintf(cmd.OutOrStdout(), "Would close microsprint: %s\n", microsprintName)
+		fmt.Fprintf(cmd.OutOrStdout(), "Would generate: Microsprints/%s/review.md\n", microsprintName)
+		if !opts.skipRetro {
+			fmt.Fprintf(cmd.OutOrStdout(), "Would generate: Microsprints/%s/retro.md\n", microsprintName)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Would close tracker issue #%d\n", activeTracker.Number)
+		return nil
+	}
+
 	// REQ-009 AC-009-4: Confirm before closing microsprint started by another user
 	if activeTracker.Author.Login != "" {
 		currentUser, err := client.GetAuthenticatedUser()
@@ -884,7 +900,6 @@ func runMicrosprintCloseWithDeps(cmd *cobra.Command, opts *microsprintCloseOptio
 		_ = cfg.Save(configPath) // Best effort save
 	}
 
-	microsprintName := strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
 	fmt.Fprintf(cmd.OutOrStdout(), "Closed microsprint: %s\n", microsprintName)
 
 	return nil

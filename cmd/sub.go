@@ -8,6 +8,7 @@ import (
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -500,7 +501,7 @@ func runSubList(cmd *cobra.Command, args []string, opts *subListOptions) error {
 
 	// Handle --web flag: open issue in browser
 	if opts.web {
-		return openViewInBrowser(issue.URL)
+		return ui.OpenInBrowser(issue.URL)
 	}
 
 	// Build the result based on relation

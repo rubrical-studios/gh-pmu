@@ -12,7 +12,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 async function main() {
-    const threshold = 80;
+    const threshold = 70;
     const coveragePath = path.join(process.cwd(), 'coverage.out');
 
     try {

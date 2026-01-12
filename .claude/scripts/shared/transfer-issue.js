@@ -22,7 +22,7 @@ const { execSync } = require('child_process');
 function exec(cmd) {
     try {
         return execSync(cmd, { encoding: 'utf-8' }).trim();
-    } catch (e) {
+    } catch (_e) {
         return null;
     }
 }
@@ -33,7 +33,9 @@ function getIssueDetails(issueNumber) {
         if (result) {
             return JSON.parse(result);
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return null;
 }
 
@@ -44,7 +46,9 @@ function getOpenReleases() {
             const data = JSON.parse(result);
             return data.releases || data.items || data || [];
         }
-    } catch {}
+    } catch {
+        // Intentionally ignored
+    }
     return [];
 }
 

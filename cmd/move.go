@@ -288,10 +288,16 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	var changeDescriptions []string
 
 	if opts.status != "" {
+		if err := cfg.ValidateFieldValue("status", opts.status); err != nil {
+			return err
+		}
 		statusValue = cfg.ResolveFieldValue("status", opts.status)
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Status -> %s", statusValue))
 	}
 	if opts.priority != "" {
+		if err := cfg.ValidateFieldValue("priority", opts.priority); err != nil {
+			return err
+		}
 		priorityValue = cfg.ResolveFieldValue("priority", opts.priority)
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority -> %s", priorityValue))
 	}
@@ -457,50 +463,70 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	errorCount := 0
 
 	for _, info := range issuesToUpdate {
+		indent := strings.Repeat("  ", info.Depth)
+		if multiIssueMode {
+			fmt.Printf("%sUpdating #%d... ", indent, info.Number)
+		}
+
 		if info.ItemID == "" {
 			skippedCount++
+			if multiIssueMode {
+				fmt.Println("skipped (not in project)")
+			}
 			continue
 		}
 
 		updateFailed := false
 
 		if statusValue != "" {
-			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Status", statusValue, projectFields); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Status", statusValue, projectFields)
+			}, 3); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set status for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if priorityValue != "" && !updateFailed {
-			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Priority", priorityValue, projectFields); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Priority", priorityValue, projectFields)
+			}, 3); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set priority for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if microsprintValue != "" && !updateFailed {
-			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", microsprintValue, projectFields); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", microsprintValue, projectFields)
+			}, 3); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if releaseValue != "" && !updateFailed {
-			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", releaseValue, projectFields); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", releaseValue, projectFields)
+			}, 3); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to set release for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if clearMicrosprint && !updateFailed {
-			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", "", projectFields); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", "", projectFields)
+			}, 3); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to clear microsprint for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
 		}
 
 		if clearRelease && !updateFailed {
-			if err := client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", "", projectFields); err != nil {
+			if err := api.WithRetry(func() error {
+				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", "", projectFields)
+			}, 3); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to clear release for #%d: %v\n", info.Number, err)
 				updateFailed = true
 			}
@@ -509,11 +535,16 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		if updateFailed {
 			errorCount++
 			hasErrors = true
+			if multiIssueMode {
+				fmt.Println("failed")
+			}
 			continue
 		}
 
 		updatedCount++
-		if !multiIssueMode {
+		if multiIssueMode {
+			fmt.Println("done")
+		} else {
 			fmt.Printf("Updated issue #%d: %s\n", info.Number, info.Title)
 			for _, desc := range changeDescriptions {
 				fmt.Printf("  * %s\n", desc)
@@ -523,14 +554,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	}
 
 	if multiIssueMode {
-		fmt.Printf("Updated %d issues", updatedCount)
-		if skippedCount > 0 {
-			fmt.Printf(" (%d skipped - not in project)", skippedCount)
-		}
-		if errorCount > 0 {
-			fmt.Printf(" (%d failed)", errorCount)
-		}
-		fmt.Println()
+		fmt.Printf("\nSummary: %d updated, %d skipped, %d failed\n", updatedCount, skippedCount, errorCount)
 	}
 
 	if hasErrors {

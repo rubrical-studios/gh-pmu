@@ -1545,14 +1545,9 @@ func TestFilterByLabel(t *testing.T) {
 // These tests cover the function's behavior for edge cases and structural patterns.
 // Full integration testing with actual GitHub API is done in integration tests.
 
-func TestFilterByHasSubIssues_NilClient(t *testing.T) {
-	// Test that the function handles nil client gracefully
-	// Note: In production, this would panic, so we just test the function exists
-	// and has the correct signature
-
-	// We can't call with nil client as it would panic,
-	// but we can verify the function signature
-	var _ func(listClient, []api.ProjectItem) []api.ProjectItem = filterByHasSubIssues
+func TestFilterByHasSubIssues_FunctionSignatureCheck(t *testing.T) {
+	// Verify the function has the expected signature
+	var _ func(*cobra.Command, listClient, []api.ProjectItem) ([]api.ProjectItem, bool) = filterByHasSubIssues
 }
 
 func TestFilterByHasSubIssues_EmptyItems(t *testing.T) {
@@ -1563,11 +1558,16 @@ func TestFilterByHasSubIssues_EmptyItems(t *testing.T) {
 		t.Skip("Could not create API client - likely not authenticated")
 	}
 
+	cmd := &cobra.Command{}
+
 	// Empty items should return empty result without any API calls
-	result := filterByHasSubIssues(client, []api.ProjectItem{})
+	result, failed := filterByHasSubIssues(cmd, client, []api.ProjectItem{})
 
 	if len(result) != 0 {
 		t.Errorf("Expected empty result for empty input, got %d items", len(result))
+	}
+	if failed {
+		t.Error("Expected no failure for empty input")
 	}
 }
 
@@ -1578,24 +1578,78 @@ func TestFilterByHasSubIssues_NilIssueItems(t *testing.T) {
 		t.Skip("Could not create API client - likely not authenticated")
 	}
 
+	cmd := &cobra.Command{}
+
 	// Items with nil Issue should be skipped (no API calls made)
 	items := []api.ProjectItem{
 		{ID: "1", Issue: nil},
 		{ID: "2", Issue: nil},
 	}
 
-	result := filterByHasSubIssues(client, items)
+	result, failed := filterByHasSubIssues(cmd, client, items)
 
 	if len(result) != 0 {
 		t.Errorf("Expected empty result for items with nil Issue, got %d items", len(result))
 	}
+	if failed {
+		t.Error("Expected no failure for items with nil Issue")
+	}
 }
 
-func TestFilterByHasSubIssues_FunctionSignature(t *testing.T) {
-	// Verify the function has the expected signature
-	// This is a compile-time check that the function exists and has correct types
-	type filterFunc func(listClient, []api.ProjectItem) []api.ProjectItem
-	var _ filterFunc = filterByHasSubIssues
+func TestFilterByHasSubIssues_APIFailureIncludesItemsAndWarns(t *testing.T) {
+	// Create a mock client that returns an error for GetSubIssueCounts
+	mock := newMockListClient()
+	mock.getSubIssueCountsErr = errors.New("API rate limit exceeded")
+
+	// Create a command with captured stderr
+	cmd := &cobra.Command{}
+	errBuf := new(bytes.Buffer)
+	cmd.SetErr(errBuf)
+
+	// Items with valid issues
+	items := []api.ProjectItem{
+		{
+			ID: "1",
+			Issue: &api.Issue{
+				Number: 42,
+				Repository: api.Repository{
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+		{
+			ID: "2",
+			Issue: &api.Issue{
+				Number: 43,
+				Repository: api.Repository{
+					Owner: "owner",
+					Name:  "repo",
+				},
+			},
+		},
+	}
+
+	result, failed := filterByHasSubIssues(cmd, mock, items)
+
+	// Should have failure flag set
+	if !failed {
+		t.Error("Expected failure flag to be true when API fails")
+	}
+
+	// Should include items from failed repos (not silently exclude)
+	if len(result) != 2 {
+		t.Errorf("Expected 2 items to be included on API failure, got %d", len(result))
+	}
+
+	// Should have warning in stderr
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "Warning: could not fetch sub-issue counts for owner/repo") {
+		t.Errorf("Expected warning in stderr, got: %s", errOutput)
+	}
+	if !strings.Contains(errOutput, "API rate limit exceeded") {
+		t.Errorf("Expected error message in warning, got: %s", errOutput)
+	}
 }
 
 // ============================================================================
@@ -1818,6 +1872,170 @@ func TestFilterBySearch(t *testing.T) {
 			result := filterBySearch(tt.items, tt.search)
 			if len(result) != tt.wantCount {
 				t.Errorf("filterBySearch() returned %d items, want %d", len(result), tt.wantCount)
+			}
+		})
+	}
+}
+
+func TestRunListWithDeps_WithStateFilterOpen(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Open Issue", State: "OPEN"},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "Closed Issue", State: "CLOSED"},
+		},
+		{
+			ID:    "item-3",
+			Issue: &api.Issue{Number: 3, Title: "Another Open", State: "OPEN"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{state: "open"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithStateFilterClosed(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Open Issue", State: "OPEN"},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "Closed Issue", State: "CLOSED"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{state: "closed"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunListWithDeps_WithStateFilterInvalid(t *testing.T) {
+	mock := newMockListClient()
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newListCommand()
+	opts := &listOptions{state: "invalid"}
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err == nil {
+		t.Fatal("expected error for invalid state value")
+	}
+
+	expectedErr := `invalid --state value: expected 'open' or 'closed', got "invalid"`
+	if err.Error() != expectedErr {
+		t.Errorf("expected error %q, got %q", expectedErr, err.Error())
+	}
+}
+
+func TestListCommand_HasStateFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	listCmd, _, err := cmd.Find([]string{"list"})
+	if err != nil {
+		t.Fatalf("list command not found: %v", err)
+	}
+
+	flag := listCmd.Flags().Lookup("state")
+	if flag == nil {
+		t.Fatal("Expected --state flag to exist")
+	}
+
+	// Verify it's a string flag
+	if flag.Value.Type() != "string" {
+		t.Errorf("Expected --state to be string, got %s", flag.Value.Type())
+	}
+}
+
+func TestFilterByState(t *testing.T) {
+	tests := []struct {
+		name      string
+		items     []api.ProjectItem
+		state     string
+		wantCount int
+	}{
+		{
+			name: "filter open issues",
+			items: []api.ProjectItem{
+				{ID: "1", Issue: &api.Issue{Number: 1, State: "OPEN"}},
+				{ID: "2", Issue: &api.Issue{Number: 2, State: "CLOSED"}},
+				{ID: "3", Issue: &api.Issue{Number: 3, State: "OPEN"}},
+			},
+			state:     "open",
+			wantCount: 2,
+		},
+		{
+			name: "filter closed issues",
+			items: []api.ProjectItem{
+				{ID: "1", Issue: &api.Issue{Number: 1, State: "OPEN"}},
+				{ID: "2", Issue: &api.Issue{Number: 2, State: "CLOSED"}},
+				{ID: "3", Issue: &api.Issue{Number: 3, State: "CLOSED"}},
+			},
+			state:     "closed",
+			wantCount: 2,
+		},
+		{
+			name: "case-insensitive - uppercase input",
+			items: []api.ProjectItem{
+				{ID: "1", Issue: &api.Issue{Number: 1, State: "OPEN"}},
+				{ID: "2", Issue: &api.Issue{Number: 2, State: "CLOSED"}},
+			},
+			state:     "OPEN",
+			wantCount: 1,
+		},
+		{
+			name: "case-insensitive - mixed case input",
+			items: []api.ProjectItem{
+				{ID: "1", Issue: &api.Issue{Number: 1, State: "CLOSED"}},
+				{ID: "2", Issue: &api.Issue{Number: 2, State: "CLOSED"}},
+			},
+			state:     "Closed",
+			wantCount: 2,
+		},
+		{
+			name: "skip nil issues",
+			items: []api.ProjectItem{
+				{ID: "1", Issue: &api.Issue{Number: 1, State: "OPEN"}},
+				{ID: "2", Issue: nil},
+			},
+			state:     "open",
+			wantCount: 1,
+		},
+		{
+			name:      "empty items",
+			items:     []api.ProjectItem{},
+			state:     "open",
+			wantCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterByState(tt.items, tt.state)
+			if len(result) != tt.wantCount {
+				t.Errorf("filterByState() returned %d items, want %d", len(result), tt.wantCount)
 			}
 		})
 	}

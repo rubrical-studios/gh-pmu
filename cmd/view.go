@@ -4,15 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -123,7 +122,7 @@ func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, o
 		if err != nil {
 			return fmt.Errorf("failed to get issue: %w", err)
 		}
-		return openViewInBrowser(issue.URL)
+		return ui.OpenInBrowser(issue.URL)
 	}
 
 	// Fetch issue with project field values in a single query (optimized)
@@ -171,20 +170,6 @@ func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, o
 	}
 
 	return outputViewTable(cmd, issue, fieldValues, subIssues, parentIssue, comments)
-}
-
-// openViewInBrowser opens the given URL in the default browser
-func openViewInBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", url)
-	default: // linux, freebsd, etc.
-		cmd = exec.Command("xdg-open", url)
-	}
-	return cmd.Start()
 }
 
 // ViewJSONOutput represents the JSON output for view command

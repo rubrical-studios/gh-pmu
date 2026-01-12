@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1100,6 +1101,92 @@ func TestRunMoveWithDeps_RecursiveGetSubIssuesFails(t *testing.T) {
 	}
 }
 
+func TestRunMoveWithDeps_RecursiveProgressOutput(t *testing.T) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+
+	mock.issues["testowner/testrepo#1"] = &api.Issue{
+		ID:     "issue-1",
+		Number: 1,
+		Title:  "Parent Issue",
+	}
+
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-1",
+			Issue: &api.Issue{
+				Number: 1,
+				Repository: api.Repository{
+					Owner: "testowner",
+					Name:  "testrepo",
+				},
+			},
+		},
+		{
+			ID: "item-2",
+			Issue: &api.Issue{
+				Number: 2,
+				Repository: api.Repository{
+					Owner: "testowner",
+					Name:  "testrepo",
+				},
+			},
+		},
+	}
+
+	mock.subIssues["testowner/testrepo#1"] = []api.SubIssue{
+		{
+			ID:     "issue-2",
+			Number: 2,
+			Title:  "Sub Issue",
+			Repository: api.Repository{
+				Owner: "testowner",
+				Name:  "testrepo",
+			},
+		},
+	}
+
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Capture stdout for progress output
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	opts := &moveOptions{status: "in_progress", recursive: true, yes: true, depth: 10}
+
+	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+
+	w.Close()
+	os.Stdout = oldStdout
+	var stdoutBuf bytes.Buffer
+	_, _ = stdoutBuf.ReadFrom(r)
+	output := stdoutBuf.String()
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify progress output contains expected format
+	if !strings.Contains(output, "Updating #1...") {
+		t.Errorf("Expected progress output 'Updating #1...', got: %s", output)
+	}
+	if !strings.Contains(output, "done") {
+		t.Errorf("Expected 'done' in progress output, got: %s", output)
+	}
+	if !strings.Contains(output, "Summary:") {
+		t.Errorf("Expected 'Summary:' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "2 updated") {
+		t.Errorf("Expected '2 updated' in summary, got: %s", output)
+	}
+}
+
 // ============================================================================
 // collectSubIssuesRecursive Tests
 // ============================================================================
@@ -1717,5 +1804,56 @@ func TestRunMoveWithDeps_GetProjectFieldsErrorReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to get project fields") {
 		t.Errorf("Expected 'failed to get project fields' error, got: %v", err)
+	}
+}
+
+func TestRunMoveWithDeps_InvalidStatusReturnsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockWithIssue(123, "Test Issue", "item-123")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "nonexistent"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for invalid status, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid status value") {
+		t.Errorf("Expected 'invalid status value' error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "Available values:") {
+		t.Errorf("Expected error to list available values, got: %v", err)
+	}
+}
+
+func TestRunMoveWithDeps_InvalidPriorityReturnsError(t *testing.T) {
+	// ARRANGE
+	mock := setupMockWithIssue(123, "Test Issue", "item-123")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{priority: "invalid"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for invalid priority, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid priority value") {
+		t.Errorf("Expected 'invalid priority value' error, got: %v", err)
 	}
 }
