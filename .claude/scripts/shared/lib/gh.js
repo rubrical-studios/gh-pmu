@@ -1,3 +1,4 @@
+// **Version:** 0.20.0
 /**
  * lib/gh.js - GitHub CLI wrapper
  *
@@ -125,7 +126,7 @@ function getRelease(tag, repo) {
     const repoArg = repo ? `--repo ${repo}` : '';
     try {
         return execJson(`release view ${tag} --json tagName,name,body,createdAt,assets,url ${repoArg}`);
-    } catch (err) {
+    } catch {
         // Release might not exist yet
         return null;
     }

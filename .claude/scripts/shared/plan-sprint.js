@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.15.2
+// **Version:** 0.20.0
 /**
  * plan-sprint.js
  *
@@ -76,7 +76,7 @@ function main() {
     if (!release) {
         console.log('No active release context.');
         console.log('Start a release first: gh pmu release start --version "X.Y.Z"');
-        console.log('Then use /switch-release to set the release.');
+        console.log('Then use /switch-branch to set the release.');
         return;
     }
     console.log(`Release context: ${release}\n`);

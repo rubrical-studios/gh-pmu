@@ -1,15 +1,10 @@
 ---
-version: "v0.21.1"
+version: "v0.23.3"
 allowed-tools: Bash
 description: Transfer issue between releases/sprints (project)
 ---
-
-Transfer an issue between releases or sprints.
-
-Run the transfer-issue script:
-
+Transfer issue between releases or sprints.
 ```bash
 node .claude/scripts/shared/transfer-issue.js "$ARGUMENTS"
 ```
-
-Report the result to the user.
+Report result to user.

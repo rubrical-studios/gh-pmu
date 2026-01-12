@@ -1,78 +1,61 @@
 ---
-version: "v0.21.1"
-description: Prepare release with PR, merge to main, and tag
-argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
+version: "v0.23.3"
+description: Prepare framework release with version updates and validation (project)
+argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run)
 ---
-
 <!-- EXTENSIBLE: v0.17.0 -->
 # /prepare-release
-
-Validate, create PR to main, merge, and tag for deployment.
-
-## Available Extension Points
-
+Execute the full release preparation workflow.
+## Extension Points
 | Point | Location | Purpose |
 |-------|----------|---------|
-| `post-analysis` | After Phase 1 | Commit analysis, version recommendation |
-| `pre-validation` | Before Phase 2 | Setup, fixtures, containers |
-| `post-validation` | After Phase 2 | Coverage gates, build verification |
-| `post-prepare` | After Phase 3 | Documentation updates |
-| `pre-tag` | Before Phase 4 tagging | Final gate, sign-off |
-| `post-tag` | After Phase 4 | Release monitoring, asset verification |
-
+| `post-analysis` | After Phase 1 | Custom commit analysis |
+| `pre-validation` | Before Phase 2 | Setup test environment |
+| `post-validation` | After Phase 2 | Custom validation |
+| `post-prepare` | After Phase 3 | Additional updates |
+| `pre-tag` | Before Phase 4 | Final gate, sign-off |
+| `post-tag` | After Phase 4 | Deployment, notifications |
+| `pre-close` | Before Phase 5 | Pre-close validation |
+| `post-close` | After Phase 5 | Post-release actions |
 ---
-
 ## Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `[version]` | Version to release (e.g., v1.2.0) |
-| `--skip-coverage` | Skip coverage gate |
-| `--dry-run` | Preview without changes |
-| `--help` | Show extension points |
-
+| Usage | Behavior |
+|-------|----------|
+| `/prepare-release` | Full process |
+| `/prepare-release phase:2` | Start from Phase 2 |
+| `/prepare-release skip:X` | Skip sub-phase |
+| `/prepare-release dry-run` | Preview only |
 ---
-
 ## Pre-Checks
-
-### Verify Config
-
-```bash
-node .claude/scripts/open-release/verify-config.js
-```
-
-**If the script returns `success: false`, STOP and report the error.**
-
 ### Verify on Release Branch
-
 ```bash
 git branch --show-current
 ```
-
-### Check for Open Sprints
-
+Must be on release branch, not `main`.
+### Check for Open Work
 ```bash
-gh pmu microsprint current
+gh pmu microsprint current 2>/dev/null
+gh pmu release current --json issues | jq '.[] | select(.status != \"done\")'
 ```
-
-Close open sprints before proceeding.
-
-### Check for Incomplete Issues
-
-```bash
-gh pmu release current --json issues | jq '.[] | select(.status != "done")'
-```
-
 ---
-
-## Phase 1: Analysis (Framework-Provided)
-
-### Step 1.1: Analyze Changes
-
+## Phase 1: Analysis & Version
+### Step 1.1: Identify Last Release
 ```bash
-git log $(git describe --tags --abbrev=0)..HEAD --oneline
+git describe --tags --abbrev=0
 ```
-
+### Step 1.2: List Commits Since Last Release
+```bash
+git log vX.Y.Z..HEAD --oneline
+git log vX.Y.Z..HEAD --oneline | wc -l
+```
+### Step 1.3: Categorize Changes
+| Category | Indicators | Impact |
+|----------|-----------|--------|
+| New Framework | "Add IDPF-*" | MINOR/MAJOR |
+| New Skill | "Implement * skill" | MINOR |
+| Bug Fix | "Fix *" | PATCH |
+### Step 1.4: Determine Version
+**ASK USER:** Confirm version.
 <!-- USER-EXTENSION-START: post-analysis -->
 ### Analyze Commits
 
@@ -103,13 +86,8 @@ Check if docs need updates based on changes:
 
 **Only update if changes affect documentation.**
 <!-- USER-EXTENSION-END: post-analysis -->
-
-**ASK USER:** Confirm version before proceeding.
-
 ---
-
-## Phase 2: Validation (Framework-Provided)
-
+## Phase 2: Validation
 <!-- USER-EXTENSION-START: pre-validation -->
 ### Handle Incomplete Issues
 
@@ -130,13 +108,14 @@ The script outputs JSON: `{"success": true/false, "message": "..."}`
 
 Runs `golangci-lint run --timeout=5m` to catch lint errors before tagging.
 <!-- USER-EXTENSION-END: pre-validation -->
-
-### Step 2.1: Run Tests
-
+### Step 2.1: Verify Working Directory
 ```bash
-go test ./...
+git status --porcelain
 ```
-
+### Step 2.2: Run Basic Tests
+```bash
+npm test 2>/dev/null || echo "No test script"
+```
 <!-- USER-EXTENSION-START: post-validation -->
 ### Coverage Gate
 
@@ -163,28 +142,20 @@ release:
       - "mock_*.go"
 ```
 <!-- USER-EXTENSION-END: post-validation -->
-
 **ASK USER:** Confirm validation passed.
-
 ---
-
-## Phase 3: Prepare (Framework-Provided)
-
+## Phase 3: Prepare
 ### Step 3.1: Update Version Files
-
 | File | Action |
 |------|--------|
-| `CHANGELOG.md` | Add new section following Keep a Changelog format |
-| `README.md` | Update version badge or header |
-
-### Step 3.2: Commit Preparation
-
+| `framework-manifest.json` | Update version |
+| `CHANGELOG.md` | Add new section |
+| `README.md` | Update version line |
+### Step 3.2: Generate Release Artifacts
 ```bash
-git add CHANGELOG.md README.md docs/
-git commit -m "chore: prepare release $VERSION"
-git push
+mkdir -p "Releases/$TRACK/$VERSION"
 ```
-
+Create `release-notes.md` and `changelog.md`.
 <!-- USER-EXTENSION-START: post-prepare -->
 ### Wait for CI
 
@@ -196,30 +167,27 @@ The script polls CI status every 60 seconds (5-minute timeout).
 
 **If CI fails, STOP and report the error.**
 <!-- USER-EXTENSION-END: post-prepare -->
-
-**CRITICAL:** Do not proceed until CI passes.
-
 ---
-
-## Phase 4: Git Operations (Framework-Provided)
-
-### Step 4.1: Create PR to Main
-
+## Phase 4: Git Operations
+### Step 4.1: Commit Release
 ```bash
-gh pr create --base main --head $(git branch --show-current) \
-  --title "Release $VERSION"
+git add -A
+git commit -m "Release vX.Y.Z"
+git push origin release/vX.Y.Z
 ```
-
-### Step 4.2: Merge PR
-
+### Step 4.2: Update Issue Criteria
+Update acceptance criteria on release issues before PR.
+### Step 4.3: Create PR to Main
+```bash
+gh pr create --base main --head release/vX.Y.Z --title "Release vX.Y.Z"
+```
+### Step 4.4: Merge PR
 **ASK USER:** Approve and merge.
-
 ```bash
 gh pr merge --merge
 git checkout main
 git pull origin main
 ```
-
 <!-- USER-EXTENSION-START: pre-tag -->
 ### Important Rules
 
@@ -230,16 +198,17 @@ git pull origin main
 5. **NEVER declare release complete after pushing tag** - Monitor until assets uploaded
 6. **ALWAYS verify release assets exist** - Run `gh release view` to confirm
 <!-- USER-EXTENSION-END: pre-tag -->
-
-### Step 4.3: Tag and Push
-
+### Step 4.5: Tag Main
 **ASK USER:** Confirm ready to tag.
-
 ```bash
-git tag -a $VERSION -m "Release $VERSION"
-git push origin $VERSION
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 ```
-
+### Step 4.6: Verify Deployment
+```bash
+gh run list --limit 1
+gh run watch
+```
 <!-- USER-EXTENSION-START: post-tag -->
 ### Monitor Release Workflow
 
@@ -282,45 +251,37 @@ Options:
 Issues included in this release still require explicit user approval ("Done") to close.
 Do NOT auto-close issues just because they shipped.
 <!-- USER-EXTENSION-END: post-tag -->
-
 ---
-
-## Summary Checklist
-
-**Before tagging:**
-- [ ] Config file clean
-- [ ] Commits analyzed
-- [ ] Coverage gate passed (or `--skip-coverage`)
-- [ ] Version confirmed
-- [ ] CI passing
-- [ ] CHANGELOG updated
-- [ ] PR merged
-
-**After tagging:**
-- [ ] All CI jobs completed
-- [ ] Release assets uploaded
-- [ ] Release notes updated
-
+<!-- USER-EXTENSION-START: pre-close -->
+<!-- USER-EXTENSION-END: pre-close -->
+## Phase 5: Close & Cleanup
+**ASK USER:** Confirm deployment verified.
+### Step 5.1: Close Tracker Issue
+```bash
+gh issue close [TRACKER_NUMBER] --comment "Release vX.Y.Z deployed successfully"
+```
+### Step 5.2: Close Release in Project
+```bash
+gh pmu release close --tag
+```
+### Step 5.3: Delete Release Branch
+```bash
+git push origin --delete release/vX.Y.Z
+git branch -d release/vX.Y.Z
+```
+### Step 5.4: Create GitHub Release
+```bash
+gh release create vX.Y.Z --title "Release vX.Y.Z" --notes-file "Releases/release/vX.Y.Z/release-notes.md"
+```
+<!-- USER-EXTENSION-START: post-close -->
+<!-- USER-EXTENSION-END: post-close -->
 ---
-
-## STOP — Workflow Boundary
-
-**This command ends here.** Do not proceed to `/close-release` actions.
-
-### What `/prepare-release` does NOT do:
-
-- ❌ Close the release in project tracker
-- ❌ Run `gh pmu release close`
-- ❌ Mark tracker issue as complete
-- ❌ Archive release artifacts
-- ❌ Update release notes in tracker
-
+## Completion
+- ✅ Code merged to main
+- ✅ Tag created and pushed
+- ✅ Deployment verified
+- ✅ Tracker closed
+- ✅ Branch deleted
+- ✅ GitHub Release created
 ---
-
-## Next Step
-
-After deployment verified, run `/close-release` separately to finalize.
-
----
-
 **End of Prepare Release**

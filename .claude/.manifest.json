@@ -1,0 +1,86 @@
+{
+  "version": "0.23.2",
+  "deployedAt": "2026-01-11",
+  "scripts": {
+    "framework/analyze-commits.js": {
+      "checksum": "e1b33e7c787fdc9b8bd8fe343d049ab1393fcdab8b410a190188b5e75b593dff",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/framework/analyze-commits.js"
+    },
+    "framework/recommend-version.js": {
+      "checksum": "7efa67962d4f3392a9979039c612d8f6f242a24050f2942234fcb4d8441a3511",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/framework/recommend-version.js"
+    },
+    "framework/wait-for-ci.js": {
+      "checksum": "64ee1301b845d987031542421043ec00e56d607c372f1345b610ad213863557a",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/framework/wait-for-ci.js"
+    },
+    "framework/update-release-notes.js": {
+      "checksum": "4be4f39b59ed4e7f41eb5570e7a689f784a6a5c991dba7392bcdf34aabf74826",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/framework/update-release-notes.js"
+    },
+    "shared/cleanup-release-assets.js": {
+      "checksum": "410a77042d4f8c2929ec2040ec16f85b7aae2ec62369ebdd8d89f3c4280b50a7",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/cleanup-release-assets.js"
+    },
+    "shared/end-sprint.js": {
+      "checksum": "dc4ccdb92876062499edbe966470a928bb328723d02fcf5b8982752393a623af",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/end-sprint.js"
+    },
+    "shared/generate-changelog.js": {
+      "checksum": "66fd7d74a6ff80c2ef1ee26690bc601a4671647f2ce4f0f89eedd2e459167432",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/generate-changelog.js"
+    },
+    "shared/plan-sprint.js": {
+      "checksum": "44e13f47fd325797956d2fba1bf653d58e509d5044a69fa6c1708c20a7d4ccc1",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/plan-sprint.js"
+    },
+    "shared/sprint-retro.js": {
+      "checksum": "97f29ddd6fbea5f753e81f80fca82556fd46898cf6070f83c3e67de4d0f6489b",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/sprint-retro.js"
+    },
+    "shared/sprint-status.js": {
+      "checksum": "b9dd11fa2a08dbd05f260e9852ee23122a3ac34a0ec840fc9aa7f9117c01c9c4",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/sprint-status.js"
+    },
+    "shared/transfer-issue.js": {
+      "checksum": "24757218950a3b2d212dbcd5d2364d29a6ba34af0cd62e125ae06bf639dccf51",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/transfer-issue.js"
+    },
+    "lib/gh.js": {
+      "checksum": "db21dd36018495b7eee2bfc1b1e3fa4dcb608d1b88b1fdd51115af8586322d1b",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/lib/gh.js"
+    },
+    "lib/git.js": {
+      "checksum": "5b299b36af5e688482c177ac987dc53e653783b27e74a3de2118c04648d73e05",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/lib/git.js"
+    },
+    "lib/output.js": {
+      "checksum": "0e368597a1101cc96424ea560853ede31e3e55039393cecc9f45ee678e2f8c19",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/lib/output.js"
+    },
+    "lib/poll.js": {
+      "checksum": "7d59837f8425036cc3907119b7644214222dbb35858290a56268b3adb1c98660",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/scripts/shared/lib/poll.js"
+    },
+    "hooks/workflow-trigger.js": {
+      "checksum": "1cba362af51433795f869fd6a7032af572ddc37cbeb32d6fed0b42a13f0c9dc7",
+      "deployedAt": "2026-01-11",
+      "source": "Templates/hooks/workflow-trigger.js"
+    }
+  }
+}
