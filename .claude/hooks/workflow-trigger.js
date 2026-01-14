@@ -89,10 +89,10 @@ process.stdin.on('end', () => {
                 const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
 
                 if (!release || release === '' || release === 'null') {
-                    // No release assigned - block with actionable message
+                    // No branch assigned - block with actionable message
                     const output = {
                         decision: 'block',
-                        reason: `Issue #${issueNumber} has no release assignment.\n\nUse: /assign-branch #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --release "release/vX.Y.Z"`
+                        reason: `Issue #${issueNumber} has no branch assignment.\n\nUse: /assign-branch ${issueNumber}\n\nOr use: gh pmu move ${issueNumber} --branch current`
                     };
                     console.log(JSON.stringify(output));
                     process.exit(0);
