@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	graphql "github.com/cli/shurcooL-graphql"
 )
 
 func TestSafeGraphQLInt_ValidValues(t *testing.T) {
@@ -2136,5 +2138,369 @@ func TestGetProjectItems_Pagination_WithFilter(t *testing.T) {
 	}
 	if items[1].Issue.Title != "Match 2" {
 		t.Errorf("Expected second item 'Match 2', got '%s'", items[1].Issue.Title)
+	}
+}
+
+// ============================================================================
+// SearchRepositoryIssues Tests
+// ============================================================================
+
+func TestSearchRepositoryIssues_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+	_, err := client.SearchRepositoryIssues("owner", "repo", SearchFilters{}, 0)
+
+	if err == nil {
+		t.Fatal("Expected error for nil client")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestSearchRepositoryIssues_QueryBuilding(t *testing.T) {
+	tests := []struct {
+		name           string
+		filters        SearchFilters
+		expectedParts  []string
+		unexpectedPart string
+	}{
+		{
+			name:          "default state is open",
+			filters:       SearchFilters{},
+			expectedParts: []string{"repo:owner/repo", "is:issue", "is:open"},
+		},
+		{
+			name:          "explicit open state",
+			filters:       SearchFilters{State: "open"},
+			expectedParts: []string{"repo:owner/repo", "is:issue", "is:open"},
+		},
+		{
+			name:           "closed state",
+			filters:        SearchFilters{State: "closed"},
+			expectedParts:  []string{"repo:owner/repo", "is:issue", "is:closed"},
+			unexpectedPart: "is:open",
+		},
+		{
+			name:           "all state - no state filter",
+			filters:        SearchFilters{State: "all"},
+			expectedParts:  []string{"repo:owner/repo", "is:issue"},
+			unexpectedPart: "is:open",
+		},
+		{
+			name:          "with labels",
+			filters:       SearchFilters{Labels: []string{"bug", "urgent"}},
+			expectedParts: []string{"repo:owner/repo", "is:issue", "label:\"bug\"", "label:\"urgent\""},
+		},
+		{
+			name:          "with assignee",
+			filters:       SearchFilters{Assignee: "alice"},
+			expectedParts: []string{"repo:owner/repo", "is:issue", "assignee:alice"},
+		},
+		{
+			name:          "with search text",
+			filters:       SearchFilters{Search: "login error"},
+			expectedParts: []string{"repo:owner/repo", "is:issue", "login error"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedQuery string
+			mock := &queryMockClient{
+				queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+					if name == "SearchIssues" {
+						if q, ok := variables["query"]; ok {
+							capturedQuery = string(q.(graphql.String))
+						}
+					}
+					return nil
+				},
+			}
+
+			client := NewClientWithGraphQL(mock)
+			_, _ = client.SearchRepositoryIssues("owner", "repo", tt.filters, 0)
+
+			for _, part := range tt.expectedParts {
+				if !strings.Contains(capturedQuery, part) {
+					t.Errorf("Expected query to contain %q, got: %s", part, capturedQuery)
+				}
+			}
+			if tt.unexpectedPart != "" && strings.Contains(capturedQuery, tt.unexpectedPart) {
+				t.Errorf("Expected query NOT to contain %q, got: %s", tt.unexpectedPart, capturedQuery)
+			}
+		})
+	}
+}
+
+func TestSearchRepositoryIssues_QueryError(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return errors.New("search failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	issues, err := client.SearchRepositoryIssues("owner", "repo", SearchFilters{}, 0)
+
+	if err == nil {
+		t.Fatal("Expected error when query fails")
+	}
+	if issues != nil {
+		t.Error("Expected nil issues when error occurs")
+	}
+	if !strings.Contains(err.Error(), "failed to search issues") {
+		t.Errorf("Expected 'failed to search issues' error, got: %v", err)
+	}
+}
+
+func TestSearchRepositoryIssues_EmptyResult(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	issues, err := client.SearchRepositoryIssues("owner", "repo", SearchFilters{}, 0)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(issues) != 0 {
+		t.Errorf("Expected empty issues, got %d", len(issues))
+	}
+}
+
+func TestSearchRepositoryIssues_WithLimit(t *testing.T) {
+	callCount := 0
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "SearchIssues" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				search := v.FieldByName("Search")
+				nodes := search.FieldByName("Nodes")
+				pageInfo := search.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+				// Return 5 issues per page
+				newNodes := reflect.MakeSlice(nodes.Type(), 5, 5)
+				for i := 0; i < 5; i++ {
+					node := reflect.New(nodeType).Elem()
+					node.FieldByName("TypeName").SetString("Issue")
+					issue := node.FieldByName("Issue")
+					issue.FieldByName("ID").SetString("issue-" + string(rune('0'+i)))
+					issue.FieldByName("Number").SetInt(int64(i + 1))
+					issue.FieldByName("Title").SetString("Issue " + string(rune('0'+i)))
+					issue.FieldByName("State").SetString("OPEN")
+					newNodes.Index(i).Set(node)
+				}
+				nodes.Set(newNodes)
+
+				// More pages available
+				pageInfo.FieldByName("HasNextPage").SetBool(true)
+				pageInfo.FieldByName("EndCursor").SetString("cursor")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	issues, err := client.SearchRepositoryIssues("owner", "repo", SearchFilters{}, 3)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should stop after getting 3 issues even though more available
+	if len(issues) != 3 {
+		t.Errorf("Expected 3 issues with limit, got %d", len(issues))
+	}
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call with limit, got %d", callCount)
+	}
+}
+
+// ============================================================================
+// GetProjectFieldsForIssues Tests
+// ============================================================================
+
+func TestGetProjectFieldsForIssues_EmptyInput(t *testing.T) {
+	client := NewClient()
+	result, err := client.GetProjectFieldsForIssues("proj-id", []string{})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result == nil {
+		t.Fatal("Expected non-nil result map")
+	}
+	if len(result) != 0 {
+		t.Errorf("Expected empty result map, got %d entries", len(result))
+	}
+}
+
+// ============================================================================
+// GetProjectItems With Limit Tests
+// ============================================================================
+
+func TestGetProjectItems_WithLimit_EarlyTermination(t *testing.T) {
+	callCount := 0
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItems" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+				pageInfoField := items.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+				// Return 5 items per page
+				newNodes := reflect.MakeSlice(nodes.Type(), 5, 5)
+				for i := 0; i < 5; i++ {
+					newNode := reflect.New(nodeType).Elem()
+					newNode.FieldByName("ID").SetString("item-" + string(rune('0'+i)))
+					content := newNode.FieldByName("Content")
+					content.FieldByName("TypeName").SetString("Issue")
+					issue := content.FieldByName("Issue")
+					issue.FieldByName("ID").SetString("issue-" + string(rune('0'+i)))
+					issue.FieldByName("Number").SetInt(int64(i + 1))
+					issue.FieldByName("Title").SetString("Issue")
+					issue.FieldByName("State").SetString("OPEN")
+					repo := issue.FieldByName("Repository")
+					repo.FieldByName("NameWithOwner").SetString("owner/repo")
+					newNodes.Index(i).Set(newNode)
+				}
+				nodes.Set(newNodes)
+
+				// More pages available
+				pageInfoField.FieldByName("HasNextPage").SetBool(true)
+				pageInfoField.FieldByName("EndCursor").SetString("cursor")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItems("proj-id", &ProjectItemsFilter{Limit: 3})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should stop after getting 3 items even though more available
+	if len(items) != 3 {
+		t.Errorf("Expected 3 items with limit, got %d", len(items))
+	}
+	if callCount != 1 {
+		t.Errorf("Expected 1 API call with early termination, got %d", callCount)
+	}
+}
+
+func TestGetProjectItems_WithLimit_ExactMatch(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItems" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+				pageInfoField := items.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+				// Return exactly 3 items
+				newNodes := reflect.MakeSlice(nodes.Type(), 3, 3)
+				for i := 0; i < 3; i++ {
+					newNode := reflect.New(nodeType).Elem()
+					newNode.FieldByName("ID").SetString("item-" + string(rune('0'+i)))
+					content := newNode.FieldByName("Content")
+					content.FieldByName("TypeName").SetString("Issue")
+					issue := content.FieldByName("Issue")
+					issue.FieldByName("ID").SetString("issue-" + string(rune('0'+i)))
+					issue.FieldByName("Number").SetInt(int64(i + 1))
+					issue.FieldByName("Title").SetString("Issue")
+					issue.FieldByName("State").SetString("OPEN")
+					repo := issue.FieldByName("Repository")
+					repo.FieldByName("NameWithOwner").SetString("owner/repo")
+					newNodes.Index(i).Set(newNode)
+				}
+				nodes.Set(newNodes)
+
+				pageInfoField.FieldByName("HasNextPage").SetBool(false)
+				pageInfoField.FieldByName("EndCursor").SetString("")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItems("proj-id", &ProjectItemsFilter{Limit: 3})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 3 {
+		t.Errorf("Expected 3 items, got %d", len(items))
+	}
+}
+
+func TestGetProjectItems_WithLimit_Zero(t *testing.T) {
+	callCount := 0
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItems" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+				pageInfoField := items.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+				newNodes := reflect.MakeSlice(nodes.Type(), 2, 2)
+				for i := 0; i < 2; i++ {
+					newNode := reflect.New(nodeType).Elem()
+					newNode.FieldByName("ID").SetString("item-" + string(rune('0'+i)))
+					content := newNode.FieldByName("Content")
+					content.FieldByName("TypeName").SetString("Issue")
+					issue := content.FieldByName("Issue")
+					issue.FieldByName("ID").SetString("issue-" + string(rune('0'+i)))
+					issue.FieldByName("Number").SetInt(int64(i + 1))
+					issue.FieldByName("Title").SetString("Issue")
+					issue.FieldByName("State").SetString("OPEN")
+					repo := issue.FieldByName("Repository")
+					repo.FieldByName("NameWithOwner").SetString("owner/repo")
+					newNodes.Index(i).Set(newNode)
+				}
+				nodes.Set(newNodes)
+
+				if callCount == 1 {
+					pageInfoField.FieldByName("HasNextPage").SetBool(true)
+					pageInfoField.FieldByName("EndCursor").SetString("cursor")
+				} else {
+					pageInfoField.FieldByName("HasNextPage").SetBool(false)
+					pageInfoField.FieldByName("EndCursor").SetString("")
+				}
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	// Limit 0 means no limit - should fetch all pages
+	items, err := client.GetProjectItems("proj-id", &ProjectItemsFilter{Limit: 0})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should fetch all items from both pages
+	if len(items) != 4 {
+		t.Errorf("Expected 4 items with no limit, got %d", len(items))
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls with no limit, got %d", callCount)
 	}
 }

@@ -494,10 +494,12 @@ func (c *Client) GetProjectItemIDForIssue(projectID, owner, repo string, number 
 // ProjectItemsFilter allows filtering project items
 type ProjectItemsFilter struct {
 	Repository string // Filter by repository (owner/repo format)
+	Limit      int    // Maximum number of items to return (0 = no limit)
 }
 
 // GetProjectItems fetches all items from a project with their field values.
 // Uses cursor-based pagination to retrieve all items regardless of project size.
+// If filter.Limit > 0, pagination terminates early once the limit is reached.
 func (c *Client) GetProjectItems(projectID string, filter *ProjectItemsFilter) ([]ProjectItem, error) {
 	if c.gql == nil {
 		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
@@ -505,6 +507,10 @@ func (c *Client) GetProjectItems(projectID string, filter *ProjectItemsFilter) (
 
 	var allItems []ProjectItem
 	var cursor *string
+	limit := 0
+	if filter != nil {
+		limit = filter.Limit
+	}
 
 	for {
 		items, pageInfo, err := c.getProjectItemsPage(projectID, cursor)
@@ -524,6 +530,11 @@ func (c *Client) GetProjectItems(projectID string, filter *ProjectItemsFilter) (
 				}
 			}
 			allItems = append(allItems, item)
+
+			// Early termination if limit is reached
+			if limit > 0 && len(allItems) >= limit {
+				return allItems[:limit], nil
+			}
 		}
 
 		// Check if there are more pages
@@ -1035,6 +1046,334 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 	}
 
 	return issues, nil
+}
+
+// SearchRepositoryIssues searches for issues in a repository using GitHub Search API.
+// This is more efficient than fetching all issues when filtering by state, labels, or text.
+// The limit parameter controls maximum results (0 = no limit, uses pagination).
+func (c *Client) SearchRepositoryIssues(owner, repo string, filters SearchFilters, limit int) ([]Issue, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	// Build the search query string
+	queryParts := []string{
+		fmt.Sprintf("repo:%s/%s", owner, repo),
+		"is:issue",
+	}
+
+	// Add state filter (default to open if not specified)
+	switch filters.State {
+	case "closed":
+		queryParts = append(queryParts, "is:closed")
+	case "all":
+		// No state filter - include both open and closed
+	case "open", "":
+		queryParts = append(queryParts, "is:open")
+	default:
+		queryParts = append(queryParts, "is:open") // Default to open for unknown states
+	}
+
+	// Add label filters
+	for _, label := range filters.Labels {
+		queryParts = append(queryParts, fmt.Sprintf("label:%q", label))
+	}
+
+	// Add assignee filter
+	if filters.Assignee != "" {
+		queryParts = append(queryParts, fmt.Sprintf("assignee:%s", filters.Assignee))
+	}
+
+	// Add free-text search
+	if filters.Search != "" {
+		queryParts = append(queryParts, filters.Search)
+	}
+
+	searchQuery := strings.Join(queryParts, " ")
+
+	var allIssues []Issue
+	var cursor *string
+	pageSize := 100
+	if limit > 0 && limit < pageSize {
+		pageSize = limit
+	}
+
+	for {
+		issues, pageInfo, err := c.searchIssuesPage(searchQuery, pageSize, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, issue := range issues {
+			// Set repository info since search doesn't always include it
+			if issue.Repository.Owner == "" {
+				issue.Repository = Repository{Owner: owner, Name: repo}
+			}
+			allIssues = append(allIssues, issue)
+
+			// Check if we've reached the limit
+			if limit > 0 && len(allIssues) >= limit {
+				return allIssues[:limit], nil
+			}
+		}
+
+		if !pageInfo.HasNextPage {
+			break
+		}
+		cursor = &pageInfo.EndCursor
+	}
+
+	return allIssues, nil
+}
+
+// GetProjectFieldsForIssues fetches project field values for multiple issues in batched queries.
+// Returns a map from issue node ID to its field values. Uses batching to avoid query size limits.
+func (c *Client) GetProjectFieldsForIssues(projectID string, issueIDs []string) (map[string][]FieldValue, error) {
+	if len(issueIDs) == 0 {
+		return make(map[string][]FieldValue), nil
+	}
+
+	// Batch issues to avoid GraphQL query limits (max ~100 aliases per query)
+	const batchSize = 50
+	result := make(map[string][]FieldValue)
+
+	for i := 0; i < len(issueIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(issueIDs) {
+			end = len(issueIDs)
+		}
+		batch := issueIDs[i:end]
+
+		batchResult, err := c.getProjectFieldsForIssuesBatch(projectID, batch)
+		if err != nil {
+			return nil, err
+		}
+
+		for id, fields := range batchResult {
+			result[id] = fields
+		}
+	}
+
+	return result, nil
+}
+
+// getProjectFieldsForIssuesBatch fetches project fields for a batch of issues using aliases
+func (c *Client) getProjectFieldsForIssuesBatch(projectID string, issueIDs []string) (map[string][]FieldValue, error) {
+	// Build a GraphQL query with aliases for each issue
+	var queryParts []string
+	for i, id := range issueIDs {
+		queryParts = append(queryParts, fmt.Sprintf(`n%d: node(id: %q) {
+			... on Issue {
+				id
+				projectItems(first: 10) {
+					nodes {
+						project { id }
+						fieldValues(first: 20) {
+							nodes {
+								__typename
+								... on ProjectV2ItemFieldSingleSelectValue {
+									name
+									field { ... on ProjectV2SingleSelectField { name } }
+								}
+								... on ProjectV2ItemFieldTextValue {
+									text
+									field { ... on ProjectV2Field { name } }
+								}
+							}
+						}
+					}
+				}
+			}
+		}`, i, id))
+	}
+
+	query := fmt.Sprintf("query { %s }", strings.Join(queryParts, " "))
+
+	// Execute via gh api graphql
+	cmd := exec.Command("gh", "api", "graphql", "-f", "query="+query)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute batch project fields query: %w", err)
+	}
+
+	// Parse the response
+	var response struct {
+		Data map[string]struct {
+			ID           string `json:"id"`
+			ProjectItems struct {
+				Nodes []struct {
+					Project struct {
+						ID string `json:"id"`
+					} `json:"project"`
+					FieldValues struct {
+						Nodes []struct {
+							TypeName string `json:"__typename"`
+							Name     string `json:"name"`
+							Text     string `json:"text"`
+							Field    struct {
+								Name string `json:"name"`
+							} `json:"field"`
+						} `json:"nodes"`
+					} `json:"fieldValues"`
+				} `json:"nodes"`
+			} `json:"projectItems"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse batch project fields response: %w", err)
+	}
+
+	// Build result map
+	result := make(map[string][]FieldValue)
+	for _, nodeData := range response.Data {
+		if nodeData.ID == "" {
+			continue
+		}
+
+		var fieldValues []FieldValue
+		for _, projectItem := range nodeData.ProjectItems.Nodes {
+			// Only include field values from the target project
+			if projectItem.Project.ID != projectID {
+				continue
+			}
+
+			for _, fv := range projectItem.FieldValues.Nodes {
+				switch fv.TypeName {
+				case "ProjectV2ItemFieldSingleSelectValue":
+					if fv.Name != "" && fv.Field.Name != "" {
+						fieldValues = append(fieldValues, FieldValue{
+							Field: fv.Field.Name,
+							Value: fv.Name,
+						})
+					}
+				case "ProjectV2ItemFieldTextValue":
+					if fv.Text != "" && fv.Field.Name != "" {
+						fieldValues = append(fieldValues, FieldValue{
+							Field: fv.Field.Name,
+							Value: fv.Text,
+						})
+					}
+				}
+			}
+		}
+
+		result[nodeData.ID] = fieldValues
+	}
+
+	return result, nil
+}
+
+// searchIssuesPage fetches a single page of search results
+func (c *Client) searchIssuesPage(query string, pageSize int, cursor *string) ([]Issue, pageInfo, error) {
+	var gqlQuery struct {
+		Search struct {
+			Nodes []struct {
+				TypeName string `graphql:"__typename"`
+				Issue    struct {
+					ID         string
+					Number     int
+					Title      string
+					Body       string
+					State      string
+					URL        string `graphql:"url"`
+					Repository struct {
+						NameWithOwner string
+					}
+					Author struct {
+						Login string
+					}
+					Assignees struct {
+						Nodes []struct {
+							Login string
+						}
+					} `graphql:"assignees(first: 10)"`
+					Labels struct {
+						Nodes []struct {
+							Name  string
+							Color string
+						}
+					} `graphql:"labels(first: 20)"`
+					Milestone struct {
+						Title string
+					}
+				} `graphql:"... on Issue"`
+			}
+			PageInfo struct {
+				HasNextPage bool
+				EndCursor   string
+			}
+		} `graphql:"search(query: $query, type: ISSUE, first: $first, after: $cursor)"`
+	}
+
+	gqlPageSize, err := safeGraphQLInt(pageSize)
+	if err != nil {
+		return nil, pageInfo{}, err
+	}
+
+	variables := map[string]interface{}{
+		"query":  graphql.String(query),
+		"first":  gqlPageSize,
+		"cursor": (*graphql.String)(nil),
+	}
+	if cursor != nil {
+		variables["cursor"] = graphql.String(*cursor)
+	}
+
+	err = c.gql.Query("SearchIssues", &gqlQuery, variables)
+	if err != nil {
+		return nil, pageInfo{}, fmt.Errorf("failed to search issues: %w", err)
+	}
+
+	var issues []Issue
+	for _, node := range gqlQuery.Search.Nodes {
+		if node.TypeName != "Issue" {
+			continue
+		}
+
+		issue := Issue{
+			ID:     node.Issue.ID,
+			Number: node.Issue.Number,
+			Title:  node.Issue.Title,
+			Body:   node.Issue.Body,
+			State:  node.Issue.State,
+			URL:    node.Issue.URL,
+			Author: Actor{Login: node.Issue.Author.Login},
+		}
+
+		// Parse repository
+		if node.Issue.Repository.NameWithOwner != "" {
+			parts := splitRepoName(node.Issue.Repository.NameWithOwner)
+			if len(parts) == 2 {
+				issue.Repository = Repository{
+					Owner: parts[0],
+					Name:  parts[1],
+				}
+			}
+		}
+
+		// Parse assignees
+		for _, a := range node.Issue.Assignees.Nodes {
+			issue.Assignees = append(issue.Assignees, Actor{Login: a.Login})
+		}
+
+		// Parse labels
+		for _, l := range node.Issue.Labels.Nodes {
+			issue.Labels = append(issue.Labels, Label{Name: l.Name, Color: l.Color})
+		}
+
+		// Parse milestone
+		if node.Issue.Milestone.Title != "" {
+			issue.Milestone = &Milestone{Title: node.Issue.Milestone.Title}
+		}
+
+		issues = append(issues, issue)
+	}
+
+	return issues, pageInfo{
+		HasNextPage: gqlQuery.Search.PageInfo.HasNextPage,
+		EndCursor:   gqlQuery.Search.PageInfo.EndCursor,
+	}, nil
 }
 
 // GetOpenIssuesByLabel fetches open issues with a specific label

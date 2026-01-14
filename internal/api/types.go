@@ -8,6 +8,14 @@ const (
 	IssueStateClosed IssueState = "CLOSED"
 )
 
+// SearchFilters contains filters for searching repository issues
+type SearchFilters struct {
+	State    string   // "open", "closed", or "all"
+	Labels   []string // Filter by label names
+	Assignee string   // Filter by assignee login
+	Search   string   // Free-text search in title/body
+}
+
 // Project represents a GitHub Projects v2 project
 type Project struct {
 	ID     string
