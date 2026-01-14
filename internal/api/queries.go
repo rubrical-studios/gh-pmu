@@ -123,12 +123,35 @@ func (c *Client) getOrgProject(owner string, number int) (*Project, error) {
 	}, nil
 }
 
-// GetProjectFields fetches all fields for a project
+// GetProjectFields fetches all fields for a project.
+// Uses cursor-based pagination to retrieve all fields regardless of project size.
 func (c *Client) GetProjectFields(projectID string) ([]ProjectField, error) {
 	if c.gql == nil {
 		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
+	var allFields []ProjectField
+	var cursor *string
+
+	for {
+		fields, pInfo, err := c.getProjectFieldsPage(projectID, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		allFields = append(allFields, fields...)
+
+		if !pInfo.HasNextPage {
+			break
+		}
+		cursor = &pInfo.EndCursor
+	}
+
+	return allFields, nil
+}
+
+// getProjectFieldsPage fetches a single page of project fields
+func (c *Client) getProjectFieldsPage(projectID string, cursor *string) ([]ProjectField, pageInfo, error) {
 	var query struct {
 		Node struct {
 			ProjectV2 struct {
@@ -152,18 +175,26 @@ func (c *Client) GetProjectFields(projectID string) ([]ProjectField, error) {
 							}
 						} `graphql:"... on ProjectV2SingleSelectField"`
 					}
-				} `graphql:"fields(first: 50)"`
+					PageInfo struct {
+						HasNextPage bool
+						EndCursor   string
+					}
+				} `graphql:"fields(first: 100, after: $cursor)"`
 			} `graphql:"... on ProjectV2"`
 		} `graphql:"node(id: $projectId)"`
 	}
 
 	variables := map[string]interface{}{
 		"projectId": graphql.ID(projectID),
+		"cursor":    (*graphql.String)(nil),
+	}
+	if cursor != nil {
+		variables["cursor"] = graphql.String(*cursor)
 	}
 
 	err := c.gql.Query("GetProjectFields", &query, variables)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get project fields: %w", err)
+		return nil, pageInfo{}, fmt.Errorf("failed to get project fields: %w", err)
 	}
 
 	var fields []ProjectField
@@ -193,7 +224,10 @@ func (c *Client) GetProjectFields(projectID string) ([]ProjectField, error) {
 		fields = append(fields, field)
 	}
 
-	return fields, nil
+	return fields, pageInfo{
+		HasNextPage: query.Node.ProjectV2.Fields.PageInfo.HasNextPage,
+		EndCursor:   query.Node.ProjectV2.Fields.PageInfo.EndCursor,
+	}, nil
 }
 
 // GetIssue fetches an issue by repository and number
@@ -663,6 +697,136 @@ func splitRepoName(nameWithOwner string) []string {
 		}
 	}
 	return nil
+}
+
+// BoardItemsFilter allows filtering board items
+type BoardItemsFilter struct {
+	Repository string // Filter by repository (owner/repo format)
+}
+
+// GetProjectItemsForBoard fetches minimal project item data optimized for board display.
+// Only retrieves: Number, Title, Status, Priority, and Repository.
+// Uses cursor-based pagination to retrieve all items regardless of project size.
+func (c *Client) GetProjectItemsForBoard(projectID string, filter *BoardItemsFilter) ([]BoardItem, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var allItems []BoardItem
+	var cursor *string
+
+	for {
+		items, pInfo, err := c.getBoardItemsPage(projectID, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		// Filter and process items from this page
+		for _, item := range items {
+			if filter != nil && filter.Repository != "" {
+				if item.Repository != filter.Repository {
+					continue
+				}
+			}
+			allItems = append(allItems, item)
+		}
+
+		if !pInfo.HasNextPage {
+			break
+		}
+		cursor = &pInfo.EndCursor
+	}
+
+	return allItems, nil
+}
+
+// getBoardItemsPage fetches a single page of board items with minimal data
+func (c *Client) getBoardItemsPage(projectID string, cursor *string) ([]BoardItem, pageInfo, error) {
+	var query struct {
+		Node struct {
+			ProjectV2 struct {
+				Items struct {
+					Nodes []struct {
+						Content struct {
+							TypeName string `graphql:"__typename"`
+							Issue    struct {
+								Number     int
+								Title      string
+								Repository struct {
+									NameWithOwner string
+								}
+							} `graphql:"... on Issue"`
+						}
+						FieldValues struct {
+							Nodes []struct {
+								TypeName string `graphql:"__typename"`
+								ProjectV2ItemFieldSingleSelectValue struct {
+									Name  string
+									Field struct {
+										ProjectV2SingleSelectField struct {
+											Name string
+										} `graphql:"... on ProjectV2SingleSelectField"`
+									}
+								} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
+							}
+						} `graphql:"fieldValues(first: 10)"`
+					}
+					PageInfo struct {
+						HasNextPage bool
+						EndCursor   string
+					}
+				} `graphql:"items(first: 100, after: $cursor)"`
+			} `graphql:"... on ProjectV2"`
+		} `graphql:"node(id: $projectId)"`
+	}
+
+	variables := map[string]interface{}{
+		"projectId": graphql.ID(projectID),
+		"cursor":    (*graphql.String)(nil),
+	}
+	if cursor != nil {
+		variables["cursor"] = graphql.String(*cursor)
+	}
+
+	err := c.gql.Query("GetProjectItemsForBoard", &query, variables)
+	if err != nil {
+		return nil, pageInfo{}, fmt.Errorf("failed to get board items: %w", err)
+	}
+
+	var items []BoardItem
+	for _, node := range query.Node.ProjectV2.Items.Nodes {
+		// Skip non-issue items
+		if node.Content.TypeName != "Issue" {
+			continue
+		}
+
+		item := BoardItem{
+			Number:     node.Content.Issue.Number,
+			Title:      node.Content.Issue.Title,
+			Repository: node.Content.Issue.Repository.NameWithOwner,
+		}
+
+		// Extract Status and Priority from field values
+		for _, fv := range node.FieldValues.Nodes {
+			if fv.TypeName == "ProjectV2ItemFieldSingleSelectValue" {
+				fieldName := fv.ProjectV2ItemFieldSingleSelectValue.Field.ProjectV2SingleSelectField.Name
+				value := fv.ProjectV2ItemFieldSingleSelectValue.Name
+				switch fieldName {
+				case "Status":
+					item.Status = value
+				case "Priority":
+					item.Priority = value
+				}
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	return items, pageInfo{
+		HasNextPage: query.Node.ProjectV2.Items.PageInfo.HasNextPage,
+		EndCursor:   query.Node.ProjectV2.Items.PageInfo.EndCursor,
+	}, nil
 }
 
 // GetSubIssues fetches all sub-issues for a given issue with pagination support

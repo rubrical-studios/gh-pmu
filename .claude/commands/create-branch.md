@@ -25,7 +25,7 @@ git status --porcelain
 <!-- USER-EXTENSION-START: pre-create -->
 ### Verify Config
 ```bash
-node .claude/scripts/create-branch/verify-config.js
+git status --porcelain .gh-pmu.yml
 ```
 **If `success` is false, STOP.**
 <!-- USER-EXTENSION-END: pre-create -->

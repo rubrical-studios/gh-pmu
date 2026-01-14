@@ -99,3 +99,13 @@ type SubIssue struct {
 	ParentID   string
 	Repository Repository // Repository where the sub-issue lives
 }
+
+// BoardItem represents a minimal project item for board display.
+// Contains only the fields needed for the board view to minimize API data transfer.
+type BoardItem struct {
+	Number     int
+	Title      string
+	Status     string
+	Priority   string
+	Repository string // "owner/repo" format for filtering
+}

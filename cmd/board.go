@@ -16,7 +16,7 @@ import (
 // This allows for easier testing with mock implementations.
 type boardClient interface {
 	GetProject(owner string, number int) (*api.Project, error)
-	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	GetProjectItemsForBoard(projectID string, filter *api.BoardItemsFilter) ([]api.BoardItem, error)
 }
 
 type boardOptions struct {
@@ -118,15 +118,15 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 	}
 
 	// Build filter
-	var filter *api.ProjectItemsFilter
+	var filter *api.BoardItemsFilter
 	if len(cfg.Repositories) > 0 {
-		filter = &api.ProjectItemsFilter{
+		filter = &api.BoardItemsFilter{
 			Repository: cfg.Repositories[0],
 		}
 	}
 
-	// Fetch project items
-	items, err := client.GetProjectItems(project.ID, filter)
+	// Fetch project items (optimized query for board display)
+	items, err := client.GetProjectItemsForBoard(project.ID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
@@ -134,7 +134,7 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 	// Apply priority filter if specified
 	if opts.priority != "" {
 		targetPriority := cfg.ResolveFieldValue("priority", opts.priority)
-		items = filterByFieldValue(items, "Priority", targetPriority)
+		items = filterBoardItemsByPriority(items, targetPriority)
 	}
 
 	// Get status columns from config
@@ -158,7 +158,7 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 	}
 
 	// Group items by status
-	grouped := groupByStatus(items, columns)
+	grouped := groupBoardItemsByStatus(items, columns)
 
 	// Apply limit per column
 	for status, columnItems := range grouped {
@@ -229,21 +229,29 @@ func getStatusColumns(cfg *config.Config) []statusColumn {
 	return columns
 }
 
-// groupByStatus groups items by their status field value
-func groupByStatus(items []api.ProjectItem, columns []statusColumn) map[string][]api.ProjectItem {
-	grouped := make(map[string][]api.ProjectItem)
+// filterBoardItemsByPriority filters board items by priority value
+func filterBoardItemsByPriority(items []api.BoardItem, priority string) []api.BoardItem {
+	var filtered []api.BoardItem
+	for _, item := range items {
+		if strings.EqualFold(item.Priority, priority) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+// groupBoardItemsByStatus groups board items by their status field value
+func groupBoardItemsByStatus(items []api.BoardItem, columns []statusColumn) map[string][]api.BoardItem {
+	grouped := make(map[string][]api.BoardItem)
 
 	// Initialize all columns
 	for _, col := range columns {
-		grouped[col.value] = []api.ProjectItem{}
+		grouped[col.value] = []api.BoardItem{}
 	}
 
 	// Group items
 	for _, item := range items {
-		if item.Issue == nil {
-			continue
-		}
-		status := getFieldValue(item, "Status")
+		status := item.Status
 		if status == "" {
 			status = "(none)"
 		}
@@ -274,7 +282,7 @@ func truncateString(s string, maxLen int) string {
 }
 
 // outputBoardBox outputs the board with box drawing characters
-func outputBoardBox(cmd *cobra.Command, grouped map[string][]api.ProjectItem, columns []statusColumn, limit int) error {
+func outputBoardBox(cmd *cobra.Command, grouped map[string][]api.BoardItem, columns []statusColumn, limit int) error {
 	termWidth := getTerminalWidth()
 	numCols := len(columns)
 	if numCols == 0 {
@@ -348,9 +356,7 @@ func outputBoardBox(cmd *cobra.Command, grouped map[string][]api.ProjectItem, co
 			var cell string
 			if row < len(items) {
 				item := items[row]
-				if item.Issue != nil {
-					cell = fmt.Sprintf("#%d %s", item.Issue.Number, item.Issue.Title)
-				}
+				cell = fmt.Sprintf("#%d %s", item.Number, item.Title)
 			}
 			cell = truncateString(cell, colWidth-2)
 			padding := colWidth - len(cell) - 1
@@ -377,7 +383,7 @@ func outputBoardBox(cmd *cobra.Command, grouped map[string][]api.ProjectItem, co
 }
 
 // outputBoardSimple outputs the board without borders
-func outputBoardSimple(cmd *cobra.Command, grouped map[string][]api.ProjectItem, columns []statusColumn) error {
+func outputBoardSimple(cmd *cobra.Command, grouped map[string][]api.BoardItem, columns []statusColumn) error {
 	out := cmd.OutOrStdout()
 
 	for _, col := range columns {
@@ -388,9 +394,7 @@ func outputBoardSimple(cmd *cobra.Command, grouped map[string][]api.ProjectItem,
 			continue
 		}
 		for _, item := range items {
-			if item.Issue != nil {
-				fmt.Fprintf(out, "  #%d %s\n", item.Issue.Number, item.Issue.Title)
-			}
+			fmt.Fprintf(out, "  #%d %s\n", item.Number, item.Title)
 		}
 	}
 	fmt.Fprintln(out)
@@ -399,7 +403,7 @@ func outputBoardSimple(cmd *cobra.Command, grouped map[string][]api.ProjectItem,
 }
 
 // outputBoardJSON outputs the board as JSON
-func outputBoardJSON(cmd *cobra.Command, grouped map[string][]api.ProjectItem, columns []statusColumn) error {
+func outputBoardJSON(cmd *cobra.Command, grouped map[string][]api.BoardItem, columns []statusColumn) error {
 	type jsonIssue struct {
 		Number   int    `json:"number"`
 		Title    string `json:"title"`
@@ -420,13 +424,11 @@ func outputBoardJSON(cmd *cobra.Command, grouped map[string][]api.ProjectItem, c
 			Issues: []jsonIssue{},
 		}
 		for _, item := range items {
-			if item.Issue != nil {
-				jc.Issues = append(jc.Issues, jsonIssue{
-					Number:   item.Issue.Number,
-					Title:    item.Issue.Title,
-					Priority: getFieldValue(item, "Priority"),
-				})
-			}
+			jc.Issues = append(jc.Issues, jsonIssue{
+				Number:   item.Number,
+				Title:    item.Title,
+				Priority: item.Priority,
+			})
 		}
 		output = append(output, jc)
 	}

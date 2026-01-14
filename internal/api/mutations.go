@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,16 +24,25 @@ func (c *Client) CreateIssue(owner, repo, title, body string, labels []string) (
 		return nil, err
 	}
 
-	// Get label IDs if labels are provided
+	// Get label IDs if labels are provided (batch query for efficiency)
 	var labelIDs []graphql.ID
 	if len(labels) > 0 {
-		for _, labelName := range labels {
-			labelID, err := c.getLabelID(owner, repo, labelName)
-			if err != nil {
-				// Skip labels that don't exist
-				continue
+		labelIDMap, err := c.getLabelIDs(owner, repo, labels)
+		if err != nil {
+			// Fall back to individual lookups if batch fails
+			for _, labelName := range labels {
+				labelID, err := c.getLabelID(owner, repo, labelName)
+				if err != nil {
+					continue
+				}
+				labelIDs = append(labelIDs, graphql.ID(labelID))
 			}
-			labelIDs = append(labelIDs, graphql.ID(labelID))
+		} else {
+			for _, labelName := range labels {
+				if id, ok := labelIDMap[labelName]; ok {
+					labelIDs = append(labelIDs, graphql.ID(id))
+				}
+			}
 		}
 	}
 
@@ -572,14 +582,15 @@ type ProjectV2SingleSelectFieldOptionInput struct {
 	Description graphql.String `json:"description,omitempty"`
 }
 
-// AddLabelToIssue adds a label to an issue
+// AddLabelToIssue adds a label to an issue.
+// If the label doesn't exist in the repository, it will be created automatically.
 func (c *Client) AddLabelToIssue(owner, repo, issueID, labelName string) error {
 	if c.gql == nil {
 		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
-	// Get the label ID first
-	labelID, err := c.getLabelID(owner, repo, labelName)
+	// Get the label ID, creating the label if it doesn't exist
+	labelID, err := c.EnsureLabelExists(owner, repo, labelName)
 	if err != nil {
 		return err
 	}
@@ -685,6 +696,78 @@ func (c *Client) getLabelID(owner, repo, labelName string) (string, error) {
 	return query.Repository.Label.ID, nil
 }
 
+// getLabelIDs gets label IDs for multiple labels in a single batch query.
+// Returns a map of label name to ID. Labels not found are omitted from the result.
+func (c *Client) getLabelIDs(owner, repo string, labelNames []string) (map[string]string, error) {
+	if len(labelNames) == 0 {
+		return make(map[string]string), nil
+	}
+
+	// Build a GraphQL query with aliases for each label
+	// Example: query { repository(owner:"o", name:"r") { l0: label(name:"bug") { id } l1: label(name:"help") { id } } }
+	var queryParts []string
+	for i, name := range labelNames {
+		// Escape the label name for GraphQL string literal
+		escapedName := strings.ReplaceAll(name, `"`, `\"`)
+		queryParts = append(queryParts, fmt.Sprintf(`l%d: label(name: %q) { id }`, i, escapedName))
+	}
+
+	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) { %s } }`,
+		owner, repo, strings.Join(queryParts, " "))
+
+	// Execute via gh api graphql
+	cmd := exec.Command("gh", "api", "graphql", "-f", "query="+query)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute batch label query: %w", err)
+	}
+
+	// Parse the response
+	var response struct {
+		Data struct {
+			Repository map[string]struct {
+				ID string `json:"id"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse batch label response: %w", err)
+	}
+
+	// Build result map
+	result := make(map[string]string)
+	for i, name := range labelNames {
+		alias := fmt.Sprintf("l%d", i)
+		if labelData, ok := response.Data.Repository[alias]; ok && labelData.ID != "" {
+			result[name] = labelData.ID
+		}
+	}
+
+	return result, nil
+}
+
+// EnsureLabelExists checks if a label exists and creates it if not.
+// Returns the label ID. Uses a default gray color for auto-created labels.
+func (c *Client) EnsureLabelExists(owner, repo, labelName string) (string, error) {
+	// First try to get the existing label
+	labelID, err := c.getLabelID(owner, repo, labelName)
+	if err == nil {
+		return labelID, nil
+	}
+
+	// Label doesn't exist, create it with default gray color
+	fmt.Fprintf(os.Stderr, "Creating label %q in %s/%s...\n", labelName, owner, repo)
+	createErr := c.CreateLabel(owner, repo, labelName, "cccccc", "")
+	if createErr != nil {
+		return "", createErr
+	}
+
+	// Now get the label ID
+	return c.getLabelID(owner, repo, labelName)
+}
+
 // getUserID gets a user's ID from their login
 func (c *Client) getUserID(login string) (string, error) {
 	var query struct {
@@ -755,16 +838,25 @@ func (c *Client) CreateIssueWithOptions(owner, repo, title, body string, labels,
 		return nil, err
 	}
 
-	// Get label IDs if labels are provided
+	// Get label IDs if labels are provided (batch query for efficiency)
 	var labelIDs []graphql.ID
 	if len(labels) > 0 {
-		for _, labelName := range labels {
-			labelID, err := c.getLabelID(owner, repo, labelName)
-			if err != nil {
-				// Skip labels that don't exist
-				continue
+		labelIDMap, err := c.getLabelIDs(owner, repo, labels)
+		if err != nil {
+			// Fall back to individual lookups if batch fails
+			for _, labelName := range labels {
+				labelID, err := c.getLabelID(owner, repo, labelName)
+				if err != nil {
+					continue
+				}
+				labelIDs = append(labelIDs, graphql.ID(labelID))
 			}
-			labelIDs = append(labelIDs, graphql.ID(labelID))
+		} else {
+			for _, labelName := range labels {
+				if id, ok := labelIDMap[labelName]; ok {
+					labelIDs = append(labelIDs, graphql.ID(id))
+				}
+			}
 		}
 	}
 

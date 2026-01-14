@@ -921,6 +921,72 @@ func TestGetProjectFields_QueryError(t *testing.T) {
 	}
 }
 
+func TestGetProjectFields_Pagination(t *testing.T) {
+	callCount := 0
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectFields" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				proj := node.FieldByName("ProjectV2")
+				fieldsConn := proj.FieldByName("Fields")
+				nodes := fieldsConn.FieldByName("Nodes")
+				pageInfo := fieldsConn.FieldByName("PageInfo")
+				nodeType := nodes.Type().Elem()
+
+				if callCount == 1 {
+					// First page - return field 1, indicate more pages
+					newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+					field1 := reflect.New(nodeType).Elem()
+					field1.FieldByName("TypeName").SetString("ProjectV2SingleSelectField")
+					selectField := field1.FieldByName("ProjectV2SingleSelectField")
+					selectField.FieldByName("ID").SetString("field-1")
+					selectField.FieldByName("Name").SetString("Status")
+					selectField.FieldByName("DataType").SetString("SINGLE_SELECT")
+					newNodes.Index(0).Set(field1)
+					nodes.Set(newNodes)
+					pageInfo.FieldByName("HasNextPage").SetBool(true)
+					pageInfo.FieldByName("EndCursor").SetString("cursor-1")
+				} else {
+					// Second page - return field 2, no more pages
+					newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+					field2 := reflect.New(nodeType).Elem()
+					field2.FieldByName("TypeName").SetString("ProjectV2Field")
+					textField := field2.FieldByName("ProjectV2Field")
+					textField.FieldByName("ID").SetString("field-2")
+					textField.FieldByName("Name").SetString("Title")
+					textField.FieldByName("DataType").SetString("TEXT")
+					newNodes.Index(0).Set(field2)
+					nodes.Set(newNodes)
+					pageInfo.FieldByName("HasNextPage").SetBool(false)
+					pageInfo.FieldByName("EndCursor").SetString("")
+				}
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	fields, err := client.GetProjectFields("proj-id")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls for pagination, got %d", callCount)
+	}
+	if len(fields) != 2 {
+		t.Fatalf("Expected 2 fields from pagination, got %d", len(fields))
+	}
+	if fields[0].Name != "Status" {
+		t.Errorf("Expected first field 'Status', got '%s'", fields[0].Name)
+	}
+	if fields[1].Name != "Title" {
+		t.Errorf("Expected second field 'Title', got '%s'", fields[1].Name)
+	}
+}
+
 // ============================================================================
 // GetIssue Tests - Improved Coverage
 // ============================================================================
