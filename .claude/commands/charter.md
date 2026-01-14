@@ -1,8 +1,9 @@
 ---
-version: "v0.23.4"
+version: "v0.24.1"
 description: View, create, or manage project charter
 argument-hint: "[update|refresh|validate]"
 ---
+<!-- MANAGED -->
 # /charter
 Context-aware charter command. Shows summary if exists, starts creation if missing.
 ---

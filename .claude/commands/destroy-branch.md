@@ -1,9 +1,9 @@
 ---
-version: "v0.23.4"
+version: "v0.24.1"
 description: Safely delete branch with confirmation
 argument-hint: [branch-name] [--force]
 ---
-<!-- EXTENSIBLE: v0.23.0 -->
+<!-- EXTENSIBLE -->
 # /destroy-branch
 Safely abandon and delete a branch. **Destructive operation requiring confirmation.**
 ## Extension Points

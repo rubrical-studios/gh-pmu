@@ -1,8 +1,9 @@
 ---
-version: "v0.23.4"
+version: "v0.24.1"
 allowed-tools: Bash
 description: Switch branch/sprint context (project)
 ---
+<!-- MANAGED -->
 Switch between branch and sprint contexts.
 ```bash
 node .claude/scripts/shared/switch-branch.js "$ARGUMENTS"

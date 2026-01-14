@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.20.0
+// **Version:** 0.20.1
 /**
  * workflow-trigger.js
  *
@@ -89,10 +89,10 @@ process.stdin.on('end', () => {
                 const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
 
                 if (!release || release === '' || release === 'null') {
-                    // No branch assigned - block with actionable message
+                    // No release assigned - block with actionable message
                     const output = {
                         decision: 'block',
-                        reason: `Issue #${issueNumber} has no branch assignment.\n\nUse: /assign-branch ${issueNumber} vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --branch vX.Y.Z`
+                        reason: `Issue #${issueNumber} has no release assignment.\n\nUse: /assign-branch #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --release "release/vX.Y.Z"`
                     };
                     console.log(JSON.stringify(output));
                     process.exit(0);
@@ -394,26 +394,31 @@ function getAgileDetailedCommands() {
 | \`Create-Backlog\` | Create GitHub epics/stories from PRD |
 | \`Add-Story\` | User describes a new story to add to backlog |
 | \`Refine-Story [ID]\` | Update/clarify an existing story |
-| \`Estimate-Story [ID]\` | Re-estimate story points |
-| \`Prioritize-Backlog\` | Re-order stories by priority |
-| \`Split-Story [ID]\` | Break a large story into smaller stories |
-| \`Archive-Story [ID]\` | Move story to icebox |
+| \`Estimate-Story [ID]\` | Set Estimate field (numeric) in project |
+| \`Prioritize-Backlog\` | Update Priority field (P0/P1/P2) for issues |
+| \`Split-Story [ID]\` | Break story into smaller stories (same parent epic) |
+| \`Archive-Story [ID]\` | Move story to "Parking Lot" status with reason |
+
+---
+
+### Story Workflow
+
+| Command | Description |
+|---------|-------------|
+| \`Start-Story [ID]\` | Begin work on story (In Progress + assign) |
+| \`Story-Status\` | Check progress on current story |
+| \`Story-Complete [ID]\` | Mark story as done |
 
 ---
 
 ### Sprint Commands
 
-| Command | Description |
-|---------|-------------|
-| \`Plan-Sprint\` | Select stories for next sprint |
-| \`Show-Sprint\` | Display current sprint backlog |
-| \`Start-Story [ID]\` | Begin development on a story |
-| \`Story-Status\` | Check progress on current story |
-| \`Story-Complete [ID]\` | Mark story as done |
-| \`Sprint-Progress\` | Show sprint burndown/progress |
-| \`Sprint-Review\` | Review completed sprint |
-| \`Sprint-Retro\` | Conduct retrospective |
-| \`End-Sprint\` | Close current sprint (runs Review + Retro) |
+| Command | Slash Command | Description |
+|---------|---------------|-------------|
+| \`Plan-Sprint\` | \`/plan-sprint\` | Select epics for new sprint |
+| \`Sprint-Status\` | \`/sprint-status\` | Show sprint progress |
+| \`Sprint-Retro\` | \`/sprint-retro\` | Run retrospective |
+| \`End-Sprint\` | \`/end-sprint\` | Close sprint with review |
 
 ---
 
@@ -421,23 +426,12 @@ function getAgileDetailedCommands() {
 
 | Command | Description |
 |---------|-------------|
-| \`Done-Next-Step\` | Current TDD iteration successful, proceed |
-| \`Rollback-Previous-Step\` | Undo last iteration |
 | \`Run-Tests\` | Execute full test suite |
 | \`Show-Coverage\` | Display test coverage report |
-| \`Refactor-Now\` | Dedicated refactoring session |
+
+**TDD Execution:** Phases execute autonomously. Only workflow checkpoint is story completion (In Review -> Done).
 
 **TDD Skills:** \`tdd-red-phase\`, \`tdd-green-phase\`, \`tdd-refactor-phase\`, \`tdd-failure-recovery\`, \`test-writing-patterns\`
-
----
-
-### Project Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Velocity-Report\` | Show velocity trends across sprints |
-| \`Push-Changes\` | Commit and push current work |
-| \`Project-Complete\` | Finalize project and create final PR |
 
 ---
 
@@ -456,10 +450,10 @@ function getAgileDetailedCommands() {
 
 | Command | Description |
 |---------|-------------|
-| \`Story-Blocked [ID] [reason]\` | Mark story as blocked |
-| \`Story-Growing [ID]\` | Flag story scope creep |
-| \`Emergency-Bug [description]\` | Create unplanned bug fix story |
-| \`Pivot [new direction]\` | Change project direction |
+| \`Story-Blocked [ID] [reason]\` | Add \`blocked\` label and reason comment |
+| \`Story-Growing [ID]\` | Add \`scope-creep\` label |
+| \`Emergency-Bug [description]\` | Create P0 issue with \`emergency\` label |
+| \`Pivot [new direction]\` | Review each story (keep/archive/close) |
 
 ---
 
@@ -468,9 +462,7 @@ function getAgileDetailedCommands() {
 | Command | Description |
 |---------|-------------|
 | \`List-Commands\` | Show all available commands with descriptions |
-| \`List-Cmds\` | Show all commands without descriptions |
-| \`Help [command]\` | Get detailed help for specific command |
-| \`Review-Last\` | Review ASSISTANT's most recent reply for accuracy |`;
+| \`Help [command]\` | Get detailed help for specific command |`;
 }
 
 function getVibeDetailedCommands() {

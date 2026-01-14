@@ -1,8 +1,9 @@
 ---
-version: "v0.23.4"
+version: "v0.24.1"
 description: Discover, view, and manage extension points in release commands
 argument-hint: <subcommand> [options]
 ---
+<!-- MANAGED -->
 # /extensions
 Unified management of extension points across release commands.
 ## Subcommands

@@ -1,9 +1,9 @@
 ---
-version: "v0.23.4"
+version: "v0.24.1"
 description: Merge branch to main with gated checks
 argument-hint: [--skip-gates] [--dry-run]
 ---
-<!-- EXTENSIBLE: v0.23.0 -->
+<!-- EXTENSIBLE -->
 # /merge-branch
 Merge current branch to main with gated validation. For non-release branches without version tagging.
 ## Extension Points

@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** v0.23.4
+**Version:** v0.24.1
 **Source:** Reference/GitHub-Workflow.md
 ---
 **MUST READ:** At session startup and after compaction.
@@ -30,7 +30,7 @@ gh extension install rubrical-studios/gh-pmu
 | Command | Replaces |
 |---------|----------|
 | `gh pmu create --title "..." [-F body.md] --status backlog --assignee @me` | `gh issue create` + `gh pmu move` |
-| `gh pmu move [#] --status [value]` | - |
+| `gh pmu move [#...] --status [value]` | - |
 | `gh pmu view [#] [-b] [-c] [-w]` | `gh issue view` |
 | `gh pmu edit [#] [-F body.md] [--body-stdin]` | `gh issue edit` |
 | `gh pmu list --status [value]` | - |
@@ -44,17 +44,30 @@ gh extension install rubrical-studios/gh-pmu
 | `gh pmu sub list [#]` | - |
 | `gh pmu split [#] --from=body` | Manual sub-issue creation |
 **Bulk Operations:**
+- `gh pmu move [#] [#] [#] --status done` - Update multiple issues at once
 - `gh pmu move [#] --status done --recursive` - Update issue + all sub-issues
 - `gh pmu move [#] --recursive --dry-run` - Preview recursive changes
 - `gh pmu triage --query "..." --apply status:backlog` - Bulk update
 - `gh pmu intake --apply` - Add untracked issues
 **Move Flags:** `--status`, `--branch` (replaces `--release`), `--microsprint`, `--backlog` (clear fields), `--recursive`, `--dry-run`, `--depth N`, `-f/--force`, `--yes`
+**Multi-Issue:** `gh pmu move 42 43 44 --status in_progress` - more efficient than parallel calls
 **Deprecation:** `--release` flag deprecated, use `--branch` instead.
 **Microsprint:** `start`, `current`, `add [#]`, `remove [#]`, `close`, `list`, `resolve`
 **Branch:** `start --branch release/vX.Y.Z`, `current`, `reopen [name]`, `move [#] --branch current` (recommended), `remove [#]`, `close [--tag]`, `list`
 **Deprecation:** `gh pmu release` deprecated, use `gh pmu branch` instead.
 **Patch Releases:** Use `gh pmu branch` with `patch/` branch naming (e.g., `--branch patch/v1.1.5`)
 **Auto-Close:** Default Kanban template auto-closes issues when moved to `done`. `gh issue close` only needed for close reason or comment.
+## Slash Command Preference
+Prefer slash commands over raw `gh pmu` commands:
+| Instead of | Use |
+|------------|-----|
+| `gh pmu branch start` | `/create-branch` |
+| `gh pmu branch list` | `/switch-branch` |
+| `gh pmu branch close` (releases) | `/prepare-release` |
+| `gh pmu branch close` (features) | `/merge-branch` |
+| `gh pmu move [#] --branch` | `/assign-branch` |
+| `gh pmu microsprint start/current/close` | `/plan-sprint`, `/sprint-status`, `/end-sprint` |
+**Use raw commands for:** debugging, uncovered operations, user request, complex bulk ops.
 ## Critical Rules
 - **Issues close ONLY when user says "Done"** - Never close automatically, skip STOP checkpoint, or close because code shipped
 - **Acceptance criteria must be checked** - All boxes checked before In Review or Done; evaluate criteria when moving to In Review

@@ -1,9 +1,9 @@
 ---
-version: 0.24.0
+version: "v0.24.1"
 description: Create a branch with tracker issue
 argument-hint: <branch-name> (e.g., release/v0.16.0, my-feature, bugfix-123)
 ---
-<!-- EXTENSIBLE: v0.17.0 -->
+<!-- EXTENSIBLE -->
 # /create-branch
 Creates branch and tracker issue for any branch type (release, patch, feature, hotfix).
 ## Extension Points
