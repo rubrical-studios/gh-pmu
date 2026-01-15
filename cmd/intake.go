@@ -109,8 +109,13 @@ func runIntakeWithDeps(cmd *cobra.Command, opts *intakeOptions, cfg *config.Conf
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Get all issues currently in the project
-	projectItems, err := client.GetProjectItems(project.ID, nil)
+	// Get issues currently in the project
+	// Optimization: when single repo configured, use repository filter to reduce data transfer
+	var filter *api.ProjectItemsFilter
+	if len(cfg.Repositories) == 1 {
+		filter = &api.ProjectItemsFilter{Repository: cfg.Repositories[0]}
+	}
+	projectItems, err := client.GetProjectItems(project.ID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}

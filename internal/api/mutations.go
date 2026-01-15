@@ -1479,3 +1479,248 @@ type UpdateLabelInput struct {
 	Color       graphql.String `json:"color,omitempty"`
 	Description graphql.String `json:"description,omitempty"`
 }
+
+// FieldUpdate represents a single field update for batch operations
+type FieldUpdate struct {
+	ItemID    string // Project item ID
+	FieldName string // Field name (e.g., "Status", "Priority")
+	Value     string // Display value (e.g., "In Progress", "P1")
+	// Internal fields set during validation
+	fieldID  string
+	optionID string // For SINGLE_SELECT fields
+	dataType string
+}
+
+// BatchUpdateResult represents the result of a single update in a batch
+type BatchUpdateResult struct {
+	ItemID    string
+	FieldName string
+	Success   bool
+	Error     string
+}
+
+// BatchUpdateProjectItemFields executes multiple field updates in a single GraphQL mutation.
+// This reduces API calls from O(N) to O(N/batchSize) where batchSize is 50.
+// Returns results for each update indicating success or failure.
+func (c *Client) BatchUpdateProjectItemFields(projectID string, updates []FieldUpdate, fields []ProjectField) ([]BatchUpdateResult, error) {
+	if len(updates) == 0 {
+		return []BatchUpdateResult{}, nil
+	}
+
+	// Build field lookup map
+	fieldMap := make(map[string]*ProjectField)
+	for i := range fields {
+		fieldMap[fields[i].Name] = &fields[i]
+	}
+
+	// Validate and prepare all updates
+	var validUpdates []FieldUpdate
+	var results []BatchUpdateResult
+
+	for _, update := range updates {
+		field, ok := fieldMap[update.FieldName]
+		if !ok {
+			results = append(results, BatchUpdateResult{
+				ItemID:    update.ItemID,
+				FieldName: update.FieldName,
+				Success:   false,
+				Error:     fmt.Sprintf("field %q not found in project", update.FieldName),
+			})
+			continue
+		}
+
+		update.fieldID = field.ID
+		update.dataType = field.DataType
+
+		// For SINGLE_SELECT, resolve option ID
+		if field.DataType == "SINGLE_SELECT" {
+			var optionID string
+			for _, opt := range field.Options {
+				if opt.Name == update.Value {
+					optionID = opt.ID
+					break
+				}
+			}
+			if optionID == "" {
+				results = append(results, BatchUpdateResult{
+					ItemID:    update.ItemID,
+					FieldName: update.FieldName,
+					Success:   false,
+					Error:     fmt.Sprintf("option %q not found for field %q", update.Value, update.FieldName),
+				})
+				continue
+			}
+			update.optionID = optionID
+		}
+
+		// Validate number fields
+		if field.DataType == "NUMBER" {
+			if _, err := strconv.ParseFloat(update.Value, 64); err != nil {
+				results = append(results, BatchUpdateResult{
+					ItemID:    update.ItemID,
+					FieldName: update.FieldName,
+					Success:   false,
+					Error:     fmt.Sprintf("invalid number value: %s", update.Value),
+				})
+				continue
+			}
+		}
+
+		// Validate date fields
+		if field.DataType == "DATE" && update.Value != "" {
+			if _, err := time.Parse("2006-01-02", update.Value); err != nil {
+				results = append(results, BatchUpdateResult{
+					ItemID:    update.ItemID,
+					FieldName: update.FieldName,
+					Success:   false,
+					Error:     fmt.Sprintf("invalid date format (expected YYYY-MM-DD): %s", update.Value),
+				})
+				continue
+			}
+		}
+
+		validUpdates = append(validUpdates, update)
+	}
+
+	// Process valid updates in batches
+	const batchSize = 50
+	for i := 0; i < len(validUpdates); i += batchSize {
+		end := i + batchSize
+		if end > len(validUpdates) {
+			end = len(validUpdates)
+		}
+		batch := validUpdates[i:end]
+
+		batchResults, err := c.executeBatchMutation(projectID, batch)
+		if err != nil {
+			// If batch fails entirely, mark all as failed
+			for _, update := range batch {
+				results = append(results, BatchUpdateResult{
+					ItemID:    update.ItemID,
+					FieldName: update.FieldName,
+					Success:   false,
+					Error:     err.Error(),
+				})
+			}
+			continue
+		}
+
+		results = append(results, batchResults...)
+	}
+
+	return results, nil
+}
+
+// executeBatchMutation executes a batch of field updates in a single GraphQL mutation
+func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) ([]BatchUpdateResult, error) {
+	if len(updates) == 0 {
+		return []BatchUpdateResult{}, nil
+	}
+
+	// Build mutation with aliases
+	var mutationParts []string
+	var variables []string
+
+	for i, update := range updates {
+		alias := fmt.Sprintf("u%d", i)
+		varName := fmt.Sprintf("input%d", i)
+
+		// Build the value object based on field type
+		var valueJSON string
+		switch update.dataType {
+		case "SINGLE_SELECT":
+			valueJSON = fmt.Sprintf(`{singleSelectOptionId: %q}`, update.optionID)
+		case "TEXT":
+			valueJSON = fmt.Sprintf(`{text: %q}`, update.Value)
+		case "NUMBER":
+			valueJSON = fmt.Sprintf(`{number: %s}`, update.Value)
+		case "DATE":
+			valueJSON = fmt.Sprintf(`{date: %q}`, update.Value)
+		default:
+			return nil, fmt.Errorf("unsupported field type: %s", update.dataType)
+		}
+
+		mutationParts = append(mutationParts, fmt.Sprintf(
+			`%s: updateProjectV2ItemFieldValue(input: $%s) { projectV2Item { id } }`,
+			alias, varName))
+
+		// Build input variable
+		inputJSON := fmt.Sprintf(
+			`{projectId: %q, itemId: %q, fieldId: %q, value: %s}`,
+			projectID, update.ItemID, update.fieldID, valueJSON)
+		variables = append(variables, fmt.Sprintf(`"%s": %s`, varName, inputJSON))
+	}
+
+	// Build variable declarations for the mutation signature
+	var varDecls []string
+	for i := range updates {
+		varDecls = append(varDecls, fmt.Sprintf("$input%d: UpdateProjectV2ItemFieldValueInput!", i))
+	}
+
+	mutation := fmt.Sprintf(`mutation BatchUpdate(%s) { %s }`,
+		strings.Join(varDecls, ", "),
+		strings.Join(mutationParts, " "))
+
+	variablesJSON := "{" + strings.Join(variables, ", ") + "}"
+
+	// Execute via gh api graphql
+	cmd := exec.Command("gh", "api", "graphql",
+		"-f", "query="+mutation,
+		"--input", "-")
+
+	cmd.Stdin = strings.NewReader(variablesJSON)
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("batch mutation failed: %s", string(exitErr.Stderr))
+		}
+		return nil, fmt.Errorf("batch mutation failed: %w", err)
+	}
+
+	// Parse response
+	var response struct {
+		Data   map[string]json.RawMessage `json:"data"`
+		Errors []struct {
+			Message string   `json:"message"`
+			Path    []string `json:"path"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse batch mutation response: %w", err)
+	}
+
+	// Build results
+	var results []BatchUpdateResult
+	for i, update := range updates {
+		alias := fmt.Sprintf("u%d", i)
+		result := BatchUpdateResult{
+			ItemID:    update.ItemID,
+			FieldName: update.FieldName,
+			Success:   true,
+		}
+
+		// Check if this specific update failed
+		for _, graphErr := range response.Errors {
+			if len(graphErr.Path) > 0 && graphErr.Path[0] == alias {
+				result.Success = false
+				result.Error = graphErr.Message
+				break
+			}
+		}
+
+		// Check if we got a response for this alias
+		if _, ok := response.Data[alias]; !ok && result.Success {
+			// No data and no specific error - might have failed silently
+			if len(response.Errors) > 0 {
+				result.Success = false
+				result.Error = response.Errors[0].Message
+			}
+		}
+
+		results = append(results, result)
+	}
+
+	return results, nil
+}

@@ -17,6 +17,7 @@ import (
 type filterClient interface {
 	GetProject(owner string, number int) (*api.Project, error)
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	GetProjectItemsByIssues(projectID string, refs []api.IssueRef) ([]api.ProjectItem, error)
 }
 
 type filterOptions struct {
@@ -133,10 +134,27 @@ func runFilterWithDeps(cmd *cobra.Command, opts *filterOptions, cfg *config.Conf
 		return fmt.Errorf("failed to parse JSON input: %w\nExpected JSON array from 'gh issue list --json ...'", err)
 	}
 
-	// Fetch all project items to get field values
-	items, err := client.GetProjectItems(project.ID, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get project items: %w", err)
+	// Build IssueRef list for targeted query (optimization)
+	// Parse repo info from URLs in the input
+	var items []api.ProjectItem
+	refs := buildIssueRefsFromInput(issues, cfg)
+
+	if len(refs) > 0 {
+		// Use targeted query - fetch only the specific issues we need
+		items, err = client.GetProjectItemsByIssues(project.ID, refs)
+		if err != nil {
+			// Fall back to full fetch if targeted query fails
+			items, err = client.GetProjectItems(project.ID, nil)
+			if err != nil {
+				return fmt.Errorf("failed to get project items: %w", err)
+			}
+		}
+	} else {
+		// No refs could be built - fall back to full fetch
+		items, err = client.GetProjectItems(project.ID, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get project items: %w", err)
+		}
 	}
 
 	// Build a map of issue number -> project item for quick lookup
@@ -250,4 +268,59 @@ func outputFilterTable(cmd *cobra.Command, issues []FilterInput) error {
 		fmt.Printf("#%d\t%s\t%s\n", issue.Number, title, issue.State)
 	}
 	return nil
+}
+
+// buildIssueRefsFromInput builds IssueRef slice from input issues.
+// Attempts to parse repo from URL fields, falls back to config repositories.
+func buildIssueRefsFromInput(issues []FilterInput, cfg *config.Config) []api.IssueRef {
+	var refs []api.IssueRef
+
+	for _, issue := range issues {
+		if issue.Number == 0 {
+			continue
+		}
+
+		// Try to parse repo from URL (format: https://github.com/owner/repo/issues/123)
+		owner, repo := parseRepoFromURL(issue.URL)
+
+		// Fall back to first configured repository if URL parsing fails
+		if owner == "" || repo == "" {
+			if len(cfg.Repositories) > 0 {
+				parts := strings.SplitN(cfg.Repositories[0], "/", 2)
+				if len(parts) == 2 {
+					owner, repo = parts[0], parts[1]
+				}
+			}
+		}
+
+		if owner != "" && repo != "" {
+			refs = append(refs, api.IssueRef{
+				Owner:  owner,
+				Repo:   repo,
+				Number: issue.Number,
+			})
+		}
+	}
+
+	return refs
+}
+
+// parseRepoFromURL extracts owner and repo from a GitHub issue URL
+// URL format: https://github.com/owner/repo/issues/123
+func parseRepoFromURL(url string) (owner, repo string) {
+	if url == "" {
+		return "", ""
+	}
+
+	// Remove protocol prefix
+	url = strings.TrimPrefix(url, "https://")
+	url = strings.TrimPrefix(url, "http://")
+
+	// Expected format: github.com/owner/repo/issues/123
+	parts := strings.Split(url, "/")
+	if len(parts) >= 4 && parts[0] == "github.com" {
+		return parts[1], parts[2]
+	}
+
+	return "", ""
 }

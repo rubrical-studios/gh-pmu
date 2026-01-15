@@ -183,14 +183,15 @@ Update acceptance criteria on release issues before PR.
 gh pr create --base main --head release/vX.Y.Z --title "Release vX.Y.Z"
 ```
 <!-- USER-EXTENSION-START: post-pr-create -->
-<!-- BUILT-IN: ci-wait (disabled by default)
+
 ### Wait for CI
 ```bash
 node .claude/scripts/framework/wait-for-ci.js
 ```
 **If CI fails, STOP and report.**
--->
+
 <!-- USER-EXTENSION-END: post-pr-create -->
+
 ### Step 4.4: Merge PR
 **ASK USER:** Approve and merge.
 ```bash

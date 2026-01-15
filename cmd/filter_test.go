@@ -16,9 +16,15 @@ type mockFilterClient struct {
 	project      *api.Project
 	projectItems []api.ProjectItem
 
+	// Call tracking
+	getProjectItemsCalls         int
+	getProjectItemsByIssuesCalls int
+	lastIssueRefs                []api.IssueRef
+
 	// Error injection
-	getProjectErr      error
-	getProjectItemsErr error
+	getProjectErr              error
+	getProjectItemsErr         error
+	getProjectItemsByIssuesErr error
 }
 
 func newMockFilterClient() *mockFilterClient {
@@ -39,10 +45,31 @@ func (m *mockFilterClient) GetProject(owner string, number int) (*api.Project, e
 }
 
 func (m *mockFilterClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	m.getProjectItemsCalls++
 	if m.getProjectItemsErr != nil {
 		return nil, m.getProjectItemsErr
 	}
 	return m.projectItems, nil
+}
+
+func (m *mockFilterClient) GetProjectItemsByIssues(projectID string, refs []api.IssueRef) ([]api.ProjectItem, error) {
+	m.getProjectItemsByIssuesCalls++
+	m.lastIssueRefs = refs
+	if m.getProjectItemsByIssuesErr != nil {
+		return nil, m.getProjectItemsByIssuesErr
+	}
+	// Return only items matching the refs
+	var result []api.ProjectItem
+	refSet := make(map[int]bool)
+	for _, ref := range refs {
+		refSet[ref.Number] = true
+	}
+	for _, item := range m.projectItems {
+		if item.Issue != nil && refSet[item.Issue.Number] {
+			result = append(result, item)
+		}
+	}
+	return result, nil
 }
 
 func TestFilterCommand_Exists(t *testing.T) {
@@ -740,5 +767,270 @@ func TestRunFilterWithDeps_JSONOutput(t *testing.T) {
 	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ============================================================================
+// Targeted Query Optimization Tests (Issue #545)
+// ============================================================================
+
+func TestRunFilterWithDeps_UsesTargetedQuery_WithURL(t *testing.T) {
+	// ARRANGE - Input with URL should use targeted query
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{Number: 1}},
+		{Issue: &api.Issue{Number: 2}},
+	}
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	// Input with URLs allows targeted query
+	stdin := createTempStdin(t, `[
+		{"number": 1, "title": "Issue 1", "state": "open", "url": "https://github.com/owner/repo/issues/1"},
+		{"number": 2, "title": "Issue 2", "state": "open", "url": "https://github.com/owner/repo/issues/2"}
+	]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+
+	// ACT
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should use targeted query, not full fetch
+	if mock.getProjectItemsByIssuesCalls != 1 {
+		t.Errorf("Expected 1 GetProjectItemsByIssues call, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if mock.getProjectItemsCalls != 0 {
+		t.Errorf("Expected 0 GetProjectItems calls (should use targeted), got %d", mock.getProjectItemsCalls)
+	}
+	// Should have built refs from URLs
+	if len(mock.lastIssueRefs) != 2 {
+		t.Errorf("Expected 2 issue refs, got %d", len(mock.lastIssueRefs))
+	}
+}
+
+func TestRunFilterWithDeps_UsesTargetedQuery_WithConfigRepo(t *testing.T) {
+	// ARRANGE - Input without URL falls back to config repo
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{Number: 1}},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"fallback-owner/fallback-repo"},
+	}
+
+	// Input without URLs - should fall back to config repo
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+
+	// ACT
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should use targeted query with fallback repo
+	if mock.getProjectItemsByIssuesCalls != 1 {
+		t.Errorf("Expected 1 GetProjectItemsByIssues call, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if len(mock.lastIssueRefs) != 1 {
+		t.Errorf("Expected 1 issue ref, got %d", len(mock.lastIssueRefs))
+	}
+	if mock.lastIssueRefs[0].Owner != "fallback-owner" {
+		t.Errorf("Expected owner 'fallback-owner', got %s", mock.lastIssueRefs[0].Owner)
+	}
+}
+
+func TestRunFilterWithDeps_FallsBackToFullFetch_OnTargetedError(t *testing.T) {
+	// ARRANGE - Targeted query fails, should fall back to full fetch
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{Number: 1}},
+	}
+	mock.getProjectItemsByIssuesErr = errors.New("targeted query failed")
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+
+	// ACT
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should have tried targeted first, then fallen back
+	if mock.getProjectItemsByIssuesCalls != 1 {
+		t.Errorf("Expected 1 GetProjectItemsByIssues call, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if mock.getProjectItemsCalls != 1 {
+		t.Errorf("Expected 1 GetProjectItems call (fallback), got %d", mock.getProjectItemsCalls)
+	}
+}
+
+func TestRunFilterWithDeps_FallsBackToFullFetch_NoRepoInfo(t *testing.T) {
+	// ARRANGE - No URL and no config repo - falls back to full fetch
+	mock := newMockFilterClient()
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{Number: 1}},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{}, // No repos configured
+	}
+
+	// No URL in input
+	stdin := createTempStdin(t, `[{"number": 1, "title": "Issue 1", "state": "open"}]`)
+	defer os.Remove(stdin.Name())
+	defer stdin.Close()
+
+	cmd := newFilterCommand()
+	opts := &filterOptions{}
+
+	// ACT
+	err := runFilterWithDeps(cmd, opts, cfg, mock, stdin)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// No refs could be built, should use full fetch
+	if mock.getProjectItemsByIssuesCalls != 0 {
+		t.Errorf("Expected 0 GetProjectItemsByIssues calls, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if mock.getProjectItemsCalls != 1 {
+		t.Errorf("Expected 1 GetProjectItems call, got %d", mock.getProjectItemsCalls)
+	}
+}
+
+func TestParseRepoFromURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		url       string
+		wantOwner string
+		wantRepo  string
+	}{
+		{
+			name:      "standard URL",
+			url:       "https://github.com/owner/repo/issues/123",
+			wantOwner: "owner",
+			wantRepo:  "repo",
+		},
+		{
+			name:      "HTTP URL",
+			url:       "http://github.com/owner/repo/issues/123",
+			wantOwner: "owner",
+			wantRepo:  "repo",
+		},
+		{
+			name:      "empty URL",
+			url:       "",
+			wantOwner: "",
+			wantRepo:  "",
+		},
+		{
+			name:      "invalid URL",
+			url:       "not-a-url",
+			wantOwner: "",
+			wantRepo:  "",
+		},
+		{
+			name:      "non-github URL",
+			url:       "https://gitlab.com/owner/repo/issues/123",
+			wantOwner: "",
+			wantRepo:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotOwner, gotRepo := parseRepoFromURL(tt.url)
+			if gotOwner != tt.wantOwner {
+				t.Errorf("parseRepoFromURL() owner = %v, want %v", gotOwner, tt.wantOwner)
+			}
+			if gotRepo != tt.wantRepo {
+				t.Errorf("parseRepoFromURL() repo = %v, want %v", gotRepo, tt.wantRepo)
+			}
+		})
+	}
+}
+
+func TestBuildIssueRefsFromInput(t *testing.T) {
+	tests := []struct {
+		name     string
+		issues   []FilterInput
+		cfg      *config.Config
+		wantLen  int
+		wantRepo string
+	}{
+		{
+			name: "with URL",
+			issues: []FilterInput{
+				{Number: 1, URL: "https://github.com/url-owner/url-repo/issues/1"},
+			},
+			cfg:      &config.Config{Repositories: []string{"config-owner/config-repo"}},
+			wantLen:  1,
+			wantRepo: "url-repo",
+		},
+		{
+			name: "fallback to config",
+			issues: []FilterInput{
+				{Number: 1, URL: ""},
+			},
+			cfg:      &config.Config{Repositories: []string{"config-owner/config-repo"}},
+			wantLen:  1,
+			wantRepo: "config-repo",
+		},
+		{
+			name: "no repo available",
+			issues: []FilterInput{
+				{Number: 1, URL: ""},
+			},
+			cfg:      &config.Config{Repositories: []string{}},
+			wantLen:  0,
+			wantRepo: "",
+		},
+		{
+			name: "skip zero number",
+			issues: []FilterInput{
+				{Number: 0, URL: "https://github.com/owner/repo/issues/0"},
+			},
+			cfg:      &config.Config{Repositories: []string{"owner/repo"}},
+			wantLen:  0,
+			wantRepo: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			refs := buildIssueRefsFromInput(tt.issues, tt.cfg)
+			if len(refs) != tt.wantLen {
+				t.Errorf("buildIssueRefsFromInput() len = %v, want %v", len(refs), tt.wantLen)
+			}
+			if tt.wantLen > 0 && refs[0].Repo != tt.wantRepo {
+				t.Errorf("buildIssueRefsFromInput() repo = %v, want %v", refs[0].Repo, tt.wantRepo)
+			}
+		})
 	}
 }

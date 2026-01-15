@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-01-15
+
+### Added
+- Batch field mutations for `move` command - reduces API calls from O(N) to O(N/50) (#543)
+- Batch sub-issue queries for recursive operations - fetches sub-issues per level instead of per-issue (#542)
+- `GetProjectItemsByIssues` API method for targeted issue queries (#541)
+- `GetSubIssuesBatch` API method for batch sub-issue fetching (#542)
+- `BatchUpdateProjectItemFields` API method for batch field updates (#543)
+- Repository-scoped filtering for `branch current`, `branch close`, `filter`, and `intake` commands (#545, #546, #547, #548)
+- Benchmark tests for performance-critical code paths
+
+### Changed
+- `filter` command now uses targeted queries when issue URLs are available in stdin (#545)
+- `intake` command uses repository filter for single-repo configurations (#548)
+- Updated IDPF framework to v0.25.0
+
+### Fixed
+- Hook error message now references `--branch` instead of deprecated `--release`
+- Removed unused `skippedIssues` variable in move command
+
 ## [0.11.1] - 2026-01-12
 
 ### Added

@@ -710,6 +710,234 @@ func splitRepoName(nameWithOwner string) []string {
 	return nil
 }
 
+// GetProjectItemsByIssues fetches project items for specific issues using a targeted query.
+// This is more efficient than GetProjectItems when you know which issues you need,
+// as it only fetches the specified issues rather than the entire project.
+// Returns items only for issues that exist in the specified project.
+func (c *Client) GetProjectItemsByIssues(projectID string, refs []IssueRef) ([]ProjectItem, error) {
+	if len(refs) == 0 {
+		return []ProjectItem{}, nil
+	}
+
+	// Group issues by repository for efficient querying
+	type repoKey struct {
+		owner string
+		repo  string
+	}
+	repoIssues := make(map[repoKey][]int)
+	for _, ref := range refs {
+		key := repoKey{owner: ref.Owner, repo: ref.Repo}
+		repoIssues[key] = append(repoIssues[key], ref.Number)
+	}
+
+	// Build GraphQL query with aliases for each repository and issue
+	var queryParts []string
+	aliasMap := make(map[string]IssueRef) // alias -> IssueRef for result mapping
+
+	repoIdx := 0
+	for key, numbers := range repoIssues {
+		var issueParts []string
+		for issueIdx, num := range numbers {
+			alias := fmt.Sprintf("i%d_%d", repoIdx, issueIdx)
+			aliasMap[alias] = IssueRef{Owner: key.owner, Repo: key.repo, Number: num}
+			issueParts = append(issueParts, fmt.Sprintf(`%s: issue(number: %d) {
+				id
+				number
+				title
+				body
+				state
+				url
+				repository { nameWithOwner }
+				assignees(first: 10) { nodes { login } }
+				labels(first: 20) { nodes { name } }
+				projectItems(first: 20) {
+					nodes {
+						id
+						project { id }
+						fieldValues(first: 20) {
+							nodes {
+								__typename
+								... on ProjectV2ItemFieldSingleSelectValue {
+									name
+									field { ... on ProjectV2SingleSelectField { name } }
+								}
+								... on ProjectV2ItemFieldTextValue {
+									text
+									field { ... on ProjectV2Field { name } }
+								}
+							}
+						}
+					}
+				}
+			}`, alias, num))
+		}
+		repoAlias := fmt.Sprintf("r%d", repoIdx)
+		queryParts = append(queryParts, fmt.Sprintf(`%s: repository(owner: %q, name: %q) { %s }`,
+			repoAlias, key.owner, key.repo, strings.Join(issueParts, " ")))
+		repoIdx++
+	}
+
+	query := fmt.Sprintf(`query { %s }`, strings.Join(queryParts, " "))
+
+	// Execute via gh api graphql
+	cmd := exec.Command("gh", "api", "graphql", "-f", "query="+query)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute targeted project items query: %w", err)
+	}
+
+	// Parse the response - use generic map structure due to dynamic aliases
+	var response struct {
+		Data   map[string]json.RawMessage `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse targeted project items response: %w", err)
+	}
+
+	if len(response.Errors) > 0 {
+		return nil, fmt.Errorf("GraphQL errors: %s", response.Errors[0].Message)
+	}
+
+	// Process results
+	var items []ProjectItem
+
+	for repoAlias, repoData := range response.Data {
+		if !strings.HasPrefix(repoAlias, "r") {
+			continue
+		}
+
+		var repoIssuesData map[string]json.RawMessage
+		if err := json.Unmarshal(repoData, &repoIssuesData); err != nil {
+			continue
+		}
+
+		for issueAlias, issueData := range repoIssuesData {
+			if !strings.HasPrefix(issueAlias, "i") {
+				continue
+			}
+
+			var issue struct {
+				ID         string `json:"id"`
+				Number     int    `json:"number"`
+				Title      string `json:"title"`
+				Body       string `json:"body"`
+				State      string `json:"state"`
+				URL        string `json:"url"`
+				Repository struct {
+					NameWithOwner string `json:"nameWithOwner"`
+				} `json:"repository"`
+				Assignees struct {
+					Nodes []struct {
+						Login string `json:"login"`
+					} `json:"nodes"`
+				} `json:"assignees"`
+				Labels struct {
+					Nodes []struct {
+						Name string `json:"name"`
+					} `json:"nodes"`
+				} `json:"labels"`
+				ProjectItems struct {
+					Nodes []struct {
+						ID      string `json:"id"`
+						Project struct {
+							ID string `json:"id"`
+						} `json:"project"`
+						FieldValues struct {
+							Nodes []struct {
+								TypeName string `json:"__typename"`
+								Name     string `json:"name"`
+								Text     string `json:"text"`
+								Field    struct {
+									Name string `json:"name"`
+								} `json:"field"`
+							} `json:"nodes"`
+						} `json:"fieldValues"`
+					} `json:"nodes"`
+				} `json:"projectItems"`
+			}
+
+			if err := json.Unmarshal(issueData, &issue); err != nil {
+				continue
+			}
+
+			// Find the project item for our target project
+			for _, pItem := range issue.ProjectItems.Nodes {
+				if pItem.Project.ID != projectID {
+					continue
+				}
+
+				// Parse repository owner/name
+				repoParts := splitRepoName(issue.Repository.NameWithOwner)
+				var repoOwner, repoName string
+				if len(repoParts) == 2 {
+					repoOwner = repoParts[0]
+					repoName = repoParts[1]
+				}
+
+				// Build assignees
+				var assignees []Actor
+				for _, a := range issue.Assignees.Nodes {
+					assignees = append(assignees, Actor{Login: a.Login})
+				}
+
+				// Build labels
+				var labels []Label
+				for _, l := range issue.Labels.Nodes {
+					labels = append(labels, Label{Name: l.Name})
+				}
+
+				// Build field values
+				var fieldValues []FieldValue
+				for _, fv := range pItem.FieldValues.Nodes {
+					var fieldName, value string
+					switch fv.TypeName {
+					case "ProjectV2ItemFieldSingleSelectValue":
+						fieldName = fv.Field.Name
+						value = fv.Name
+					case "ProjectV2ItemFieldTextValue":
+						fieldName = fv.Field.Name
+						value = fv.Text
+					default:
+						continue
+					}
+					if fieldName != "" {
+						fieldValues = append(fieldValues, FieldValue{
+							Field: fieldName,
+							Value: value,
+						})
+					}
+				}
+
+				items = append(items, ProjectItem{
+					ID: pItem.ID,
+					Issue: &Issue{
+						ID:     issue.ID,
+						Number: issue.Number,
+						Title:  issue.Title,
+						Body:   issue.Body,
+						State:  issue.State,
+						URL:    issue.URL,
+						Repository: Repository{
+							Owner: repoOwner,
+							Name:  repoName,
+						},
+						Assignees: assignees,
+						Labels:    labels,
+					},
+					FieldValues: fieldValues,
+				})
+				break // Found the item for this project, move to next issue
+			}
+		}
+	}
+
+	return items, nil
+}
+
 // BoardItemsFilter allows filtering board items
 type BoardItemsFilter struct {
 	Repository string // Filter by repository (owner/repo format)
@@ -977,6 +1205,121 @@ func (c *Client) GetSubIssueCounts(owner, repo string, numbers []int) (map[int]i
 		} else {
 			result[num] = 0
 		}
+	}
+
+	return result, nil
+}
+
+// GetSubIssuesBatch fetches sub-issues for multiple parent issues in a single query.
+// All parent issues must be from the same repository.
+// Returns a map of parent issue number to their sub-issues.
+// This is more efficient than calling GetSubIssues for each parent individually,
+// reducing API calls from O(N) to O(1) per batch.
+func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][]SubIssue, error) {
+	if len(numbers) == 0 {
+		return make(map[int][]SubIssue), nil
+	}
+
+	// Build a GraphQL query with aliases for each issue
+	// Fetches first 100 sub-issues per parent (matches GetSubIssues pagination)
+	var queryParts []string
+	for i, num := range numbers {
+		queryParts = append(queryParts, fmt.Sprintf(`i%d: issue(number: %d) {
+			subIssues(first: 100) {
+				nodes {
+					id
+					number
+					title
+					state
+					url
+					repository {
+						name
+						owner { login }
+					}
+				}
+			}
+		}`, i, num))
+	}
+
+	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) { %s } }`,
+		owner, repo, strings.Join(queryParts, " "))
+
+	// Execute via gh api graphql with sub_issues preview header
+	cmd := exec.Command("gh", "api", "graphql",
+		"-H", "X-Github-Next: sub_issues",
+		"-f", "query="+query)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute batch sub-issue query: %w", err)
+	}
+
+	// Parse the response using generic map for dynamic aliases
+	var response struct {
+		Data struct {
+			Repository map[string]json.RawMessage `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(output, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse batch sub-issue response: %w", err)
+	}
+
+	if len(response.Errors) > 0 {
+		return nil, fmt.Errorf("GraphQL errors: %s", response.Errors[0].Message)
+	}
+
+	// Build result map
+	result := make(map[int][]SubIssue)
+	for i, num := range numbers {
+		alias := fmt.Sprintf("i%d", i)
+		issueData, ok := response.Data.Repository[alias]
+		if !ok {
+			result[num] = []SubIssue{}
+			continue
+		}
+
+		var issueResponse struct {
+			SubIssues struct {
+				Nodes []struct {
+					ID         string `json:"id"`
+					Number     int    `json:"number"`
+					Title      string `json:"title"`
+					State      string `json:"state"`
+					URL        string `json:"url"`
+					Repository struct {
+						Name  string `json:"name"`
+						Owner struct {
+							Login string `json:"login"`
+						} `json:"owner"`
+					} `json:"repository"`
+				} `json:"nodes"`
+			} `json:"subIssues"`
+		}
+
+		if err := json.Unmarshal(issueData, &issueResponse); err != nil {
+			result[num] = []SubIssue{}
+			continue
+		}
+
+		var subIssues []SubIssue
+		for _, node := range issueResponse.SubIssues.Nodes {
+			subIssues = append(subIssues, SubIssue{
+				ID:     node.ID,
+				Number: node.Number,
+				Title:  node.Title,
+				State:  node.State,
+				URL:    node.URL,
+				Repository: Repository{
+					Owner: node.Repository.Owner.Login,
+					Name:  node.Repository.Name,
+				},
+			})
+		}
+		result[num] = subIssues
 	}
 
 	return result, nil

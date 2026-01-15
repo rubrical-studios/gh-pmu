@@ -32,9 +32,12 @@ type moveClient interface {
 	GetProject(owner string, number int) (*api.Project, error)
 	GetProjectFields(projectID string) ([]api.ProjectField, error)
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	GetProjectItemsByIssues(projectID string, refs []api.IssueRef) ([]api.ProjectItem, error)
 	GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error)
+	GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][]api.SubIssue, error)
 	SetProjectItemField(projectID, itemID, fieldName, value string) error
 	SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []api.ProjectField) error
+	BatchUpdateProjectItemFields(projectID string, updates []api.FieldUpdate, fields []api.ProjectField) ([]api.BatchUpdateResult, error)
 	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
 }
 
@@ -186,10 +189,51 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Get project items (once for all issues)
-	items, err := client.GetProjectItems(project.ID, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get project items: %w", err)
+	// Pre-parse all arguments to build issue references
+	var issueRefs []api.IssueRef
+	var parseErrors []string
+	for _, arg := range args {
+		owner, repo, number, err := parseIssueReference(arg)
+		if err != nil {
+			parseErrors = append(parseErrors, fmt.Sprintf("#%s: %v", arg, err))
+			continue
+		}
+		if owner == "" || repo == "" {
+			if defaultOwner == "" || defaultRepo == "" {
+				parseErrors = append(parseErrors, fmt.Sprintf("#%d: no repository specified", number))
+				continue
+			}
+			owner = defaultOwner
+			repo = defaultRepo
+		}
+		issueRefs = append(issueRefs, api.IssueRef{Owner: owner, Repo: repo, Number: number})
+	}
+
+	// Get project items - use targeted query when not recursive, full fetch otherwise
+	// Recursive mode needs full fetch because sub-issues might not be in the initial list
+	var items []api.ProjectItem
+	if opts.recursive {
+		// Full fetch needed for recursive operations
+		items, err = client.GetProjectItems(project.ID, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get project items: %w", err)
+		}
+	} else if len(issueRefs) > 0 {
+		// Targeted query for specific issues (more efficient)
+		items, err = client.GetProjectItemsByIssues(project.ID, issueRefs)
+		if err != nil {
+			// Fall back to full fetch if targeted query fails
+			items, err = client.GetProjectItems(project.ID, nil)
+			if err != nil {
+				return fmt.Errorf("failed to get project items: %w", err)
+			}
+		}
+	} else {
+		// No valid issue refs, still need to fetch to report errors properly
+		items, err = client.GetProjectItems(project.ID, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get project items: %w", err)
+		}
 	}
 
 	// Build maps for quick lookup: item IDs, field values, and issue data (title/body)
@@ -211,23 +255,14 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	var collectionErrors []string
 	hasErrors := false
 
-	for _, arg := range args {
-		owner, repo, number, err := parseIssueReference(arg)
-		if err != nil {
-			collectionErrors = append(collectionErrors, fmt.Sprintf("#%s: %v", arg, err))
-			hasErrors = true
-			continue
-		}
+	// Add parse errors to collection errors
+	collectionErrors = append(collectionErrors, parseErrors...)
+	if len(parseErrors) > 0 {
+		hasErrors = true
+	}
 
-		if owner == "" || repo == "" {
-			if defaultOwner == "" || defaultRepo == "" {
-				collectionErrors = append(collectionErrors, fmt.Sprintf("#%d: no repository specified", number))
-				hasErrors = true
-				continue
-			}
-			owner = defaultOwner
-			repo = defaultRepo
-		}
+	for _, ref := range issueRefs {
+		owner, repo, number := ref.Owner, ref.Repo, ref.Number
 
 		rootKey := fmt.Sprintf("%s/%s#%d", owner, repo, number)
 		rootItemID, inProject := itemIDMap[rootKey]
@@ -462,6 +497,83 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 	skippedCount := 0
 	errorCount := 0
 
+	// Collect all field updates for batch execution
+	var allUpdates []api.FieldUpdate
+	itemToIssue := make(map[string]*issueInfo) // itemID -> issueInfo for result processing
+
+	for i := range issuesToUpdate {
+		info := &issuesToUpdate[i]
+		if info.ItemID == "" {
+			// Skip issues without project item IDs (already reported as warnings)
+			continue
+		}
+
+		itemToIssue[info.ItemID] = info
+
+		// Collect updates for this issue
+		if statusValue != "" {
+			allUpdates = append(allUpdates, api.FieldUpdate{
+				ItemID:    info.ItemID,
+				FieldName: "Status",
+				Value:     statusValue,
+			})
+		}
+		if priorityValue != "" {
+			allUpdates = append(allUpdates, api.FieldUpdate{
+				ItemID:    info.ItemID,
+				FieldName: "Priority",
+				Value:     priorityValue,
+			})
+		}
+		if microsprintValue != "" {
+			allUpdates = append(allUpdates, api.FieldUpdate{
+				ItemID:    info.ItemID,
+				FieldName: "Microsprint",
+				Value:     microsprintValue,
+			})
+		}
+		if releaseValue != "" {
+			allUpdates = append(allUpdates, api.FieldUpdate{
+				ItemID:    info.ItemID,
+				FieldName: "Release",
+				Value:     releaseValue,
+			})
+		}
+		if clearMicrosprint {
+			allUpdates = append(allUpdates, api.FieldUpdate{
+				ItemID:    info.ItemID,
+				FieldName: "Microsprint",
+				Value:     "",
+			})
+		}
+		if clearRelease {
+			allUpdates = append(allUpdates, api.FieldUpdate{
+				ItemID:    info.ItemID,
+				FieldName: "Release",
+				Value:     "",
+			})
+		}
+	}
+
+	// Execute batch mutations
+	var results []api.BatchUpdateResult
+	if len(allUpdates) > 0 {
+		results, err = client.BatchUpdateProjectItemFields(project.ID, allUpdates, projectFields)
+		if err != nil {
+			// Batch failed entirely - fall back to sequential updates
+			fmt.Fprintf(os.Stderr, "Warning: batch update failed, falling back to sequential: %v\n", err)
+			results = nil // Process sequentially below
+		}
+	}
+
+	// Process results and report per-issue
+	// Group results by itemID
+	itemResults := make(map[string][]api.BatchUpdateResult)
+	for _, result := range results {
+		itemResults[result.ItemID] = append(itemResults[result.ItemID], result)
+	}
+
+	// Report results for each issue in order
 	for _, info := range issuesToUpdate {
 		indent := strings.Repeat("  ", info.Depth)
 		if multiIssueMode {
@@ -476,69 +588,93 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			continue
 		}
 
-		updateFailed := false
+		// Check if we have batch results for this item
+		itemRes, hasBatchResults := itemResults[info.ItemID]
 
-		if statusValue != "" {
-			if err := api.WithRetry(func() error {
-				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Status", statusValue, projectFields)
-			}, 3); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to set status for #%d: %v\n", info.Number, err)
-				updateFailed = true
+		if hasBatchResults {
+			// Process batch results
+			updateFailed := false
+			for _, res := range itemRes {
+				if !res.Success {
+					fmt.Fprintf(os.Stderr, "Warning: failed to set %s for #%d: %s\n", res.FieldName, info.Number, res.Error)
+					updateFailed = true
+				}
 			}
-		}
 
-		if priorityValue != "" && !updateFailed {
-			if err := api.WithRetry(func() error {
-				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Priority", priorityValue, projectFields)
-			}, 3); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to set priority for #%d: %v\n", info.Number, err)
-				updateFailed = true
+			if updateFailed {
+				errorCount++
+				hasErrors = true
+				if multiIssueMode {
+					fmt.Println("failed")
+				}
+				continue
 			}
-		}
+		} else if len(allUpdates) > 0 {
+			// Fallback: execute updates sequentially for this issue
+			updateFailed := false
 
-		if microsprintValue != "" && !updateFailed {
-			if err := api.WithRetry(func() error {
-				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", microsprintValue, projectFields)
-			}, 3); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
-				updateFailed = true
+			if statusValue != "" {
+				if err := api.WithRetry(func() error {
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Status", statusValue, projectFields)
+				}, 3); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to set status for #%d: %v\n", info.Number, err)
+					updateFailed = true
+				}
 			}
-		}
 
-		if releaseValue != "" && !updateFailed {
-			if err := api.WithRetry(func() error {
-				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", releaseValue, projectFields)
-			}, 3); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to set release for #%d: %v\n", info.Number, err)
-				updateFailed = true
+			if priorityValue != "" && !updateFailed {
+				if err := api.WithRetry(func() error {
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Priority", priorityValue, projectFields)
+				}, 3); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to set priority for #%d: %v\n", info.Number, err)
+					updateFailed = true
+				}
 			}
-		}
 
-		if clearMicrosprint && !updateFailed {
-			if err := api.WithRetry(func() error {
-				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", "", projectFields)
-			}, 3); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to clear microsprint for #%d: %v\n", info.Number, err)
-				updateFailed = true
+			if microsprintValue != "" && !updateFailed {
+				if err := api.WithRetry(func() error {
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", microsprintValue, projectFields)
+				}, 3); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
+					updateFailed = true
+				}
 			}
-		}
 
-		if clearRelease && !updateFailed {
-			if err := api.WithRetry(func() error {
-				return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", "", projectFields)
-			}, 3); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to clear release for #%d: %v\n", info.Number, err)
-				updateFailed = true
+			if releaseValue != "" && !updateFailed {
+				if err := api.WithRetry(func() error {
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", releaseValue, projectFields)
+				}, 3); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to set release for #%d: %v\n", info.Number, err)
+					updateFailed = true
+				}
 			}
-		}
 
-		if updateFailed {
-			errorCount++
-			hasErrors = true
-			if multiIssueMode {
-				fmt.Println("failed")
+			if clearMicrosprint && !updateFailed {
+				if err := api.WithRetry(func() error {
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", "", projectFields)
+				}, 3); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to clear microsprint for #%d: %v\n", info.Number, err)
+					updateFailed = true
+				}
 			}
-			continue
+
+			if clearRelease && !updateFailed {
+				if err := api.WithRetry(func() error {
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", "", projectFields)
+				}, 3); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to clear release for #%d: %v\n", info.Number, err)
+					updateFailed = true
+				}
+			}
+
+			if updateFailed {
+				errorCount++
+				hasErrors = true
+				if multiIssueMode {
+					fmt.Println("failed")
+				}
+				continue
+			}
 		}
 
 		updatedCount++
@@ -569,55 +705,114 @@ func collectSubIssuesRecursive(client moveClient, owner, repo string, number int
 		return nil, nil
 	}
 
-	subIssues, err := client.GetSubIssues(owner, repo, number)
-	if err != nil {
-		return nil, err
+	// Use level-by-level batch fetching for efficiency
+	// This reduces API calls from O(N) per level to O(repos) per level
+
+	// Track parent info for ordering: parent key -> list of children in order
+	type parentInfo struct {
+		owner  string
+		repo   string
+		number int
+		depth  int
 	}
 
+	// Start with the initial parent
+	currentLevel := []parentInfo{{owner: owner, repo: repo, number: number, depth: currentDepth}}
 	var result []issueInfo
-	for _, sub := range subIssues {
-		// Determine the repo for this sub-issue
-		subOwner := sub.Repository.Owner
-		subRepo := sub.Repository.Name
-		if subOwner == "" {
-			subOwner = owner
-		}
-		if subRepo == "" {
-			subRepo = repo
+
+	for len(currentLevel) > 0 && currentLevel[0].depth <= maxDepth {
+		// Group parents by repository for batch fetching
+		repoParents := make(map[string][]parentInfo) // "owner/repo" -> parents
+		for _, p := range currentLevel {
+			key := p.owner + "/" + p.repo
+			repoParents[key] = append(repoParents[key], p)
 		}
 
-		key := fmt.Sprintf("%s/%s#%d", subOwner, subRepo, sub.Number)
-		itemID := itemIDMap[key] // may be empty if not in project
+		var nextLevel []parentInfo
 
-		// Use body from batch-fetched project items if available
-		var body string
-		if issueData, ok := itemDataMap[key]; ok {
-			body = issueData.Body
-		} else if issue, err := client.GetIssue(subOwner, subRepo, sub.Number); err == nil {
-			// Fallback to individual API call for sub-issues not in project
-			body = issue.Body
+		// Batch fetch sub-issues for each repository group
+		for repoKey, parents := range repoParents {
+			parts := strings.SplitN(repoKey, "/", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			repoOwner, repoName := parts[0], parts[1]
+
+			// Collect issue numbers for this repo
+			numbers := make([]int, len(parents))
+			parentDepths := make(map[int]int) // number -> depth
+			for i, p := range parents {
+				numbers[i] = p.number
+				parentDepths[p.number] = p.depth
+			}
+
+			// Batch fetch sub-issues
+			subIssuesMap, err := client.GetSubIssuesBatch(repoOwner, repoName, numbers)
+			if err != nil {
+				// Fallback to individual fetches if batch fails
+				for _, p := range parents {
+					subIssues, ferr := client.GetSubIssues(p.owner, p.repo, p.number)
+					if ferr != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to get sub-issues for #%d: %v\n", p.number, ferr)
+						continue
+					}
+					subIssuesMap[p.number] = subIssues
+				}
+			}
+
+			// Process sub-issues for each parent (maintaining order)
+			for _, p := range parents {
+				subIssues := subIssuesMap[p.number]
+				childDepth := p.depth + 1
+
+				for _, sub := range subIssues {
+					// Determine the repo for this sub-issue
+					subOwner := sub.Repository.Owner
+					subRepo := sub.Repository.Name
+					if subOwner == "" {
+						subOwner = p.owner
+					}
+					if subRepo == "" {
+						subRepo = p.repo
+					}
+
+					key := fmt.Sprintf("%s/%s#%d", subOwner, subRepo, sub.Number)
+					itemID := itemIDMap[key] // may be empty if not in project
+
+					// Use body from batch-fetched project items if available
+					var body string
+					if issueData, ok := itemDataMap[key]; ok {
+						body = issueData.Body
+					} else if issue, gerr := client.GetIssue(subOwner, subRepo, sub.Number); gerr == nil {
+						body = issue.Body
+					}
+
+					info := issueInfo{
+						Owner:       subOwner,
+						Repo:        subRepo,
+						Number:      sub.Number,
+						Title:       sub.Title,
+						Body:        body,
+						ItemID:      itemID,
+						FieldValues: itemFieldsMap[key],
+						Depth:       p.depth, // Use parent's depth for indentation
+					}
+					result = append(result, info)
+
+					// Queue for next level if within depth limit
+					if childDepth <= maxDepth {
+						nextLevel = append(nextLevel, parentInfo{
+							owner:  subOwner,
+							repo:   subRepo,
+							number: sub.Number,
+							depth:  childDepth,
+						})
+					}
+				}
+			}
 		}
 
-		info := issueInfo{
-			Owner:       subOwner,
-			Repo:        subRepo,
-			Number:      sub.Number,
-			Title:       sub.Title,
-			Body:        body,
-			ItemID:      itemID,
-			FieldValues: itemFieldsMap[key],
-			Depth:       currentDepth,
-		}
-		result = append(result, info)
-
-		// Recurse into this sub-issue's children
-		children, err := collectSubIssuesRecursive(client, subOwner, subRepo, sub.Number, itemIDMap, itemFieldsMap, itemDataMap, currentDepth+1, maxDepth)
-		if err != nil {
-			// Log warning but continue
-			fmt.Fprintf(os.Stderr, "Warning: failed to get sub-issues for #%d: %v\n", sub.Number, err)
-			continue
-		}
-		result = append(result, children...)
+		currentLevel = nextLevel
 	}
 
 	return result, nil
