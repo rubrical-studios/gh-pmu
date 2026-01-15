@@ -2209,7 +2209,7 @@ func TestEnrichIssuesWithProjectFields_EmptyInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if items != nil && len(items) != 0 {
+	if len(items) != 0 {
 		t.Errorf("Expected nil or empty items, got %d", len(items))
 	}
 }
