@@ -1,5 +1,5 @@
 ---
-version: "v0.24.1"
+version: "v0.25.0"
 description: Safely delete branch with confirmation
 argument-hint: [branch-name] [--force]
 ---

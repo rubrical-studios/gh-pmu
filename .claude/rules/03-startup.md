@@ -1,6 +1,6 @@
 # Session Startup
 
-**Version:** 0.24.1
+**Version:** 0.25.0
 **Framework:** IDPF-Agile
 **Domain Specialist:** Backend-Specialist
 
