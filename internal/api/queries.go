@@ -770,7 +770,7 @@ func (c *Client) getBoardItemsPage(projectID string, cursor *string) ([]BoardIte
 						}
 						FieldValues struct {
 							Nodes []struct {
-								TypeName string `graphql:"__typename"`
+								TypeName                            string `graphql:"__typename"`
 								ProjectV2ItemFieldSingleSelectValue struct {
 									Name  string
 									Field struct {
