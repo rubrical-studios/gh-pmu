@@ -62,15 +62,15 @@ type mockBranchClient struct {
 	projectItems           []api.ProjectItem
 
 	// Captured calls for verification
-	createIssueCalls      []createIssueCall
-	addToProjectCalls     []addToProjectCall
-	setFieldCalls         []setFieldCall
-	updateIssueBodyCalls  []updateIssueBodyCall
-	writeFileCalls        []writeFileCall
-	gitAddCalls           []gitAddCall
-	closeIssueCalls       []closeIssueCall
-	gitTagCalls           []gitTagCall
-	getProjectItemsCalls  []getProjectItemsCall
+	createIssueCalls     []createIssueCall
+	addToProjectCalls    []addToProjectCall
+	setFieldCalls        []setFieldCall
+	updateIssueBodyCalls []updateIssueBodyCall
+	writeFileCalls       []writeFileCall
+	gitAddCalls          []gitAddCall
+	closeIssueCalls      []closeIssueCall
+	gitTagCalls          []gitTagCall
+	getProjectItemsCalls []getProjectItemsCall
 
 	// Error injection
 	createIssueErr         error
