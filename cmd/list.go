@@ -20,6 +20,8 @@ type listClient interface {
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
 	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
 	GetSubIssueCounts(owner, repo string, numbers []int) (map[int]int, error)
+	SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error)
+	GetProjectFieldsForIssues(projectID string, issueIDs []string) (map[string][]api.FieldValue, error)
 }
 
 type listOptions struct {
@@ -102,8 +104,8 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 	// Validate state filter
 	if opts.state != "" {
 		stateLower := strings.ToLower(opts.state)
-		if stateLower != "open" && stateLower != "closed" {
-			return fmt.Errorf("invalid --state value: expected 'open' or 'closed', got %q", opts.state)
+		if stateLower != "open" && stateLower != "closed" && stateLower != "all" {
+			return fmt.Errorf("invalid --state value: expected 'open', 'closed', or 'all', got %q", opts.state)
 		}
 	}
 
@@ -118,9 +120,6 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 		return ui.OpenInBrowser(project.URL)
 	}
 
-	// Build filter
-	var filter *api.ProjectItemsFilter
-
 	// Determine repository filter (--repo flag takes precedence over config)
 	repoFilter := ""
 	if opts.repo != "" {
@@ -134,42 +133,76 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 		repoFilter = cfg.Repositories[0]
 	}
 
-	if repoFilter != "" {
-		filter = &api.ProjectItemsFilter{
-			Repository: repoFilter,
+	// Determine query strategy based on state filter
+	// "all" state uses GetProjectItems (full fetch with optional limit)
+	// "open", "closed", or default uses SearchRepositoryIssues (optimized)
+	stateLower := strings.ToLower(opts.state)
+	useSearchAPI := repoFilter != "" && stateLower != "all"
+
+	var items []api.ProjectItem
+
+	if useSearchAPI {
+		// Open-first strategy: Use GitHub Search API for filtered queries
+		repoParts := strings.Split(repoFilter, "/")
+		searchFilters := api.SearchFilters{
+			State:    stateLower, // defaults to "open" if empty
+			Assignee: opts.assignee,
+			Search:   opts.search,
+		}
+		if opts.label != "" {
+			searchFilters.Labels = []string{opts.label}
+		}
+
+		issues, err := client.SearchRepositoryIssues(repoParts[0], repoParts[1], searchFilters, opts.limit)
+		if err != nil {
+			return fmt.Errorf("failed to search issues: %w", err)
+		}
+
+		// Convert issues to project items and enrich with project field values
+		items, err = enrichIssuesWithProjectFields(client, project.ID, issues)
+		if err != nil {
+			return fmt.Errorf("failed to enrich issues with project fields: %w", err)
+		}
+	} else {
+		// Full fetch strategy: Use GetProjectItems for --state all or no repo filter
+		var filter *api.ProjectItemsFilter
+		if repoFilter != "" || opts.limit > 0 {
+			filter = &api.ProjectItemsFilter{
+				Repository: repoFilter,
+				Limit:      opts.limit,
+			}
+		}
+
+		items, err = client.GetProjectItems(project.ID, filter)
+		if err != nil {
+			return fmt.Errorf("failed to get project items: %w", err)
 		}
 	}
 
-	// Fetch project items
-	items, err := client.GetProjectItems(project.ID, filter)
-	if err != nil {
-		return fmt.Errorf("failed to get project items: %w", err)
-	}
-
-	// Apply status filter
+	// Apply status filter (always client-side since it's a project field)
 	if opts.status != "" {
 		targetStatus := cfg.ResolveFieldValue("status", opts.status)
 		items = filterByFieldValue(items, "Status", targetStatus)
 	}
 
-	// Apply priority filter
+	// Apply priority filter (always client-side since it's a project field)
 	if opts.priority != "" {
 		targetPriority := cfg.ResolveFieldValue("priority", opts.priority)
 		items = filterByFieldValue(items, "Priority", targetPriority)
 	}
 
-	// Apply assignee filter
-	if opts.assignee != "" {
+	// Apply assignee filter (skip if search API was used - already filtered server-side)
+	if opts.assignee != "" && !useSearchAPI {
 		items = filterByAssignee(items, opts.assignee)
 	}
 
-	// Apply label filter
-	if opts.label != "" {
+	// Apply label filter (skip if search API was used - already filtered server-side)
+	if opts.label != "" && !useSearchAPI {
 		items = filterByLabel(items, opts.label)
 	}
 
-	// Apply search filter
-	if opts.search != "" {
+	// Apply search filter (skip if search API was used - already filtered server-side)
+	if opts.search != "" && !useSearchAPI {
 		items = filterBySearch(items, opts.search)
 	}
 
@@ -223,8 +256,9 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 		items = filterByFieldValue(items, "Microsprint", targetMicrosprint)
 	}
 
-	// Apply state filter
-	if opts.state != "" {
+	// Apply state filter (skip if search API was used - already filtered server-side)
+	// For "all" state with GetProjectItems, no filtering needed
+	if opts.state != "" && !useSearchAPI && stateLower != "all" {
 		items = filterByState(items, opts.state)
 	}
 
@@ -524,4 +558,44 @@ func filterByState(items []api.ProjectItem, state string) []api.ProjectItem {
 		}
 	}
 	return filtered
+}
+
+// enrichIssuesWithProjectFields converts issues to ProjectItems and enriches them with project field values.
+// This is used when fetching via SearchRepositoryIssues to add project-specific fields (Status, Priority, etc.).
+func enrichIssuesWithProjectFields(client listClient, projectID string, issues []api.Issue) ([]api.ProjectItem, error) {
+	if len(issues) == 0 {
+		return nil, nil
+	}
+
+	// Collect issue IDs for batch enrichment
+	issueIDs := make([]string, 0, len(issues))
+	issueByID := make(map[string]*api.Issue)
+	for i := range issues {
+		issueIDs = append(issueIDs, issues[i].ID)
+		issueByID[issues[i].ID] = &issues[i]
+	}
+
+	// Fetch project field values for all issues
+	fieldValuesByID, err := client.GetProjectFieldsForIssues(projectID, issueIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project fields: %w", err)
+	}
+
+	// Convert to ProjectItems
+	items := make([]api.ProjectItem, 0, len(issues))
+	for _, issue := range issues {
+		item := api.ProjectItem{
+			ID:    issue.ID,
+			Issue: &issue,
+		}
+
+		// Add field values if available
+		if fieldValues, ok := fieldValuesByID[issue.ID]; ok {
+			item.FieldValues = fieldValues
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
 }

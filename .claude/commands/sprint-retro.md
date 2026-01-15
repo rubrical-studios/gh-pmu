@@ -1,5 +1,5 @@
 ---
-version: "v0.24.1"
+version: "v0.25.0"
 allowed-tools: Bash
 description: Run sprint retrospective (project)
 ---

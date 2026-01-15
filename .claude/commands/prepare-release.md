@@ -1,5 +1,5 @@
 ---
-version: "v0.24.1"
+version: "v0.25.0"
 description: Prepare framework release with version updates and validation (project)
 argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run)
 ---
@@ -13,6 +13,7 @@ Execute the full release preparation workflow.
 | `pre-validation` | Before Phase 2 | Setup test environment |
 | `post-validation` | After Phase 2 | Custom validation |
 | `post-prepare` | After Phase 3 | Additional updates |
+| `post-pr-create` | After PR creation | CI wait, PR validation |
 | `pre-tag` | Before Phase 4 | Final gate, sign-off |
 | `post-tag` | After Phase 4 | Deployment, notifications |
 | `pre-close` | Before Phase 5 | Pre-close validation |
@@ -181,6 +182,15 @@ Update acceptance criteria on release issues before PR.
 ```bash
 gh pr create --base main --head release/vX.Y.Z --title "Release vX.Y.Z"
 ```
+<!-- USER-EXTENSION-START: post-pr-create -->
+<!-- BUILT-IN: ci-wait (disabled by default)
+### Wait for CI
+```bash
+node .claude/scripts/framework/wait-for-ci.js
+```
+**If CI fails, STOP and report.**
+-->
+<!-- USER-EXTENSION-END: post-pr-create -->
 ### Step 4.4: Merge PR
 **ASK USER:** Approve and merge.
 ```bash

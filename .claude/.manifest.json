@@ -1,5 +1,5 @@
 {
-  "version": "0.23.2",
+  "version": "0.25.0",
   "deployedAt": "2026-01-11",
   "scripts": {
     "framework/analyze-commits.js": {
@@ -81,6 +81,131 @@
       "checksum": "1cba362af51433795f869fd6a7032af572ddc37cbeb32d6fed0b42a13f0c9dc7",
       "deployedAt": "2026-01-11",
       "source": "Templates/hooks/workflow-trigger.js"
+    }
+  },
+  "rules": {
+    "01-anti-hallucination.md": {
+      "checksum": "434fad180e73edd9d4e63da38747ecaa58d5fbf6c517231fc6c76dd699e3744b",
+      "deployedAt": "2026-01-14",
+      "source": "Assistant/Anti-Hallucination-Rules-for-Software-Development.md"
+    },
+    "02-github-workflow.md": {
+      "checksum": "b9877d88b736c218bb9ef1a89ed97245b192fa49414b2515907abc13c0f6bae4",
+      "deployedAt": "2026-01-14",
+      "source": "Reference/GitHub-Workflow.md"
+    },
+    "04-charter-enforcement.md": {
+      "checksum": "dbf053d914a038e790e7b53aa1909d075a46154d9799cbc641add5772982e2fc",
+      "deployedAt": "2026-01-14",
+      "source": "Reference/Charter-Enforcement.md"
+    },
+    "06-runtime-triggers.md": {
+      "checksum": "20a0326f14444bcf717c20980b096d094b3521aff9fe99677964ccb20b024b60",
+      "deployedAt": "2026-01-14",
+      "source": "Reference/Runtime-Artifact-Triggers.md"
+    },
+    "03-startup.md": {
+      "checksum": "2789042246261b672c1c2c32362049599f7d27b36d2ac17c120359320cf31dd4",
+      "deployedAt": "2026-01-14",
+      "source": "generated"
+    },
+    "05-windows-shell.md": {
+      "checksum": "63edba023f505fced283df707b9e7c1de6a4a03b86b74e5093fb70701a1a8758",
+      "deployedAt": "2026-01-14",
+      "source": "Reference/Windows-Shell-Safety.md"
+    }
+  },
+  "hooks": {
+    "workflow-trigger.js": {
+      "checksum": "05fc04135d2d6b895d7e05f4873e27fe2bcec4d1183393d3e88783063ecc6fd9",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/hooks/workflow-trigger.js"
+    }
+  },
+  "commands": {
+    "assign-branch.md": {
+      "checksum": "9cf993bca84c9cdc0240248a64d419d6cfce0eea689abacc733a6d178a6d57a5",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/assign-branch.md",
+      "extensible": false
+    },
+    "switch-branch.md": {
+      "checksum": "e27674451fe27df76de1678d67d82b1d8369b4b1adf132e0ba7c343b95b042e6",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/switch-branch.md",
+      "extensible": false
+    },
+    "transfer-issue.md": {
+      "checksum": "ce21c6845bfcd14b445a928a1de72a794e593f209390648938046b8b80fc7376",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/transfer-issue.md",
+      "extensible": false
+    },
+    "plan-sprint.md": {
+      "checksum": "f672cb1f42430926b1c275c9854e7f8e941d475c80bc9f2760d850ddbffec487",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/plan-sprint.md",
+      "extensible": false
+    },
+    "sprint-status.md": {
+      "checksum": "7fb202543a267fbb55833fe5a4a797f7dafe0b75c652e0f73c1ac2c2439cb12b",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/sprint-status.md",
+      "extensible": false
+    },
+    "sprint-retro.md": {
+      "checksum": "6df162e00f734062968b80bfb19433fce9f6424baed6191e2b4b5bc2fa91e2fc",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/sprint-retro.md",
+      "extensible": false
+    },
+    "end-sprint.md": {
+      "checksum": "fadc623fa6c929f4ec27a98178876cb60884a0dceea582b9f386ce62f8458057",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/end-sprint.md",
+      "extensible": false
+    },
+    "create-branch.md": {
+      "checksum": "d356ef1b35dff9cfca6407b714e1dd1e3cbd7f6faa40ee57056dc097017423ba",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/create-branch.md",
+      "extensible": true
+    },
+    "prepare-release.md": {
+      "checksum": "d141478f200492bf51a3dbe97aa89db566e8bff5fe107f9193fa5a62f3bfa7d1",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/prepare-release.md",
+      "extensible": true
+    },
+    "prepare-beta.md": {
+      "checksum": "2d10361caacc31470041d9698ebf6d7f3477c9093f61c2d7a9869b7f2a009464",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/prepare-beta.md",
+      "extensible": true
+    },
+    "merge-branch.md": {
+      "checksum": "f003a7638cad616c762f75e386161977af33c7c591ea61fb60a06d4f3c5e70ce",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/merge-branch.md",
+      "extensible": true
+    },
+    "destroy-branch.md": {
+      "checksum": "66eafaa13c47968ca3efc31eb237f6dc27c2c00809e67448dc51208fd81eec70",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/destroy-branch.md",
+      "extensible": true
+    },
+    "charter.md": {
+      "checksum": "4f00a7b8a14d88dbcb1222a335c86a5731193a84d4423ed9705b01158af72b5a",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/charter.md",
+      "extensible": false
+    },
+    "extensions.md": {
+      "checksum": "310c0797840f20ee865ed8f6fefaa4897ae6b687e3b5f85ef4b7b26ca777e01e",
+      "deployedAt": "2026-01-14",
+      "source": "Templates/commands/extensions.md",
+      "extensible": false
     }
   }
 }

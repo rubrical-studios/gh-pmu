@@ -14,16 +14,20 @@ import (
 
 // mockListClient implements listClient for testing
 type mockListClient struct {
-	project           *api.Project
-	projectItems      []api.ProjectItem
-	openIssuesByLabel []api.Issue
-	subIssueCounts    map[int]int
+	project               *api.Project
+	projectItems          []api.ProjectItem
+	openIssuesByLabel     []api.Issue
+	subIssueCounts        map[int]int
+	searchResults         []api.Issue
+	projectFieldsForIssue map[string][]api.FieldValue
 
 	// Error injection
-	getProjectErr           error
-	getProjectItemsErr      error
-	getOpenIssuesByLabelErr error
-	getSubIssueCountsErr    error
+	getProjectErr               error
+	getProjectItemsErr          error
+	getOpenIssuesByLabelErr     error
+	getSubIssueCountsErr        error
+	searchRepositoryIssuesErr   error
+	getProjectFieldsForIssueErr error
 }
 
 func newMockListClient() *mockListClient {
@@ -33,8 +37,10 @@ func newMockListClient() *mockListClient {
 			Title: "Test Project",
 			URL:   "https://github.com/orgs/test/projects/1",
 		},
-		projectItems:   []api.ProjectItem{},
-		subIssueCounts: make(map[int]int),
+		projectItems:          []api.ProjectItem{},
+		subIssueCounts:        make(map[int]int),
+		searchResults:         []api.Issue{},
+		projectFieldsForIssue: make(map[string][]api.FieldValue),
 	}
 }
 
@@ -64,6 +70,20 @@ func (m *mockListClient) GetSubIssueCounts(owner, repo string, numbers []int) (m
 		return nil, m.getSubIssueCountsErr
 	}
 	return m.subIssueCounts, nil
+}
+
+func (m *mockListClient) SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error) {
+	if m.searchRepositoryIssuesErr != nil {
+		return nil, m.searchRepositoryIssuesErr
+	}
+	return m.searchResults, nil
+}
+
+func (m *mockListClient) GetProjectFieldsForIssues(projectID string, issueIDs []string) (map[string][]api.FieldValue, error) {
+	if m.getProjectFieldsForIssueErr != nil {
+		return nil, m.getProjectFieldsForIssueErr
+	}
+	return m.projectFieldsForIssue, nil
 }
 
 // ============================================================================
@@ -1945,7 +1965,7 @@ func TestRunListWithDeps_WithStateFilterInvalid(t *testing.T) {
 		t.Fatal("expected error for invalid state value")
 	}
 
-	expectedErr := `invalid --state value: expected 'open' or 'closed', got "invalid"`
+	expectedErr := `invalid --state value: expected 'open', 'closed', or 'all', got "invalid"`
 	if err.Error() != expectedErr {
 		t.Errorf("expected error %q, got %q", expectedErr, err.Error())
 	}
@@ -2038,5 +2058,203 @@ func TestFilterByState(t *testing.T) {
 				t.Errorf("filterByState() returned %d items, want %d", len(result), tt.wantCount)
 			}
 		})
+	}
+}
+
+// ============================================================================
+// Open-First Query Strategy Tests
+// ============================================================================
+
+func TestRunListWithDeps_WithStateAll_UsesGetProjectItems(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "item-1",
+			Issue: &api.Issue{Number: 1, Title: "Open Issue", State: "OPEN"},
+		},
+		{
+			ID:    "item-2",
+			Issue: &api.Issue{Number: 2, Title: "Closed Issue", State: "CLOSED"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/repo"},
+	}
+	cmd := newListCommand()
+
+	opts := &listOptions{state: "all"}
+
+	// Should use GetProjectItems path for --state all
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// The fact that it succeeded means it used GetProjectItems (not search API)
+	// because searchResults is empty but projectItems has data
+}
+
+func TestRunListWithDeps_SearchApiPath_UsesSearchRepositoryIssues(t *testing.T) {
+	mock := newMockListClient()
+	mock.searchResults = []api.Issue{
+		{
+			ID:         "issue-1",
+			Number:     1,
+			Title:      "Open Issue from Search",
+			State:      "OPEN",
+			Repository: api.Repository{Owner: "test-org", Name: "repo"},
+		},
+	}
+	mock.projectFieldsForIssue = map[string][]api.FieldValue{
+		"issue-1": {{Field: "Status", Value: "In Progress"}},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/repo"},
+	}
+	cmd := newListCommand()
+
+	opts := &listOptions{}
+
+	// Should use SearchRepositoryIssues path (default state is open, repo is configured)
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// The fact that it succeeded means it used the search API path
+	// because projectItems is empty but searchResults has data
+}
+
+func TestRunListWithDeps_SearchApiPath_WithClosedState(t *testing.T) {
+	mock := newMockListClient()
+	mock.searchResults = []api.Issue{
+		{
+			ID:         "issue-1",
+			Number:     1,
+			Title:      "Closed Issue",
+			State:      "CLOSED",
+			Repository: api.Repository{Owner: "test-org", Name: "repo"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/repo"},
+	}
+	cmd := newListCommand()
+
+	opts := &listOptions{state: "closed"}
+
+	// Should use SearchRepositoryIssues path for --state closed with repo configured
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// The fact that it succeeded means it used the search API path
+}
+
+func TestRunListWithDeps_SearchApiPath_Error(t *testing.T) {
+	mock := newMockListClient()
+	mock.searchRepositoryIssuesErr = errors.New("search failed")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/repo"},
+	}
+	cmd := newListCommand()
+	opts := &listOptions{}
+
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err == nil {
+		t.Fatal("Expected error when search fails")
+	}
+	if !strings.Contains(err.Error(), "failed to search issues") {
+		t.Errorf("Expected 'failed to search issues' error, got: %v", err)
+	}
+}
+
+func TestRunListWithDeps_EnrichError(t *testing.T) {
+	mock := newMockListClient()
+	mock.searchResults = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Issue", State: "OPEN"},
+	}
+	mock.getProjectFieldsForIssueErr = errors.New("enrich failed")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/repo"},
+	}
+	cmd := newListCommand()
+	opts := &listOptions{}
+
+	err := runListWithDeps(cmd, opts, cfg, mock)
+	if err == nil {
+		t.Fatal("Expected error when enrichment fails")
+	}
+	if !strings.Contains(err.Error(), "failed to enrich issues") {
+		t.Errorf("Expected 'failed to enrich issues' error, got: %v", err)
+	}
+}
+
+// ============================================================================
+// enrichIssuesWithProjectFields Tests
+// ============================================================================
+
+func TestEnrichIssuesWithProjectFields_EmptyInput(t *testing.T) {
+	mock := newMockListClient()
+	items, err := enrichIssuesWithProjectFields(mock, "proj-id", []api.Issue{})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("Expected nil or empty items, got %d", len(items))
+	}
+}
+
+func TestEnrichIssuesWithProjectFields_WithFieldValues(t *testing.T) {
+	mock := newMockListClient()
+	mock.projectFieldsForIssue = map[string][]api.FieldValue{
+		"issue-1": {
+			{Field: "Status", Value: "Done"},
+			{Field: "Priority", Value: "P1"},
+		},
+	}
+
+	issues := []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Test Issue"},
+	}
+
+	items, err := enrichIssuesWithProjectFields(mock, "proj-id", issues)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(items))
+	}
+	if len(items[0].FieldValues) != 2 {
+		t.Errorf("Expected 2 field values, got %d", len(items[0].FieldValues))
+	}
+}
+
+func TestEnrichIssuesWithProjectFields_NoFieldValues(t *testing.T) {
+	mock := newMockListClient()
+	// Empty projectFieldsForIssue - no field values returned
+
+	issues := []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Test Issue"},
+	}
+
+	items, err := enrichIssuesWithProjectFields(mock, "proj-id", issues)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(items))
+	}
+	if len(items[0].FieldValues) != 0 {
+		t.Errorf("Expected 0 field values, got %d", len(items[0].FieldValues))
 	}
 }

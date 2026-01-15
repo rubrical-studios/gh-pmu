@@ -1,5 +1,5 @@
 ---
-version: "v0.24.1"
+version: "v0.25.0"
 description: Create a branch with tracker issue
 argument-hint: <branch-name> (e.g., release/v0.16.0, my-feature, bugfix-123)
 ---
@@ -25,7 +25,7 @@ git status --porcelain
 <!-- USER-EXTENSION-START: pre-create -->
 ### Verify Config
 ```bash
-node .claude/scripts/create-branch/verify-config.js
+git status --porcelain .gh-pmu.yml
 ```
 **If `success` is false, STOP.**
 <!-- USER-EXTENSION-END: pre-create -->

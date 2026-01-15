@@ -12,12 +12,12 @@ import (
 
 // mockBoardClient implements boardClient for testing
 type mockBoardClient struct {
-	project      *api.Project
-	projectItems []api.ProjectItem
+	project    *api.Project
+	boardItems []api.BoardItem
 
 	// Error injection
-	getProjectErr      error
-	getProjectItemsErr error
+	getProjectErr    error
+	getBoardItemsErr error
 }
 
 func newMockBoardClient() *mockBoardClient {
@@ -27,7 +27,7 @@ func newMockBoardClient() *mockBoardClient {
 			Title: "Test Project",
 			URL:   "https://github.com/orgs/test/projects/1",
 		},
-		projectItems: []api.ProjectItem{},
+		boardItems: []api.BoardItem{},
 	}
 }
 
@@ -38,11 +38,11 @@ func (m *mockBoardClient) GetProject(owner string, number int) (*api.Project, er
 	return m.project, nil
 }
 
-func (m *mockBoardClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
-	if m.getProjectItemsErr != nil {
-		return nil, m.getProjectItemsErr
+func (m *mockBoardClient) GetProjectItemsForBoard(projectID string, filter *api.BoardItemsFilter) ([]api.BoardItem, error) {
+	if m.getBoardItemsErr != nil {
+		return nil, m.getBoardItemsErr
 	}
-	return m.projectItems, nil
+	return m.boardItems, nil
 }
 
 // ============================================================================
@@ -51,21 +51,9 @@ func (m *mockBoardClient) GetProjectItems(projectID string, filter *api.ProjectI
 
 func TestRunBoardWithDeps_Success(t *testing.T) {
 	mock := newMockBoardClient()
-	mock.projectItems = []api.ProjectItem{
-		{
-			ID:    "item-1",
-			Issue: &api.Issue{Number: 1, Title: "Test Issue 1"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
-		{
-			ID:    "item-2",
-			Issue: &api.Issue{Number: 2, Title: "Test Issue 2"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "In Progress"},
-			},
-		},
+	mock.boardItems = []api.BoardItem{
+		{Number: 1, Title: "Test Issue 1", Status: "Backlog"},
+		{Number: 2, Title: "Test Issue 2", Status: "In Progress"},
 	}
 
 	cfg := &config.Config{
@@ -119,7 +107,7 @@ func TestRunBoardWithDeps_GetProjectError(t *testing.T) {
 
 func TestRunBoardWithDeps_GetProjectItemsError(t *testing.T) {
 	mock := newMockBoardClient()
-	mock.getProjectItemsErr = errors.New("API error")
+	mock.getBoardItemsErr = errors.New("API error")
 
 	cfg := &config.Config{
 		Project: config.Project{Owner: "test-org", Number: 1},
@@ -139,21 +127,9 @@ func TestRunBoardWithDeps_GetProjectItemsError(t *testing.T) {
 
 func TestRunBoardWithDeps_WithStatusFilter(t *testing.T) {
 	mock := newMockBoardClient()
-	mock.projectItems = []api.ProjectItem{
-		{
-			ID:    "item-1",
-			Issue: &api.Issue{Number: 1, Title: "Backlog Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
-		{
-			ID:    "item-2",
-			Issue: &api.Issue{Number: 2, Title: "In Progress Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "In Progress"},
-			},
-		},
+	mock.boardItems = []api.BoardItem{
+		{Number: 1, Title: "Backlog Issue", Status: "Backlog"},
+		{Number: 2, Title: "In Progress Issue", Status: "In Progress"},
 	}
 
 	cfg := &config.Config{
@@ -188,23 +164,9 @@ func TestRunBoardWithDeps_WithStatusFilter(t *testing.T) {
 
 func TestRunBoardWithDeps_WithPriorityFilter(t *testing.T) {
 	mock := newMockBoardClient()
-	mock.projectItems = []api.ProjectItem{
-		{
-			ID:    "item-1",
-			Issue: &api.Issue{Number: 1, Title: "P1 Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-				{Field: "Priority", Value: "P1"},
-			},
-		},
-		{
-			ID:    "item-2",
-			Issue: &api.Issue{Number: 2, Title: "P2 Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-				{Field: "Priority", Value: "P2"},
-			},
-		},
+	mock.boardItems = []api.BoardItem{
+		{Number: 1, Title: "P1 Issue", Status: "Backlog", Priority: "P1"},
+		{Number: 2, Title: "P2 Issue", Status: "Backlog", Priority: "P2"},
 	}
 
 	cfg := &config.Config{
@@ -242,14 +204,8 @@ func TestRunBoardWithDeps_WithPriorityFilter(t *testing.T) {
 
 func TestRunBoardWithDeps_JSONOutput(t *testing.T) {
 	mock := newMockBoardClient()
-	mock.projectItems = []api.ProjectItem{
-		{
-			ID:    "item-1",
-			Issue: &api.Issue{Number: 42, Title: "JSON Test Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
+	mock.boardItems = []api.BoardItem{
+		{Number: 42, Title: "JSON Test Issue", Status: "Backlog"},
 	}
 
 	cfg := &config.Config{
@@ -283,7 +239,7 @@ func TestRunBoardWithDeps_JSONOutput(t *testing.T) {
 
 func TestRunBoardWithDeps_EmptyProject(t *testing.T) {
 	mock := newMockBoardClient()
-	mock.projectItems = []api.ProjectItem{}
+	mock.boardItems = []api.BoardItem{}
 
 	cfg := &config.Config{
 		Project: config.Project{Owner: "test-org", Number: 1},
@@ -399,37 +355,19 @@ func TestGetStatusColumns_Fallback(t *testing.T) {
 	}
 }
 
-func TestGroupByStatus(t *testing.T) {
+func TestGroupBoardItemsByStatus(t *testing.T) {
 	columns := []statusColumn{
 		{alias: "backlog", value: "Backlog"},
 		{alias: "done", value: "Done"},
 	}
 
-	items := []api.ProjectItem{
-		{
-			ID:    "1",
-			Issue: &api.Issue{Number: 1, Title: "Issue 1"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
-		{
-			ID:    "2",
-			Issue: &api.Issue{Number: 2, Title: "Issue 2"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Done"},
-			},
-		},
-		{
-			ID:    "3",
-			Issue: &api.Issue{Number: 3, Title: "Issue 3"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
+	items := []api.BoardItem{
+		{Number: 1, Title: "Issue 1", Status: "Backlog"},
+		{Number: 2, Title: "Issue 2", Status: "Done"},
+		{Number: 3, Title: "Issue 3", Status: "Backlog"},
 	}
 
-	grouped := groupByStatus(items, columns)
+	grouped := groupBoardItemsByStatus(items, columns)
 
 	if len(grouped["Backlog"]) != 2 {
 		t.Errorf("expected 2 items in Backlog, got %d", len(grouped["Backlog"]))
@@ -440,32 +378,24 @@ func TestGroupByStatus(t *testing.T) {
 	}
 }
 
-func TestGroupByStatus_SkipsNilIssues(t *testing.T) {
+func TestGroupBoardItemsByStatus_EmptyStatus(t *testing.T) {
 	columns := []statusColumn{
 		{alias: "backlog", value: "Backlog"},
 	}
 
-	items := []api.ProjectItem{
-		{
-			ID:    "1",
-			Issue: nil, // nil issue should be skipped
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
-		{
-			ID:    "2",
-			Issue: &api.Issue{Number: 2, Title: "Issue 2"},
-			FieldValues: []api.FieldValue{
-				{Field: "Status", Value: "Backlog"},
-			},
-		},
+	items := []api.BoardItem{
+		{Number: 1, Title: "Issue 1", Status: ""}, // empty status goes to "(none)"
+		{Number: 2, Title: "Issue 2", Status: "Backlog"},
 	}
 
-	grouped := groupByStatus(items, columns)
+	grouped := groupBoardItemsByStatus(items, columns)
 
 	if len(grouped["Backlog"]) != 1 {
-		t.Errorf("expected 1 item in Backlog (nil issue skipped), got %d", len(grouped["Backlog"]))
+		t.Errorf("expected 1 item in Backlog, got %d", len(grouped["Backlog"]))
+	}
+
+	if len(grouped["(none)"]) != 1 {
+		t.Errorf("expected 1 item in (none), got %d", len(grouped["(none)"]))
 	}
 }
 
@@ -497,12 +427,9 @@ func TestOutputBoardSimple(t *testing.T) {
 		{alias: "done", value: "Done"},
 	}
 
-	grouped := map[string][]api.ProjectItem{
+	grouped := map[string][]api.BoardItem{
 		"Backlog": {
-			{
-				ID:    "1",
-				Issue: &api.Issue{Number: 1, Title: "Test Issue"},
-			},
+			{Number: 1, Title: "Test Issue", Status: "Backlog"},
 		},
 		"Done": {},
 	}
@@ -543,15 +470,9 @@ func TestOutputBoardJSON(t *testing.T) {
 		{alias: "backlog", value: "Backlog"},
 	}
 
-	grouped := map[string][]api.ProjectItem{
+	grouped := map[string][]api.BoardItem{
 		"Backlog": {
-			{
-				ID:    "1",
-				Issue: &api.Issue{Number: 42, Title: "JSON Test"},
-				FieldValues: []api.FieldValue{
-					{Field: "Priority", Value: "P1"},
-				},
-			},
+			{Number: 42, Title: "JSON Test", Status: "Backlog", Priority: "P1"},
 		},
 	}
 
@@ -589,12 +510,9 @@ func TestOutputBoardBox(t *testing.T) {
 		{alias: "backlog", value: "Backlog"},
 	}
 
-	grouped := map[string][]api.ProjectItem{
+	grouped := map[string][]api.BoardItem{
 		"Backlog": {
-			{
-				ID:    "1",
-				Issue: &api.Issue{Number: 1, Title: "Box Test"},
-			},
+			{Number: 1, Title: "Box Test", Status: "Backlog"},
 		},
 	}
 

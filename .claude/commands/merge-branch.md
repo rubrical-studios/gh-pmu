@@ -1,5 +1,5 @@
 ---
-version: "v0.24.1"
+version: "v0.25.0"
 description: Merge branch to main with gated checks
 argument-hint: [--skip-gates] [--dry-run]
 ---
@@ -12,6 +12,7 @@ Merge current branch to main with gated validation. For non-release branches wit
 | `pre-gate` | Before gates | Setup, environment |
 | `gates` | Gate checks | **Custom validation** |
 | `post-gate` | After gates | Pre-merge actions |
+| `post-pr-create` | After PR creation | CI wait, PR validation |
 | `post-merge` | After merge | Post-merge actions |
 | `post-close` | After cleanup | Notifications |
 ---
@@ -67,6 +68,13 @@ git push origin $(git branch --show-current)
 gh pr create --base main --head $(git branch --show-current) \
   --title "Merge: $(git branch --show-current)"
 ```
+<!-- USER-EXTENSION-START: post-pr-create -->
+
+### Wait for CI
+```bash
+node .claude/scripts/framework/wait-for-ci.js
+```
+<!-- USER-EXTENSION-END: post-pr-create -->
 ### Step 2.3: Wait for Approval
 **ASK USER:** Review and approve PR.
 ```bash
