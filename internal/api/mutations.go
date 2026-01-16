@@ -1625,17 +1625,17 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 		alias := fmt.Sprintf("u%d", i)
 		varName := fmt.Sprintf("input%d", i)
 
-		// Build the value object based on field type
+		// Build the value object based on field type (must be valid JSON for --input)
 		var valueJSON string
 		switch update.dataType {
 		case "SINGLE_SELECT":
-			valueJSON = fmt.Sprintf(`{singleSelectOptionId: %q}`, update.optionID)
+			valueJSON = fmt.Sprintf(`{"singleSelectOptionId": %q}`, update.optionID)
 		case "TEXT":
-			valueJSON = fmt.Sprintf(`{text: %q}`, update.Value)
+			valueJSON = fmt.Sprintf(`{"text": %q}`, update.Value)
 		case "NUMBER":
-			valueJSON = fmt.Sprintf(`{number: %s}`, update.Value)
+			valueJSON = fmt.Sprintf(`{"number": %s}`, update.Value)
 		case "DATE":
-			valueJSON = fmt.Sprintf(`{date: %q}`, update.Value)
+			valueJSON = fmt.Sprintf(`{"date": %q}`, update.Value)
 		default:
 			return nil, fmt.Errorf("unsupported field type: %s", update.dataType)
 		}
@@ -1644,9 +1644,9 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 			`%s: updateProjectV2ItemFieldValue(input: $%s) { projectV2Item { id } }`,
 			alias, varName))
 
-		// Build input variable
+		// Build input variable (must be valid JSON for --input)
 		inputJSON := fmt.Sprintf(
-			`{projectId: %q, itemId: %q, fieldId: %q, value: %s}`,
+			`{"projectId": %q, "itemId": %q, "fieldId": %q, "value": %s}`,
 			projectID, update.ItemID, update.fieldID, valueJSON)
 		variables = append(variables, fmt.Sprintf(`"%s": %s`, varName, inputJSON))
 	}
@@ -1663,12 +1663,15 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 
 	variablesJSON := "{" + strings.Join(variables, ", ") + "}"
 
-	// Execute via gh api graphql
-	cmd := exec.Command("gh", "api", "graphql",
-		"-f", "query="+mutation,
-		"--input", "-")
+	// Build full GraphQL request body with query and variables
+	// Note: query must be JSON-escaped since it contains quotes
+	queryEscaped, _ := json.Marshal(mutation)
+	requestBody := fmt.Sprintf(`{"query": %s, "variables": %s}`, queryEscaped, variablesJSON)
 
-	cmd.Stdin = strings.NewReader(variablesJSON)
+	// Execute via gh api graphql
+	cmd := exec.Command("gh", "api", "graphql", "--input", "-")
+
+	cmd.Stdin = strings.NewReader(requestBody)
 
 	output, err := cmd.Output()
 	if err != nil {
