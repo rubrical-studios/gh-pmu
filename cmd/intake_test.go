@@ -18,12 +18,20 @@ type mockIntakeClient struct {
 	repositoryIssues []api.Issue
 	addedItemID      string
 
+	// Call tracking
+	getProjectItemsCalls []getProjectItemsCallIntake
+
 	// Error injection
 	getProjectErr          error
 	getProjectItemsErr     error
 	getRepositoryIssuesErr error
 	addIssueToProjectErr   error
 	setProjectItemFieldErr error
+}
+
+type getProjectItemsCallIntake struct {
+	projectID string
+	filter    *api.ProjectItemsFilter
 }
 
 func newMockIntakeClient() *mockIntakeClient {
@@ -46,6 +54,10 @@ func (m *mockIntakeClient) GetProject(owner string, number int) (*api.Project, e
 }
 
 func (m *mockIntakeClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	m.getProjectItemsCalls = append(m.getProjectItemsCalls, getProjectItemsCallIntake{
+		projectID: projectID,
+		filter:    filter,
+	})
 	if m.getProjectItemsErr != nil {
 		return nil, m.getProjectItemsErr
 	}
@@ -758,4 +770,192 @@ func TestRunIntakeWithDeps_AllTrackedJSON(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// JSON output with empty issues goes to stdout - verified by no error
+}
+
+// =============================================================================
+// Optimization Tests - Repository Filtering
+// =============================================================================
+
+// Test that single-repo intake uses repository filter (optimization)
+func TestRunIntakeWithDeps_SingleRepo_UsesRepositoryFilter(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.projectItems = []api.ProjectItem{}
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "New Issue"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"}, // Single repo
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify GetProjectItems was called with repository filter
+	if len(mock.getProjectItemsCalls) != 1 {
+		t.Fatalf("Expected 1 GetProjectItems call, got %d", len(mock.getProjectItemsCalls))
+	}
+
+	call := mock.getProjectItemsCalls[0]
+	if call.filter == nil {
+		t.Fatal("Expected GetProjectItems to be called with a filter, got nil")
+	}
+	expectedRepo := "owner/repo"
+	if call.filter.Repository != expectedRepo {
+		t.Errorf("Expected filter.Repository to be %q, got %q", expectedRepo, call.filter.Repository)
+	}
+}
+
+// Test that multi-repo intake uses full fetch (no filter)
+func TestRunIntakeWithDeps_MultiRepo_UsesFullFetch(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.projectItems = []api.ProjectItem{}
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "New Issue"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo1", "owner/repo2"}, // Multiple repos
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify GetProjectItems was called without filter
+	if len(mock.getProjectItemsCalls) != 1 {
+		t.Fatalf("Expected 1 GetProjectItems call, got %d", len(mock.getProjectItemsCalls))
+	}
+
+	call := mock.getProjectItemsCalls[0]
+	if call.filter != nil {
+		t.Errorf("Expected GetProjectItems to be called without filter for multi-repo, got filter with Repository=%q", call.filter.Repository)
+	}
+}
+
+// Test that filtered results are still correct with single repo
+func TestRunIntakeWithDeps_SingleRepo_CorrectResults(t *testing.T) {
+	mock := newMockIntakeClient()
+	// Project has one tracked issue
+	mock.projectItems = []api.ProjectItem{
+		{Issue: &api.Issue{ID: "issue-1", Number: 1}},
+	}
+	// Repo has two issues - one tracked, one not
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Tracked Issue"},
+		{ID: "issue-2", Number: 2, Title: "Untracked Issue"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	var buf bytes.Buffer
+	cmd := newIntakeCommand()
+	cmd.SetOut(&buf)
+	opts := &intakeOptions{}
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Should find 1 untracked issue (table output goes to os.Stdout, only summary goes to cmd.Out)
+	if !strings.Contains(output, "1 untracked") {
+		t.Errorf("Expected output to contain '1 untracked', got: %s", output)
+	}
+
+	// Verify the filter was used correctly
+	if len(mock.getProjectItemsCalls) != 1 {
+		t.Fatalf("Expected 1 GetProjectItems call, got %d", len(mock.getProjectItemsCalls))
+	}
+	call := mock.getProjectItemsCalls[0]
+	if call.filter == nil || call.filter.Repository != "owner/repo" {
+		t.Errorf("Expected repository filter to be set")
+	}
+}
+
+// =============================================================================
+// Benchmark Tests
+// =============================================================================
+
+// generateBenchmarkIntakeItems creates N project items for benchmarking
+func generateBenchmarkIntakeItems(n int) []api.ProjectItem {
+	items := make([]api.ProjectItem, n)
+	for i := 0; i < n; i++ {
+		items[i] = api.ProjectItem{
+			ID: "item-" + string(rune(i)),
+			Issue: &api.Issue{
+				ID:     "issue-" + string(rune(i)),
+				Number: i + 1,
+				Title:  "Issue " + string(rune(i)),
+			},
+		}
+	}
+	return items
+}
+
+// BenchmarkIntake_WithRepositoryFilter benchmarks intake with single repo (optimized)
+func BenchmarkIntake_WithRepositoryFilter(b *testing.B) {
+	itemCount := 100
+	mock := &mockIntakeClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+		},
+		projectItems:     generateBenchmarkIntakeItems(itemCount),
+		repositoryIssues: []api.Issue{},
+		addedItemID:      "item-123",
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"}, // Single repo - uses filter
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mock.getProjectItemsCalls = nil
+		_ = runIntakeWithDeps(cmd, opts, cfg, mock)
+	}
+
+	b.ReportMetric(float64(itemCount), "items_processed")
+}
+
+// BenchmarkIntake_WithoutFilter benchmarks intake with multiple repos (full fetch)
+func BenchmarkIntake_WithoutFilter(b *testing.B) {
+	itemCount := 500
+	mock := &mockIntakeClient{
+		project: &api.Project{
+			ID:    "proj-1",
+			Title: "Test Project",
+		},
+		projectItems:     generateBenchmarkIntakeItems(itemCount),
+		repositoryIssues: []api.Issue{},
+		addedItemID:      "item-123",
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo1", "owner/repo2"}, // Multi repo - no filter
+	}
+
+	cmd := newIntakeCommand()
+	opts := &intakeOptions{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mock.getProjectItemsCalls = nil
+		_ = runIntakeWithDeps(cmd, opts, cfg, mock)
+	}
+
+	b.ReportMetric(float64(itemCount), "items_processed")
 }

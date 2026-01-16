@@ -617,8 +617,9 @@ func runBranchCurrentWithDeps(cmd *cobra.Command, opts *branchCurrentOptions, cf
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Get all project items and filter by release field
-	items, err := client.GetProjectItems(project.ID, nil)
+	// Get project items filtered by repository (optimization)
+	filter := &api.ProjectItemsFilter{Repository: fmt.Sprintf("%s/%s", owner, repo)}
+	items, err := client.GetProjectItems(project.ID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
@@ -734,8 +735,9 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Get all project items and filter by release field
-	items, err := client.GetProjectItems(project.ID, nil)
+	// Get project items filtered by repository (optimization)
+	filter := &api.ProjectItemsFilter{Repository: fmt.Sprintf("%s/%s", owner, repo)}
+	items, err := client.GetProjectItems(project.ID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}

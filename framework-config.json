@@ -36,6 +36,9 @@
     ]
   },
   "userScripts": {
+	"close-release": [
+	  "monitor-release.js"
+	],
     "prepare-release": [
       "coverage.js",
       "lint.js"

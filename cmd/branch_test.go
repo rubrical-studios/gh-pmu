@@ -70,6 +70,7 @@ type mockBranchClient struct {
 	gitAddCalls          []gitAddCall
 	closeIssueCalls      []closeIssueCall
 	gitTagCalls          []gitTagCall
+	getProjectItemsCalls []getProjectItemsCall
 
 	// Error injection
 	createIssueErr         error
@@ -94,6 +95,11 @@ type gitAddCall struct {
 type gitTagCall struct {
 	tag     string
 	message string
+}
+
+type getProjectItemsCall struct {
+	projectID string
+	filter    *api.ProjectItemsFilter
 }
 
 func (m *mockBranchClient) CreateIssue(owner, repo, title, body string, labels []string) (*api.Issue, error) {
@@ -195,6 +201,10 @@ func (m *mockBranchClient) GetIssuesByRelease(owner, repo, releaseVersion string
 }
 
 func (m *mockBranchClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	m.getProjectItemsCalls = append(m.getProjectItemsCalls, getProjectItemsCall{
+		projectID: projectID,
+		filter:    filter,
+	})
 	if m.getProjectItemsErr != nil {
 		return nil, m.getProjectItemsErr
 	}
@@ -1083,6 +1093,50 @@ func TestRunBranchCurrentWithDeps_SkipsNilIssues(t *testing.T) {
 	}
 }
 
+// Test that branch current uses repository-scoped queries (optimization)
+func TestRunBranchCurrentWithDeps_UsesRepositoryFilter(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Fix bug A"},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+	}
+
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
+
+	// ACT
+	err := runBranchCurrentWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify GetProjectItems was called with repository filter
+	if len(mock.getProjectItemsCalls) != 1 {
+		t.Fatalf("Expected 1 GetProjectItems call, got %d", len(mock.getProjectItemsCalls))
+	}
+
+	call := mock.getProjectItemsCalls[0]
+	if call.filter == nil {
+		t.Fatal("Expected GetProjectItems to be called with a filter, got nil")
+	}
+	expectedRepo := "testowner/testrepo"
+	if call.filter.Repository != expectedRepo {
+		t.Errorf("Expected filter.Repository to be %q, got %q", expectedRepo, call.filter.Repository)
+	}
+}
+
 // Test that release close closes the tracker issue
 func TestRunBranchCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 	// ARRANGE
@@ -1200,6 +1254,45 @@ func TestRunBranchCloseWithDeps_GetProjectItemsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to get project items") {
 		t.Errorf("Expected error to contain 'failed to get project items', got: %v", err)
+	}
+}
+
+// Test that branch close uses repository-scoped queries (optimization)
+func TestRunBranchCloseWithDeps_UsesRepositoryFilter(t *testing.T) {
+	// ARRANGE
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
+	}
+	mock.projectItems = []api.ProjectItem{} // Empty items for simplicity
+
+	cfg := testBranchConfig()
+	cleanup := setupBranchTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
+
+	// ACT
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify GetProjectItems was called with repository filter
+	if len(mock.getProjectItemsCalls) != 1 {
+		t.Fatalf("Expected 1 GetProjectItems call, got %d", len(mock.getProjectItemsCalls))
+	}
+
+	call := mock.getProjectItemsCalls[0]
+	if call.filter == nil {
+		t.Fatal("Expected GetProjectItems to be called with a filter, got nil")
+	}
+	expectedRepo := "testowner/testrepo"
+	if call.filter.Repository != expectedRepo {
+		t.Errorf("Expected filter.Repository to be %q, got %q", expectedRepo, call.filter.Repository)
 	}
 }
 
@@ -2750,4 +2843,166 @@ func TestParseBranchTitle(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// Benchmark Tests for Branch Current Optimization
+// =============================================================================
+
+// generateBenchmarkProjectItems creates N project items for benchmarking.
+// Half are assigned to the target release, half to other releases.
+func generateBenchmarkProjectItems(n int, targetRelease string) []api.ProjectItem {
+	items := make([]api.ProjectItem, n)
+	for i := 0; i < n; i++ {
+		release := targetRelease
+		if i%2 == 0 {
+			release = "other-release"
+		}
+		items[i] = api.ProjectItem{
+			ID: fmt.Sprintf("ITEM_%d", i),
+			Issue: &api.Issue{
+				ID:     fmt.Sprintf("ISSUE_%d", i),
+				Number: i + 1,
+				Title:  fmt.Sprintf("Issue %d", i+1),
+				State:  "OPEN",
+			},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: release},
+				{Field: "Status", Value: "In progress"},
+			},
+		}
+	}
+	return items
+}
+
+// BenchmarkBranchCurrent_Optimized benchmarks the branch current command
+// with repository-scoped filtering (current optimized implementation).
+// This simulates fetching only items from the configured repository.
+func BenchmarkBranchCurrent_Optimized(b *testing.B) {
+	// Simulate optimized case: only 100 items from target repo (filtered server-side)
+	itemCount := 100
+	mock := &mockBranchClient{
+		openIssues: []api.Issue{
+			{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
+		},
+		project: &api.Project{
+			ID:     "PROJECT_1",
+			Number: 1,
+			Title:  "Test Project",
+		},
+		projectItems: generateBenchmarkProjectItems(itemCount, "v1.2.0"),
+	}
+
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Clear call tracking between runs
+		mock.getProjectItemsCalls = nil
+		_ = runBranchCurrentWithDeps(cmd, opts, cfg, mock)
+	}
+
+	b.ReportMetric(float64(itemCount), "items_processed")
+}
+
+// BenchmarkBranchCurrent_FullFetch benchmarks the branch current command
+// simulating the old unoptimized behavior where ALL project items are fetched
+// regardless of repository, then filtered client-side.
+func BenchmarkBranchCurrent_FullFetch(b *testing.B) {
+	// Simulate unoptimized case: 500 items from all repos (no server-side filtering)
+	itemCount := 500
+	mock := &mockBranchClient{
+		openIssues: []api.Issue{
+			{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
+		},
+		project: &api.Project{
+			ID:     "PROJECT_1",
+			Number: 1,
+			Title:  "Test Project",
+		},
+		projectItems: generateBenchmarkProjectItems(itemCount, "v1.2.0"),
+	}
+
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mock.getProjectItemsCalls = nil
+		_ = runBranchCurrentWithDeps(cmd, opts, cfg, mock)
+	}
+
+	b.ReportMetric(float64(itemCount), "items_processed")
+}
+
+// BenchmarkBranchCurrent_LargeProject benchmarks with a large project (2000 items)
+// to demonstrate scaling behavior with repository filtering.
+func BenchmarkBranchCurrent_LargeProject(b *testing.B) {
+	// Large project: 2000 items total, but only ~400 from target repo after filtering
+	itemCount := 400 // Simulates filtered result
+	mock := &mockBranchClient{
+		openIssues: []api.Issue{
+			{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
+		},
+		project: &api.Project{
+			ID:     "PROJECT_1",
+			Number: 1,
+			Title:  "Test Project",
+		},
+		projectItems: generateBenchmarkProjectItems(itemCount, "v1.2.0"),
+	}
+
+	cfg := testBranchConfig()
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCurrentOptions{}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mock.getProjectItemsCalls = nil
+		_ = runBranchCurrentWithDeps(cmd, opts, cfg, mock)
+	}
+
+	b.ReportMetric(float64(itemCount), "items_processed")
+}
+
+// BenchmarkBranchClose_Optimized benchmarks the branch close command
+// with repository-scoped filtering.
+func BenchmarkBranchClose_Optimized(b *testing.B) {
+	itemCount := 100
+	mock := &mockBranchClient{
+		openIssues: []api.Issue{
+			{ID: "TRACKER_123", Number: 100, Title: "Branch: v1.2.0", State: "OPEN"},
+		},
+		project: &api.Project{
+			ID:     "PROJECT_1",
+			Number: 1,
+			Title:  "Test Project",
+		},
+		projectItems: generateBenchmarkProjectItems(itemCount, "v1.2.0"),
+	}
+
+	cfg := testBranchConfig()
+
+	// Create temp dir for config (required by branch close)
+	tempDir := b.TempDir()
+	configPath := tempDir + "/.gh-pmu.yml"
+	_ = cfg.Save(configPath)
+	originalDir, _ := os.Getwd()
+	_ = os.Chdir(tempDir)
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mock.getProjectItemsCalls = nil
+		mock.closeIssueCalls = nil
+		_ = runBranchCloseWithDeps(cmd, opts, cfg, mock)
+	}
+
+	b.ReportMetric(float64(itemCount), "items_processed")
 }

@@ -117,3 +117,11 @@ type BoardItem struct {
 	Priority   string
 	Repository string // "owner/repo" format for filtering
 }
+
+// IssueRef represents a reference to a GitHub issue by owner/repo/number.
+// Used for targeted queries that fetch specific issues instead of all project items.
+type IssueRef struct {
+	Owner  string
+	Repo   string
+	Number int
+}

@@ -26,17 +26,28 @@ type mockMoveClient struct {
 	openIssuesByLabel map[string][]api.Issue // label -> issues
 
 	// Call counters for caching verification
-	getProjectFieldsCalls int
+	getProjectFieldsCalls        int
+	getProjectItemsCalls         int
+	getProjectItemsByIssuesCalls int
+	lastIssueRefs                []api.IssueRef // track refs passed to GetProjectItemsByIssues
+	getSubIssuesCalls            int            // track per-issue calls
+	getSubIssuesBatchCalls       int            // track batch calls
+	batchUpdateCalls             int            // track batch mutation calls
+
+	// Batch update configuration
+	batchUpdateResults []api.BatchUpdateResult // custom results for BatchUpdateProjectItemFields
+	batchUpdateErr     error                   // error to return from BatchUpdateProjectItemFields
 
 	// Error injection
-	getIssueErr             error
-	getProjectErr           error
-	getProjectFieldsErr     error
-	getProjectItemsErr      error
-	getSubIssuesErr         error
-	setProjectItemErr       error
-	setProjectItemErrFor    map[string]error // itemID -> error
-	getOpenIssuesByLabelErr error
+	getIssueErr                error
+	getProjectErr              error
+	getProjectFieldsErr        error
+	getProjectItemsErr         error
+	getProjectItemsByIssuesErr error
+	getSubIssuesErr            error
+	setProjectItemErr          error
+	setProjectItemErrFor       map[string]error // itemID -> error
+	getOpenIssuesByLabelErr    error
 }
 
 type fieldUpdate struct {
@@ -77,19 +88,55 @@ func (m *mockMoveClient) GetProject(owner string, number int) (*api.Project, err
 }
 
 func (m *mockMoveClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
+	m.getProjectItemsCalls++
 	if m.getProjectItemsErr != nil {
 		return nil, m.getProjectItemsErr
 	}
 	return m.projectItems, nil
 }
 
+func (m *mockMoveClient) GetProjectItemsByIssues(projectID string, refs []api.IssueRef) ([]api.ProjectItem, error) {
+	m.getProjectItemsByIssuesCalls++
+	m.lastIssueRefs = refs
+	if m.getProjectItemsByIssuesErr != nil {
+		return nil, m.getProjectItemsByIssuesErr
+	}
+	// Filter projectItems to only return items matching the requested refs
+	var result []api.ProjectItem
+	for _, ref := range refs {
+		for _, item := range m.projectItems {
+			if item.Issue != nil &&
+				item.Issue.Repository.Owner == ref.Owner &&
+				item.Issue.Repository.Name == ref.Repo &&
+				item.Issue.Number == ref.Number {
+				result = append(result, item)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 func (m *mockMoveClient) GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error) {
+	m.getSubIssuesCalls++
 	if m.getSubIssuesErr != nil {
 		return nil, m.getSubIssuesErr
 	}
 	key := fmt.Sprintf("%s/%s#%d", owner, repo, number)
 	result := m.subIssues[key]
-	// Debug: fmt.Printf("DEBUG GetSubIssues: key=%q, found=%d\n", key, len(result))
+	return result, nil
+}
+
+func (m *mockMoveClient) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][]api.SubIssue, error) {
+	m.getSubIssuesBatchCalls++
+	if m.getSubIssuesErr != nil {
+		return nil, m.getSubIssuesErr
+	}
+	result := make(map[int][]api.SubIssue)
+	for _, num := range numbers {
+		key := fmt.Sprintf("%s/%s#%d", owner, repo, num)
+		result[num] = m.subIssues[key]
+	}
 	return result, nil
 }
 
@@ -112,6 +159,49 @@ func (m *mockMoveClient) SetProjectItemField(projectID, itemID, fieldName, value
 func (m *mockMoveClient) SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []api.ProjectField) error {
 	// Delegate to the same logic as SetProjectItemField for testing
 	return m.SetProjectItemField(projectID, itemID, fieldName, value)
+}
+
+func (m *mockMoveClient) BatchUpdateProjectItemFields(projectID string, updates []api.FieldUpdate, fields []api.ProjectField) ([]api.BatchUpdateResult, error) {
+	m.batchUpdateCalls++
+
+	if m.batchUpdateErr != nil {
+		return nil, m.batchUpdateErr
+	}
+
+	// If custom results are set, return them
+	if m.batchUpdateResults != nil {
+		return m.batchUpdateResults, nil
+	}
+
+	// Default: simulate successful updates and track them
+	var results []api.BatchUpdateResult
+	for _, update := range updates {
+		// Track the update
+		m.fieldUpdates = append(m.fieldUpdates, fieldUpdate{
+			projectID: projectID,
+			itemID:    update.ItemID,
+			fieldName: update.FieldName,
+			value:     update.Value,
+		})
+
+		// Check if there's a specific error for this item
+		if err, ok := m.setProjectItemErrFor[update.ItemID]; ok {
+			results = append(results, api.BatchUpdateResult{
+				ItemID:    update.ItemID,
+				FieldName: update.FieldName,
+				Success:   false,
+				Error:     err.Error(),
+			})
+		} else {
+			results = append(results, api.BatchUpdateResult{
+				ItemID:    update.ItemID,
+				FieldName: update.FieldName,
+				Success:   true,
+			})
+		}
+	}
+
+	return results, nil
 }
 
 func (m *mockMoveClient) GetProjectFields(projectID string) ([]api.ProjectField, error) {
@@ -789,7 +879,10 @@ func TestRunMoveWithDeps_DryRunNoChanges(t *testing.T) {
 
 func TestRunMoveWithDeps_StatusUpdateFails(t *testing.T) {
 	mock := setupMockWithIssue(123, "Test Issue", "item-123")
-	mock.setProjectItemErr = fmt.Errorf("update failed")
+	// Use setProjectItemErrFor for batch-compatible error injection
+	mock.setProjectItemErrFor = map[string]error{
+		"item-123": fmt.Errorf("update failed"),
+	}
 	cfg := testMoveConfig()
 
 	cmd := &cobra.Command{}
@@ -1855,5 +1948,553 @@ func TestRunMoveWithDeps_InvalidPriorityReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid priority value") {
 		t.Errorf("Expected 'invalid priority value' error, got: %v", err)
+	}
+}
+
+// ============================================================================
+// Targeted Query Optimization Tests (Issue #541)
+// ============================================================================
+
+func TestRunMoveWithDeps_UsesTargetedQuery(t *testing.T) {
+	// ARRANGE - Verify that non-recursive move uses GetProjectItemsByIssues
+	mock := setupMockWithIssue(123, "Test Issue", "item-123")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if mock.getProjectItemsByIssuesCalls != 1 {
+		t.Errorf("Expected GetProjectItemsByIssues to be called once, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if mock.getProjectItemsCalls != 0 {
+		t.Errorf("Expected GetProjectItems to NOT be called for non-recursive move, got %d calls", mock.getProjectItemsCalls)
+	}
+	if len(mock.lastIssueRefs) != 1 {
+		t.Errorf("Expected 1 issue ref, got %d", len(mock.lastIssueRefs))
+	}
+	if mock.lastIssueRefs[0].Number != 123 {
+		t.Errorf("Expected issue ref number 123, got %d", mock.lastIssueRefs[0].Number)
+	}
+}
+
+func TestRunMoveWithDeps_TargetedQuery_MultipleIssues(t *testing.T) {
+	// ARRANGE - Verify targeted query with multiple issues
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-3", Issue: &api.Issue{Number: 3, Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1", "2", "3"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if mock.getProjectItemsByIssuesCalls != 1 {
+		t.Errorf("Expected GetProjectItemsByIssues to be called once, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if len(mock.lastIssueRefs) != 3 {
+		t.Errorf("Expected 3 issue refs, got %d", len(mock.lastIssueRefs))
+	}
+	if len(mock.fieldUpdates) != 3 {
+		t.Errorf("Expected 3 field updates, got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestRunMoveWithDeps_RecursiveUsesFullFetch(t *testing.T) {
+	// ARRANGE - Verify that recursive move uses GetProjectItems (full fetch)
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Parent", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Child", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	mock.subIssues = map[string][]api.SubIssue{
+		"testowner/testrepo#1": {{Number: 2, Title: "Child", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", recursive: true, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if mock.getProjectItemsCalls != 1 {
+		t.Errorf("Expected GetProjectItems to be called once for recursive mode, got %d", mock.getProjectItemsCalls)
+	}
+	if mock.getProjectItemsByIssuesCalls != 0 {
+		t.Errorf("Expected GetProjectItemsByIssues to NOT be called for recursive mode, got %d", mock.getProjectItemsByIssuesCalls)
+	}
+}
+
+func TestRunMoveWithDeps_TargetedQuery_FallbackToFullFetch(t *testing.T) {
+	// ARRANGE - Verify fallback to full fetch when targeted query fails
+	mock := setupMockWithIssue(123, "Test Issue", "item-123")
+	mock.getProjectItemsByIssuesErr = fmt.Errorf("targeted query failed")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error - should have fallen back to full fetch: %v", err)
+	}
+	if mock.getProjectItemsByIssuesCalls != 1 {
+		t.Errorf("Expected GetProjectItemsByIssues to be called once (and fail), got %d", mock.getProjectItemsByIssuesCalls)
+	}
+	if mock.getProjectItemsCalls != 1 {
+		t.Errorf("Expected GetProjectItems to be called once (fallback), got %d", mock.getProjectItemsCalls)
+	}
+}
+
+func TestRunMoveWithDeps_TargetedQuery_IssueNotInProject(t *testing.T) {
+	// ARRANGE - Issue exists but not in project
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	// projectItems is empty - issue 123 is not in project
+	mock.projectItems = []api.ProjectItem{}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress"}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"123"}, opts, cfg, mock)
+
+	// ASSERT
+	if err == nil {
+		t.Fatal("Expected error for issue not in project")
+	}
+	if !strings.Contains(err.Error(), "no valid issues") {
+		t.Errorf("Expected 'no valid issues' error, got: %v", err)
+	}
+}
+
+// ============================================================================
+// Benchmark Tests (Issue #541)
+// ============================================================================
+
+// BenchmarkMoveCommand_TargetedQuery benchmarks the targeted query approach
+// Note: This uses mocked API calls so it measures code path overhead, not actual API latency
+func BenchmarkMoveCommand_TargetedQuery(b *testing.B) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		mock.getProjectItemsByIssuesCalls = 0
+		mock.getProjectItemsCalls = 0
+		mock.fieldUpdates = nil
+		_ = runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+	}
+}
+
+// BenchmarkMoveCommand_FullFetch benchmarks the full fetch approach (recursive mode)
+// Note: This uses mocked API calls so it measures code path overhead, not actual API latency
+func BenchmarkMoveCommand_FullFetch(b *testing.B) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Parent", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Use recursive mode to force full fetch
+	opts := &moveOptions{status: "in_progress", recursive: true}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		mock.getProjectItemsByIssuesCalls = 0
+		mock.getProjectItemsCalls = 0
+		mock.fieldUpdates = nil
+		_ = runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+	}
+}
+
+// ============================================================================
+// Batch Sub-Issue Optimization Tests (Issue #542)
+// ============================================================================
+
+func TestCollectSubIssuesRecursive_UsesBatchQuery(t *testing.T) {
+	// ARRANGE - Verify batch method is called for sub-issue fetching
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Parent", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Child 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-3", Issue: &api.Issue{Number: 3, Title: "Child 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	mock.subIssues = map[string][]api.SubIssue{
+		"testowner/testrepo#1": {
+			{Number: 2, Title: "Child 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+			{Number: 3, Title: "Child 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+		},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", recursive: true, yes: true, depth: 10}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Level-by-level batching: 1 call for parent level, 1 call for children level (to check for grandchildren)
+	if mock.getSubIssuesBatchCalls != 2 {
+		t.Errorf("Expected GetSubIssuesBatch to be called twice (once per level), got %d", mock.getSubIssuesBatchCalls)
+	}
+	// Per-issue GetSubIssues should not be called when batch succeeds
+	if mock.getSubIssuesCalls != 0 {
+		t.Errorf("Expected GetSubIssues to NOT be called when batch succeeds, got %d calls", mock.getSubIssuesCalls)
+	}
+}
+
+func TestCollectSubIssuesRecursive_BatchReducesAPICalls(t *testing.T) {
+	// ARRANGE - 3-level hierarchy should use O(depth) batch calls, not O(N) per-issue calls
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Epic", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Story 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-3", Issue: &api.Issue{Number: 3, Title: "Story 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-4", Issue: &api.Issue{Number: 4, Title: "Task 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-5", Issue: &api.Issue{Number: 5, Title: "Task 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	mock.subIssues = map[string][]api.SubIssue{
+		"testowner/testrepo#1": {
+			{Number: 2, Title: "Story 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+			{Number: 3, Title: "Story 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+		},
+		"testowner/testrepo#2": {
+			{Number: 4, Title: "Task 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+		},
+		"testowner/testrepo#3": {
+			{Number: 5, Title: "Task 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+		},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", recursive: true, yes: true, depth: 10}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// With batch fetching: 2 batch calls (level 1: epic->stories, level 2: stories->tasks)
+	// Without batch fetching: 4 per-issue calls (1+2+1 for each parent)
+	if mock.getSubIssuesBatchCalls > 3 {
+		t.Errorf("Expected at most 3 batch calls for 3-level hierarchy, got %d", mock.getSubIssuesBatchCalls)
+	}
+	// Should update all 5 issues (1 epic + 2 stories + 2 tasks)
+	if len(mock.fieldUpdates) != 5 {
+		t.Errorf("Expected 5 field updates, got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestCollectSubIssuesRecursive_DeepHierarchy(t *testing.T) {
+	// ARRANGE - Deep hierarchy respects depth limit with batching
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Level 0", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Level 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-3", Issue: &api.Issue{Number: 3, Title: "Level 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-4", Issue: &api.Issue{Number: 4, Title: "Level 3", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	mock.subIssues = map[string][]api.SubIssue{
+		"testowner/testrepo#1": {{Number: 2, Title: "Level 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		"testowner/testrepo#2": {{Number: 3, Title: "Level 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		"testowner/testrepo#3": {{Number: 4, Title: "Level 3", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Limit depth to 2 levels
+	opts := &moveOptions{status: "in_progress", recursive: true, depth: 2, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should update: #1 (root) + #2 (level 1) + #3 (level 2) = 3 issues
+	// #4 should NOT be updated (level 3 exceeds depth limit of 2)
+	if len(mock.fieldUpdates) != 3 {
+		t.Errorf("Expected 3 field updates with depth=2, got %d", len(mock.fieldUpdates))
+	}
+}
+
+// ============================================================================
+// Batch Mutation Optimization Tests (Issue #543)
+// ============================================================================
+
+func TestRunMoveWithDeps_UsesBatchMutations(t *testing.T) {
+	// ARRANGE - Verify batch mutation method is called for multiple issues
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Issue 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Issue 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-3", Issue: &api.Issue{Number: 3, Title: "Issue 3", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1", "2", "3"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should use batch mutation instead of per-issue calls
+	if mock.batchUpdateCalls != 1 {
+		t.Errorf("Expected 1 batch update call, got %d", mock.batchUpdateCalls)
+	}
+	// Should have 3 field updates (one Status update per issue)
+	if len(mock.fieldUpdates) != 3 {
+		t.Errorf("Expected 3 field updates, got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestRunMoveWithDeps_BatchMutations_MultipleFields(t *testing.T) {
+	// ARRANGE - Multiple fields per issue should be batched together
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Issue 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Issue 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Set both status and priority
+	opts := &moveOptions{status: "in_progress", priority: "high", yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1", "2"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should use single batch call for all updates
+	if mock.batchUpdateCalls != 1 {
+		t.Errorf("Expected 1 batch update call, got %d", mock.batchUpdateCalls)
+	}
+	// Should have 4 field updates (2 issues × 2 fields)
+	if len(mock.fieldUpdates) != 4 {
+		t.Errorf("Expected 4 field updates (2 issues × 2 fields), got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestRunMoveWithDeps_BatchMutations_PartialFailure(t *testing.T) {
+	// ARRANGE - Some updates fail, others succeed
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Issue 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{Number: 2, Title: "Issue 2", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	// Set up partial failure - item-2 fails
+	mock.setProjectItemErrFor = map[string]error{
+		"item-2": fmt.Errorf("simulated failure"),
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1", "2"}, opts, cfg, mock)
+
+	// ASSERT
+	// Should return error due to partial failure
+	if err == nil {
+		t.Fatal("Expected error due to partial failure")
+	}
+	// Batch was called
+	if mock.batchUpdateCalls != 1 {
+		t.Errorf("Expected 1 batch update call, got %d", mock.batchUpdateCalls)
+	}
+}
+
+func TestRunMoveWithDeps_BatchMutations_FallbackOnError(t *testing.T) {
+	// ARRANGE - Batch fails entirely, should fall back to sequential
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{Number: 1, Title: "Issue 1", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	// Set up batch to fail
+	mock.batchUpdateErr = fmt.Errorf("batch failed")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress", yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"1"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should have tried batch once
+	if mock.batchUpdateCalls != 1 {
+		t.Errorf("Expected 1 batch update call, got %d", mock.batchUpdateCalls)
+	}
+	// Should have fallen back to sequential - check fieldUpdates from SetProjectItemField
+	// Note: fieldUpdates is populated by both batch and sequential, so we check the count
+	if len(mock.fieldUpdates) != 1 {
+		t.Errorf("Expected 1 field update from fallback, got %d", len(mock.fieldUpdates))
+	}
+}
+
+func TestRunMoveWithDeps_BatchMutations_ReducedAPICalls(t *testing.T) {
+	// ARRANGE - 10 issues with 3 fields each = 30 updates in 1 batch call
+	mock := newMockMoveClient()
+	mock.project = &api.Project{ID: "proj-1", Number: 1, Title: "Test Project"}
+
+	// Create 10 issues
+	var items []api.ProjectItem
+	var issueNums []string
+	for i := 1; i <= 10; i++ {
+		items = append(items, api.ProjectItem{
+			ID: fmt.Sprintf("item-%d", i),
+			Issue: &api.Issue{
+				Number:     i,
+				Title:      fmt.Sprintf("Issue %d", i),
+				Repository: api.Repository{Owner: "testowner", Name: "testrepo"},
+			},
+		})
+		issueNums = append(issueNums, fmt.Sprintf("%d", i))
+	}
+	mock.projectItems = items
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// Set 3 fields
+	opts := &moveOptions{status: "in_progress", priority: "high", branch: "v1.0.0", yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, issueNums, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should use single batch call (30 updates < 50 batch size)
+	if mock.batchUpdateCalls != 1 {
+		t.Errorf("Expected 1 batch update call for 30 updates, got %d", mock.batchUpdateCalls)
+	}
+	// Should have 30 field updates (10 issues × 3 fields)
+	if len(mock.fieldUpdates) != 30 {
+		t.Errorf("Expected 30 field updates (10 issues × 3 fields), got %d", len(mock.fieldUpdates))
 	}
 }
