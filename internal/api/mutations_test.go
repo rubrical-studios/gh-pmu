@@ -1711,3 +1711,194 @@ func TestSetProjectItemFieldWithFields_MutationError(t *testing.T) {
 		t.Errorf("Expected 'failed to set' error, got: %v", err)
 	}
 }
+
+// ============================================================================
+// BatchUpdateProjectItemFields Tests
+// ============================================================================
+
+func TestBatchUpdateProjectItemFields_EmptyUpdates(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Status", DataType: "SINGLE_SELECT"},
+	}
+
+	results, err := client.BatchUpdateProjectItemFields("proj-id", []FieldUpdate{}, fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("Expected 0 results, got %d", len(results))
+	}
+}
+
+func TestBatchUpdateProjectItemFields_FieldNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Status", DataType: "SINGLE_SELECT"},
+	}
+
+	updates := []FieldUpdate{
+		{ItemID: "item-1", FieldName: "NonExistent", Value: "value"},
+	}
+
+	results, err := client.BatchUpdateProjectItemFields("proj-id", updates, fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("Expected result to be failure")
+	}
+	if !strings.Contains(results[0].Error, "not found") {
+		t.Errorf("Expected 'not found' in error, got: %v", results[0].Error)
+	}
+}
+
+func TestBatchUpdateProjectItemFields_SingleSelectOptionNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{
+			ID:       "field-123",
+			Name:     "Status",
+			DataType: "SINGLE_SELECT",
+			Options: []FieldOption{
+				{ID: "opt-1", Name: "Todo"},
+				{ID: "opt-2", Name: "Done"},
+			},
+		},
+	}
+
+	updates := []FieldUpdate{
+		{ItemID: "item-1", FieldName: "Status", Value: "InvalidOption"},
+	}
+
+	results, err := client.BatchUpdateProjectItemFields("proj-id", updates, fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("Expected result to be failure")
+	}
+	if !strings.Contains(results[0].Error, "not found") {
+		t.Errorf("Expected 'not found' in error, got: %v", results[0].Error)
+	}
+}
+
+func TestBatchUpdateProjectItemFields_NumberFieldInvalidValue(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Points", DataType: "NUMBER"},
+	}
+
+	updates := []FieldUpdate{
+		{ItemID: "item-1", FieldName: "Points", Value: "not-a-number"},
+	}
+
+	results, err := client.BatchUpdateProjectItemFields("proj-id", updates, fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	if results[0].Success {
+		t.Error("Expected result to be failure")
+	}
+	if !strings.Contains(results[0].Error, "invalid number value") {
+		t.Errorf("Expected 'invalid number value' in error, got: %v", results[0].Error)
+	}
+}
+
+func TestBatchUpdateProjectItemFields_UnsupportedFieldType(t *testing.T) {
+	mock := &mockGraphQLClient{}
+	client := NewClientWithGraphQL(mock)
+
+	fields := []ProjectField{
+		{ID: "field-123", Name: "Sprint", DataType: "ITERATION"},
+	}
+
+	updates := []FieldUpdate{
+		{ItemID: "item-1", FieldName: "Sprint", Value: "Sprint 1"},
+	}
+
+	// Unsupported field types pass validation but fail in executeBatchMutation
+	// Since executeBatchMutation uses exec.Command, it will fail with error
+	results, err := client.BatchUpdateProjectItemFields("proj-id", updates, fields)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// The result should contain an error from the failed batch mutation
+	if len(results) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(results))
+	}
+	// Note: The actual error depends on executeBatchMutation behavior
+	// which will return "unsupported field type" error
+	if results[0].Success {
+		t.Error("Expected result to be failure for unsupported field type")
+	}
+}
+
+func TestFieldUpdate_HasRequiredFields(t *testing.T) {
+	update := FieldUpdate{
+		ItemID:    "item-123",
+		FieldName: "Status",
+		Value:     "Done",
+	}
+
+	if update.ItemID != "item-123" {
+		t.Errorf("Expected ItemID 'item-123', got '%s'", update.ItemID)
+	}
+	if update.FieldName != "Status" {
+		t.Errorf("Expected FieldName 'Status', got '%s'", update.FieldName)
+	}
+	if update.Value != "Done" {
+		t.Errorf("Expected Value 'Done', got '%s'", update.Value)
+	}
+}
+
+func TestBatchUpdateResult_HasRequiredFields(t *testing.T) {
+	result := BatchUpdateResult{
+		ItemID:    "item-123",
+		FieldName: "Status",
+		Success:   true,
+		Error:     "",
+	}
+
+	if result.ItemID != "item-123" {
+		t.Errorf("Expected ItemID 'item-123', got '%s'", result.ItemID)
+	}
+	if result.FieldName != "Status" {
+		t.Errorf("Expected FieldName 'Status', got '%s'", result.FieldName)
+	}
+	if !result.Success {
+		t.Error("Expected Success to be true")
+	}
+
+	// Test with error
+	resultWithError := BatchUpdateResult{
+		ItemID:    "item-456",
+		FieldName: "Priority",
+		Success:   false,
+		Error:     "some error",
+	}
+
+	if resultWithError.Success {
+		t.Error("Expected Success to be false")
+	}
+	if resultWithError.Error != "some error" {
+		t.Errorf("Expected Error 'some error', got '%s'", resultWithError.Error)
+	}
+}

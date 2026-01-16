@@ -1619,23 +1619,26 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 
 	// Build mutation with aliases
 	var mutationParts []string
-	var variables []string
+	variablesMap := make(map[string]interface{})
 
 	for i, update := range updates {
 		alias := fmt.Sprintf("u%d", i)
 		varName := fmt.Sprintf("input%d", i)
 
 		// Build the value object based on field type
-		var valueJSON string
+		var valueObj map[string]interface{}
 		switch update.dataType {
 		case "SINGLE_SELECT":
-			valueJSON = fmt.Sprintf(`{singleSelectOptionId: %q}`, update.optionID)
+			valueObj = map[string]interface{}{"singleSelectOptionId": update.optionID}
 		case "TEXT":
-			valueJSON = fmt.Sprintf(`{text: %q}`, update.Value)
+			valueObj = map[string]interface{}{"text": update.Value}
 		case "NUMBER":
-			valueJSON = fmt.Sprintf(`{number: %s}`, update.Value)
+			// Parse number value - ignore error, default to 0 if invalid
+			var numVal float64
+			_, _ = fmt.Sscanf(update.Value, "%f", &numVal)
+			valueObj = map[string]interface{}{"number": numVal}
 		case "DATE":
-			valueJSON = fmt.Sprintf(`{date: %q}`, update.Value)
+			valueObj = map[string]interface{}{"date": update.Value}
 		default:
 			return nil, fmt.Errorf("unsupported field type: %s", update.dataType)
 		}
@@ -1644,11 +1647,13 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 			`%s: updateProjectV2ItemFieldValue(input: $%s) { projectV2Item { id } }`,
 			alias, varName))
 
-		// Build input variable
-		inputJSON := fmt.Sprintf(
-			`{projectId: %q, itemId: %q, fieldId: %q, value: %s}`,
-			projectID, update.ItemID, update.fieldID, valueJSON)
-		variables = append(variables, fmt.Sprintf(`"%s": %s`, varName, inputJSON))
+		// Build input variable using proper Go map (json.Marshal will escape properly)
+		variablesMap[varName] = map[string]interface{}{
+			"projectId": projectID,
+			"itemId":    update.ItemID,
+			"fieldId":   update.fieldID,
+			"value":     valueObj,
+		}
 	}
 
 	// Build variable declarations for the mutation signature
@@ -1661,14 +1666,21 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 		strings.Join(varDecls, ", "),
 		strings.Join(mutationParts, " "))
 
-	variablesJSON := "{" + strings.Join(variables, ", ") + "}"
+	// Build request body using json.Marshal for safe escaping
+	requestBodyMap := map[string]interface{}{
+		"query":     mutation,
+		"variables": variablesMap,
+	}
+	requestBodyBytes, err := json.Marshal(requestBodyMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	requestBody := string(requestBodyBytes)
 
 	// Execute via gh api graphql
-	cmd := exec.Command("gh", "api", "graphql",
-		"-f", "query="+mutation,
-		"--input", "-")
+	cmd := exec.Command("gh", "api", "graphql", "--input", "-")
 
-	cmd.Stdin = strings.NewReader(variablesJSON)
+	cmd.Stdin = strings.NewReader(requestBody)
 
 	output, err := cmd.Output()
 	if err != nil {
