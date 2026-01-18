@@ -1,5 +1,5 @@
 ---
-version: "v0.25.0"
+version: "v0.26.3"
 description: Prepare framework release with version updates and validation (project)
 argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run)
 ---
@@ -32,7 +32,21 @@ Execute the full release preparation workflow.
 ```bash
 git branch --show-current
 ```
-Record the current branch name as `$BRANCH` for use in subsequent steps.
+Record as `$BRANCH`.
+### Auto-Create Release Branch (if on main)
+**If `$BRANCH` is `main`:**
+1. Analyze commits: `git log $(git describe --tags --abbrev=0)..HEAD --oneline`
+2. Recommend version based on commits
+3. **ASK USER:** Confirm version
+4. **If `--dry-run`:** Report "Would create branch: release/vX.Y.Z" and stop
+5. Create branch:
+   ```bash
+   gh pmu branch start --branch "release/$VERSION"
+   git checkout "release/$VERSION"
+   git push -u origin "release/$VERSION"
+   ```
+6. Update `$BRANCH` to `release/$VERSION`
+**If NOT `main`:** Continue with existing working branch.
 ### Check for Open Work
 ```bash
 gh pmu microsprint current 2>/dev/null
@@ -191,7 +205,6 @@ node .claude/scripts/framework/wait-for-ci.js
 **If CI fails, STOP and report.**
 
 <!-- USER-EXTENSION-END: post-pr-create -->
-
 ### Step 4.4: Merge PR
 **ASK USER:** Approve and merge.
 ```bash

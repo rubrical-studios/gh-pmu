@@ -1,5 +1,5 @@
 ---
-version: "v0.25.0"
+version: "v0.26.3"
 description: Discover, view, and manage extension points in release commands
 argument-hint: <subcommand> [options]
 ---
@@ -17,13 +17,14 @@ Unified management of extension points across release commands.
 | `matrix` | Show cross-command comparison |
 ---
 ## Target Commands
-| Command | File |
+| Command | Path |
 |---------|------|
-| `/create-branch` | `Templates/commands/create-branch.md` |
-| `/prepare-release` | `Templates/commands/prepare-release.md` |
-| `/merge-branch` | `Templates/commands/merge-branch.md` |
-| `/destroy-branch` | `Templates/commands/destroy-branch.md` |
-| `/prepare-beta` | `Templates/commands/prepare-beta.md` |
+| `/create-branch` | `.claude/commands/create-branch.md` |
+| `/prepare-release` | `.claude/commands/prepare-release.md` |
+| `/merge-branch` | `.claude/commands/merge-branch.md` |
+| `/destroy-branch` | `.claude/commands/destroy-branch.md` |
+| `/prepare-beta` | `.claude/commands/prepare-beta.md` |
+**Note:** Always scan `.claude/commands/` - where project commands live after installation.
 ---
 ## Subcommand: list
 **Usage:** `/extensions list [--command <name>]`

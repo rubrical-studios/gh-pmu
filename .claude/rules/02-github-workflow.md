@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** v0.25.0
+**Version:** v0.26.3
 **Source:** Reference/GitHub-Workflow.md
 ---
 **MUST READ:** At session startup and after compaction.
@@ -25,6 +25,19 @@ Use alias (left side) in commands: `gh pmu move 90 --status in_progress`
 ```bash
 gh extension install rubrical-studios/gh-pmu
 ```
+## Branch Semantics
+**Key Principle:** Any branch (except `main`) can produce a release.
+Branch naming requires `{prefix}/{name}` format. Prefix is organizational convention, not functional:
+| Prefix | Convention | Can Release? |
+|--------|------------|--------------|
+| `release/` | Version releases | ✅ |
+| `patch/` | Hotfixes | ✅ |
+| `idpf/` | Framework dev | ✅ |
+| `feature/` | Feature work | ✅ |
+| `hotfix/` | Urgent fixes | ✅ |
+**Invalid:** Branch names without prefix (e.g., `my-branch`) fail validation.
+**`main` branch:** Protected (no direct pushes), PR-only, tag source after merge.
+**Working branch:** Any non-main branch. Term "release branch" avoided—all working branches can produce releases.
 ## gh pmu Command Reference
 **Issue Management:**
 | Command | Replaces |
@@ -72,7 +85,7 @@ Prefer slash commands over raw `gh pmu` commands:
 - **Issues close ONLY when user says "Done"** - Never close automatically, skip STOP checkpoint, or close because code shipped
 - **Acceptance criteria must be checked** - All boxes checked before In Review or Done; evaluate criteria when moving to In Review
 - **No auto-close keywords until Done** - Use `Refs #XXX` (not `Fixes/Closes/Resolves #XXX`) until user approves
-- **All work on release branches** - Never push to main directly; work requires Release field; checkout release branch before working
+- **All work on working branches** - Never push to main directly; work requires branch tracker; checkout working branch before working (see Branch Semantics)
 - **Work requires explicit trigger** - After "evaluate", "review", or "assess" commands, STOP after analysis. Never implement until user says "work", "fix that", or "implement that". Clarifying questions ≠ work permission.
 ### Commit Message Keywords
 | Phase | Use | Avoid |
@@ -85,7 +98,7 @@ Prefer slash commands over raw `gh pmu` commands:
 | IDPF-Agile | Primary | Optional | Optional |
 | IDPF-Vibe | Optional | - | - |
 ## Sprint-Release Binding
-Each sprint scoped to one release; `microsprint start` requires active release; sprint issues must match release; work on release branch.
+Each sprint scoped to one branch tracker; `microsprint start` requires active branch; sprint issues must match branch assignment; work on working branch (not main).
 ## Workflow Routing (CRITICAL)
 **Step 1: Determine Framework** from `.gh-pmu.yml` or labels:
 | Framework | Parent Label | Child Labels |
