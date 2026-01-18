@@ -1,7 +1,7 @@
 ---
 version: "v0.26.3"
 description: Prepare framework release with version updates and validation (project)
-argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run)
+argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run, skip-e2e)
 ---
 <!-- EXTENSIBLE -->
 # /prepare-release
@@ -100,6 +100,19 @@ Check if docs need updates based on changes:
 - [ ] `README.md` - if user-facing features changed
 
 **Only update if changes affect documentation.**
+
+### E2E Impact Analysis
+
+```bash
+node .claude/scripts/e2e/analyze-e2e-impact.js
+```
+
+The script analyzes which E2E tests may be impacted by changes:
+- `impactedTests`: Test files that cover changed commands
+- `newCommandsWithoutTests`: Commands modified without E2E coverage
+- `recommendation`: Suggested test review actions
+
+**If `newCommandsWithoutTests` is non-empty, warn user about missing coverage.**
 <!-- USER-EXTENSION-END: post-analysis -->
 ---
 ## Phase 2: Validation
@@ -156,6 +169,20 @@ release:
       - "*_test.go"
       - "mock_*.go"
 ```
+
+### E2E Gate
+
+**If `--skip-e2e` was passed, skip this section.**
+
+```bash
+node .claude/scripts/e2e/run-e2e-gate.js
+```
+
+The script outputs JSON: `{"success": true/false, "testsRun": N, "testsPassed": N, "duration": N}`
+
+**If `success` is false, STOP and report the error.**
+
+E2E tests validate complete workflows against the test project.
 <!-- USER-EXTENSION-END: post-validation -->
 **ASK USER:** Confirm validation passed.
 ---

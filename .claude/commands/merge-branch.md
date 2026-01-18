@@ -1,7 +1,7 @@
 ---
 version: "v0.26.3"
 description: Merge branch to main with gated checks
-argument-hint: [--skip-gates] [--dry-run]
+argument-hint: [--skip-gates] [--skip-e2e] [--dry-run]
 ---
 <!-- EXTENSIBLE -->
 # /merge-branch
@@ -50,7 +50,19 @@ npm test 2>/dev/null || echo "No test script configured"
 ```
 **FAIL if tests fail.**
 <!-- USER-EXTENSION-START: gates -->
-<!-- Custom gates: coverage, lint, security -->
+#### Gate 1.3: E2E Tests Pass
+
+**If `--skip-e2e` was passed, skip this gate.**
+
+```bash
+node .claude/scripts/e2e/run-e2e-gate.js
+```
+
+The script outputs JSON: `{"success": true/false, "testsRun": N, "testsPassed": N, "duration": N}`
+
+**FAIL if `success` is false.**
+
+E2E tests validate complete workflows against the test project.
 <!-- USER-EXTENSION-END: gates -->
 ### Gate Summary
 - ✅ Passed / ❌ Failed (with details)

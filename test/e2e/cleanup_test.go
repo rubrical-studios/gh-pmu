@@ -1,0 +1,149 @@
+//go:build e2e
+
+package e2e
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"testing"
+)
+
+const testRepo = "rubrical-studios/gh-pmu-e2e-test"
+
+// TestCleanupE2EIssues cleans up any leftover E2E test issues.
+// This test only runs when E2E_CLEANUP=true is set.
+func TestCleanupE2EIssues(t *testing.T) {
+	if os.Getenv("E2E_CLEANUP") != "true" {
+		t.Skip("E2E_CLEANUP not set to true, skipping cleanup")
+	}
+
+	cleanupE2EIssues(t)
+}
+
+// cleanupE2EIssues finds and deletes all issues with [E2E] prefix.
+func cleanupE2EIssues(t *testing.T) {
+	t.Helper()
+
+	// Find all open issues with [E2E] prefix
+	issues := findE2EIssues(t)
+
+	if len(issues) == 0 {
+		t.Log("No E2E test issues found to clean up")
+		return
+	}
+
+	t.Logf("Found %d E2E test issues to clean up", len(issues))
+
+	for _, issue := range issues {
+		closeAndDeleteIssue(t, issue.Number, issue.Title)
+	}
+
+	t.Logf("Cleanup complete: removed %d issues", len(issues))
+}
+
+// e2eIssue represents a test issue to clean up
+type e2eIssue struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+}
+
+// findE2EIssues searches for issues with [E2E] prefix in the test repository.
+func findE2EIssues(t *testing.T) []e2eIssue {
+	t.Helper()
+
+	// Use gh issue list to find [E2E] issues
+	cmd := exec.Command("gh", "issue", "list",
+		"--repo", testRepo,
+		"--search", "[E2E] in:title",
+		"--state", "all",
+		"--limit", "100",
+		"--json", "number,title",
+	)
+
+	output, err := cmd.Output()
+	if err != nil {
+		t.Logf("Warning: failed to list E2E issues: %v", err)
+		return nil
+	}
+
+	var issues []e2eIssue
+	if err := json.Unmarshal(output, &issues); err != nil {
+		t.Logf("Warning: failed to parse issue list: %v", err)
+		return nil
+	}
+
+	// Filter to only issues with [E2E] prefix (search might include false positives)
+	var filtered []e2eIssue
+	for _, issue := range issues {
+		if strings.HasPrefix(issue.Title, "[E2E]") {
+			filtered = append(filtered, issue)
+		}
+	}
+
+	return filtered
+}
+
+// closeAndDeleteIssue closes and deletes a single issue, logging the action.
+func closeAndDeleteIssue(t *testing.T, number int, title string) {
+	t.Helper()
+
+	t.Logf("Removing issue #%d: %s", number, title)
+
+	// Close the issue
+	closeCmd := exec.Command("gh", "issue", "close",
+		"--repo", testRepo,
+		strconv.Itoa(number),
+		"--reason", "not planned",
+	)
+	if output, err := closeCmd.CombinedOutput(); err != nil {
+		t.Logf("  Warning: failed to close #%d: %v\n  Output: %s", number, err, output)
+	}
+
+	// Delete the issue (requires admin permissions)
+	deleteCmd := exec.Command("gh", "issue", "delete",
+		"--repo", testRepo,
+		strconv.Itoa(number),
+		"--yes",
+	)
+	if output, err := deleteCmd.CombinedOutput(); err != nil {
+		// Log but don't fail - deletion may not be available
+		t.Logf("  Note: could not delete #%d (may require admin): %v", number, err)
+		_ = output // suppress unused warning
+	} else {
+		t.Logf("  Deleted issue #%d", number)
+	}
+}
+
+// runCleanupAfterTest is a helper that can be deferred in tests to clean up
+// a specific issue after the test completes.
+func runCleanupAfterTest(t *testing.T, issueNum int) {
+	t.Helper()
+
+	if issueNum <= 0 {
+		return
+	}
+
+	// Get issue title for logging
+	cmd := exec.Command("gh", "issue", "view",
+		"--repo", testRepo,
+		strconv.Itoa(issueNum),
+		"--json", "title",
+	)
+	output, _ := cmd.Output()
+
+	var result struct {
+		Title string `json:"title"`
+	}
+	json.Unmarshal(output, &result)
+
+	title := result.Title
+	if title == "" {
+		title = fmt.Sprintf("Issue #%d", issueNum)
+	}
+
+	closeAndDeleteIssue(t, issueNum, title)
+}

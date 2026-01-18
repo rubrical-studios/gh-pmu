@@ -1,7 +1,7 @@
 ---
 version: "v0.26.3"
 description: Tag beta from feature branch (no merge to main)
-argument-hint: [--skip-coverage] [--dry-run] [--help]
+argument-hint: [--skip-coverage] [--skip-e2e] [--dry-run] [--help]
 ---
 <!-- EXTENSIBLE -->
 # /prepare-beta
@@ -58,6 +58,19 @@ node .claude/scripts/framework/recommend-version.js
 ```
 
 Recommend beta version (e.g., `v1.0.0-beta.1`).
+
+### E2E Impact Analysis
+
+```bash
+node .claude/scripts/e2e/analyze-e2e-impact.js
+```
+
+The script analyzes which E2E tests may be impacted by changes:
+- `impactedTests`: Test files that cover changed commands
+- `newCommandsWithoutTests`: Commands modified without E2E coverage
+- `recommendation`: Suggested test review actions
+
+**If `newCommandsWithoutTests` is non-empty, warn user about missing coverage.**
 <!-- USER-EXTENSION-END: post-analysis -->
 **ASK USER:** Confirm beta version before proceeding.
 ---
@@ -88,6 +101,20 @@ node .claude/scripts/prepare-release/coverage.js
 ```
 
 **If `success` is false, STOP and report the error.**
+
+### E2E Gate (Optional for Beta)
+
+**If `--skip-e2e` was passed, skip this section.**
+
+```bash
+node .claude/scripts/e2e/run-e2e-gate.js
+```
+
+The script outputs JSON: `{"success": true/false, "testsRun": N, "testsPassed": N, "duration": N}`
+
+**If `success` is false, STOP and report the error.**
+
+E2E tests validate complete workflows against the test project.
 <!-- USER-EXTENSION-END: post-validation -->
 **ASK USER:** Confirm validation passed before proceeding.
 ---
@@ -103,7 +130,9 @@ node .claude/scripts/framework/wait-for-ci.js
 The script polls CI status every 60 seconds (5-minute timeout).
 
 **If CI fails, STOP and report the error.**
+
 <!-- USER-EXTENSION-END: post-prepare -->
+
 ---
 ## Phase 4: Tag (No Merge)
 ### Step 4.1: Commit Changes
@@ -112,7 +141,9 @@ git add -A
 git commit -m "chore: prepare beta $VERSION"
 git push origin $(git branch --show-current)
 ```
+
 <!-- USER-EXTENSION-START: pre-tag -->
+
 ### Important Rules
 
 1. **NEVER skip CI verification** - Always wait for green CI
