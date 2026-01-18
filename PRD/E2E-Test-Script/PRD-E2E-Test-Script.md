@@ -1,6 +1,6 @@
 # PRD: E2E Test Script
 
-**Status:** Draft
+**Status:** Backlog Created
 **Created:** 2026-01-17
 **Source Proposal:** Proposal/PROPOSAL-E2E-Test-Script.md
 
