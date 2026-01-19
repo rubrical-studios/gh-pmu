@@ -12,8 +12,8 @@ var defaultsYAML []byte
 
 // Defaults holds the parsed default configuration.
 type Defaults struct {
-	Labels []LabelDef   `yaml:"labels"`
-	Fields FieldsDef    `yaml:"fields"`
+	Labels []LabelDef `yaml:"labels"`
+	Fields FieldsDef  `yaml:"fields"`
 }
 
 // LabelDef represents a label definition.
