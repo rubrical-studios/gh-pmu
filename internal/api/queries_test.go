@@ -1312,6 +1312,85 @@ func TestGetProjectItems_WithFilter(t *testing.T) {
 	}
 }
 
+func TestGetProjectItems_WithStateFilter(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItems" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+
+				nodeType := nodes.Type().Elem()
+				newNodes := reflect.MakeSlice(nodes.Type(), 3, 3)
+
+				// Item 1 - OPEN issue
+				node1 := reflect.New(nodeType).Elem()
+				node1.FieldByName("ID").SetString("item-1")
+				content1 := node1.FieldByName("Content")
+				content1.FieldByName("TypeName").SetString("Issue")
+				issue1 := content1.FieldByName("Issue")
+				issue1.FieldByName("ID").SetString("issue-1")
+				issue1.FieldByName("Number").SetInt(1)
+				issue1.FieldByName("Title").SetString("Open Issue")
+				issue1.FieldByName("State").SetString("OPEN")
+				repo1 := issue1.FieldByName("Repository")
+				repo1.FieldByName("NameWithOwner").SetString("owner/repo")
+				newNodes.Index(0).Set(node1)
+
+				// Item 2 - CLOSED issue
+				node2 := reflect.New(nodeType).Elem()
+				node2.FieldByName("ID").SetString("item-2")
+				content2 := node2.FieldByName("Content")
+				content2.FieldByName("TypeName").SetString("Issue")
+				issue2 := content2.FieldByName("Issue")
+				issue2.FieldByName("ID").SetString("issue-2")
+				issue2.FieldByName("Number").SetInt(2)
+				issue2.FieldByName("Title").SetString("Closed Issue")
+				issue2.FieldByName("State").SetString("CLOSED")
+				repo2 := issue2.FieldByName("Repository")
+				repo2.FieldByName("NameWithOwner").SetString("owner/repo")
+				newNodes.Index(1).Set(node2)
+
+				// Item 3 - Another OPEN issue
+				node3 := reflect.New(nodeType).Elem()
+				node3.FieldByName("ID").SetString("item-3")
+				content3 := node3.FieldByName("Content")
+				content3.FieldByName("TypeName").SetString("Issue")
+				issue3 := content3.FieldByName("Issue")
+				issue3.FieldByName("ID").SetString("issue-3")
+				issue3.FieldByName("Number").SetInt(3)
+				issue3.FieldByName("Title").SetString("Another Open")
+				issue3.FieldByName("State").SetString("OPEN")
+				repo3 := issue3.FieldByName("Repository")
+				repo3.FieldByName("NameWithOwner").SetString("owner/repo")
+				newNodes.Index(2).Set(node3)
+
+				nodes.Set(newNodes)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	openState := "OPEN"
+	items, err := client.GetProjectItems("proj-id", &ProjectItemsFilter{State: &openState})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("Expected 2 open items, got %d", len(items))
+	}
+	if items[0].Issue.Title != "Open Issue" {
+		t.Errorf("Expected first issue title 'Open Issue', got '%s'", items[0].Issue.Title)
+	}
+	if items[1].Issue.Title != "Another Open" {
+		t.Errorf("Expected second issue title 'Another Open', got '%s'", items[1].Issue.Title)
+	}
+}
+
 func TestGetProjectItems_SkipsNonIssues(t *testing.T) {
 	mock := &queryMockClient{
 		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {

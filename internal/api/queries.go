@@ -493,8 +493,9 @@ func (c *Client) GetProjectItemIDForIssue(projectID, owner, repo string, number 
 
 // ProjectItemsFilter allows filtering project items
 type ProjectItemsFilter struct {
-	Repository string // Filter by repository (owner/repo format)
-	Limit      int    // Maximum number of items to return (0 = no limit)
+	Repository string  // Filter by repository (owner/repo format)
+	State      *string // Filter by issue state: "OPEN", "CLOSED", or nil for all
+	Limit      int     // Maximum number of items to return (0 = no limit)
 }
 
 // GetProjectItems fetches all items from a project with their field values.
@@ -529,6 +530,14 @@ func (c *Client) GetProjectItems(projectID string, filter *ProjectItemsFilter) (
 					}
 				}
 			}
+
+			// Apply state filter if specified
+			if filter != nil && filter.State != nil {
+				if item.Issue == nil || item.Issue.State != *filter.State {
+					continue
+				}
+			}
+
 			allItems = append(allItems, item)
 
 			// Early termination if limit is reached
@@ -940,7 +949,8 @@ func (c *Client) GetProjectItemsByIssues(projectID string, refs []IssueRef) ([]P
 
 // BoardItemsFilter allows filtering board items
 type BoardItemsFilter struct {
-	Repository string // Filter by repository (owner/repo format)
+	Repository string  // Filter by repository (owner/repo format)
+	State      *string // Filter by issue state: "OPEN", "CLOSED", or nil for all
 }
 
 // GetProjectItemsForBoard fetches minimal project item data optimized for board display.
@@ -967,6 +977,14 @@ func (c *Client) GetProjectItemsForBoard(projectID string, filter *BoardItemsFil
 					continue
 				}
 			}
+
+			// Apply state filter if specified
+			if filter != nil && filter.State != nil {
+				if item.State != *filter.State {
+					continue
+				}
+			}
+
 			allItems = append(allItems, item)
 		}
 
@@ -991,6 +1009,7 @@ func (c *Client) getBoardItemsPage(projectID string, cursor *string) ([]BoardIte
 							Issue    struct {
 								Number     int
 								Title      string
+								State      string
 								Repository struct {
 									NameWithOwner string
 								}
@@ -1042,6 +1061,7 @@ func (c *Client) getBoardItemsPage(projectID string, cursor *string) ([]BoardIte
 		item := BoardItem{
 			Number:     node.Content.Issue.Number,
 			Title:      node.Content.Issue.Title,
+			State:      node.Content.Issue.State,
 			Repository: node.Content.Issue.Repository.NameWithOwner,
 		}
 
