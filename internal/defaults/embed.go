@@ -53,3 +53,13 @@ func MustLoad() *Defaults {
 	}
 	return d
 }
+
+// GetLabel returns the label definition for a given name, or nil if not found.
+func (d *Defaults) GetLabel(name string) *LabelDef {
+	for i := range d.Labels {
+		if d.Labels[i].Name == name {
+			return &d.Labels[i]
+		}
+	}
+	return nil
+}
