@@ -1750,10 +1750,36 @@ func (c *Client) searchIssuesPage(query string, pageSize int, cursor *string) ([
 
 // GetOpenIssuesByLabel fetches open issues with a specific label
 func (c *Client) GetOpenIssuesByLabel(owner, repo, label string) ([]Issue, error) {
+	return c.getIssuesByLabelPaginated(owner, repo, label, []IssueState{IssueStateOpen})
+}
+
+// getIssuesByLabelPaginated fetches all issues with a specific label using cursor-based pagination
+func (c *Client) getIssuesByLabelPaginated(owner, repo, label string, states []IssueState) ([]Issue, error) {
 	if c.gql == nil {
 		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
 
+	var allIssues []Issue
+	var cursor *string
+
+	for {
+		issues, pi, err := c.getIssuesByLabelPage(owner, repo, label, states, cursor)
+		if err != nil {
+			return nil, err
+		}
+		allIssues = append(allIssues, issues...)
+
+		if !pi.HasNextPage {
+			break
+		}
+		cursor = &pi.EndCursor
+	}
+
+	return allIssues, nil
+}
+
+// getIssuesByLabelPage fetches a single page of issues with a specific label
+func (c *Client) getIssuesByLabelPage(owner, repo, label string, states []IssueState, cursor *string) ([]Issue, pageInfo, error) {
 	var query struct {
 		Repository struct {
 			Issues struct {
@@ -1773,19 +1799,24 @@ func (c *Client) GetOpenIssuesByLabel(owner, repo, label string) ([]Issue, error
 					HasNextPage bool
 					EndCursor   string
 				}
-			} `graphql:"issues(first: 100, states: [OPEN], labels: [$label])"`
+			} `graphql:"issues(first: 100, after: $cursor, states: $states, labels: [$label])"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
 	variables := map[string]interface{}{
-		"owner": graphql.String(owner),
-		"repo":  graphql.String(repo),
-		"label": graphql.String(label),
+		"owner":  graphql.String(owner),
+		"repo":   graphql.String(repo),
+		"label":  graphql.String(label),
+		"states": states,
+		"cursor": (*graphql.String)(nil),
+	}
+	if cursor != nil {
+		variables["cursor"] = graphql.String(*cursor)
 	}
 
-	err := c.gql.Query("GetOpenIssuesByLabel", &query, variables)
+	err := c.gql.Query("GetIssuesByLabel", &query, variables)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get issues with label %s from %s/%s: %w", label, owner, repo, err)
+		return nil, pageInfo{}, fmt.Errorf("failed to get issues with label %s from %s/%s: %w", label, owner, repo, err)
 	}
 
 	var issues []Issue
@@ -1808,70 +1839,15 @@ func (c *Client) GetOpenIssuesByLabel(owner, repo, label string) ([]Issue, error
 		})
 	}
 
-	return issues, nil
+	return issues, pageInfo{
+		HasNextPage: query.Repository.Issues.PageInfo.HasNextPage,
+		EndCursor:   query.Repository.Issues.PageInfo.EndCursor,
+	}, nil
 }
 
 // GetClosedIssuesByLabel fetches closed issues with a specific label
 func (c *Client) GetClosedIssuesByLabel(owner, repo, label string) ([]Issue, error) {
-	if c.gql == nil {
-		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
-	}
-
-	var query struct {
-		Repository struct {
-			Issues struct {
-				Nodes []struct {
-					ID     string
-					Number int
-					Title  string
-					State  string
-					URL    string `graphql:"url"`
-					Labels struct {
-						Nodes []struct {
-							Name string
-						}
-					} `graphql:"labels(first: 10)"`
-				}
-				PageInfo struct {
-					HasNextPage bool
-					EndCursor   string
-				}
-			} `graphql:"issues(first: 100, states: [CLOSED], labels: [$label])"`
-		} `graphql:"repository(owner: $owner, name: $repo)"`
-	}
-
-	variables := map[string]interface{}{
-		"owner": graphql.String(owner),
-		"repo":  graphql.String(repo),
-		"label": graphql.String(label),
-	}
-
-	err := c.gql.Query("GetClosedIssuesByLabel", &query, variables)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get closed issues with label %s from %s/%s: %w", label, owner, repo, err)
-	}
-
-	var issues []Issue
-	for _, node := range query.Repository.Issues.Nodes {
-		var labels []Label
-		for _, l := range node.Labels.Nodes {
-			labels = append(labels, Label{Name: l.Name})
-		}
-		issues = append(issues, Issue{
-			ID:     node.ID,
-			Number: node.Number,
-			Title:  node.Title,
-			State:  node.State,
-			URL:    node.URL,
-			Labels: labels,
-			Repository: Repository{
-				Owner: owner,
-				Name:  repo,
-			},
-		})
-	}
-
-	return issues, nil
+	return c.getIssuesByLabelPaginated(owner, repo, label, []IssueState{IssueStateClosed})
 }
 
 // GetParentIssue fetches the parent issue for a given sub-issue
