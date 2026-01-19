@@ -618,6 +618,25 @@ func TestGetSubIssueCounts_EmptyInput(t *testing.T) {
 }
 
 // ============================================================================
+// GetSubIssuesBatch Tests
+// ============================================================================
+// Note: GetSubIssuesBatch uses exec.Command("gh", ...) which makes full pagination
+// testing difficult without E2E tests. The empty input test validates basic behavior,
+// while pagination fallback behavior is verified through E2E tests with large epics.
+
+func TestGetSubIssuesBatch_EmptyInput(t *testing.T) {
+	client := NewClient()
+	result, err := client.GetSubIssuesBatch("owner", "repo", []int{})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("Expected empty result map, got %d entries", len(result))
+	}
+}
+
+// ============================================================================
 // GetProjectItemIDForIssue Tests
 // ============================================================================
 

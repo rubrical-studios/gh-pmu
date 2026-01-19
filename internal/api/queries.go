@@ -1221,7 +1221,7 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 	}
 
 	// Build a GraphQL query with aliases for each issue
-	// Fetches first 100 sub-issues per parent (matches GetSubIssues pagination)
+	// Fetches first 100 sub-issues per parent, includes pageInfo to detect truncation
 	var queryParts []string
 	for i, num := range numbers {
 		queryParts = append(queryParts, fmt.Sprintf(`i%d: issue(number: %d) {
@@ -1236,6 +1236,9 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 						name
 						owner { login }
 					}
+				}
+				pageInfo {
+					hasNextPage
 				}
 			}
 		}`, i, num))
@@ -1297,11 +1300,42 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 						} `json:"owner"`
 					} `json:"repository"`
 				} `json:"nodes"`
+				PageInfo struct {
+					HasNextPage bool `json:"hasNextPage"`
+				} `json:"pageInfo"`
 			} `json:"subIssues"`
 		}
 
 		if err := json.Unmarshal(issueData, &issueResponse); err != nil {
 			result[num] = []SubIssue{}
+			continue
+		}
+
+		// Check if this parent has more sub-issues than we fetched
+		if issueResponse.SubIssues.PageInfo.HasNextPage {
+			// Fall back to paginated GetSubIssues for this parent
+			fmt.Fprintf(os.Stderr, "Note: Issue #%d has >100 sub-issues, fetching all pages...\n", num)
+			allSubIssues, err := c.GetSubIssues(owner, repo, num)
+			if err != nil {
+				// If fallback fails, use what we got from batch
+				var subIssues []SubIssue
+				for _, node := range issueResponse.SubIssues.Nodes {
+					subIssues = append(subIssues, SubIssue{
+						ID:     node.ID,
+						Number: node.Number,
+						Title:  node.Title,
+						State:  node.State,
+						URL:    node.URL,
+						Repository: Repository{
+							Owner: node.Repository.Owner.Login,
+							Name:  node.Repository.Name,
+						},
+					})
+				}
+				result[num] = subIssues
+			} else {
+				result[num] = allSubIssues
+			}
 			continue
 		}
 
