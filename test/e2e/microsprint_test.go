@@ -18,11 +18,15 @@ func TestMicrosprintLifecycle(t *testing.T) {
 
 	// Track resources for cleanup
 	var testIssueNum int
+	var trackerIssueNum int
 
 	// Cleanup at end of test
 	defer func() {
 		if testIssueNum > 0 {
 			runCleanupAfterTest(t, testIssueNum)
+		}
+		if trackerIssueNum > 0 {
+			runCleanupAfterTest(t, trackerIssueNum)
 		}
 		// Ensure microsprint is closed even if test fails
 		runPMU(t, cfg.Dir, "microsprint", "close", "--skip-retro")
@@ -33,6 +37,16 @@ func TestMicrosprintLifecycle(t *testing.T) {
 		result := runPMU(t, cfg.Dir, "microsprint", "start", "--name", sprintName)
 		assertExitCode(t, result, 0)
 		assertContains(t, result.Stdout, sprintName)
+		// Extract tracker issue number for label verification and cleanup
+		trackerIssueNum = extractIssueNumber(t, result.Stdout)
+	})
+
+	// Step 1b: Verify tracker issue has 'microsprint' label
+	t.Run("verify microsprint label", func(t *testing.T) {
+		if trackerIssueNum == 0 {
+			t.Skip("No tracker issue number available")
+		}
+		assertHasLabel(t, trackerIssueNum, "microsprint")
 	})
 
 	// Step 2: Verify microsprint current shows the sprint

@@ -193,3 +193,40 @@ func deleteTestIssue(t *testing.T, issueNum int) {
 	)
 	_ = deleteCmd.Run() // Ignore errors - deletion may not be available
 }
+
+// getIssueLabels retrieves labels for an issue using gh CLI.
+// Returns a slice of label names.
+func getIssueLabels(t *testing.T, issueNum int) []string {
+	t.Helper()
+
+	repo := "rubrical-studios/gh-pmu-e2e-test"
+	cmd := exec.Command("gh", "issue", "view",
+		"--repo", repo,
+		strconv.Itoa(issueNum),
+		"--json", "labels",
+		"--jq", ".labels[].name",
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("Failed to get labels for issue #%d: %v", issueNum, err)
+	}
+	labelsStr := strings.TrimSpace(string(output))
+	if labelsStr == "" {
+		return []string{}
+	}
+	return strings.Split(labelsStr, "\n")
+}
+
+// assertHasLabel verifies an issue has a specific label.
+// Fails the test if the label is not found.
+func assertHasLabel(t *testing.T, issueNum int, expectedLabel string) {
+	t.Helper()
+
+	labels := getIssueLabels(t, issueNum)
+	for _, label := range labels {
+		if label == expectedLabel {
+			return
+		}
+	}
+	t.Errorf("Issue #%d missing expected label %q, has: %v", issueNum, expectedLabel, labels)
+}

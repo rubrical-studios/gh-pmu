@@ -179,3 +179,114 @@ func TestMultiIssueMoveWorkflow(t *testing.T) {
 		}
 	})
 }
+
+// TestCreateWithLabel verifies the --label flag applies labels correctly
+func TestCreateWithLabel(t *testing.T) {
+	cfg := setupTestConfig(t)
+
+	var issueNum int
+
+	// Cleanup at end of test
+	defer func() {
+		if issueNum > 0 {
+			runCleanupAfterTest(t, issueNum)
+		}
+	}()
+
+	// Step 1: Create issue with --label bug
+	t.Run("create issue with label", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "create",
+			"--title", "[E2E] Create With Label Test",
+			"--status", "backlog",
+			"--label", "bug",
+		)
+		assertExitCode(t, result, 0)
+		issueNum = extractIssueNumber(t, result.Stdout)
+		t.Logf("Created issue #%d with bug label", issueNum)
+	})
+
+	// Step 2: Verify label was applied
+	t.Run("verify label applied", func(t *testing.T) {
+		if issueNum == 0 {
+			t.Skip("No issue number available")
+		}
+		assertHasLabel(t, issueNum, "bug")
+	})
+}
+
+// TestCreateWithWorkflowLabels verifies workflow labels (epic, story, enhancement) can be applied
+func TestCreateWithWorkflowLabels(t *testing.T) {
+	cfg := setupTestConfig(t)
+
+	var epicNum, storyNum, enhancementNum int
+
+	// Cleanup at end of test
+	defer func() {
+		if enhancementNum > 0 {
+			runCleanupAfterTest(t, enhancementNum)
+		}
+		if storyNum > 0 {
+			runCleanupAfterTest(t, storyNum)
+		}
+		if epicNum > 0 {
+			runCleanupAfterTest(t, epicNum)
+		}
+	}()
+
+	// Test epic label
+	t.Run("create issue with epic label", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "create",
+			"--title", "[E2E] Epic Label Test",
+			"--status", "backlog",
+			"--label", "epic",
+		)
+		assertExitCode(t, result, 0)
+		epicNum = extractIssueNumber(t, result.Stdout)
+		t.Logf("Created issue #%d with epic label", epicNum)
+	})
+
+	t.Run("verify epic label applied", func(t *testing.T) {
+		if epicNum == 0 {
+			t.Skip("No epic issue number available")
+		}
+		assertHasLabel(t, epicNum, "epic")
+	})
+
+	// Test story label
+	t.Run("create issue with story label", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "create",
+			"--title", "[E2E] Story Label Test",
+			"--status", "backlog",
+			"--label", "story",
+		)
+		assertExitCode(t, result, 0)
+		storyNum = extractIssueNumber(t, result.Stdout)
+		t.Logf("Created issue #%d with story label", storyNum)
+	})
+
+	t.Run("verify story label applied", func(t *testing.T) {
+		if storyNum == 0 {
+			t.Skip("No story issue number available")
+		}
+		assertHasLabel(t, storyNum, "story")
+	})
+
+	// Test enhancement label
+	t.Run("create issue with enhancement label", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "create",
+			"--title", "[E2E] Enhancement Label Test",
+			"--status", "backlog",
+			"--label", "enhancement",
+		)
+		assertExitCode(t, result, 0)
+		enhancementNum = extractIssueNumber(t, result.Stdout)
+		t.Logf("Created issue #%d with enhancement label", enhancementNum)
+	})
+
+	t.Run("verify enhancement label applied", func(t *testing.T) {
+		if enhancementNum == 0 {
+			t.Skip("No enhancement issue number available")
+		}
+		assertHasLabel(t, enhancementNum, "enhancement")
+	})
+}
