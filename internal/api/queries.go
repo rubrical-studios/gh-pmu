@@ -1344,6 +1344,28 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 		states = []IssueState{IssueState(state)}
 	}
 
+	// Use cursor-based pagination to fetch all issues
+	var allIssues []Issue
+	var cursor *string
+
+	for {
+		issues, pi, err := c.getRepositoryIssuesPage(owner, repo, states, cursor)
+		if err != nil {
+			return nil, err
+		}
+		allIssues = append(allIssues, issues...)
+
+		if !pi.HasNextPage {
+			break
+		}
+		cursor = &pi.EndCursor
+	}
+
+	return allIssues, nil
+}
+
+// getRepositoryIssuesPage fetches a single page of repository issues
+func (c *Client) getRepositoryIssuesPage(owner, repo string, states []IssueState, cursor *string) ([]Issue, pageInfo, error) {
 	var query struct {
 		Repository struct {
 			Issues struct {
@@ -1358,7 +1380,7 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 					HasNextPage bool
 					EndCursor   string
 				}
-			} `graphql:"issues(first: 100, states: $states)"`
+			} `graphql:"issues(first: 100, after: $cursor, states: $states)"`
 		} `graphql:"repository(owner: $owner, name: $repo)"`
 	}
 
@@ -1366,11 +1388,15 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 		"owner":  graphql.String(owner),
 		"repo":   graphql.String(repo),
 		"states": states,
+		"cursor": (*graphql.String)(nil),
+	}
+	if cursor != nil {
+		variables["cursor"] = graphql.String(*cursor)
 	}
 
 	err := c.gql.Query("GetRepositoryIssues", &query, variables)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get issues from %s/%s: %w", owner, repo, err)
+		return nil, pageInfo{}, fmt.Errorf("failed to get issues from %s/%s: %w", owner, repo, err)
 	}
 
 	var issues []Issue
@@ -1388,7 +1414,10 @@ func (c *Client) GetRepositoryIssues(owner, repo, state string) ([]Issue, error)
 		})
 	}
 
-	return issues, nil
+	return issues, pageInfo{
+		HasNextPage: query.Repository.Issues.PageInfo.HasNextPage,
+		EndCursor:   query.Repository.Issues.PageInfo.EndCursor,
+	}, nil
 }
 
 // SearchRepositoryIssues searches for issues in a repository using GitHub Search API.
