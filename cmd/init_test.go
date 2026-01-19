@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rubrical-studios/gh-pmu/internal/api"
 )
 
 func TestInitCommand_Exists(t *testing.T) {
@@ -1143,5 +1145,73 @@ func TestWriteConfigWithMetadata_IncludesParkingLot(t *testing.T) {
 	// Should contain the original name with emoji
 	if !bytes.Contains(content, []byte("Parking Lot")) {
 		t.Error("Config should contain 'Parking Lot' value")
+	}
+}
+
+func TestFindFieldByName(t *testing.T) {
+	fields := []api.ProjectField{
+		{ID: "1", Name: "Status", DataType: "SINGLE_SELECT"},
+		{ID: "2", Name: "Priority", DataType: "SINGLE_SELECT"},
+		{ID: "3", Name: "Branch", DataType: "TEXT"},
+	}
+
+	tests := []struct {
+		name      string
+		fieldName string
+		wantID    string
+		wantNil   bool
+	}{
+		{
+			name:      "find Status field",
+			fieldName: "Status",
+			wantID:    "1",
+			wantNil:   false,
+		},
+		{
+			name:      "find Priority field",
+			fieldName: "Priority",
+			wantID:    "2",
+			wantNil:   false,
+		},
+		{
+			name:      "find Branch field",
+			fieldName: "Branch",
+			wantID:    "3",
+			wantNil:   false,
+		},
+		{
+			name:      "field not found",
+			fieldName: "NonExistent",
+			wantNil:   true,
+		},
+		{
+			name:      "case sensitive - lowercase",
+			fieldName: "status",
+			wantNil:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findFieldByName(fields, tt.fieldName)
+			if tt.wantNil {
+				if result != nil {
+					t.Errorf("findFieldByName() = %v, want nil", result)
+				}
+			} else {
+				if result == nil {
+					t.Errorf("findFieldByName() = nil, want field with ID %s", tt.wantID)
+				} else if result.ID != tt.wantID {
+					t.Errorf("findFieldByName().ID = %s, want %s", result.ID, tt.wantID)
+				}
+			}
+		})
+	}
+}
+
+func TestFindFieldByName_EmptySlice(t *testing.T) {
+	result := findFieldByName([]api.ProjectField{}, "Status")
+	if result != nil {
+		t.Errorf("findFieldByName() on empty slice = %v, want nil", result)
 	}
 }

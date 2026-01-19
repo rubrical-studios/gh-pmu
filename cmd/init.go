@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/defaults"
 	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -249,47 +250,79 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Load embedded defaults
+	defs, err := defaults.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load embedded defaults: %w", err)
+	}
+
 	// Fetch project fields
 	fmt.Fprintln(cmd.OutOrStdout())
 	spinner = ui.NewSpinner(cmd.OutOrStdout(), "Fetching project fields...")
 	spinner.Start()
-	_, err = client.GetProjectFields(selectedProject.ID)
+	projectFields, err := client.GetProjectFields(selectedProject.ID)
 	spinner.Stop()
 
 	if err != nil {
-		u.Warning(fmt.Sprintf("Could not fetch project fields: %v", err))
+		return fmt.Errorf("could not fetch project fields: %w", err)
 	}
 
 	// Check and create required fields (IDPF only)
 	repoOwner, repoName := splitRepository(repo)
 	if framework == "IDPF" {
 		fmt.Fprintln(cmd.OutOrStdout())
-		u.Info("Checking project fields...")
-		requiredFields := []struct {
-			name     string
-			dataType string
-		}{
-			{"Release", "TEXT"},
-			{"Microsprint", "TEXT"},
+		u.Info("Validating required fields...")
+
+		// Validate required fields exist with expected options
+		for _, reqField := range defs.Fields.Required {
+			field := findFieldByName(projectFields, reqField.Name)
+			if field == nil {
+				return fmt.Errorf("required field %q not found in project. Please ensure you copied from a Kanban template that includes the %s field", reqField.Name, reqField.Name)
+			}
+
+			// Validate field type
+			if field.DataType != reqField.Type {
+				return fmt.Errorf("field %q has type %s, expected %s", reqField.Name, field.DataType, reqField.Type)
+			}
+
+			// Validate options for SINGLE_SELECT fields
+			if reqField.Type == "SINGLE_SELECT" && len(reqField.Options) > 0 {
+				for _, reqOpt := range reqField.Options {
+					found := false
+					for _, opt := range field.Options {
+						if opt.Name == reqOpt {
+							found = true
+							break
+						}
+					}
+					if !found {
+						return fmt.Errorf("field %q missing required option %q", reqField.Name, reqOpt)
+					}
+				}
+			}
+			u.Success(fmt.Sprintf("%s field validated", reqField.Name))
 		}
 
-		for _, rf := range requiredFields {
-			exists, err := client.FieldExists(selectedProject.ID, rf.name)
+		// Create optional fields if missing
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Info("Checking optional fields...")
+		for _, optField := range defs.Fields.CreateIfMissing {
+			exists, err := client.FieldExists(selectedProject.ID, optField.Name)
 			if err != nil {
-				u.Warning(fmt.Sprintf("Could not check %s field: %v", rf.name, err))
+				u.Warning(fmt.Sprintf("Could not check %s field: %v", optField.Name, err))
 				continue
 			}
 			if exists {
-				u.Success(fmt.Sprintf("%s field exists", rf.name))
+				u.Success(fmt.Sprintf("%s field exists", optField.Name))
 			} else {
-				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s field...", rf.name))
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s field...", optField.Name))
 				spinner.Start()
-				_, err := client.CreateProjectField(selectedProject.ID, rf.name, rf.dataType, nil)
+				_, err := client.CreateProjectField(selectedProject.ID, optField.Name, optField.Type, optField.Options)
 				spinner.Stop()
 				if err != nil {
-					u.Warning(fmt.Sprintf("Could not create %s field: %v", rf.name, err))
+					u.Warning(fmt.Sprintf("Could not create %s field: %v", optField.Name, err))
 				} else {
-					u.Success(fmt.Sprintf("Created %s field", rf.name))
+					u.Success(fmt.Sprintf("Created %s field", optField.Name))
 				}
 			}
 		}
@@ -326,40 +359,31 @@ func runInit(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Check and create required labels (IDPF only)
+		// Check and create required labels from defaults
 		fmt.Fprintln(cmd.OutOrStdout())
 		u.Info("Checking repository labels...")
-		requiredLabels := []struct {
-			name        string
-			color       string
-			description string
-		}{
-			{"branch", "0e8a16", "Branch tracker issue"},
-			{"microsprint", "1d76db", "Microsprint tracker issue"},
-		}
-
-		for _, rl := range requiredLabels {
-			exists, err := client.LabelExists(repoOwner, repoName, rl.name)
+		for _, labelDef := range defs.Labels {
+			exists, err := client.LabelExists(repoOwner, repoName, labelDef.Name)
 			if err != nil {
-				u.Warning(fmt.Sprintf("Could not check %s label: %v", rl.name, err))
+				u.Warning(fmt.Sprintf("Could not check %s label: %v", labelDef.Name, err))
 				continue
 			}
 			if exists {
-				u.Success(fmt.Sprintf("%s label exists", rl.name))
+				u.Success(fmt.Sprintf("%s label exists", labelDef.Name))
 			} else {
-				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s label...", rl.name))
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating %s label...", labelDef.Name))
 				spinner.Start()
-				err := client.CreateLabel(repoOwner, repoName, rl.name, rl.color, rl.description)
+				err := client.CreateLabel(repoOwner, repoName, labelDef.Name, labelDef.Color, labelDef.Description)
 				spinner.Stop()
 				if err != nil {
-					u.Warning(fmt.Sprintf("Could not create %s label: %v", rl.name, err))
+					u.Warning(fmt.Sprintf("Could not create %s label: %v", labelDef.Name, err))
 				} else {
-					u.Success(fmt.Sprintf("Created %s label", rl.name))
+					u.Success(fmt.Sprintf("Created %s label", labelDef.Name))
 				}
 			}
 		}
 	} else {
-		u.Info("Skipping Release/Microsprint field and label creation (framework: none)")
+		u.Info("Skipping field and label setup (framework: none)")
 	}
 
 	// Refetch fields after potential creation
@@ -809,4 +833,15 @@ func optionNameToAlias(name string) string {
 	result = strings.Trim(result, "_")
 
 	return result
+}
+
+// findFieldByName searches for a field by name in a slice of ProjectFields.
+// Returns nil if not found.
+func findFieldByName(fields []api.ProjectField, name string) *api.ProjectField {
+	for i := range fields {
+		if fields[i].Name == name {
+			return &fields[i]
+		}
+	}
+	return nil
 }
