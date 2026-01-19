@@ -61,8 +61,19 @@ func TestMicrosprintLifecycle(t *testing.T) {
 		// Create test issue
 		testIssueNum = createTestIssue(t, cfg, "Microsprint Test Issue")
 
-		// Add to microsprint
-		result := runPMU(t, cfg.Dir, "microsprint", "add", fmt.Sprintf("%d", testIssueNum))
+		// Add to microsprint (with retry for GitHub eventual consistency)
+		// The issue may not appear in project queries immediately after creation
+		var result *CommandResult
+		for i := 0; i < 5; i++ {
+			result = runPMU(t, cfg.Dir, "microsprint", "add", fmt.Sprintf("%d", testIssueNum))
+			if result.ExitCode == 0 {
+				break
+			}
+			if i < 4 {
+				t.Logf("Retry %d/5: waiting for issue to appear in project...", i+1)
+				time.Sleep(2 * time.Second)
+			}
+		}
 		assertExitCode(t, result, 0)
 	})
 
