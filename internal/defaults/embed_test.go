@@ -99,7 +99,7 @@ func TestLoad_HasCreateIfMissingFields(t *testing.T) {
 
 	expectedFields := map[string]string{
 		"Priority":    "SINGLE_SELECT",
-		"Branch":      "TEXT",
+		"Release":     "TEXT",
 		"Microsprint": "TEXT",
 	}
 
