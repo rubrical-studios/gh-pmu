@@ -1,7 +1,7 @@
 ---
-version: "v0.25.0"
+version: "v0.26.3"
 description: Prepare framework release with version updates and validation (project)
-argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run)
+argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run, skip-e2e)
 ---
 <!-- EXTENSIBLE -->
 # /prepare-release
@@ -32,7 +32,21 @@ Execute the full release preparation workflow.
 ```bash
 git branch --show-current
 ```
-Record the current branch name as `$BRANCH` for use in subsequent steps.
+Record as `$BRANCH`.
+### Auto-Create Release Branch (if on main)
+**If `$BRANCH` is `main`:**
+1. Analyze commits: `git log $(git describe --tags --abbrev=0)..HEAD --oneline`
+2. Recommend version based on commits
+3. **ASK USER:** Confirm version
+4. **If `--dry-run`:** Report "Would create branch: release/vX.Y.Z" and stop
+5. Create branch:
+   ```bash
+   gh pmu branch start --branch "release/$VERSION"
+   git checkout "release/$VERSION"
+   git push -u origin "release/$VERSION"
+   ```
+6. Update `$BRANCH` to `release/$VERSION`
+**If NOT `main`:** Continue with existing working branch.
 ### Check for Open Work
 ```bash
 gh pmu microsprint current 2>/dev/null
@@ -86,6 +100,19 @@ Check if docs need updates based on changes:
 - [ ] `README.md` - if user-facing features changed
 
 **Only update if changes affect documentation.**
+
+### E2E Impact Analysis
+
+```bash
+node .claude/scripts/e2e/analyze-e2e-impact.js
+```
+
+The script analyzes which E2E tests may be impacted by changes:
+- `impactedTests`: Test files that cover changed commands
+- `newCommandsWithoutTests`: Commands modified without E2E coverage
+- `recommendation`: Suggested test review actions
+
+**If `newCommandsWithoutTests` is non-empty, warn user about missing coverage.**
 <!-- USER-EXTENSION-END: post-analysis -->
 ---
 ## Phase 2: Validation
@@ -142,6 +169,20 @@ release:
       - "*_test.go"
       - "mock_*.go"
 ```
+
+### E2E Gate
+
+**If `--skip-e2e` was passed, skip this section.**
+
+```bash
+node .claude/scripts/e2e/run-e2e-gate.js
+```
+
+The script outputs JSON: `{"success": true/false, "testsRun": N, "testsPassed": N, "duration": N}`
+
+**If `success` is false, STOP and report the error.**
+
+E2E tests validate complete workflows against the test project.
 <!-- USER-EXTENSION-END: post-validation -->
 **ASK USER:** Confirm validation passed.
 ---
@@ -191,7 +232,6 @@ node .claude/scripts/framework/wait-for-ci.js
 **If CI fails, STOP and report.**
 
 <!-- USER-EXTENSION-END: post-pr-create -->
-
 ### Step 4.4: Merge PR
 **ASK USER:** Approve and merge.
 ```bash

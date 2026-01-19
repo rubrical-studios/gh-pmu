@@ -1,0 +1,48 @@
+# gh-pmu Default Configuration
+# This file is embedded in the binary and used during `gh pmu init`
+
+# Labels to create in the repository
+labels:
+  - name: branch
+    description: Branch tracker issue
+    color: "0e8a16"
+  - name: microsprint
+    description: Microsprint tracker issue
+    color: "1d76db"
+  - name: epic
+    description: Parent issue with sub-issues
+    color: "7057ff"
+  - name: story
+    description: Child issue under an epic
+    color: "a2eeef"
+  - name: proposal
+    description: Idea awaiting implementation
+    color: "d4c5f9"
+  - name: prd
+    description: Product Requirements Document
+    color: "f9d0c4"
+
+# Project fields configuration
+fields:
+  # Required fields - must exist, error if missing
+  required:
+    - name: Status
+      type: SINGLE_SELECT
+      options:
+        - Backlog
+        - In progress
+        - In review
+        - Done
+
+  # Optional fields - create if missing
+  create_if_missing:
+    - name: Priority
+      type: SINGLE_SELECT
+      options:
+        - P0
+        - P1
+        - P2
+    - name: Release
+      type: TEXT
+    - name: Microsprint
+      type: TEXT

@@ -1,6 +1,6 @@
 {
-  "frameworkVersion": "0.25.0",
-  "installedDate": "2026-01-14",
+  "frameworkVersion": "0.26.3",
+  "installedDate": "2026-01-18",
   "extensibleCommands": [
     "open-release",
     "prepare-release",
@@ -36,9 +36,9 @@
     ]
   },
   "userScripts": {
-	"close-release": [
-	  "monitor-release.js"
-	],
+    "close-release": [
+      "monitor-release.js"
+    ],
     "prepare-release": [
       "coverage.js",
       "lint.js"

@@ -1611,10 +1611,12 @@ func (c *Client) BatchUpdateProjectItemFields(projectID string, updates []FieldU
 	return results, nil
 }
 
-// executeBatchMutation executes a batch of field updates in a single GraphQL mutation
-func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) ([]BatchUpdateResult, error) {
+// buildBatchMutationRequest constructs the GraphQL mutation and JSON request body
+// for batch field updates. Returns the mutation query string and marshaled JSON body.
+// This function is extracted for testability.
+func buildBatchMutationRequest(projectID string, updates []FieldUpdate) (mutation string, requestBody string, err error) {
 	if len(updates) == 0 {
-		return []BatchUpdateResult{}, nil
+		return "", "", nil
 	}
 
 	// Build mutation with aliases
@@ -1640,7 +1642,7 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 		case "DATE":
 			valueObj = map[string]interface{}{"date": update.Value}
 		default:
-			return nil, fmt.Errorf("unsupported field type: %s", update.dataType)
+			return "", "", fmt.Errorf("unsupported field type: %s", update.dataType)
 		}
 
 		mutationParts = append(mutationParts, fmt.Sprintf(
@@ -1662,7 +1664,7 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 		varDecls = append(varDecls, fmt.Sprintf("$input%d: UpdateProjectV2ItemFieldValueInput!", i))
 	}
 
-	mutation := fmt.Sprintf(`mutation BatchUpdate(%s) { %s }`,
+	mutation = fmt.Sprintf(`mutation BatchUpdate(%s) { %s }`,
 		strings.Join(varDecls, ", "),
 		strings.Join(mutationParts, " "))
 
@@ -1673,9 +1675,23 @@ func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) (
 	}
 	requestBodyBytes, err := json.Marshal(requestBodyMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		return "", "", fmt.Errorf("failed to marshal request body: %w", err)
 	}
-	requestBody := string(requestBodyBytes)
+
+	return mutation, string(requestBodyBytes), nil
+}
+
+// executeBatchMutation executes a batch of field updates in a single GraphQL mutation
+func (c *Client) executeBatchMutation(projectID string, updates []FieldUpdate) ([]BatchUpdateResult, error) {
+	if len(updates) == 0 {
+		return []BatchUpdateResult{}, nil
+	}
+
+	// Build request (extracted for testability)
+	_, requestBody, err := buildBatchMutationRequest(projectID, updates)
+	if err != nil {
+		return nil, err
+	}
 
 	// Execute via gh api graphql
 	cmd := exec.Command("gh", "api", "graphql", "--input", "-")

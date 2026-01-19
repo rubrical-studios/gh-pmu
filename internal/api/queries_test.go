@@ -618,6 +618,25 @@ func TestGetSubIssueCounts_EmptyInput(t *testing.T) {
 }
 
 // ============================================================================
+// GetSubIssuesBatch Tests
+// ============================================================================
+// Note: GetSubIssuesBatch uses exec.Command("gh", ...) which makes full pagination
+// testing difficult without E2E tests. The empty input test validates basic behavior,
+// while pagination fallback behavior is verified through E2E tests with large epics.
+
+func TestGetSubIssuesBatch_EmptyInput(t *testing.T) {
+	client := NewClient()
+	result, err := client.GetSubIssuesBatch("owner", "repo", []int{})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("Expected empty result map, got %d entries", len(result))
+	}
+}
+
+// ============================================================================
 // GetProjectItemIDForIssue Tests
 // ============================================================================
 
@@ -1293,6 +1312,85 @@ func TestGetProjectItems_WithFilter(t *testing.T) {
 	}
 }
 
+func TestGetProjectItems_WithStateFilter(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItems" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+
+				nodeType := nodes.Type().Elem()
+				newNodes := reflect.MakeSlice(nodes.Type(), 3, 3)
+
+				// Item 1 - OPEN issue
+				node1 := reflect.New(nodeType).Elem()
+				node1.FieldByName("ID").SetString("item-1")
+				content1 := node1.FieldByName("Content")
+				content1.FieldByName("TypeName").SetString("Issue")
+				issue1 := content1.FieldByName("Issue")
+				issue1.FieldByName("ID").SetString("issue-1")
+				issue1.FieldByName("Number").SetInt(1)
+				issue1.FieldByName("Title").SetString("Open Issue")
+				issue1.FieldByName("State").SetString("OPEN")
+				repo1 := issue1.FieldByName("Repository")
+				repo1.FieldByName("NameWithOwner").SetString("owner/repo")
+				newNodes.Index(0).Set(node1)
+
+				// Item 2 - CLOSED issue
+				node2 := reflect.New(nodeType).Elem()
+				node2.FieldByName("ID").SetString("item-2")
+				content2 := node2.FieldByName("Content")
+				content2.FieldByName("TypeName").SetString("Issue")
+				issue2 := content2.FieldByName("Issue")
+				issue2.FieldByName("ID").SetString("issue-2")
+				issue2.FieldByName("Number").SetInt(2)
+				issue2.FieldByName("Title").SetString("Closed Issue")
+				issue2.FieldByName("State").SetString("CLOSED")
+				repo2 := issue2.FieldByName("Repository")
+				repo2.FieldByName("NameWithOwner").SetString("owner/repo")
+				newNodes.Index(1).Set(node2)
+
+				// Item 3 - Another OPEN issue
+				node3 := reflect.New(nodeType).Elem()
+				node3.FieldByName("ID").SetString("item-3")
+				content3 := node3.FieldByName("Content")
+				content3.FieldByName("TypeName").SetString("Issue")
+				issue3 := content3.FieldByName("Issue")
+				issue3.FieldByName("ID").SetString("issue-3")
+				issue3.FieldByName("Number").SetInt(3)
+				issue3.FieldByName("Title").SetString("Another Open")
+				issue3.FieldByName("State").SetString("OPEN")
+				repo3 := issue3.FieldByName("Repository")
+				repo3.FieldByName("NameWithOwner").SetString("owner/repo")
+				newNodes.Index(2).Set(node3)
+
+				nodes.Set(newNodes)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	openState := "OPEN"
+	items, err := client.GetProjectItems("proj-id", &ProjectItemsFilter{State: &openState})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("Expected 2 open items, got %d", len(items))
+	}
+	if items[0].Issue.Title != "Open Issue" {
+		t.Errorf("Expected first issue title 'Open Issue', got '%s'", items[0].Issue.Title)
+	}
+	if items[1].Issue.Title != "Another Open" {
+		t.Errorf("Expected second issue title 'Another Open', got '%s'", items[1].Issue.Title)
+	}
+}
+
 func TestGetProjectItems_SkipsNonIssues(t *testing.T) {
 	mock := &queryMockClient{
 		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
@@ -1751,6 +1849,90 @@ func TestGetRepositoryIssues_Success(t *testing.T) {
 	}
 	if issues[0].Repository.Owner != "owner" {
 		t.Errorf("Expected repository owner 'owner', got '%s'", issues[0].Repository.Owner)
+	}
+}
+
+func TestGetRepositoryIssues_Pagination(t *testing.T) {
+	// Track which page we're on
+	callCount := 0
+
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryIssues" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				issues := repo.FieldByName("Issues")
+				nodes := issues.FieldByName("Nodes")
+				pageInfoField := issues.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+
+				if callCount == 1 {
+					// First page - return issues 1-2 with hasNextPage=true
+					newNodes := reflect.MakeSlice(nodes.Type(), 2, 2)
+
+					node1 := reflect.New(nodeType).Elem()
+					node1.FieldByName("ID").SetString("issue-1")
+					node1.FieldByName("Number").SetInt(1)
+					node1.FieldByName("Title").SetString("Issue 1")
+					node1.FieldByName("State").SetString("OPEN")
+					node1.FieldByName("URL").SetString("https://github.com/owner/repo/issues/1")
+					newNodes.Index(0).Set(node1)
+
+					node2 := reflect.New(nodeType).Elem()
+					node2.FieldByName("ID").SetString("issue-2")
+					node2.FieldByName("Number").SetInt(2)
+					node2.FieldByName("Title").SetString("Issue 2")
+					node2.FieldByName("State").SetString("OPEN")
+					node2.FieldByName("URL").SetString("https://github.com/owner/repo/issues/2")
+					newNodes.Index(1).Set(node2)
+
+					nodes.Set(newNodes)
+
+					// Set PageInfo for first page
+					pageInfoField.FieldByName("HasNextPage").SetBool(true)
+					pageInfoField.FieldByName("EndCursor").SetString("cursor-1")
+				} else if callCount == 2 {
+					// Second page - return issue 3 with hasNextPage=false
+					newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+
+					node3 := reflect.New(nodeType).Elem()
+					node3.FieldByName("ID").SetString("issue-3")
+					node3.FieldByName("Number").SetInt(3)
+					node3.FieldByName("Title").SetString("Issue 3")
+					node3.FieldByName("State").SetString("OPEN")
+					node3.FieldByName("URL").SetString("https://github.com/owner/repo/issues/3")
+					newNodes.Index(0).Set(node3)
+
+					nodes.Set(newNodes)
+
+					// Set PageInfo for last page
+					pageInfoField.FieldByName("HasNextPage").SetBool(false)
+					pageInfoField.FieldByName("EndCursor").SetString("")
+				}
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	issues, err := client.GetRepositoryIssues("owner", "repo", "open")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls for pagination, got %d", callCount)
+	}
+	if len(issues) != 3 {
+		t.Fatalf("Expected 3 issues from 2 pages, got %d", len(issues))
+	}
+	if issues[0].Title != "Issue 1" {
+		t.Errorf("Expected first issue title 'Issue 1', got '%s'", issues[0].Title)
+	}
+	if issues[2].Title != "Issue 3" {
+		t.Errorf("Expected third issue title 'Issue 3', got '%s'", issues[2].Title)
 	}
 }
 
@@ -2502,5 +2684,190 @@ func TestGetProjectItems_WithLimit_Zero(t *testing.T) {
 	}
 	if callCount != 2 {
 		t.Errorf("Expected 2 API calls with no limit, got %d", callCount)
+	}
+}
+
+// ============================================================================
+// GetIssuesByLabel Pagination Tests
+// ============================================================================
+
+func TestGetOpenIssuesByLabel_Pagination(t *testing.T) {
+	callCount := 0
+
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetIssuesByLabel" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				issues := repo.FieldByName("Issues")
+				nodes := issues.FieldByName("Nodes")
+				pageInfoField := issues.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+
+				if callCount == 1 {
+					// First page - return issues 1-2 with hasNextPage=true
+					newNodes := reflect.MakeSlice(nodes.Type(), 2, 2)
+
+					node1 := reflect.New(nodeType).Elem()
+					node1.FieldByName("ID").SetString("issue-1")
+					node1.FieldByName("Number").SetInt(1)
+					node1.FieldByName("Title").SetString("Issue 1")
+					node1.FieldByName("State").SetString("OPEN")
+					node1.FieldByName("URL").SetString("https://github.com/owner/repo/issues/1")
+					// Set empty Labels
+					labelsField := node1.FieldByName("Labels")
+					labelsNodes := labelsField.FieldByName("Nodes")
+					labelsNodes.Set(reflect.MakeSlice(labelsNodes.Type(), 0, 0))
+					newNodes.Index(0).Set(node1)
+
+					node2 := reflect.New(nodeType).Elem()
+					node2.FieldByName("ID").SetString("issue-2")
+					node2.FieldByName("Number").SetInt(2)
+					node2.FieldByName("Title").SetString("Issue 2")
+					node2.FieldByName("State").SetString("OPEN")
+					node2.FieldByName("URL").SetString("https://github.com/owner/repo/issues/2")
+					labelsField2 := node2.FieldByName("Labels")
+					labelsNodes2 := labelsField2.FieldByName("Nodes")
+					labelsNodes2.Set(reflect.MakeSlice(labelsNodes2.Type(), 0, 0))
+					newNodes.Index(1).Set(node2)
+
+					nodes.Set(newNodes)
+
+					pageInfoField.FieldByName("HasNextPage").SetBool(true)
+					pageInfoField.FieldByName("EndCursor").SetString("cursor-1")
+				} else if callCount == 2 {
+					// Second page - return issue 3 with hasNextPage=false
+					newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+
+					node3 := reflect.New(nodeType).Elem()
+					node3.FieldByName("ID").SetString("issue-3")
+					node3.FieldByName("Number").SetInt(3)
+					node3.FieldByName("Title").SetString("Issue 3")
+					node3.FieldByName("State").SetString("OPEN")
+					node3.FieldByName("URL").SetString("https://github.com/owner/repo/issues/3")
+					labelsField3 := node3.FieldByName("Labels")
+					labelsNodes3 := labelsField3.FieldByName("Nodes")
+					labelsNodes3.Set(reflect.MakeSlice(labelsNodes3.Type(), 0, 0))
+					newNodes.Index(0).Set(node3)
+
+					nodes.Set(newNodes)
+
+					pageInfoField.FieldByName("HasNextPage").SetBool(false)
+					pageInfoField.FieldByName("EndCursor").SetString("")
+				}
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	issues, err := client.GetOpenIssuesByLabel("owner", "repo", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls for pagination, got %d", callCount)
+	}
+	if len(issues) != 3 {
+		t.Fatalf("Expected 3 issues from 2 pages, got %d", len(issues))
+	}
+	if issues[0].Title != "Issue 1" {
+		t.Errorf("Expected first issue title 'Issue 1', got '%s'", issues[0].Title)
+	}
+	if issues[2].Title != "Issue 3" {
+		t.Errorf("Expected third issue title 'Issue 3', got '%s'", issues[2].Title)
+	}
+}
+
+func TestGetClosedIssuesByLabel_Pagination(t *testing.T) {
+	callCount := 0
+
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetIssuesByLabel" {
+				callCount++
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				issues := repo.FieldByName("Issues")
+				nodes := issues.FieldByName("Nodes")
+				pageInfoField := issues.FieldByName("PageInfo")
+
+				nodeType := nodes.Type().Elem()
+
+				if callCount == 1 {
+					// First page - return issues 1-2 with hasNextPage=true
+					newNodes := reflect.MakeSlice(nodes.Type(), 2, 2)
+
+					node1 := reflect.New(nodeType).Elem()
+					node1.FieldByName("ID").SetString("issue-1")
+					node1.FieldByName("Number").SetInt(1)
+					node1.FieldByName("Title").SetString("Closed Issue 1")
+					node1.FieldByName("State").SetString("CLOSED")
+					node1.FieldByName("URL").SetString("https://github.com/owner/repo/issues/1")
+					labelsField := node1.FieldByName("Labels")
+					labelsNodes := labelsField.FieldByName("Nodes")
+					labelsNodes.Set(reflect.MakeSlice(labelsNodes.Type(), 0, 0))
+					newNodes.Index(0).Set(node1)
+
+					node2 := reflect.New(nodeType).Elem()
+					node2.FieldByName("ID").SetString("issue-2")
+					node2.FieldByName("Number").SetInt(2)
+					node2.FieldByName("Title").SetString("Closed Issue 2")
+					node2.FieldByName("State").SetString("CLOSED")
+					node2.FieldByName("URL").SetString("https://github.com/owner/repo/issues/2")
+					labelsField2 := node2.FieldByName("Labels")
+					labelsNodes2 := labelsField2.FieldByName("Nodes")
+					labelsNodes2.Set(reflect.MakeSlice(labelsNodes2.Type(), 0, 0))
+					newNodes.Index(1).Set(node2)
+
+					nodes.Set(newNodes)
+
+					pageInfoField.FieldByName("HasNextPage").SetBool(true)
+					pageInfoField.FieldByName("EndCursor").SetString("cursor-1")
+				} else if callCount == 2 {
+					// Second page - return issue 3 with hasNextPage=false
+					newNodes := reflect.MakeSlice(nodes.Type(), 1, 1)
+
+					node3 := reflect.New(nodeType).Elem()
+					node3.FieldByName("ID").SetString("issue-3")
+					node3.FieldByName("Number").SetInt(3)
+					node3.FieldByName("Title").SetString("Closed Issue 3")
+					node3.FieldByName("State").SetString("CLOSED")
+					node3.FieldByName("URL").SetString("https://github.com/owner/repo/issues/3")
+					labelsField3 := node3.FieldByName("Labels")
+					labelsNodes3 := labelsField3.FieldByName("Nodes")
+					labelsNodes3.Set(reflect.MakeSlice(labelsNodes3.Type(), 0, 0))
+					newNodes.Index(0).Set(node3)
+
+					nodes.Set(newNodes)
+
+					pageInfoField.FieldByName("HasNextPage").SetBool(false)
+					pageInfoField.FieldByName("EndCursor").SetString("")
+				}
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	issues, err := client.GetClosedIssuesByLabel("owner", "repo", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 API calls for pagination, got %d", callCount)
+	}
+	if len(issues) != 3 {
+		t.Fatalf("Expected 3 issues from 2 pages, got %d", len(issues))
+	}
+	if issues[0].Title != "Closed Issue 1" {
+		t.Errorf("Expected first issue title 'Closed Issue 1', got '%s'", issues[0].Title)
+	}
+	if issues[2].Title != "Closed Issue 3" {
+		t.Errorf("Expected third issue title 'Closed Issue 3', got '%s'", issues[2].Title)
 	}
 }

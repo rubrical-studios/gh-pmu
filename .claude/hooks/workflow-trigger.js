@@ -37,7 +37,7 @@ process.stdin.on('end', () => {
         // Check for --refresh flag
         const hasRefreshFlag = /--refresh/i.test(prompt);
         const basePrompt = promptLower.replace(/\s*--refresh\s*/gi, '').trim();
-        const isCommandRequest = ['commands', 'list-commands', 'list-cmds'].includes(basePrompt);
+        const isCommandRequest = ['commands', 'list-commands'].includes(basePrompt);
         const triggerMatch = prompt.match(/^(bug|enhancement|finding|idea|proposal|prd):/i);
         const workMatch = prompt.match(/^work\s+#?(\d+)/i);
 
@@ -60,7 +60,7 @@ process.stdin.on('end', () => {
         }
 
         // Handle 'List-Commands' request (full detailed list)
-        if (basePrompt === 'list-commands' || basePrompt === 'list-cmds') {
+        if (basePrompt === 'list-commands') {
             const detailedCommands = getDetailedCommands(hasRefreshFlag);
             const output = {
                 systemMessage: `Success`,

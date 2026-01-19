@@ -6,7 +6,8 @@
       "Bash(git push)",
       "Bash(gh pmu list:*)",
       "Bash(gh issue view:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(test:*)"
     ],
     "deny": [
       "Bash^(rm -rf /:*^)",

@@ -113,6 +113,7 @@ type SubIssue struct {
 type BoardItem struct {
 	Number     int
 	Title      string
+	State      string // Issue state: "OPEN" or "CLOSED"
 	Status     string
 	Priority   string
 	Repository string // "owner/repo" format for filtering

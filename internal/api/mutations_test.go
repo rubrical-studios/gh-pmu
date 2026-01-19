@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -1900,5 +1901,285 @@ func TestBatchUpdateResult_HasRequiredFields(t *testing.T) {
 	}
 	if resultWithError.Error != "some error" {
 		t.Errorf("Expected Error 'some error', got '%s'", resultWithError.Error)
+	}
+}
+
+// ============================================================================
+// buildBatchMutationRequest Tests
+// ============================================================================
+
+func TestBuildBatchMutationRequest_EmptyUpdates(t *testing.T) {
+	mutation, body, err := buildBatchMutationRequest("proj-id", []FieldUpdate{})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if mutation != "" {
+		t.Errorf("Expected empty mutation, got '%s'", mutation)
+	}
+	if body != "" {
+		t.Errorf("Expected empty body, got '%s'", body)
+	}
+}
+
+func TestBuildBatchMutationRequest_TextField(t *testing.T) {
+	updates := []FieldUpdate{{
+		ItemID:    "item-1",
+		FieldName: "Release",
+		Value:     "v1.0.0",
+		fieldID:   "field-1",
+		dataType:  "TEXT",
+	}}
+
+	mutation, body, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify mutation structure
+	if !strings.Contains(mutation, "mutation BatchUpdate") {
+		t.Error("Mutation should contain 'mutation BatchUpdate'")
+	}
+	if !strings.Contains(mutation, "updateProjectV2ItemFieldValue") {
+		t.Error("Mutation should contain 'updateProjectV2ItemFieldValue'")
+	}
+	if !strings.Contains(mutation, "$input0: UpdateProjectV2ItemFieldValueInput!") {
+		t.Error("Mutation should contain variable declaration")
+	}
+
+	// Verify JSON body
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	variables := parsed["variables"].(map[string]interface{})
+	input0 := variables["input0"].(map[string]interface{})
+	value := input0["value"].(map[string]interface{})
+
+	if value["text"] != "v1.0.0" {
+		t.Errorf("Expected text value 'v1.0.0', got '%v'", value["text"])
+	}
+	if input0["projectId"] != "proj-id" {
+		t.Errorf("Expected projectId 'proj-id', got '%v'", input0["projectId"])
+	}
+	if input0["itemId"] != "item-1" {
+		t.Errorf("Expected itemId 'item-1', got '%v'", input0["itemId"])
+	}
+	if input0["fieldId"] != "field-1" {
+		t.Errorf("Expected fieldId 'field-1', got '%v'", input0["fieldId"])
+	}
+}
+
+func TestBuildBatchMutationRequest_SingleSelectField(t *testing.T) {
+	updates := []FieldUpdate{{
+		ItemID:    "item-1",
+		FieldName: "Status",
+		Value:     "In Progress",
+		fieldID:   "field-1",
+		optionID:  "option-123",
+		dataType:  "SINGLE_SELECT",
+	}}
+
+	_, body, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	variables := parsed["variables"].(map[string]interface{})
+	input0 := variables["input0"].(map[string]interface{})
+	value := input0["value"].(map[string]interface{})
+
+	if value["singleSelectOptionId"] != "option-123" {
+		t.Errorf("Expected singleSelectOptionId 'option-123', got '%v'", value["singleSelectOptionId"])
+	}
+}
+
+func TestBuildBatchMutationRequest_NumberField(t *testing.T) {
+	updates := []FieldUpdate{{
+		ItemID:    "item-1",
+		FieldName: "Points",
+		Value:     "42.5",
+		fieldID:   "field-1",
+		dataType:  "NUMBER",
+	}}
+
+	_, body, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	variables := parsed["variables"].(map[string]interface{})
+	input0 := variables["input0"].(map[string]interface{})
+	value := input0["value"].(map[string]interface{})
+
+	if value["number"] != 42.5 {
+		t.Errorf("Expected number 42.5, got '%v'", value["number"])
+	}
+}
+
+func TestBuildBatchMutationRequest_DateField(t *testing.T) {
+	updates := []FieldUpdate{{
+		ItemID:    "item-1",
+		FieldName: "DueDate",
+		Value:     "2024-01-15",
+		fieldID:   "field-1",
+		dataType:  "DATE",
+	}}
+
+	_, body, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	variables := parsed["variables"].(map[string]interface{})
+	input0 := variables["input0"].(map[string]interface{})
+	value := input0["value"].(map[string]interface{})
+
+	if value["date"] != "2024-01-15" {
+		t.Errorf("Expected date '2024-01-15', got '%v'", value["date"])
+	}
+}
+
+func TestBuildBatchMutationRequest_MultipleBatch(t *testing.T) {
+	updates := []FieldUpdate{
+		{
+			ItemID:    "item-1",
+			FieldName: "Status",
+			Value:     "Done",
+			fieldID:   "field-status",
+			optionID:  "opt-done",
+			dataType:  "SINGLE_SELECT",
+		},
+		{
+			ItemID:    "item-1",
+			FieldName: "Release",
+			Value:     "v2.0.0",
+			fieldID:   "field-release",
+			dataType:  "TEXT",
+		},
+		{
+			ItemID:    "item-2",
+			FieldName: "Priority",
+			Value:     "P0",
+			fieldID:   "field-priority",
+			optionID:  "opt-p0",
+			dataType:  "SINGLE_SELECT",
+		},
+	}
+
+	mutation, body, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify mutation has all variable declarations
+	if !strings.Contains(mutation, "$input0") {
+		t.Error("Mutation should contain $input0")
+	}
+	if !strings.Contains(mutation, "$input1") {
+		t.Error("Mutation should contain $input1")
+	}
+	if !strings.Contains(mutation, "$input2") {
+		t.Error("Mutation should contain $input2")
+	}
+
+	// Verify mutation has all aliases
+	if !strings.Contains(mutation, "u0:") {
+		t.Error("Mutation should contain alias u0")
+	}
+	if !strings.Contains(mutation, "u1:") {
+		t.Error("Mutation should contain alias u1")
+	}
+	if !strings.Contains(mutation, "u2:") {
+		t.Error("Mutation should contain alias u2")
+	}
+
+	// Verify JSON body has all inputs
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	variables := parsed["variables"].(map[string]interface{})
+	if _, ok := variables["input0"]; !ok {
+		t.Error("Variables should contain input0")
+	}
+	if _, ok := variables["input1"]; !ok {
+		t.Error("Variables should contain input1")
+	}
+	if _, ok := variables["input2"]; !ok {
+		t.Error("Variables should contain input2")
+	}
+}
+
+func TestBuildBatchMutationRequest_SpecialCharacters(t *testing.T) {
+	updates := []FieldUpdate{{
+		ItemID:    "item-1",
+		FieldName: "Release",
+		Value:     `Test with "quotes" and\nnewlines and special chars: <>&`,
+		fieldID:   "field-1",
+		dataType:  "TEXT",
+	}}
+
+	_, body, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify the JSON is valid (json.Marshal escapes properly)
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON - special characters not properly escaped: %v", err)
+	}
+
+	// Verify the value is preserved correctly
+	variables := parsed["variables"].(map[string]interface{})
+	input0 := variables["input0"].(map[string]interface{})
+	value := input0["value"].(map[string]interface{})
+
+	expected := `Test with "quotes" and\nnewlines and special chars: <>&`
+	if value["text"] != expected {
+		t.Errorf("Expected text '%s', got '%v'", expected, value["text"])
+	}
+}
+
+func TestBuildBatchMutationRequest_UnsupportedFieldType(t *testing.T) {
+	updates := []FieldUpdate{{
+		ItemID:    "item-1",
+		FieldName: "Unknown",
+		Value:     "value",
+		fieldID:   "field-1",
+		dataType:  "UNKNOWN_TYPE",
+	}}
+
+	_, _, err := buildBatchMutationRequest("proj-id", updates)
+
+	if err == nil {
+		t.Fatal("Expected error for unsupported field type")
+	}
+	if !strings.Contains(err.Error(), "unsupported field type") {
+		t.Errorf("Error should mention unsupported field type, got: %v", err)
 	}
 }
