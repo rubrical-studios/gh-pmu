@@ -786,9 +786,9 @@ func TestCreateIssue_WithLabels_WarnsForUnknownLabels(t *testing.T) {
 	}
 
 	client := NewClientWithGraphQL(mock)
-	// "bug" and "enhancement" are not in defaults.yml, so they'll produce warnings
+	// "custom-label" and "unknown" are not in defaults.yml, so they'll produce warnings
 	// but CreateIssue should still succeed
-	_, err := client.CreateIssue("owner", "repo", "title", "body", []string{"bug", "enhancement"})
+	_, err := client.CreateIssue("owner", "repo", "title", "body", []string{"custom-label", "unknown"})
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

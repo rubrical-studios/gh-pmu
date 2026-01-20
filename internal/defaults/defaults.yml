@@ -21,6 +21,12 @@ labels:
   - name: prd
     description: Product Requirements Document
     color: "f9d0c4"
+  - name: bug
+    description: Something isn't working
+    color: "d73a4a"
+  - name: enhancement
+    description: New feature or request
+    color: "a2eeef"
 
 # Project fields configuration
 fields:
