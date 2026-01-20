@@ -2180,3 +2180,556 @@ func TestBuildBatchMutationRequest_UnsupportedFieldType(t *testing.T) {
 		t.Errorf("Error should mention unsupported field type, got: %v", err)
 	}
 }
+
+// ============================================================================
+// CreateLabel Tests
+// ============================================================================
+
+func TestCreateLabel_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.CreateLabel("owner", "repo", "bug", "d73a4a", "Something isn't working")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestCreateLabel_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				// Return a repository ID
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				if repo.IsValid() {
+					idField := repo.FieldByName("ID")
+					if idField.IsValid() && idField.CanSet() {
+						idField.SetString("repo-123")
+					}
+				}
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "CreateLabel" {
+				t.Errorf("Expected mutation name 'CreateLabel', got '%s'", name)
+			}
+
+			// Verify input
+			input, ok := variables["input"].(CreateLabelInput)
+			if !ok {
+				t.Fatal("Expected CreateLabelInput in variables")
+			}
+			if string(input.Name) != "bug" {
+				t.Errorf("Expected label name 'bug', got '%s'", input.Name)
+			}
+			if string(input.Color) != "d73a4a" {
+				t.Errorf("Expected color 'd73a4a', got '%s'", input.Color)
+			}
+			if string(input.Description) != "Something isn't working" {
+				t.Errorf("Expected description, got '%s'", input.Description)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.CreateLabel("owner", "repo", "bug", "d73a4a", "Something isn't working")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestCreateLabel_GetRepositoryIDError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return errors.New("repo not found")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.CreateLabel("owner", "repo", "bug", "d73a4a", "")
+
+	if err == nil {
+		t.Fatal("Expected error when getRepositoryID fails")
+	}
+	if !strings.Contains(err.Error(), "failed to get repository ID") {
+		t.Errorf("Expected 'failed to get repository ID' error, got: %v", err)
+	}
+}
+
+func TestCreateLabel_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				if repo.IsValid() {
+					idField := repo.FieldByName("ID")
+					if idField.IsValid() && idField.CanSet() {
+						idField.SetString("repo-123")
+					}
+				}
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("label already exists")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.CreateLabel("owner", "repo", "bug", "d73a4a", "")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to create label") {
+		t.Errorf("Expected 'failed to create label' error, got: %v", err)
+	}
+}
+
+func TestCreateLabelInput_HasRequiredFields(t *testing.T) {
+	input := CreateLabelInput{
+		RepositoryID: "repo-id",
+		Name:         "bug",
+		Color:        "d73a4a",
+		Description:  "Something isn't working",
+	}
+
+	if input.RepositoryID != "repo-id" {
+		t.Errorf("Expected RepositoryID 'repo-id', got '%s'", input.RepositoryID)
+	}
+	if input.Name != "bug" {
+		t.Errorf("Expected Name 'bug', got '%s'", input.Name)
+	}
+	if input.Color != "d73a4a" {
+		t.Errorf("Expected Color 'd73a4a', got '%s'", input.Color)
+	}
+	if input.Description != "Something isn't working" {
+		t.Errorf("Expected Description, got '%s'", input.Description)
+	}
+}
+
+// ============================================================================
+// LabelExists Tests
+// ============================================================================
+
+func TestLabelExists_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	// LabelExists calls getLabelID which will panic with nil gql
+	// This test verifies the panic behavior
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Expected panic when gql is nil")
+		}
+	}()
+
+	_, _ = client.LabelExists("owner", "repo", "bug")
+}
+
+func TestLabelExists_LabelFound(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-123")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	exists, err := client.LabelExists("owner", "repo", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !exists {
+		t.Error("Expected LabelExists to return true")
+	}
+}
+
+func TestLabelExists_LabelNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			// Don't populate the label ID - label not found
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	exists, err := client.LabelExists("owner", "repo", "nonexistent")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if exists {
+		t.Error("Expected LabelExists to return false for nonexistent label")
+	}
+}
+
+func TestLabelExists_QueryError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return errors.New("network error")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	_, err := client.LabelExists("owner", "repo", "bug")
+
+	if err == nil {
+		t.Fatal("Expected error when query fails")
+	}
+}
+
+// ============================================================================
+// EnsureLabelExists Tests
+// ============================================================================
+
+func TestEnsureLabelExists_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	// EnsureLabelExists calls getLabelID which will panic with nil gql
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Expected panic when gql is nil")
+		}
+	}()
+
+	_, _ = client.EnsureLabelExists("owner", "repo", "bug")
+}
+
+func TestEnsureLabelExists_LabelAlreadyExists(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-123")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	labelID, err := client.EnsureLabelExists("owner", "repo", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if labelID != "label-123" {
+		t.Errorf("Expected label ID 'label-123', got '%s'", labelID)
+	}
+}
+
+func TestEnsureLabelExists_CreatesLabel(t *testing.T) {
+	queryCallCount := 0
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			queryCallCount++
+			if name == "GetLabelID" {
+				if queryCallCount == 1 {
+					// First call - label doesn't exist
+					return nil
+				}
+				// Second call - label was created
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("new-label-123")
+			}
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-123")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "CreateLabel" {
+				// Verify default gray color
+				input := variables["input"].(CreateLabelInput)
+				if string(input.Color) != "cccccc" {
+					t.Errorf("Expected default gray color 'cccccc', got '%s'", input.Color)
+				}
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	labelID, err := client.EnsureLabelExists("owner", "repo", "custom-label")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if labelID != "new-label-123" {
+		t.Errorf("Expected label ID 'new-label-123', got '%s'", labelID)
+	}
+}
+
+func TestEnsureLabelExists_CreateLabelFails(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-123")
+			}
+			// Don't populate label ID - label not found
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("permission denied")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	_, err := client.EnsureLabelExists("owner", "repo", "bug")
+
+	if err == nil {
+		t.Fatal("Expected error when CreateLabel fails")
+	}
+}
+
+// ============================================================================
+// DeleteLabel Tests
+// ============================================================================
+
+func TestDeleteLabel_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.DeleteLabel("owner", "repo", "bug")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestDeleteLabel_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-123")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "DeleteLabel" {
+				t.Errorf("Expected mutation name 'DeleteLabel', got '%s'", name)
+			}
+
+			input, ok := variables["input"].(DeleteLabelInput)
+			if !ok {
+				t.Fatal("Expected DeleteLabelInput in variables")
+			}
+			if input.ID.(string) != "label-123" {
+				t.Errorf("Expected label ID 'label-123', got '%v'", input.ID)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.DeleteLabel("owner", "repo", "bug")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestDeleteLabel_LabelNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			// Don't populate label ID - label not found
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.DeleteLabel("owner", "repo", "nonexistent")
+
+	if err == nil {
+		t.Fatal("Expected error when label not found")
+	}
+	if !strings.Contains(err.Error(), "failed to get label ID") {
+		t.Errorf("Expected 'failed to get label ID' error, got: %v", err)
+	}
+}
+
+func TestDeleteLabel_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-123")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("permission denied")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.DeleteLabel("owner", "repo", "bug")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to delete label") {
+		t.Errorf("Expected 'failed to delete label' error, got: %v", err)
+	}
+}
+
+func TestDeleteLabelInput_HasRequiredFields(t *testing.T) {
+	input := DeleteLabelInput{
+		ID: "label-123",
+	}
+
+	if input.ID != "label-123" {
+		t.Errorf("Expected ID 'label-123', got '%s'", input.ID)
+	}
+}
+
+// ============================================================================
+// UpdateLabel Tests
+// ============================================================================
+
+func TestUpdateLabel_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+
+	err := client.UpdateLabel("owner", "repo", "bug", "bug-renamed", "ff0000", "New description")
+	if err == nil {
+		t.Fatal("Expected error when gql is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}
+
+func TestUpdateLabel_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-123")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "UpdateLabel" {
+				t.Errorf("Expected mutation name 'UpdateLabel', got '%s'", name)
+			}
+
+			input, ok := variables["input"].(UpdateLabelInput)
+			if !ok {
+				t.Fatal("Expected UpdateLabelInput in variables")
+			}
+			if input.ID.(string) != "label-123" {
+				t.Errorf("Expected label ID 'label-123', got '%v'", input.ID)
+			}
+			if string(input.Name) != "bug-renamed" {
+				t.Errorf("Expected new name 'bug-renamed', got '%s'", input.Name)
+			}
+			if string(input.Color) != "ff0000" {
+				t.Errorf("Expected color 'ff0000', got '%s'", input.Color)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateLabel("owner", "repo", "bug", "bug-renamed", "ff0000", "New description")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestUpdateLabel_LabelNotFound(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			// Don't populate label ID - label not found
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateLabel("owner", "repo", "nonexistent", "new-name", "ff0000", "")
+
+	if err == nil {
+		t.Fatal("Expected error when label not found")
+	}
+	if !strings.Contains(err.Error(), "failed to get label ID") {
+		t.Errorf("Expected 'failed to get label ID' error, got: %v", err)
+	}
+}
+
+func TestUpdateLabel_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-123")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("permission denied")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.UpdateLabel("owner", "repo", "bug", "new-name", "ff0000", "")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to update label") {
+		t.Errorf("Expected 'failed to update label' error, got: %v", err)
+	}
+}
+
+func TestUpdateLabelInput_HasRequiredFields(t *testing.T) {
+	input := UpdateLabelInput{
+		ID:          "label-123",
+		Name:        "new-name",
+		Color:       "ff0000",
+		Description: "New description",
+	}
+
+	if input.ID != "label-123" {
+		t.Errorf("Expected ID 'label-123', got '%s'", input.ID)
+	}
+	if input.Name != "new-name" {
+		t.Errorf("Expected Name 'new-name', got '%s'", input.Name)
+	}
+	if input.Color != "ff0000" {
+		t.Errorf("Expected Color 'ff0000', got '%s'", input.Color)
+	}
+	if input.Description != "New description" {
+		t.Errorf("Expected Description 'New description', got '%s'", input.Description)
+	}
+}
