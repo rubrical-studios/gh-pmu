@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-01-19
+
+### Added
+- Auto-create default labels when assigning non-existent labels (#596)
+  - Labels defined in `defaults.yml` are automatically created if missing from repository
+  - Warns user when label doesn't exist and isn't in defaults
+- Added `prd`, `bug`, and `enhancement` labels to default label set (#595)
+- `GetLabel()` method in defaults package for label lookup
+
+### Changed
+- Epic label color changed to lighter green (#3fb950) for better visibility
+
 ## [0.13.0] - 2026-01-19
 
 ### Added

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	graphql "github.com/cli/shurcooL-graphql"
+
+	"github.com/rubrical-studios/gh-pmu/internal/defaults"
 )
 
 // CreateIssue creates a new issue in a repository
@@ -27,22 +29,39 @@ func (c *Client) CreateIssue(owner, repo, title, body string, labels []string) (
 	// Get label IDs if labels are provided (batch query for efficiency)
 	var labelIDs []graphql.ID
 	if len(labels) > 0 {
+		// Load defaults for potential auto-creation
+		defs, _ := defaults.Load()
+
 		labelIDMap, err := c.getLabelIDs(owner, repo, labels)
 		if err != nil {
-			// Fall back to individual lookups if batch fails
-			for _, labelName := range labels {
-				labelID, err := c.getLabelID(owner, repo, labelName)
-				if err != nil {
+			labelIDMap = make(map[string]string)
+		}
+
+		for _, labelName := range labels {
+			if id, ok := labelIDMap[labelName]; ok {
+				labelIDs = append(labelIDs, graphql.ID(id))
+				continue
+			}
+
+			// Label not found - check if it's in defaults
+			if defs != nil {
+				if labelDef := defs.GetLabel(labelName); labelDef != nil {
+					// Auto-create from defaults
+					fmt.Fprintf(os.Stderr, "Creating label %q from defaults...\n", labelName)
+					if createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description); createErr != nil {
+						fmt.Fprintf(os.Stderr, "Warning: could not create label %q: %v\n", labelName, createErr)
+						continue
+					}
+					// Get the newly created label's ID
+					if newID, err := c.getLabelID(owner, repo, labelName); err == nil {
+						labelIDs = append(labelIDs, graphql.ID(newID))
+					}
 					continue
 				}
-				labelIDs = append(labelIDs, graphql.ID(labelID))
 			}
-		} else {
-			for _, labelName := range labels {
-				if id, ok := labelIDMap[labelName]; ok {
-					labelIDs = append(labelIDs, graphql.ID(id))
-				}
-			}
+
+			// Label not in defaults - warn user
+			fmt.Fprintf(os.Stderr, "Warning: label %q does not exist and is not a default label\n", labelName)
 		}
 	}
 
@@ -841,22 +860,39 @@ func (c *Client) CreateIssueWithOptions(owner, repo, title, body string, labels,
 	// Get label IDs if labels are provided (batch query for efficiency)
 	var labelIDs []graphql.ID
 	if len(labels) > 0 {
+		// Load defaults for potential auto-creation
+		defs, _ := defaults.Load()
+
 		labelIDMap, err := c.getLabelIDs(owner, repo, labels)
 		if err != nil {
-			// Fall back to individual lookups if batch fails
-			for _, labelName := range labels {
-				labelID, err := c.getLabelID(owner, repo, labelName)
-				if err != nil {
+			labelIDMap = make(map[string]string)
+		}
+
+		for _, labelName := range labels {
+			if id, ok := labelIDMap[labelName]; ok {
+				labelIDs = append(labelIDs, graphql.ID(id))
+				continue
+			}
+
+			// Label not found - check if it's in defaults
+			if defs != nil {
+				if labelDef := defs.GetLabel(labelName); labelDef != nil {
+					// Auto-create from defaults
+					fmt.Fprintf(os.Stderr, "Creating label %q from defaults...\n", labelName)
+					if createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description); createErr != nil {
+						fmt.Fprintf(os.Stderr, "Warning: could not create label %q: %v\n", labelName, createErr)
+						continue
+					}
+					// Get the newly created label's ID
+					if newID, err := c.getLabelID(owner, repo, labelName); err == nil {
+						labelIDs = append(labelIDs, graphql.ID(newID))
+					}
 					continue
 				}
-				labelIDs = append(labelIDs, graphql.ID(labelID))
 			}
-		} else {
-			for _, labelName := range labels {
-				if id, ok := labelIDMap[labelName]; ok {
-					labelIDs = append(labelIDs, graphql.ID(id))
-				}
-			}
+
+			// Label not in defaults - warn user
+			fmt.Fprintf(os.Stderr, "Warning: label %q does not exist and is not a default label\n", labelName)
 		}
 	}
 

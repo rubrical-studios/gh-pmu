@@ -11,7 +11,7 @@ labels:
     color: "1d76db"
   - name: epic
     description: Parent issue with sub-issues
-    color: "7057ff"
+    color: "3fb950"
   - name: story
     description: Child issue under an epic
     color: "a2eeef"
@@ -21,6 +21,12 @@ labels:
   - name: prd
     description: Product Requirements Document
     color: "f9d0c4"
+  - name: bug
+    description: Something isn't working
+    color: "d73a4a"
+  - name: enhancement
+    description: New feature or request
+    color: "a2eeef"
 
 # Project fields configuration
 fields:

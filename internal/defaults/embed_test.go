@@ -21,7 +21,7 @@ func TestLoad_HasLabels(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd"}
+	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement"}
 
 	if len(defs.Labels) != len(expectedLabels) {
 		t.Errorf("expected %d labels, got %d", len(expectedLabels), len(defs.Labels))
@@ -160,5 +160,41 @@ func TestMustLoad(t *testing.T) {
 	defs := MustLoad()
 	if defs == nil {
 		t.Error("MustLoad() returned nil")
+	}
+}
+
+func TestGetLabel_Found(t *testing.T) {
+	defs := MustLoad()
+
+	// Test each known label
+	knownLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement"}
+	for _, name := range knownLabels {
+		label := defs.GetLabel(name)
+		if label == nil {
+			t.Errorf("GetLabel(%q) returned nil, expected label", name)
+			continue
+		}
+		if label.Name != name {
+			t.Errorf("GetLabel(%q).Name = %q, want %q", name, label.Name, name)
+		}
+		if label.Color == "" {
+			t.Errorf("GetLabel(%q).Color is empty", name)
+		}
+		if label.Description == "" {
+			t.Errorf("GetLabel(%q).Description is empty", name)
+		}
+	}
+}
+
+func TestGetLabel_NotFound(t *testing.T) {
+	defs := MustLoad()
+
+	// Test non-existent labels
+	nonExistent := []string{"nonexistent", "foo", "bar", "unknown-label"}
+	for _, name := range nonExistent {
+		label := defs.GetLabel(name)
+		if label != nil {
+			t.Errorf("GetLabel(%q) = %v, want nil", name, label)
+		}
 	}
 }
