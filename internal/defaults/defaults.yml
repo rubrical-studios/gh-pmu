@@ -11,7 +11,7 @@ labels:
     color: "1d76db"
   - name: epic
     description: Parent issue with sub-issues
-    color: "0e8a16"
+    color: "3fb950"
   - name: story
     description: Child issue under an epic
     color: "a2eeef"
