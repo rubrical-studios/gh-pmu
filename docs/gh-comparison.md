@@ -23,6 +23,8 @@ These commands have no equivalent in the base `gh` CLI:
 | Command | Purpose |
 |---------|---------|
 | `gh pmu board` | Terminal Kanban board view |
+| `gh pmu comment` | Add comments to issues with stdin/file support |
+| `gh pmu edit` | Edit issue body with round-trip file workflow |
 | `gh pmu history` | Git commit history with issue reference parsing |
 | `gh pmu init` | Configure project connection per-repo |
 | `gh pmu intake` | Find issues not yet added to the project |
@@ -32,8 +34,7 @@ These commands have no equivalent in the base `gh` CLI:
 | `gh pmu triage` | Bulk rule-based issue processing |
 | `gh pmu field` | Create and list project fields |
 | `gh pmu microsprint` | AI-assisted development workflow (hour-scale batches) |
-| `gh pmu release` | Version-based deployment workflow |
-| `gh pmu patch` | Hotfix deployment workflow with validation |
+| `gh pmu branch` | Branch-based deployment workflow (releases, patches, hotfixes) |
 
 ### Unique Flags
 
@@ -54,7 +55,15 @@ Flags available in `gh pmu` that don't exist in base `gh`:
 | `move` | `--dry-run` | Preview changes without applying |
 | `move` | `--depth` | Limit recursion depth |
 | `move` | `--microsprint` | Assign to microsprint |
+| `move` | `--branch` | Assign to branch (use 'current' for active) |
+| `move` | `--backlog` | Clear branch and microsprint fields |
 | `move` | `--yes` | Skip confirmation prompt |
+| `view` | `--body-file` | Export body to tmp/issue-{n}.md |
+| `view` | `--body-stdout` | Output body to stdout |
+| `view` | `--comments` | Show issue comments |
+| `edit` | `--body-file` | Read body from file |
+| `edit` | `--body-stdin` | Read body from stdin |
+| `edit` | `--remove-label` | Remove labels from issue |
 | `sub create` | `--inherit-labels` | Copy labels from parent |
 | `sub create` | `--inherit-milestone` | Copy milestone from parent |
 | `sub create` | `--inherit-assignees` | Copy assignees from parent |
@@ -67,8 +76,6 @@ These base `gh` commands complement `gh pmu`:
 
 | Command | Purpose |
 |---------|---------|
-| `gh issue comment` | Add comments to issues |
-| `gh issue edit` | Edit title, body, labels, assignees |
 | `gh issue develop` | Create linked branches |
 | `gh issue pin/unpin` | Pin issues to repository |
 | `gh issue transfer` | Move issue to another repository |

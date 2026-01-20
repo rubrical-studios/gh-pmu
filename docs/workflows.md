@@ -5,7 +5,7 @@ gh-pmu provides workflow command groups for managing development at different ca
 | Workflow | Cadence | Use Case |
 |----------|---------|----------|
 | `microsprint` | Hours | AI-assisted development batches, rapid iteration |
-| `release` | Days/Weeks | Branch-based deployment, feature releases, patches, hotfixes |
+| `branch` | Days/Weeks | Branch-based deployment, feature releases, patches, hotfixes |
 
 ## Microsprint
 
@@ -87,54 +87,59 @@ gh pmu microsprint resolve
 
 ---
 
-## Release
+## Branch
 
-Releases are branch-based deployment workflows for feature releases, patches, and hotfixes. The branch name is used literally for all release artifacts.
+Branch workflows are used for feature releases, patches, and hotfixes. The branch name is used literally for all artifacts.
 
-### Starting a Release
+### Starting a Branch
 
 ```bash
 # Start a feature release
-gh pmu release start --branch release/v2.0.0
+gh pmu branch start --branch release/v2.0.0
 
 # Start a patch release
-gh pmu release start --branch patch/v1.9.1
+gh pmu branch start --branch patch/v1.9.1
 
 # Start a hotfix
-gh pmu release start --branch hotfix-auth-bypass
+gh pmu branch start --branch hotfix-auth-bypass
 ```
 
-The command creates the git branch and a tracker issue with the `release` label.
+The command creates the git branch and a tracker issue with the `branch` label.
 
 ### Managing Issues
 
 ```bash
-# Add issue to current release
-gh pmu release add 42
+# Add issue to current branch
+gh pmu branch add 42
 
-# Remove issue from release
-gh pmu release remove 42
+# Remove issue from branch
+gh pmu branch remove 42
 
-# Create new issue directly in release
-gh pmu create --title "Add dark mode" --status in_progress
-gh pmu release add <new-issue-number>
+# Create new issue directly in branch
+gh pmu create --title "Add dark mode" --status in_progress --branch current
 ```
 
 ### Viewing Status
 
 ```bash
-# Show current release details
-gh pmu release current
+# Show current branch details
+gh pmu branch current
 
-# List all releases
-gh pmu release list
+# List all branches
+gh pmu branch list
+
+# Reopen a closed branch
+gh pmu branch reopen release/v1.9.0
 ```
 
-### Closing a Release
+### Closing a Branch
 
 ```bash
-# Close release and generate artifacts
-gh pmu release close
+# Close branch and generate artifacts
+gh pmu branch close
+
+# Close with git tag
+gh pmu branch close --tag
 ```
 
 **Generated artifacts** (configurable):
@@ -169,30 +174,20 @@ Workflows use labels for tracker issues:
 | Label | Used By |
 |-------|---------|
 | `microsprint` | Microsprint tracker issues |
-| `release` | Release tracker issues |
+| `branch` | Branch tracker issues |
 
 Run `gh pmu init` to auto-create these labels.
 
-### Release Artifacts
+### Branch Artifacts
 
 Configure artifact generation in `.gh-pmu.yml`:
 
 ```yaml
-release:
+branch:
   artifacts:
     directory: "Releases"      # Base directory (default)
     release_notes: true        # Generate release-notes.md
     changelog: true            # Generate changelog.md
-
-  tracks:
-    - name: main
-      prefix: ""               # No prefix: Releases/v1.2.0/
-    - name: lts
-      prefix: "lts-"           # Prefixed: Releases/lts-v1.2.0/
-
-  # Active releases (auto-synced by init)
-  active:
-    - "1.2.0"
 ```
 
 ---
@@ -218,7 +213,7 @@ gh pmu create --title "New feature" --microsprint current
 ```bash
 # See what workflows are active
 gh pmu microsprint current
-gh pmu release current
+gh pmu branch current
 ```
 
 ---
