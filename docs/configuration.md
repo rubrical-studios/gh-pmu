@@ -117,9 +117,9 @@ gh pmu triage untracked --dry-run
 gh pmu triage untracked --apply
 ```
 
-### Release Configuration
+### Branch Configuration
 
-Configure release and patch workflows:
+Configure branch workflow artifacts:
 
 ```yaml
 release:
@@ -128,19 +128,6 @@ release:
     directory: Releases           # Base directory (default: "Releases")
     release_notes: true           # Generate release-notes.md
     changelog: true               # Generate changelog.md
-
-  # Track definitions
-  tracks:
-    - name: main                  # Track name
-      prefix: ""                  # Artifact directory prefix (empty = version only)
-    - name: lts
-      prefix: lts-               # Artifacts go to "lts-v1.2.0/"
-
-  # Active releases (auto-synced by init)
-  active:
-    - version: "1.2.0"
-      track: main
-      tracker_issue: 42
 
   # Coverage gate settings (for /prepare-release workflow)
   coverage:
@@ -153,10 +140,8 @@ release:
 
 **Notes:**
 - `gh pmu init` auto-creates Release/Microsprint fields and labels if missing
-- Coverage gate runs during `/prepare-release` to catch test coverage gaps before release
+- Coverage gate runs during `/prepare-release` to catch test coverage gaps
 - Set `enabled: false` to disable the coverage gate
-- Active releases are synced from tracker issues during init
-- Track prefix controls artifact directory naming (e.g., `main-v1.2.0/` vs `v1.2.0/`)
 
 ### Cache (Auto-managed)
 
@@ -164,13 +149,6 @@ The `cache:` section stores tracker data for faster `list` commands:
 
 ```yaml
 cache:
-  releases:
-    - number: 100
-      title: "Release: v1.0.0"
-      state: CLOSED
-    - number: 200
-      title: "Release: v2.0.0"
-      state: OPEN
   microsprints:
     - number: 50
       title: "Microsprint: 2025-12-23-a"
@@ -179,38 +157,24 @@ cache:
 
 **Notes:**
 - Cache is automatically updated on `start`, `close`, and `reopen` commands
-- Use `--refresh` flag with `release list` or `microsprint list` to force API fetch
+- Use `--refresh` flag with `microsprint list` to force API fetch
 - Provides ~6x performance improvement for list operations
 
-### Validation Rules
+### Validation (IDPF Framework)
 
-Configure status transition validation to enforce workflow progressions:
+When `framework` is set to an IDPF variant (e.g., `IDPF`, `IDPF-Agile`), automatic validation is enabled:
 
-```yaml
-validation:
-  enabled: true                    # Enable/disable validation
-  rules:
-    backlog:
-      - ready
-      - in_progress
-    ready:
-      - in_progress
-      - backlog
-    in_progress:
-      - in_review
-      - ready
-      - backlog
-    in_review:
-      - done
-      - in_progress
-    done: []                       # No transitions from done by default
-```
+**Rules enforced:**
+- **Body required**: Issues must have content before moving to `in_review` or `done`
+- **Checkboxes**: All checkboxes must be checked before `in_review` or `done`
+- **Branch assignment**: Issues must have a branch before moving from `backlog` to `ready` or `in_progress`
 
-**Notes:**
-- When enabled, `move` command validates status transitions
-- Use `gh pmu move --force` to bypass validation when needed
-- Use `gh pmu validation rules` to view current rules
-- Use `gh pmu validation check <from> <to>` to test transitions
+**Bypassing validation:**
+- Use `gh pmu move --force` to bypass checkbox validation
+- Body and branch requirements cannot be bypassed
+
+**Disable validation:**
+- Remove the `framework` field or set to a non-IDPF value
 
 ### Metadata (Auto-Generated)
 
@@ -299,6 +263,6 @@ metadata:
 ## See Also
 
 - [Commands Reference](commands.md) - Full command documentation
-- [Workflows Guide](workflows.md) - Microsprint, release, and patch workflows
+- [Workflows Guide](workflows.md) - Microsprint and branch workflows
 - [Sub-Issues Guide](sub-issues.md) - Hierarchy management
 - [Batch Operations](batch-operations.md) - Intake, triage, split
