@@ -3,12 +3,87 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
+
+// semverRegex matches valid semver versions with optional v prefix
+var semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)$`)
+
+// validateVersion validates that a version string is valid semver format
+// Accepts X.Y.Z or vX.Y.Z format
+func validateVersion(version string) error {
+	if !semverRegex.MatchString(version) {
+		return fmt.Errorf("Invalid version format. Use semver: X.Y.Z")
+	}
+	return nil
+}
+
+// compareVersions compares two semver versions
+// Returns: positive if v1 > v2, negative if v1 < v2, zero if equal
+func compareVersions(v1, v2 string) int {
+	// Strip 'v' prefix
+	v1 = strings.TrimPrefix(v1, "v")
+	v2 = strings.TrimPrefix(v2, "v")
+
+	parts1 := strings.Split(v1, ".")
+	parts2 := strings.Split(v2, ".")
+
+	for i := 0; i < 3; i++ {
+		var n1, n2 int
+		if i < len(parts1) {
+			_, _ = fmt.Sscanf(parts1[i], "%d", &n1)
+		}
+		if i < len(parts2) {
+			_, _ = fmt.Sscanf(parts2[i], "%d", &n2)
+		}
+		if n1 != n2 {
+			return n1 - n2
+		}
+	}
+	return 0
+}
+
+// nextVersions contains calculated next version options
+type nextVersions struct {
+	patch string
+	minor string
+	major string
+}
+
+// calculateNextVersions computes the next patch, minor, and major versions
+func calculateNextVersions(currentVersion string) (*nextVersions, error) {
+	// Strip 'v' prefix for parsing
+	version := strings.TrimPrefix(currentVersion, "v")
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid version format: %s", currentVersion)
+	}
+
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return nil, fmt.Errorf("invalid major version: %s", parts[0])
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid minor version: %s", parts[1])
+	}
+	patch, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return nil, fmt.Errorf("invalid patch version: %s", parts[2])
+	}
+
+	return &nextVersions{
+		patch: fmt.Sprintf("v%d.%d.%d", major, minor, patch+1),
+		minor: fmt.Sprintf("v%d.%d.0", major, minor+1),
+		major: fmt.Sprintf("v%d.0.0", major+1),
+	}, nil
+}
 
 // branchClient defines the interface for branch operations
 // This allows mocking in tests

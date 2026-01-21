@@ -27,6 +27,9 @@ labels:
   - name: enhancement
     description: New feature or request
     color: "a2eeef"
+  - name: qa-required
+    description: Requires QA validation
+    color: "fbca04"
 
 # Project fields configuration
 fields:

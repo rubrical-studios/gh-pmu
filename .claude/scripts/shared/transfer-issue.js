@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.20.0
+// **Version:** 0.29.2
 /**
  * transfer-issue.js
  *
@@ -10,11 +10,11 @@
  * Source: PRD/PRD-Release-and-Sprint-Workflow.md
  *
  * Usage:
- *   node transfer-issue.js #123                      # Show current and options
- *   node transfer-issue.js #123 --release v2.0.0    # Move to different release
- *   node transfer-issue.js #123 --sprint auth-work  # Move to different sprint
- *   node transfer-issue.js #123 --remove-sprint     # Remove from sprint
- *   node transfer-issue.js #123 --remove-release    # Remove from release
+ *   node transfer-issue.js #123                       # Show current and options
+ *   node transfer-issue.js #123 --branch release/v2.0 # Move to different branch
+ *   node transfer-issue.js #123 --sprint auth-work    # Move to different sprint
+ *   node transfer-issue.js #123 --remove-sprint       # Remove from sprint
+ *   node transfer-issue.js #123 --remove-branch       # Remove from branch
  */
 
 const { execSync } = require('child_process');
@@ -39,12 +39,12 @@ function getIssueDetails(issueNumber) {
     return null;
 }
 
-function getOpenReleases() {
+function getOpenBranches() {
     try {
-        const result = exec('gh pmu release list --open --json');
+        const result = exec('gh pmu branch list --open --json');
         if (result) {
             const data = JSON.parse(result);
-            return data.releases || data.items || data || [];
+            return data.branches || data.items || data || [];
         }
     } catch {
         // Intentionally ignored
@@ -59,20 +59,20 @@ function main() {
     const issueArg = args.find(a => a.match(/^#?\d+$/));
     const issueNumber = issueArg ? parseInt(issueArg.replace('#', ''), 10) : null;
 
-    const newRelease = args.find((a, i) => args[i - 1] === '--release');
+    const newBranch = args.find((a, i) => args[i - 1] === '--branch');
     const newSprint = args.find((a, i) => args[i - 1] === '--sprint');
     const removeFromSprint = args.includes('--remove-sprint');
-    const removeFromRelease = args.includes('--remove-release');
+    const removeFromBranch = args.includes('--remove-branch');
 
     console.log('=== Transfer Issue ===\n');
 
     if (!issueNumber) {
         console.log('Usage: /transfer-issue #123 [options]');
         console.log('\nOptions:');
-        console.log('  --release <name>    Transfer to different release');
+        console.log('  --branch <name>     Transfer to different branch');
         console.log('  --sprint <name>     Transfer to different sprint');
         console.log('  --remove-sprint     Remove from current sprint');
-        console.log('  --remove-release    Remove from current release (back to backlog)');
+        console.log('  --remove-branch     Remove from current branch (back to backlog)');
         return;
     }
 
@@ -83,21 +83,21 @@ function main() {
         return;
     }
 
-    const currentRelease = issue.fieldValues?.Release || '(none)';
+    const currentBranch = issue.fieldValues?.Branch || '(none)';
     const currentSprint = issue.fieldValues?.Microsprint || issue.fieldValues?.Sprint || '(none)';
 
     console.log(`Issue #${issueNumber}: ${issue.title}`);
-    console.log(`Current release: ${currentRelease}`);
+    console.log(`Current branch: ${currentBranch}`);
     console.log(`Current sprint: ${currentSprint}`);
     console.log('');
 
     // Handle actions
-    if (removeFromRelease) {
-        console.log('Removing from release...');
-        // gh pmu may not support removing release field directly
+    if (removeFromBranch) {
+        console.log('Removing from branch...');
+        // gh pmu may not support removing branch field directly
         // This would need to be implemented in gh pmu
-        console.log('Note: Use gh pmu move to update release assignment.');
-        console.log('Example: gh pmu move ' + issueNumber + ' --release ""');
+        console.log('Note: Use gh pmu move to update branch assignment.');
+        console.log('Example: gh pmu move ' + issueNumber + ' --branch ""');
         return;
     }
 
@@ -112,17 +112,17 @@ function main() {
         return;
     }
 
-    if (newRelease) {
-        console.log(`Transferring to release: ${newRelease}...`);
-        const releaseName = newRelease.startsWith('release/') || newRelease.startsWith('patch/')
-            ? newRelease
-            : `release/${newRelease}`;
-        const result = exec(`gh pmu move ${issueNumber} --release "${releaseName}"`);
+    if (newBranch) {
+        console.log(`Transferring to branch: ${newBranch}...`);
+        const branchName = newBranch.startsWith('release/') || newBranch.startsWith('patch/')
+            ? newBranch
+            : `release/${newBranch}`;
+        const result = exec(`gh pmu move ${issueNumber} --branch "${branchName}"`);
         if (result !== null) {
-            console.log(`✓ Issue #${issueNumber} transferred to ${releaseName}`);
+            console.log(`✓ Issue #${issueNumber} transferred to ${branchName}`);
         } else {
-            console.log('Note: Release transfer may require gh pmu --release support.');
-            console.log(`Manual: gh pmu move ${issueNumber} --release "${releaseName}"`);
+            console.log('Note: Branch transfer may require gh pmu --branch support.');
+            console.log(`Manual: gh pmu move ${issueNumber} --branch "${branchName}"`);
         }
         return;
     }
@@ -141,19 +141,19 @@ function main() {
 
     // No action specified - show transfer options
     console.log('--- Transfer Options ---');
-    const releases = getOpenReleases();
-    if (releases.length > 0) {
-        console.log('\nAvailable releases:');
-        releases.forEach(r => {
-            const name = r.name || r.version || r;
-            const marker = currentRelease === name ? ' ← current' : '';
+    const branches = getOpenBranches();
+    if (branches.length > 0) {
+        console.log('\nAvailable branches:');
+        branches.forEach(b => {
+            const name = b.name || b.version || b;
+            const marker = currentBranch === name ? ' ← current' : '';
             console.log(`  - ${name}${marker}`);
         });
     }
 
     console.log('\nTo transfer:');
-    console.log(`  /transfer-issue #${issueNumber} --release release/vX.Y.Z`);
-    console.log(`  /transfer-issue #${issueNumber} --remove-release`);
+    console.log(`  /transfer-issue #${issueNumber} --branch release/vX.Y.Z`);
+    console.log(`  /transfer-issue #${issueNumber} --remove-branch`);
     console.log(`  /transfer-issue #${issueNumber} --remove-sprint`);
 }
 

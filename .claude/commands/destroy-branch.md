@@ -1,5 +1,5 @@
 ---
-version: "v0.26.3"
+version: "v0.29.2"
 description: Safely delete branch with confirmation
 argument-hint: [branch-name] [--force]
 ---
@@ -36,9 +36,12 @@ fi
 git rev-parse --verify "$BRANCH" 2>/dev/null
 ```
 **FAIL if branch does not exist.**
+
 ---
+
 <!-- USER-EXTENSION-START: pre-destroy -->
 <!-- USER-EXTENSION-END: pre-destroy -->
+
 ## Phase 1: Confirmation
 **⚠️ DESTRUCTIVE OPERATION**
 Will permanently delete:
@@ -56,13 +59,15 @@ ls -la Releases/*/$BRANCH/ 2>/dev/null || echo "No release artifacts found"
 **ASK USER:** Type the full branch name to confirm destruction.
 User must type exactly: `$BRANCH`
 **If input does not match, ABORT.**
+
 <!-- USER-EXTENSION-START: post-confirm -->
 <!-- USER-EXTENSION-END: post-confirm -->
+
 ---
 ## Phase 2: Close Tracker
 ### Step 2.1: Find Tracker Issue
 ```bash
-gh pmu release current --json tracker 2>/dev/null
+gh pmu branch current --json tracker 2>/dev/null
 ```
 ### Step 2.2: Close as Not Planned
 ```bash
@@ -70,9 +75,9 @@ gh issue close [TRACKER_NUMBER] \
   --reason "not planned" \
   --comment "Branch destroyed via /destroy-branch. Work abandoned."
 ```
-### Step 2.3: Close Release in Project
+### Step 2.3: Close Branch in Project
 ```bash
-gh pmu release close 2>/dev/null || echo "No release to close"
+gh pmu branch close 2>/dev/null || echo "No branch to close"
 ```
 ---
 ## Phase 3: Delete Artifacts
@@ -104,8 +109,10 @@ git push origin --delete "$BRANCH" 2>/dev/null || echo "Remote branch not found"
 ```bash
 git branch -D "$BRANCH"
 ```
+
 <!-- USER-EXTENSION-START: post-destroy -->
 <!-- USER-EXTENSION-END: post-destroy -->
+
 ---
 ## Completion
 - ✅ User confirmed destruction

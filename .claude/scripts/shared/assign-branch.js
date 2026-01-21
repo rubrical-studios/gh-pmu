@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.26.3
+// **Version:** 0.29.2
 /**
  * assign-branch.js
  *
@@ -175,15 +175,15 @@ async function getSubIssueCountAsync(issueNumber) {
 }
 
 /**
- * Get open releases (gh pmu handles caching internally)
+ * Get open branches (gh pmu handles caching internally)
  */
-async function getOpenReleases() {
-    startTimer('getOpenReleases');
+async function getOpenBranches() {
+    startTimer('getOpenBranches');
     try {
-        const result = await execAsyncSafe('gh pmu release list');
+        const result = await execAsyncSafe('gh pmu branch list');
         if (result) {
             const lines = result.split('\n').slice(2);
-            const releases = [];
+            const branches = [];
             for (const line of lines) {
                 if (!line.trim()) continue;
                 const parts = line.trim().split(/\s+/);
@@ -191,17 +191,17 @@ async function getOpenReleases() {
                     const version = parts[0];
                     const status = parts[parts.length - 1];
                     if (status === 'Active') {
-                        releases.push({ version, name: version });
+                        branches.push({ version, name: version });
                     }
                 }
             }
-            endTimer('getOpenReleases');
-            return releases;
+            endTimer('getOpenBranches');
+            return branches;
         }
     } catch (err) {
-        if (showTiming) console.log(`  ⚠ getOpenReleases failed: ${err.message}`);
+        if (showTiming) console.log(`  ⚠ getOpenBranches failed: ${err.message}`);
     }
-    endTimer('getOpenReleases');
+    endTimer('getOpenBranches');
     return [];
 }
 
@@ -216,7 +216,7 @@ async function getIssuesByStatus(status = 'backlog') {
         if (result) {
             const data = JSON.parse(result);
             const items = data.items || data || [];
-            const filtered = items.filter(i => !i.fieldValues?.Release);
+            const filtered = items.filter(i => !i.fieldValues?.Branch);
             endTimer(`getIssuesByStatus(${status})`);
             return filtered;
         }
@@ -232,9 +232,9 @@ async function assignToRelease(issueNumber, release, useCurrent = false) {
         const releaseArg = useCurrent ? 'current' : `"${release}"`;
         const displayRelease = useCurrent ? `${release} (current)` : release;
         console.log(`  → Assigning #${issueNumber} to ${displayRelease}`);
-        const result = await execAsyncSafe(`gh pmu move ${issueNumber} --release ${releaseArg} 2>&1`);
+        const result = await execAsyncSafe(`gh pmu move ${issueNumber} --branch ${releaseArg} 2>&1`);
         if (result && result.includes('unknown flag')) {
-            console.log(`    (Note: gh pmu --release not yet supported, manual assignment needed)`);
+            console.log(`    (Note: gh pmu --branch not supported, manual assignment needed)`);
             return false;
         }
         return true;
@@ -295,8 +295,8 @@ async function main() {
     startTimer('total');
 
     // Step 1: Get releases (gh pmu handles caching internally)
-    const releases = await getOpenReleases();
-    const currentRelease = releases.length === 1 ? releases[0].version : null;
+    const releases = await getOpenBranches();
+    const currentBranch = releases.length === 1 ? releases[0].version : null;
 
     // Step 2: Handle no releases case
     if (releases.length === 0) {
@@ -333,14 +333,14 @@ async function main() {
 
         console.log('');
         console.log('ACTION_REQUIRED: Use AskUserQuestion to let user select a branch, then run:');
-        console.log('  gh pmu release start --branch "<selected-branch>"');
+        console.log('  gh pmu branch start --name "<selected-branch>"');
         endTimer('total');
         return;
     }
 
     // Step 3: Single-release shortcut - if only one release and issues/flags provided, use current
-    if (!release && currentRelease && (issueNumbers.length > 0 || addReady || assignAll)) {
-        release = currentRelease;
+    if (!release && currentBranch && (issueNumbers.length > 0 || addReady || assignAll)) {
+        release = currentBranch;
         console.log(`Using current release: ${release}\n`);
     }
 
@@ -366,7 +366,7 @@ async function main() {
         console.log('  /assign-branch release/... --all   # Assign all backlog issues');
         console.log('');
         console.log('Examples:');
-        if (currentRelease) {
+        if (currentBranch) {
             console.log(`  /assign-branch --add-ready          # Most common workflow`);
             console.log(`  /assign-branch #123`);
             console.log(`  /assign-branch #123 #124 #125`);
@@ -464,13 +464,13 @@ async function main() {
         console.log('If this is too many, cancel and specify individual issue numbers.\n');
     }
 
-    // Step 7: Assign issues (use --release current when single release)
+    // Step 7: Assign issues (use --branch current when single release)
     let totalAssigned = 0;
     let epicCount = 0;
     let subIssueCount = 0;
 
     const shouldCheckEpic = checkEpic || issueNumbers.length > 1 || assignAll || addReady;
-    const useCurrent = (currentRelease && release === currentRelease);
+    const useCurrent = (currentBranch && release === currentBranch);
 
     console.log(`Assigning to ${release}${useCurrent ? ' (current)' : ''}:\n`);
 
@@ -548,7 +548,7 @@ module.exports = {
     getIssueLabels,
     generateBranchSuggestions,
     getSubIssueCountAsync,
-    getOpenReleases,
+    getOpenBranches,
     getIssuesByStatus,
     assignToRelease,
     assignSubIssuesToRelease,

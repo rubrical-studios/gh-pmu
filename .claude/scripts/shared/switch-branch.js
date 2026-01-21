@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.26.3
+// **Version:** 0.29.2
 /**
  * switch-branch.js
  *
@@ -24,12 +24,12 @@ function exec(cmd) {
     }
 }
 
-function getOpenReleases() {
+function getOpenBranches() {
     try {
-        const result = exec('gh pmu release list --open --json');
+        const result = exec('gh pmu branch list --open --json');
         if (result) {
             const data = JSON.parse(result);
-            return data.releases || data.items || data || [];
+            return data.branches || data.items || data || [];
         }
     } catch {
         // Intentionally ignored
@@ -70,20 +70,20 @@ function main() {
     const currentBranch = getCurrentBranch();
     console.log(`Current branch: ${currentBranch}\n`);
 
-    // Step 1: Get releases
-    const releases = getOpenReleases();
+    // Step 1: Get branches
+    const branches = getOpenBranches();
 
     if (!release) {
-        if (releases.length === 0) {
-            console.log('No open releases found.');
-            console.log('\nCreate one with: gh pmu release start --version "X.Y.Z"');
+        if (branches.length === 0) {
+            console.log('No open branches found.');
+            console.log('\nCreate one with: gh pmu branch start --name "release/vX.Y.Z"');
             return;
         }
 
-        console.log('Available Releases:');
-        releases.forEach((r, i) => {
-            const name = r.name || r.version || r;
-            const branch = r.branch || name;
+        console.log('Available Branches:');
+        branches.forEach((b, i) => {
+            const name = b.name || b.version || b;
+            const branch = b.branch || name;
             const marker = currentBranch === branch ? ' ← current' : '';
             console.log(`  [${i + 1}] ${name}${marker}`);
         });

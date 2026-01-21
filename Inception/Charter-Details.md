@@ -1,7 +1,7 @@
 # Project Charter Details: gh-pmu
 
 **Generated:** 2026-01-04
-**Last Updated:** 2026-01-04
+**Last Updated:** 2026-01-21
 
 ---
 
@@ -141,15 +141,15 @@ None (MIT licensed open source)
 
 ### Current Target
 
-**v0.10.0**: Enhanced body editing with streaming support
+**v0.14.0**: Stability and documentation improvements
 
 ### Milestone Roadmap
 
 | Milestone | Target | Criteria |
 |-----------|--------|----------|
-| v0.9.x | Patch | Bug fixes, stability |
-| v0.10.0 | Current | Body editing enhancements |
-| v0.11.0 | Next | TBD based on backlog |
+| v0.13.x | Complete | Branch terminology, batch performance, E2E tests |
+| v0.14.0 | Current | Stability, documentation, misc improvements |
+| v0.15.0 | Next | TBD based on backlog |
 
 ---
 
@@ -158,6 +158,7 @@ None (MIT licensed open source)
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-01-04 | Charter extracted from codebase | Claude |
+| 2026-01-21 | Update focus to v0.14.0, add scope items, update milestones | Claude |
 
 ---
 

@@ -88,8 +88,14 @@ gh pmu list --has-sub-issues
 # Combine filters
 gh pmu list --status ready --priority p1
 
-# JSON output
+# JSON output (list available fields)
 gh pmu list --json
+
+# JSON output with specific fields (use = syntax)
+gh pmu list --json=number,title,state
+
+# JSON output with jq filtering
+gh pmu list --json=number,title,state --jq '.items[].number'
 
 # Specify repository
 gh pmu list --repo owner/other-repo
@@ -118,8 +124,14 @@ View issue with project fields and sub-issue progress.
 # View issue
 gh pmu view 42
 
-# JSON output
+# JSON output (list available fields)
 gh pmu view 42 --json
+
+# JSON output with specific fields (use = syntax)
+gh pmu view 42 --json=number,title,body,state
+
+# JSON output with jq filtering
+gh pmu view 42 --json=number,title --jq '.number'
 
 # Specify repository
 gh pmu view 42 --repo owner/other-repo

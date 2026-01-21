@@ -108,8 +108,6 @@ Examples:
 	cmd.Flags().StringVar(&opts.microsprint, "sprint", "", "Alias for --microsprint")
 	cmd.MarkFlagsMutuallyExclusive("microsprint", "sprint") // Can't use both at once
 	cmd.Flags().StringVarP(&opts.branch, "branch", "b", "", "Set branch field (use 'current' for active branch)")
-	cmd.Flags().StringVar(&opts.branch, "release", "", "[DEPRECATED] Use --branch instead")
-	cmd.MarkFlagsMutuallyExclusive("branch", "release") // Can't use both at once
 	cmd.Flags().BoolVar(&opts.backlog, "backlog", false, "Clear branch and microsprint fields (return to backlog)")
 	cmd.Flags().BoolVarP(&opts.recursive, "recursive", "r", false, "Apply changes to all sub-issues recursively")
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")

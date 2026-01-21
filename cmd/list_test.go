@@ -229,7 +229,7 @@ func TestRunListWithDeps_JSONOutput(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 
-	opts := &listOptions{json: true}
+	opts := &listOptions{jsonFields: "number,title,state,url,repository,assignees,fieldValues"}
 	err := runListWithDeps(cmd, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

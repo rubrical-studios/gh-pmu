@@ -6,10 +6,10 @@
  * UserPromptSubmit hook that:
  * 1. Detects workflow trigger prefixes and injects reminders
  * 2. Responds to 'commands' with available triggers and slash commands
- * 3. Validates release assignment for 'work #N' commands (merged from validate-release.js)
+ * 3. Validates branch assignment for 'work #N' commands
  *
- * Trigger prefixes: bug:, enhancement:, finding:, idea:, proposal:, prd:
- * Work command: work #N (validates release assignment, provides branch context)
+ * Trigger prefixes: bug:, enhancement:, idea:, proposal:
+ * Work command: work #N (validates branch assignment, provides branch context)
  *
  * Performance optimizations:
  * - Early exit for non-matching prompts (no I/O)
@@ -38,10 +38,12 @@ process.stdin.on('end', () => {
         const hasRefreshFlag = /--refresh/i.test(prompt);
         const basePrompt = promptLower.replace(/\s*--refresh\s*/gi, '').trim();
         const isCommandRequest = ['commands', 'list-commands'].includes(basePrompt);
-        const triggerMatch = prompt.match(/^(bug|enhancement|finding|idea|proposal|prd):/i);
+        const triggerMatch = prompt.match(/^(bug|enhancement|idea|proposal):/i);
         const workMatch = prompt.match(/^work\s+#?(\d+)/i);
+        // Batch work patterns: "work all in Ready", "work all issues in sprint-5"
+        const batchWorkMatch = prompt.match(/^work\s+all\s+(?:issues\s+)?in\s+(\w+[-\w]*)/i);
 
-        if (!isCommandRequest && !triggerMatch && !workMatch) {
+        if (!isCommandRequest && !triggerMatch && !workMatch && !batchWorkMatch) {
             process.exit(0);
         }
 
@@ -73,38 +75,41 @@ process.stdin.on('end', () => {
             process.exit(0);
         }
 
-        // Handle 'work #N' command - validate release assignment
+        // Handle 'work #N' command - validate branch assignment
         if (workMatch) {
             const issueNumber = workMatch[1];
 
             try {
-                // Query issue's Release and Sprint fields via gh pmu view
+                // Query issue's Branch and Sprint fields via gh pmu view
                 const result = execSync(
                     `gh pmu view ${issueNumber} --json`,
                     { encoding: 'utf-8', timeout: 10000 }
                 );
 
                 const issueData = JSON.parse(result);
-                const release = issueData.fieldValues?.Release;
+                const branch = issueData.fieldValues?.Branch;
                 const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
 
-                if (!release || release === '' || release === 'null') {
-                    // No release assigned - block with actionable message
+                if (!branch || branch === '' || branch === 'null') {
+                    // No branch assigned - block with actionable message
                     const output = {
-                        decision: 'block',
-                        reason: `Issue #${issueNumber} has no release assignment.\n\nUse: /assign-branch #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --release "release/vX.Y.Z"`
+                        continue: false,
+                        hookSpecificOutput: {
+                            permissionDecision: 'deny',
+                            message: `Issue #${issueNumber} has no branch assignment.\n\nUse: /assign-branch #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --branch "release/vX.Y.Z"`
+                        }
                     };
                     console.log(JSON.stringify(output));
                     process.exit(0);
                 }
 
-                // Release assigned - allow and provide branch context
-                // Branch name IS the release name (already in [track]/[name] format)
+                // Branch assigned - allow and provide branch context
+                // Branch name is in [track]/[name] format
                 // e.g., release/v1.2.0, patch/v1.1.5, idpf/to-praxis, hotfix/auth-bypass
-                const branchName = release;
+                const branchName = branch;
 
                 let contextMessage = `[BRANCH-AWARE WORK]\n`;
-                contextMessage += `Issue #${issueNumber} is assigned to release: ${release}\n`;
+                contextMessage += `Issue #${issueNumber} is assigned to branch: ${branch}\n`;
                 contextMessage += `\nBEFORE working on this issue:\n`;
                 contextMessage += `1. Check current branch: git branch --show-current\n`;
                 contextMessage += `2. If not on '${branchName}', switch to it: git checkout ${branchName}\n`;
@@ -112,6 +117,43 @@ process.stdin.on('end', () => {
 
                 if (sprint) {
                     contextMessage += `\nSprint context: ${sprint}\n`;
+                }
+
+                // Auto-todo: Extract acceptance criteria or sub-issues for todo list
+                const body = issueData.body || '';
+                const labels = issueData.labels || [];
+                const isEpic = labels.some(l => l === 'epic' || l.name === 'epic');
+
+                if (isEpic) {
+                    // Epic: get sub-issues for todo list
+                    try {
+                        const subResult = execSync(
+                            `gh pmu sub list ${issueNumber} --json`,
+                            { encoding: 'utf-8', timeout: 10000 }
+                        );
+                        const subIssues = JSON.parse(subResult);
+                        if (subIssues && subIssues.length > 0) {
+                            contextMessage += `\n[AUTO-TODO: EPIC]\n`;
+                            contextMessage += `Create a todo list from these sub-issues:\n`;
+                            subIssues.forEach(sub => {
+                                contextMessage += `- #${sub.number}: ${sub.title}\n`;
+                            });
+                        }
+                    } catch (_subError) {
+                        // Fail silently - sub-issue query is optional
+                    }
+                } else {
+                    // Story/Bug: extract acceptance criteria checkboxes
+                    const checkboxes = body.match(/- \[ \] .+/g) || [];
+                    if (checkboxes.length > 0) {
+                        contextMessage += `\n[AUTO-TODO: ACCEPTANCE CRITERIA]\n`;
+                        contextMessage += `Create a todo list from these acceptance criteria:\n`;
+                        checkboxes.forEach(cb => {
+                            // Clean up the checkbox format for todo
+                            const item = cb.replace(/^- \[ \] /, '').trim();
+                            contextMessage += `- ${item}\n`;
+                        });
+                    }
                 }
 
                 const output = {
@@ -138,29 +180,71 @@ process.stdin.on('end', () => {
             }
         }
 
+        // Handle batch work command: "work all in Ready", "work all issues in sprint-5"
+        if (batchWorkMatch) {
+            const statusOrSprint = batchWorkMatch[1];
+
+            try {
+                // Query issues in the specified status
+                const result = execSync(
+                    `gh pmu list --status ${statusOrSprint} --json`,
+                    { encoding: 'utf-8', timeout: 15000 }
+                );
+
+                const issues = JSON.parse(result);
+                if (issues && issues.length > 0) {
+                    let contextMessage = `[BATCH WORK: ${issues.length} issues in ${statusOrSprint}]\n\n`;
+                    contextMessage += `[AUTO-TODO: BATCH ISSUES]\n`;
+                    contextMessage += `Create a todo list with these issues:\n`;
+                    issues.forEach(issue => {
+                        contextMessage += `- #${issue.number}: ${issue.title}\n`;
+                    });
+                    contextMessage += `\nProcess each issue in order, moving to In Progress before starting.`;
+
+                    const output = {
+                        systemMessage: `Success`,
+                        hookSpecificOutput: {
+                            hookEventName: 'UserPromptSubmit',
+                            additionalContext: contextMessage
+                        }
+                    };
+                    console.log(JSON.stringify(output));
+                } else {
+                    const output = {
+                        systemMessage: `Success`,
+                        hookSpecificOutput: {
+                            hookEventName: 'UserPromptSubmit',
+                            additionalContext: `[BATCH WORK] No issues found in status: ${statusOrSprint}`
+                        }
+                    };
+                    console.log(JSON.stringify(output));
+                }
+                process.exit(0);
+
+            } catch (_error) {
+                // Fail-open: allow and let Claude handle
+                const output = {
+                    systemMessage: `Success`,
+                    hookSpecificOutput: {
+                        hookEventName: 'UserPromptSubmit',
+                        additionalContext: `[BATCH WORK] Could not query issues in ${statusOrSprint} (fail-open). Query manually with: gh pmu list --status ${statusOrSprint}`
+                    }
+                };
+                console.log(JSON.stringify(output));
+                process.exit(0);
+            }
+        }
+
         // Handle workflow triggers
         if (triggerMatch) {
-            const triggerType = triggerMatch[1].toLowerCase();
-
-            if (triggerType === 'prd') {
-                const output = {
-                    systemMessage: `Success`,
-                    hookSpecificOutput: {
-                        hookEventName: "UserPromptSubmit",
-                        additionalContext: "[PRD TRIGGER: Invoke Proposal-to-PRD workflow (Section 8 of GitHub-Workflow.md). Identify proposal from name or issue number, then run IDPF-PRD phases.]"
-                    }
-                };
-                console.log(JSON.stringify(output));
-            } else {
-                const output = {
-                    systemMessage: `Success`,
-                    hookSpecificOutput: {
-                        hookEventName: "UserPromptSubmit",
-                        additionalContext: "[WORKFLOW TRIGGER: Create GitHub issue first. Wait for 'work' instruction before implementing.]"
-                    }
-                };
-                console.log(JSON.stringify(output));
-            }
+            const output = {
+                systemMessage: `Success`,
+                hookSpecificOutput: {
+                    hookEventName: "UserPromptSubmit",
+                    additionalContext: "[WORKFLOW TRIGGER: Create GitHub issue first. Wait for 'work' instruction before implementing.]"
+                }
+            };
+            console.log(JSON.stringify(output));
         }
 
         process.exit(0);
@@ -279,10 +363,8 @@ function generateCommandsHelp(forceRefresh = false) {
 **Workflow Triggers** (prefix your message):
 - \`bug:\` - Report a bug → creates issue, wait for 'work' to implement fix
 - \`enhancement:\` - Request enhancement → creates issue, wait for 'work' to implement
-- \`finding:\` - Document a finding → creates issue for discovered issues
 - \`idea:\` - Alias for proposal: → creates proposal document + issue
 - \`proposal:\` - Formal proposal → creates proposal document + issue
-- \`prd: [name]\` - Convert proposal to PRD → invokes IDPF-PRD workflow
 
 **Issue Management**:
 - \`work #N\` or \`work <issue>\` - Start working on issue (moves to In Progress)
@@ -403,11 +485,11 @@ function getAgileDetailedCommands() {
 
 ### Story Workflow
 
-| Command | Description |
+| Trigger | Description |
 |---------|-------------|
-| \`Start-Story [ID]\` | Begin work on story (In Progress + assign) |
-| \`Story-Status\` | Check progress on current story |
-| \`Story-Complete [ID]\` | Mark story as done |
+| \`work #N\` | Begin work on story (In Progress + assign) |
+| \`gh pmu view #N\` | Check story status directly |
+| \`done\` | Mark story as done |
 
 ---
 

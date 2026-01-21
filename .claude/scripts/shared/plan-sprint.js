@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.20.0
+// **Version:** 0.29.2
 /**
  * plan-sprint.js
  *
@@ -57,9 +57,9 @@ function getSubIssueCount(issueNumber) {
     return 0;
 }
 
-function getCurrentRelease() {
+function getCurrentBranch() {
     try {
-        const result = exec('gh pmu release current --json');
+        const result = exec('gh pmu branch current --json');
         if (result) {
             const data = JSON.parse(result);
             return data.name || data.version || data;
@@ -77,15 +77,15 @@ function main() {
 
     console.log('=== Plan Sprint ===\n');
 
-    // Check current release context
-    const release = getCurrentRelease();
-    if (!release) {
-        console.log('No active release context.');
-        console.log('Start a release first: gh pmu release start --version "X.Y.Z"');
-        console.log('Then use /switch-branch to set the release.');
+    // Check current branch context
+    const branch = getCurrentBranch();
+    if (!branch) {
+        console.log('No active branch context.');
+        console.log('Start a branch first: gh pmu branch start --name "release/vX.Y.Z"');
+        console.log('Then use /switch-branch to set the branch.');
         return;
     }
-    console.log(`Release context: ${release}\n`);
+    console.log(`Branch context: ${branch}\n`);
 
     // Get available epics
     const epics = getEpicsNotInSprint();

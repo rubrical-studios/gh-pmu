@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** v0.26.3
+**Version:** v0.29.2
 **Source:** Reference/GitHub-Workflow.md
 ---
 **MUST READ:** At session startup and after compaction.
@@ -66,9 +66,9 @@ Branch naming requires `{prefix}/{name}` format. Prefix is organizational conven
 **Multi-Issue:** `gh pmu move 42 43 44 --status in_progress` - more efficient than parallel calls
 **Deprecation:** `--release` flag deprecated, use `--branch` instead.
 **Microsprint:** `start`, `current`, `add [#]`, `remove [#]`, `close`, `list`, `resolve`
-**Branch:** `start --branch release/vX.Y.Z`, `current`, `reopen [name]`, `move [#] --branch current` (recommended), `remove [#]`, `close [--tag]`, `list`
+**Branch:** `start --name release/vX.Y.Z`, `current`, `reopen [name]`, `move [#] --branch current` (recommended), `remove [#]`, `close [--tag]`, `list`
 **Deprecation:** `gh pmu release` deprecated, use `gh pmu branch` instead.
-**Patch Releases:** Use `gh pmu branch` with `patch/` branch naming (e.g., `--branch patch/v1.1.5`)
+**Patch Releases:** Use `gh pmu branch` with `patch/` branch naming (e.g., `--name patch/v1.1.5`)
 **Auto-Close:** Default Kanban template auto-closes issues when moved to `done`. `gh issue close` only needed for close reason or comment.
 ## Slash Command Preference
 Prefer slash commands over raw `gh pmu` commands:
@@ -106,14 +106,20 @@ Each sprint scoped to one branch tracker; `microsprint start` requires active br
 | IDPF-Agile | `epic` | `story` |
 **When user says "work #N":** `gh issue view [N] --repo {repository} --json labels --jq '.labels[].name'`
 **IDPF-Agile:** `epic` label? → Yes: EPIC WORKFLOW (Section 4) | No: STANDARD (Section 1)
+**Work Command Auto-Todo:**
+| Trigger | Todo Source |
+|---------|-------------|
+| `work #N` (story/bug) | Acceptance criteria checkboxes |
+| `work #N` (epic) | Sub-issues from `gh pmu sub list` |
+| `work all in [status]` | Issues matching status filter |
+Hook outputs `[AUTO-TODO: ...]` blocks for assistant to create TodoWrite list.
 **Trigger Words (Create Issue First):**
 | Trigger | Section |
 |---------|---------|
-| `bug:`, `finding:` | 1 (Standard) |
+| `bug:` | 1 (Standard) |
 | `enhancement:` | 1 (Standard) |
 | `idea:` | 2 (Proposal alias) |
 | `proposal:` | 2 (Proposal) |
-| `prd:` | 7 (PRD) |
 Create issue → Report number → **Wait for "work"**
 ## BLOCKING: Status Change Prerequisites
 **Before `--status in_review`:**
@@ -181,7 +187,7 @@ If yes: `gh issue edit [parent] --add-label "epic"`, add "story" to sub-issues
 ### 6.5. Branch Reopen Workflow
 `gh pmu branch reopen [branch-name]` - Reopen closed branch tracker (e.g., `release/v1.2.0`, `patch/v1.1.5`)
 ### 10-11. Release/Patch Workflow
-**Start:** `gh pmu branch start --branch "release/v1.2.0"` (or `patch/v1.1.5` for patches)
+**Start:** `gh pmu branch start --name "release/v1.2.0"` (or `patch/v1.1.5` for patches)
 **Add:** `gh pmu move [#] --branch current`
 **Close:** `gh pmu branch close [--tag]`
 **Artifacts:** `Releases/[release|patch]/vX.Y.Z/[release|patch]-notes.md`, `changelog.md`

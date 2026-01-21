@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-01-21
+
+### Added
+- `qa-required` label to standard labels (#607)
+- `--json` field selection for `view` and `list` commands (#599)
+  - `--json` alone lists available fields
+  - `--json=field1,field2` returns only specified fields
+  - `--jq` flag for filtering JSON output
+
+### Removed
+- Microsprint cache in favor of direct tracker issue lookup (#602)
+  - Removed `--refresh` flag from `microsprint list`
+  - Simplified configuration by removing cache section
+- Deprecated `gh pmu release` command (#509)
+  - Use `gh pmu branch` instead
+  - Removed `--release` flag from `move` command
+
+### Fixed
+- IDPF link in README.md now points to correct repository
+
 ## [0.13.2] - 2026-01-20
 
 ### Changed

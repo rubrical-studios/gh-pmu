@@ -1,7 +1,7 @@
 # Project Charter: gh-pmu
 
 **Status:** Active
-**Last Updated:** 2026-01-04
+**Last Updated:** 2026-01-21
 
 ## Vision
 
@@ -9,7 +9,7 @@ A GitHub CLI extension that streamlines project workflows by unifying issue trac
 
 ## Current Focus
 
-v0.10.0 - Enhanced body editing with `--body-stdout` and `--body-stdin` flags
+v0.14.0 - Stability and documentation improvements
 
 ## Tech Stack
 
@@ -23,9 +23,12 @@ v0.10.0 - Enhanced body editing with `--body-stdout` and `--body-stdin` flags
 
 - Project field management (status, priority, custom fields)
 - Sub-issue hierarchy with progress tracking
-- Batch operations (intake, triage, split)
-- Workflow automation (microsprint, release)
+- Batch operations (intake, triage, split, batch mutations)
+- Workflow automation (microsprint, branch tracking)
 - Terminal Kanban board visualization
+- Cross-repository issue operations
+- Auto-create labels and custom fields
+- E2E test infrastructure
 
 ---
 *See Inception/ for full specifications*
