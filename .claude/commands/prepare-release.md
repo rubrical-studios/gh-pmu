@@ -1,32 +1,38 @@
 ---
-version: "v0.26.3"
-description: Prepare framework release with version updates and validation (project)
-argument-hint: [options...] (phase:N, skip:*, audit:*, dry-run, skip-e2e)
+version: "v0.29.1"
+description: Prepare release with PR, merge to main, and tag
+argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
 ---
 <!-- EXTENSIBLE -->
 # /prepare-release
-Execute the full release preparation workflow.
-## Extension Points
+Validate, create PR to main, merge, and tag for deployment.
+## Available Extension Points
 | Point | Location | Purpose |
 |-------|----------|---------|
-| `post-analysis` | After Phase 1 | Custom commit analysis |
-| `pre-validation` | Before Phase 2 | Setup test environment |
-| `post-validation` | After Phase 2 | Custom validation |
-| `post-prepare` | After Phase 3 | Additional updates |
+| `post-analysis` | After Phase 1 | Commit analysis, version recommendation |
+| `pre-validation` | Before Phase 2 | Setup, fixtures, containers |
+| `post-validation` | After Phase 2 | Coverage gates, build verification |
+| `post-prepare` | After Phase 3 | Documentation updates |
 | `post-pr-create` | After PR creation | CI wait, PR validation |
-| `pre-tag` | Before Phase 4 | Final gate, sign-off |
-| `post-tag` | After Phase 4 | Deployment, notifications |
+| `pre-tag` | Before Phase 4 tagging | Final gate, sign-off |
+| `post-tag` | After Phase 4 | Release monitoring |
+| `checklist-before-tag` | Summary Checklist | Pre-tag items |
+| `checklist-after-tag` | Summary Checklist | Post-tag items |
 | `pre-close` | Before Phase 5 | Pre-close validation |
-| `post-close` | After Phase 5 | Post-release actions |
----
+| `post-close` | After Phase 5 | Post-release announcements |
+| `checklist-close` | Summary Checklist | Close items |
 ## Arguments
-| Usage | Behavior |
-|-------|----------|
-| `/prepare-release` | Full process |
-| `/prepare-release phase:2` | Start from Phase 2 |
-| `/prepare-release skip:X` | Skip sub-phase |
-| `/prepare-release dry-run` | Preview only |
----
+| Argument | Description |
+|----------|-------------|
+| `[version]` | Version to release (e.g., v1.2.0) |
+| `--skip-coverage` | Skip coverage gate |
+| `--dry-run` | Preview without changes |
+| `--help` | Show extension points |
+## Execution Instructions
+**REQUIRED:** Before executing:
+1. **Create Todo List:** Use `TodoWrite` for phases
+2. **Track Progress:** Mark `in_progress` → `completed`
+3. **Resume Point:** Todos show where to continue
 ## Pre-Checks
 ### Verify Current Branch
 ```bash
@@ -34,43 +40,22 @@ git branch --show-current
 ```
 Record as `$BRANCH`.
 ### Auto-Create Release Branch (if on main)
-**If `$BRANCH` is `main`:**
-1. Analyze commits: `git log $(git describe --tags --abbrev=0)..HEAD --oneline`
-2. Recommend version based on commits
-3. **ASK USER:** Confirm version
-4. **If `--dry-run`:** Report "Would create branch: release/vX.Y.Z" and stop
-5. Create branch:
-   ```bash
-   gh pmu branch start --branch "release/$VERSION"
-   git checkout "release/$VERSION"
-   git push -u origin "release/$VERSION"
-   ```
-6. Update `$BRANCH` to `release/$VERSION`
-**If NOT `main`:** Continue with existing working branch.
-### Check for Open Work
+If on `main`: Analyze commits → recommend version → **ASK USER** → create `release/$VERSION` branch → update `$BRANCH`
+### Check for Open Sprints
 ```bash
-gh pmu microsprint current 2>/dev/null
-gh pmu release current --json issues | jq '.[] | select(.status != \"done\")'
+gh pmu microsprint current
 ```
----
-## Phase 1: Analysis & Version
-### Step 1.1: Identify Last Release
+Close open sprints before proceeding.
+### Check for Incomplete Issues
 ```bash
-git describe --tags --abbrev=0
+gh pmu branch current --json issues | jq '.[] | select(.status != "done")'
 ```
-### Step 1.2: List Commits Since Last Release
+## Phase 1: Analysis
+### Step 1.1: Analyze Changes
 ```bash
-git log vX.Y.Z..HEAD --oneline
-git log vX.Y.Z..HEAD --oneline | wc -l
+git log $(git describe --tags --abbrev=0)..HEAD --oneline
 ```
-### Step 1.3: Categorize Changes
-| Category | Indicators | Impact |
-|----------|-----------|--------|
-| New Framework | "Add IDPF-*" | MINOR/MAJOR |
-| New Skill | "Implement * skill" | MINOR |
-| Bug Fix | "Fix *" | PATCH |
-### Step 1.4: Determine Version
-**ASK USER:** Confirm version.
+
 <!-- USER-EXTENSION-START: post-analysis -->
 ### Analyze Commits
 
@@ -114,8 +99,10 @@ The script analyzes which E2E tests may be impacted by changes:
 
 **If `newCommandsWithoutTests` is non-empty, warn user about missing coverage.**
 <!-- USER-EXTENSION-END: post-analysis -->
----
+
+**ASK USER:** Confirm version.
 ## Phase 2: Validation
+
 <!-- USER-EXTENSION-START: pre-validation -->
 ### Handle Incomplete Issues
 
@@ -136,14 +123,12 @@ The script outputs JSON: `{"success": true/false, "message": "..."}`
 
 Runs `golangci-lint run --timeout=5m` to catch lint errors before tagging.
 <!-- USER-EXTENSION-END: pre-validation -->
-### Step 2.1: Verify Working Directory
+
+### Step 2.1: Run Tests
 ```bash
-git status --porcelain
+go test ./...
 ```
-### Step 2.2: Run Basic Tests
-```bash
-npm test 2>/dev/null || echo "No test script"
-```
+
 <!-- USER-EXTENSION-START: post-validation -->
 ### Coverage Gate
 
@@ -184,20 +169,23 @@ The script outputs JSON: `{"success": true/false, "testsRun": N, "testsPassed": 
 
 E2E tests validate complete workflows against the test project.
 <!-- USER-EXTENSION-END: post-validation -->
+
 **ASK USER:** Confirm validation passed.
----
 ## Phase 3: Prepare
 ### Step 3.1: Update Version Files
 | File | Action |
 |------|--------|
-| `framework-manifest.json` | Update version |
 | `CHANGELOG.md` | Add new section |
-| `README.md` | Update version line |
-### Step 3.2: Generate Release Artifacts
+| `README.md` | Update version |
+| `README-DIST.md` | Verify counts, license |
+| `framework-config.json` | (Self-hosted) Update version and date |
+### Step 3.2: Commit Preparation
 ```bash
-mkdir -p "Releases/$TRACK/$VERSION"
+git add CHANGELOG.md README.md README-DIST.md docs/
+git commit -m "chore: prepare release $VERSION"
+git push
 ```
-Create `release-notes.md` and `changelog.md`.
+
 <!-- USER-EXTENSION-START: post-prepare -->
 ### Wait for CI
 
@@ -209,20 +197,14 @@ The script polls CI status every 60 seconds (5-minute timeout).
 
 **If CI fails, STOP and report the error.**
 <!-- USER-EXTENSION-END: post-prepare -->
----
+
+**CRITICAL:** Do not proceed until CI passes.
 ## Phase 4: Git Operations
-### Step 4.1: Commit Release
+### Step 4.1: Create PR to Main
 ```bash
-git add -A
-git commit -m "Release vX.Y.Z"
-git push origin release/vX.Y.Z
+gh pr create --base main --head $(git branch --show-current) --title "Release $VERSION"
 ```
-### Step 4.2: Update Issue Criteria
-Update acceptance criteria on release issues before PR.
-### Step 4.3: Create PR to Main
-```bash
-gh pr create --base main --head release/vX.Y.Z --title "Release vX.Y.Z"
-```
+
 <!-- USER-EXTENSION-START: post-pr-create -->
 
 ### Wait for CI
@@ -232,20 +214,22 @@ node .claude/scripts/framework/wait-for-ci.js
 **If CI fails, STOP and report.**
 
 <!-- USER-EXTENSION-END: post-pr-create -->
-### Step 4.4: Merge PR
+
+### Step 4.2: Merge PR
 **ASK USER:** Approve and merge.
 ```bash
 gh pr merge --merge
 ```
-### Step 4.5: Close Branch Tracker
+### Step 4.3: Close Branch Tracker
 ```bash
 gh pmu branch close
 ```
-### Step 4.6: Switch to Main
+### Step 4.4: Switch to Main
 ```bash
 git checkout main
 git pull origin main
 ```
+
 <!-- USER-EXTENSION-START: pre-tag -->
 ### Important Rules
 
@@ -256,17 +240,14 @@ git pull origin main
 5. **NEVER declare release complete after pushing tag** - Monitor until assets uploaded
 6. **ALWAYS verify release assets exist** - Run `gh release view` to confirm
 <!-- USER-EXTENSION-END: pre-tag -->
-### Step 4.7: Tag Main
+
+### Step 4.5: Tag and Push
 **ASK USER:** Confirm ready to tag.
 ```bash
-git tag -a vX.Y.Z -m "Release vX.Y.Z"
-git push origin vX.Y.Z
+git tag -a $VERSION -m "Release $VERSION"
+git push origin $VERSION
 ```
-### Step 4.8: Verify Deployment
-```bash
-gh run list --limit 1
-gh run watch
-```
+
 <!-- USER-EXTENSION-START: post-tag -->
 ### Monitor Release Workflow
 
@@ -309,33 +290,64 @@ Options:
 Issues included in this release still require explicit user approval ("Done") to close.
 Do NOT auto-close issues just because they shipped.
 <!-- USER-EXTENSION-END: post-tag -->
----
+
+## Summary Checklist
+**Before tagging:**
+- [ ] Commits analyzed
+- [ ] Version confirmed
+- [ ] CHANGELOG updated
+- [ ] PR merged
+
+<!-- USER-EXTENSION-START: checklist-before-tag -->
+- [ ] Coverage gate passed (or `--skip-coverage`)
+- [ ] CI passing
+<!-- USER-EXTENSION-END: checklist-before-tag -->
+
+**After tagging:**
+- [ ] Tag pushed
+
+<!-- USER-EXTENSION-START: checklist-after-tag -->
+- [ ] All CI jobs completed
+- [ ] Release assets uploaded
+- [ ] Release notes updated
+<!-- USER-EXTENSION-END: checklist-after-tag -->
+
 <!-- USER-EXTENSION-START: pre-close -->
 <!-- USER-EXTENSION-END: pre-close -->
+
 ## Phase 5: Close & Cleanup
 **ASK USER:** Confirm deployment verified.
 ### Step 5.1: Close Tracker Issue
 ```bash
-gh issue close [TRACKER_NUMBER] --comment "Release vX.Y.Z deployed successfully"
+gh issue close [TRACKER_NUMBER] --comment "Release $VERSION deployed successfully"
 ```
-### Step 5.2: Delete Release Branch
+### Step 5.2: Delete Working Branch
 ```bash
-git push origin --delete release/vX.Y.Z
-git branch -d release/vX.Y.Z
+git push origin --delete $BRANCH
+git branch -d $BRANCH
 ```
 ### Step 5.3: Create GitHub Release
 ```bash
-gh release create vX.Y.Z --title "Release vX.Y.Z" --notes-file "Releases/release/vX.Y.Z/release-notes.md"
+gh release create $VERSION --title "Release $VERSION" --notes-file CHANGELOG.md
 ```
+
 <!-- USER-EXTENSION-START: post-close -->
 <!-- USER-EXTENSION-END: post-close -->
----
+
+## Summary Checklist (Close)
+
+<!-- USER-EXTENSION-START: checklist-close -->
+- [ ] Tracker issue closed
+- [ ] Release closed in project
+- [ ] Working branch deleted
+- [ ] GitHub Release created
+<!-- USER-EXTENSION-END: checklist-close -->
+
 ## Completion
 - ✅ Code merged to main
 - ✅ Tag created and pushed
 - ✅ Deployment verified
-- ✅ Tracker closed
-- ✅ Branch deleted
+- ✅ Tracker issue closed
+- ✅ Working branch deleted
 - ✅ GitHub Release created
----
 **End of Prepare Release**

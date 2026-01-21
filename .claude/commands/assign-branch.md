@@ -1,5 +1,5 @@
 ---
-version: "v0.26.3"
+version: "v0.29.1"
 allowed-tools: Bash, AskUserQuestion
 description: Assign issues to a branch (project)
 ---
@@ -15,7 +15,7 @@ If script outputs `NO_RELEASE_FOUND`, no open branches exist. Script also output
 When you see this:
 1. Parse SUGGESTIONS for branch options
 2. Use `AskUserQuestion` to let user select (recommended first, descriptions included, Other for custom)
-3. Create branch: `gh pmu release start --branch "<selected>"`
+3. Create branch: `gh pmu branch start --name "<selected>"`
 4. Re-run original assign-branch command
 ## Normal Output
 If branches exist, report result directly.

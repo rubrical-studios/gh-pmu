@@ -1,6 +1,6 @@
 {
-  "frameworkVersion": "0.26.3",
-  "installedDate": "2026-01-18",
+  "frameworkVersion": "0.29.1",
+  "installedDate": "2026-01-21",
   "extensibleCommands": [
     "open-release",
     "prepare-release",
@@ -49,5 +49,5 @@
     "language": "go",
     "domainSpecialist": "Backend-Specialist"
   },
-  "frameworkPath": "E:\\Projects\\virtual-ai-studio-dist"
+  "frameworkPath": "E:\\Projects\\idpf-praxis-dist"
 }

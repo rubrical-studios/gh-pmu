@@ -1,5 +1,5 @@
 ---
-version: "v0.26.3"
+version: "v0.29.1"
 description: Create a branch with tracker issue
 argument-hint: <branch-name> (e.g., release/v0.16.0, my-feature, bugfix-123)
 ---
@@ -22,6 +22,7 @@ Branch name must be a valid git branch name (no spaces, no special characters th
 ```bash
 git status --porcelain
 ```
+
 <!-- USER-EXTENSION-START: pre-create -->
 ### Verify Config
 ```bash
@@ -29,6 +30,7 @@ git status --porcelain .gh-pmu.yml
 ```
 **If `success` is false, STOP.**
 <!-- USER-EXTENSION-END: pre-create -->
+
 ### Step 3: Create Branch with Tracker
 ```bash
 gh pmu branch start --name "$BRANCH"
@@ -46,8 +48,10 @@ git push -u origin "$BRANCH"
 ```bash
 mkdir -p "Releases/$BRANCH"
 ```
+
 <!-- USER-EXTENSION-START: post-create -->
 <!-- USER-EXTENSION-END: post-create -->
+
 ### Step 7: Report Completion
 ```
 Branch created.

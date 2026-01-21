@@ -1,5 +1,5 @@
 # Anti-Hallucination Rules for Software Development
-**Version:** v0.26.3
+**Version:** v0.29.1
 **Source:** Assistant/Anti-Hallucination-Rules-for-Software-Development.md
 
 ## Core Principle
