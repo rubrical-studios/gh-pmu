@@ -19,8 +19,8 @@ type Config struct {
 	Defaults     Defaults          `yaml:"defaults,omitempty"`
 	Fields       map[string]Field  `yaml:"fields,omitempty"`
 	Triage       map[string]Triage `yaml:"triage,omitempty"`
-	Release  Release   `yaml:"release,omitempty"`
-	Metadata *Metadata `yaml:"metadata,omitempty"`
+	Release      Release           `yaml:"release,omitempty"`
+	Metadata     *Metadata         `yaml:"metadata,omitempty"`
 }
 
 // Project contains GitHub project configuration
