@@ -206,17 +206,24 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 		items = filterBySearch(items, opts.search)
 	}
 
-	// Apply release filter
+	// Apply branch filter
 	if opts.release != "" {
 		targetRelease := opts.release
 		if opts.release == "current" && repoFilter != "" {
-			// Resolve "current" to active release
+			// Resolve "current" to active branch
 			parts := strings.Split(repoFilter, "/")
 			if len(parts) == 2 {
 				releaseIssues, err := client.GetOpenIssuesByLabel(parts[0], parts[1], "branch")
 				if err == nil {
 					for _, issue := range releaseIssues {
-						if strings.HasPrefix(issue.Title, "Release: ") {
+						// Support both "Branch: " and "Release: " prefixes
+						if strings.HasPrefix(issue.Title, "Branch: ") {
+							targetRelease = strings.TrimPrefix(issue.Title, "Branch: ")
+							if idx := strings.Index(targetRelease, " ("); idx > 0 {
+								targetRelease = targetRelease[:idx]
+							}
+							break
+						} else if strings.HasPrefix(issue.Title, "Release: ") {
 							targetRelease = strings.TrimPrefix(issue.Title, "Release: ")
 							if idx := strings.Index(targetRelease, " ("); idx > 0 {
 								targetRelease = targetRelease[:idx]
@@ -227,12 +234,13 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 				}
 			}
 		}
-		items = filterByFieldValue(items, "Release", targetRelease)
+		// Filter by both "Branch" and "Release" field names for backward compatibility
+		items = filterByBranchFieldValue(items, targetRelease)
 	}
 
-	// Apply no-release filter (issues without release assignment)
+	// Apply no-branch filter (issues without branch assignment)
 	if opts.noRelease {
-		items = filterByEmptyField(items, "Release")
+		items = filterByEmptyBranchField(items)
 	}
 
 	// Apply microsprint filter
@@ -310,6 +318,42 @@ func filterByEmptyField(items []api.ProjectItem, fieldName string) []api.Project
 		hasValue := false
 		for _, fv := range item.FieldValues {
 			if strings.EqualFold(fv.Field, fieldName) && fv.Value != "" {
+				hasValue = true
+				break
+			}
+		}
+		if !hasValue {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+// filterByBranchFieldValue filters items by the branch field value
+// Checks both "Branch" (new) and "Release" (legacy) field names for backward compatibility
+func filterByBranchFieldValue(items []api.ProjectItem, value string) []api.ProjectItem {
+	var filtered []api.ProjectItem
+	for _, item := range items {
+		for _, fv := range item.FieldValues {
+			if (strings.EqualFold(fv.Field, BranchFieldName) || strings.EqualFold(fv.Field, LegacyReleaseFieldName)) &&
+				strings.EqualFold(fv.Value, value) {
+				filtered = append(filtered, item)
+				break
+			}
+		}
+	}
+	return filtered
+}
+
+// filterByEmptyBranchField filters items where the branch field is empty or not set
+// Checks both "Branch" (new) and "Release" (legacy) field names for backward compatibility
+func filterByEmptyBranchField(items []api.ProjectItem) []api.ProjectItem {
+	var filtered []api.ProjectItem
+	for _, item := range items {
+		hasValue := false
+		for _, fv := range item.FieldValues {
+			if (strings.EqualFold(fv.Field, BranchFieldName) || strings.EqualFold(fv.Field, LegacyReleaseFieldName)) &&
+				fv.Value != "" {
 				hasValue = true
 				break
 			}

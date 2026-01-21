@@ -297,10 +297,15 @@ func getFieldValueFromSlice(fieldValues []api.FieldValue, fieldName string) stri
 
 // buildValidationContext creates a validation context from project item data
 func buildValidationContext(number int, body string, fieldValues []api.FieldValue, activeReleases []string) *issueValidationContext {
+	// Check both "Branch" (new) and "Release" (legacy) field names for backward compatibility
+	currentBranch := getFieldValueFromSlice(fieldValues, BranchFieldName)
+	if currentBranch == "" {
+		currentBranch = getFieldValueFromSlice(fieldValues, LegacyReleaseFieldName)
+	}
 	return &issueValidationContext{
 		Number:         number,
 		CurrentStatus:  getFieldValueFromSlice(fieldValues, "Status"),
-		CurrentRelease: getFieldValueFromSlice(fieldValues, "Release"),
+		CurrentRelease: currentBranch,
 		Body:           body,
 		ActiveReleases: activeReleases,
 	}

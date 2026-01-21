@@ -113,7 +113,7 @@ func newBranchStartCommand() *cobra.Command {
 		Long: `Creates a tracker issue for a new branch and creates the git branch.
 
 The --name flag is required and specifies the branch name to create.
-The branch name is used literally for the tracker title, Release field,
+The branch name is used literally for the tracker title, Branch field,
 and artifact directory.
 
 Examples:
@@ -148,7 +148,7 @@ func newBranchAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <issue-number>",
 		Short: "Add an issue to the current branch",
-		Long:  `Assigns an issue to the active branch by setting its Release field.`,
+		Long:  `Assigns an issue to the active branch by setting its Branch field.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var issueNum int
@@ -180,7 +180,7 @@ func newBranchRemoveCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove <issue-number>",
 		Short: "Remove an issue from the current branch",
-		Long:  `Clears the Release field from an issue.`,
+		Long:  `Clears the Branch field from an issue.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var issueNum int
@@ -244,7 +244,7 @@ func newBranchCloseCommand() *cobra.Command {
 If no branch name is specified and exactly one branch is active, that branch
 will be used. If multiple branches are active, you must specify which one to close.
 
-Incomplete issues will be moved to backlog with Release and Microsprint fields cleared.
+Incomplete issues will be moved to backlog with Branch and Microsprint fields cleared.
 Release artifacts should be created beforehand using /prepare-release.
 
 Examples:
@@ -485,7 +485,7 @@ func runBranchAddWithDeps(cmd *cobra.Command, opts *branchAddOptions, cfg *confi
 		return fmt.Errorf("failed to get project item for issue #%d: %w", opts.issueNumber, err)
 	}
 
-	// Set the Release text field
+	// Set the Branch text field (config key is "release" for backward compatibility)
 	releaseField, ok := cfg.Fields["release"]
 	if !ok {
 		return fmt.Errorf("release field not configured")
@@ -575,7 +575,7 @@ func runBranchRemoveWithDeps(cmd *cobra.Command, opts *branchRemoveOptions, cfg 
 		return nil
 	}
 
-	// Clear the Release text field (AC-039-1)
+	// Clear the Branch text field (AC-039-1)
 	err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
 	if err != nil {
 		return fmt.Errorf("failed to clear release field: %w", err)
@@ -624,23 +624,24 @@ func runBranchCurrentWithDeps(cmd *cobra.Command, opts *branchCurrentOptions, cf
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
 
-	// Filter items by Release field matching releaseVersion
+	// Filter items by Branch field matching releaseVersion
+	// Check both "Branch" (new) and "Release" (legacy) field names
 	var releaseIssues []api.Issue
 	for _, item := range items {
 		if item.Issue == nil {
 			continue
 		}
-		// Check if this item has a Release field matching the target version
+		// Check if this item has a Branch/Release field matching the target version
 		for _, fv := range item.FieldValues {
-			if fv.Field == "Release" && fv.Value == releaseVersion {
+			if (fv.Field == BranchFieldName || fv.Field == LegacyReleaseFieldName) && fv.Value == releaseVersion {
 				releaseIssues = append(releaseIssues, *item.Issue)
 				break
 			}
 		}
 	}
 
-	// Display release details (AC-036-1)
-	fmt.Fprintf(cmd.OutOrStdout(), "Current Release: %s\n", releaseVersion)
+	// Display branch details (AC-036-1)
+	fmt.Fprintf(cmd.OutOrStdout(), "Current Branch: %s\n", releaseVersion)
 	fmt.Fprintf(cmd.OutOrStdout(), "Tracker: #%d\n", activeRelease.Number)
 	fmt.Fprintf(cmd.OutOrStdout(), "Issues: %d\n", len(releaseIssues))
 
@@ -686,7 +687,7 @@ func generateBranchTrackerTemplate(branchName string) string {
 
 ## Issues in this branch
 
-_Issues are tracked via the Release field in the project._
+_Issues are tracked via the Branch field in the project._
 `,
 		"`"+branchName+"`",
 		"`branch`",
@@ -742,15 +743,16 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
 
-	// Filter items by Release field matching releaseVersion
+	// Filter items by Branch field matching releaseVersion
+	// Check both "Branch" (new) and "Release" (legacy) field names
 	var releaseIssues []api.Issue
 	for _, item := range items {
 		if item.Issue == nil {
 			continue
 		}
-		// Check if this item has a Release field matching the target version
+		// Check if this item has a Branch/Release field matching the target version
 		for _, fv := range item.FieldValues {
-			if fv.Field == "Release" && fv.Value == releaseVersion {
+			if (fv.Field == BranchFieldName || fv.Field == LegacyReleaseFieldName) && fv.Value == releaseVersion {
 				releaseIssues = append(releaseIssues, *item.Issue)
 				break
 			}
@@ -767,8 +769,8 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 		}
 	}
 
-	// Show release summary
-	fmt.Fprintf(cmd.OutOrStdout(), "Closing release: %s\n", opts.branchName)
+	// Show branch summary
+	fmt.Fprintf(cmd.OutOrStdout(), "Closing branch: %s\n", opts.branchName)
 	fmt.Fprintf(cmd.OutOrStdout(), "  Tracker issue: #%d\n", targetBranch.Number)
 	fmt.Fprintf(cmd.OutOrStdout(), "  Issues in release: %d (%d done, %d incomplete)\n",
 		len(releaseIssues), len(doneIssues), len(incompleteIssues))
@@ -857,7 +859,7 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 					continue
 				}
 
-				// Clear Release field
+				// Clear Branch field
 				if releaseField, ok := cfg.Fields["release"]; ok {
 					_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
 				}
@@ -909,9 +911,9 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 	}
 
 	// Output confirmation
-	fmt.Fprintf(cmd.OutOrStdout(), "✓ Release closed: %s\n", releaseVersion)
+	fmt.Fprintf(cmd.OutOrStdout(), "✓ Branch closed: %s\n", releaseVersion)
 	if len(issuesToMove) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Release and Microsprint cleared)\n", len(issuesToMove))
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Branch and Microsprint cleared)\n", len(issuesToMove))
 	}
 	if opts.tag {
 		fmt.Fprintf(cmd.OutOrStdout(), "✓ Tag created: %s\n", releaseVersion)

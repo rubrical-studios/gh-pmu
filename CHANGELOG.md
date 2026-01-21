@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-01-20
+
+### Changed
+- Renamed project text field from "Release" to "Branch" in defaults (#603)
+- Updated all command help text to reference "Branch" field instead of "Release"
+- Added backward compatibility for existing projects with "Release" field
+  - Commands check for "Branch" field first, fall back to "Release"
+  - No migration required for existing projects
+
 ## [0.13.1] - 2026-01-19
 
 ### Added
