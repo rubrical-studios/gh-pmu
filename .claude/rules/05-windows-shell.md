@@ -1,5 +1,5 @@
 # Windows Shell Safety for Claude Code
-**Version:** v0.29.1
+**Version:** v0.29.2
 **Source:** Reference/Windows-Shell-Safety.md
 ---
 **MUST READ:** Auto-loaded on Windows at session startup.
@@ -27,6 +27,17 @@ gh issue create --body "$(cat README.md)"
 # GOOD - use --body-file flag
 gh issue create --body-file README.md
 ```
+## Issue/PR Bodies with Backticks (IMPORTANT)
+**ALWAYS use temp file approach for issue/PR bodies.** Bodies almost always contain backticks (code blocks, inline code).
+```bash
+# BAD - backticks cause failures
+gh pmu create --body "Fix \`foo\` function"
+
+# GOOD - Write tool + temp file
+gh pmu create --title "Bug: ..." -F .tmp-body.md --status backlog
+rm .tmp-body.md
+```
+**Rule:** Never use `--body` with inline content. Always use `-F` with a temp file.
 ## gh pmu Body Flags
 **Prefer `--body-stdout` / `--body-stdin`** for cleaner workflows.
 ```bash

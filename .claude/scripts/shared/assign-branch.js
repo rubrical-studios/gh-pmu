@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.29.1
+// **Version:** 0.29.2
 /**
  * assign-branch.js
  *

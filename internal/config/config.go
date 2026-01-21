@@ -19,9 +19,8 @@ type Config struct {
 	Defaults     Defaults          `yaml:"defaults,omitempty"`
 	Fields       map[string]Field  `yaml:"fields,omitempty"`
 	Triage       map[string]Triage `yaml:"triage,omitempty"`
-	Release      Release           `yaml:"release,omitempty"`
-	Metadata     *Metadata         `yaml:"metadata,omitempty"`
-	Cache        *Cache            `yaml:"cache,omitempty"`
+	Release  Release   `yaml:"release,omitempty"`
+	Metadata *Metadata `yaml:"metadata,omitempty"`
 }
 
 // Project contains GitHub project configuration
@@ -342,18 +341,6 @@ type LabelConstraints struct {
 	Forbidden []string `yaml:"forbidden,omitempty"`
 }
 
-// Cache contains cached tracker data for fast list operations
-type Cache struct {
-	Microsprints []CachedTracker `yaml:"microsprints,omitempty"`
-}
-
-// CachedTracker represents a cached microsprint tracker issue
-type CachedTracker struct {
-	Number int    `yaml:"number"`
-	Title  string `yaml:"title"`
-	State  string `yaml:"state"` // "OPEN" or "CLOSED"
-}
-
 // GetTrackPrefix returns the prefix for a given track name
 // Returns "v" for stable track if not configured
 func (c *Config) GetTrackPrefix(track string) string {
@@ -467,43 +454,6 @@ func (c *Config) GetCoverageSkipPatterns() []string {
 		return []string{"*_test.go", "mock_*.go"}
 	}
 	return c.Release.Coverage.SkipPatterns
-}
-
-// HasCachedMicrosprints returns true if cached microsprint data exists
-func (c *Config) HasCachedMicrosprints() bool {
-	return c.Cache != nil && len(c.Cache.Microsprints) > 0
-}
-
-// GetCachedMicrosprints returns cached microsprint trackers
-func (c *Config) GetCachedMicrosprints() []CachedTracker {
-	if c.Cache == nil {
-		return nil
-	}
-	return c.Cache.Microsprints
-}
-
-// SetCachedMicrosprints updates the cached microsprint tracker data
-func (c *Config) SetCachedMicrosprints(trackers []CachedTracker) {
-	if c.Cache == nil {
-		c.Cache = &Cache{}
-	}
-	c.Cache.Microsprints = trackers
-}
-
-// UpdateCachedMicrosprint updates or adds a single microsprint tracker in the cache
-func (c *Config) UpdateCachedMicrosprint(tracker CachedTracker) {
-	if c.Cache == nil {
-		c.Cache = &Cache{}
-	}
-
-	// Update existing or append new
-	for i, t := range c.Cache.Microsprints {
-		if t.Number == tracker.Number {
-			c.Cache.Microsprints[i] = tracker
-			return
-		}
-	}
-	c.Cache.Microsprints = append(c.Cache.Microsprints, tracker)
 }
 
 // TempDirName is the name of the temporary directory within the project root

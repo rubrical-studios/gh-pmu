@@ -1589,23 +1589,10 @@ func TestRunMoveWithDeps_MicrosprintCurrentNoActive(t *testing.T) {
 }
 
 // =============================================================================
-// REQ-006: Release Flag Tests
+// REQ-006: Branch Flag Tests
 // =============================================================================
 
-func TestMoveCommand_HasReleaseFlag(t *testing.T) {
-	cmd := NewRootCommand()
-	moveCmd, _, err := cmd.Find([]string{"move"})
-	if err != nil {
-		t.Fatalf("move command not found: %v", err)
-	}
-
-	flag := moveCmd.Flags().Lookup("release")
-	if flag == nil {
-		t.Fatal("Expected --release flag to exist")
-	}
-}
-
-func TestRunMoveWithDeps_ReleaseExplicitValue(t *testing.T) {
+func TestRunMoveWithDeps_BranchExplicitValue(t *testing.T) {
 	mock := setupMockWithIssue(42, "Test Issue", "item-42")
 	cfg := testMoveConfig()
 
@@ -1757,24 +1744,6 @@ func TestRunMoveWithDeps_BacklogClearsFields(t *testing.T) {
 	}
 	if !releaseCleared {
 		t.Error("Expected Release field to be cleared")
-	}
-}
-
-func TestRunMove_BacklogCannotCombineWithRelease(t *testing.T) {
-	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"move", "42", "--backlog", "--release", "v1.0"})
-
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("Expected error when combining --backlog with --release")
-	}
-
-	if !strings.Contains(err.Error(), "cannot be combined") {
-		t.Errorf("Expected error about combining flags, got: %v", err)
 	}
 }
 

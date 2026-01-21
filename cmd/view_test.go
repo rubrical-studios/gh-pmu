@@ -138,7 +138,7 @@ func TestRunViewWithDeps_JSONOutput(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 
-	opts := &viewOptions{json: true}
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,fieldValues"}
 	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -736,7 +736,8 @@ func TestOutputViewJSON_BasicIssue(t *testing.T) {
 		Author: api.Actor{Login: "testuser"},
 	}
 
-	err := outputViewJSON(cmd, issue, nil, nil, nil, nil)
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,fieldValues"}
+	err := outputViewJSON(cmd, opts, issue, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("outputViewJSON() error = %v", err)
 	}
@@ -763,7 +764,8 @@ func TestOutputViewJSON_WithAllFields(t *testing.T) {
 		{Field: "Priority", Value: "High"},
 	}
 
-	err := outputViewJSON(cmd, issue, fieldValues, nil, nil, nil)
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,milestone,fieldValues"}
+	err := outputViewJSON(cmd, opts, issue, fieldValues, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("outputViewJSON() error = %v", err)
 	}
@@ -787,7 +789,8 @@ func TestOutputViewJSON_WithSubIssues(t *testing.T) {
 		{Number: 45, Title: "Sub 3", State: "CLOSED", URL: "https://github.com/owner/repo/issues/45"},
 	}
 
-	err := outputViewJSON(cmd, issue, nil, subIssues, nil, nil)
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,fieldValues,subIssues,subProgress"}
+	err := outputViewJSON(cmd, opts, issue, nil, subIssues, nil, nil)
 	if err != nil {
 		t.Fatalf("outputViewJSON() error = %v", err)
 	}
@@ -811,7 +814,8 @@ func TestOutputViewJSON_WithParentIssue(t *testing.T) {
 		URL:    "https://github.com/owner/repo/issues/10",
 	}
 
-	err := outputViewJSON(cmd, issue, nil, nil, parentIssue, nil)
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,fieldValues,parentIssue"}
+	err := outputViewJSON(cmd, opts, issue, nil, nil, parentIssue, nil)
 	if err != nil {
 		t.Fatalf("outputViewJSON() error = %v", err)
 	}
@@ -838,7 +842,8 @@ func TestOutputViewJSON_SubIssueProgress(t *testing.T) {
 		{Number: 5, Title: "Task 5", State: "OPEN"},
 	}
 
-	err := outputViewJSON(cmd, issue, nil, subIssues, nil, nil)
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,fieldValues,subIssues,subProgress"}
+	err := outputViewJSON(cmd, opts, issue, nil, subIssues, nil, nil)
 	if err != nil {
 		t.Fatalf("outputViewJSON() error = %v", err)
 	}
@@ -890,7 +895,8 @@ func TestOutputViewJSON_WithComments(t *testing.T) {
 		{Author: "user2", Body: "Second comment", CreatedAt: "2024-01-02T11:00:00Z"},
 	}
 
-	err := outputViewJSON(cmd, issue, nil, nil, nil, comments)
+	opts := &viewOptions{jsonFields: "number,title,state,body,url,author,assignees,labels,fieldValues,comments"}
+	err := outputViewJSON(cmd, opts, issue, nil, nil, nil, comments)
 	if err != nil {
 		t.Fatalf("outputViewJSON() error = %v", err)
 	}

@@ -143,23 +143,6 @@ release:
 - Coverage gate runs during `/prepare-release` to catch test coverage gaps
 - Set `enabled: false` to disable the coverage gate
 
-### Cache (Auto-managed)
-
-The `cache:` section stores tracker data for faster `list` commands:
-
-```yaml
-cache:
-  microsprints:
-    - number: 50
-      title: "Microsprint: 2025-12-23-a"
-      state: OPEN
-```
-
-**Notes:**
-- Cache is automatically updated on `start`, `close`, and `reopen` commands
-- Use `--refresh` flag with `microsprint list` to force API fetch
-- Provides ~6x performance improvement for list operations
-
 ### Validation (IDPF Framework)
 
 When `framework` is set to an IDPF variant (e.g., `IDPF`, `IDPF-Agile`), automatic validation is enabled:

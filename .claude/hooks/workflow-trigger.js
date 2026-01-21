@@ -6,10 +6,10 @@
  * UserPromptSubmit hook that:
  * 1. Detects workflow trigger prefixes and injects reminders
  * 2. Responds to 'commands' with available triggers and slash commands
- * 3. Validates release assignment for 'work #N' commands (merged from validate-release.js)
+ * 3. Validates branch assignment for 'work #N' commands
  *
  * Trigger prefixes: bug:, enhancement:, idea:, proposal:
- * Work command: work #N (validates release assignment, provides branch context)
+ * Work command: work #N (validates branch assignment, provides branch context)
  *
  * Performance optimizations:
  * - Early exit for non-matching prompts (no I/O)
@@ -75,41 +75,41 @@ process.stdin.on('end', () => {
             process.exit(0);
         }
 
-        // Handle 'work #N' command - validate release assignment
+        // Handle 'work #N' command - validate branch assignment
         if (workMatch) {
             const issueNumber = workMatch[1];
 
             try {
-                // Query issue's Release and Sprint fields via gh pmu view
+                // Query issue's Branch and Sprint fields via gh pmu view
                 const result = execSync(
                     `gh pmu view ${issueNumber} --json`,
                     { encoding: 'utf-8', timeout: 10000 }
                 );
 
                 const issueData = JSON.parse(result);
-                const release = issueData.fieldValues?.Release;
+                const branch = issueData.fieldValues?.Branch;
                 const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
 
-                if (!release || release === '' || release === 'null') {
-                    // No release assigned - block with actionable message
+                if (!branch || branch === '' || branch === 'null') {
+                    // No branch assigned - block with actionable message
                     const output = {
                         continue: false,
                         hookSpecificOutput: {
                             permissionDecision: 'deny',
-                            message: `Issue #${issueNumber} has no release assignment.\n\nUse: /assign-branch #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --branch "release/vX.Y.Z"`
+                            message: `Issue #${issueNumber} has no branch assignment.\n\nUse: /assign-branch #${issueNumber} release/vX.Y.Z\n\nOr use: gh pmu move ${issueNumber} --branch "release/vX.Y.Z"`
                         }
                     };
                     console.log(JSON.stringify(output));
                     process.exit(0);
                 }
 
-                // Release assigned - allow and provide branch context
-                // Branch name IS the release name (already in [track]/[name] format)
+                // Branch assigned - allow and provide branch context
+                // Branch name is in [track]/[name] format
                 // e.g., release/v1.2.0, patch/v1.1.5, idpf/to-praxis, hotfix/auth-bypass
-                const branchName = release;
+                const branchName = branch;
 
                 let contextMessage = `[BRANCH-AWARE WORK]\n`;
-                contextMessage += `Issue #${issueNumber} is assigned to release: ${release}\n`;
+                contextMessage += `Issue #${issueNumber} is assigned to branch: ${branch}\n`;
                 contextMessage += `\nBEFORE working on this issue:\n`;
                 contextMessage += `1. Check current branch: git branch --show-current\n`;
                 contextMessage += `2. If not on '${branchName}', switch to it: git checkout ${branchName}\n`;

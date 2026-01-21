@@ -1,5 +1,5 @@
 ---
-version: "v0.29.1"
+version: "v0.29.2"
 allowed-tools: Bash
 description: End current sprint (project)
 ---

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"text/tabwriter"
 
@@ -36,9 +37,21 @@ type listOptions struct {
 	state        string
 	limit        int
 	hasSubIssues bool
-	json         bool
+	jsonFields   string
+	jq           string
 	web          bool
 	repo         string
+}
+
+// listCommandJSONFields lists all available JSON fields for the list command
+var listCommandJSONFields = []string{
+	"assignees",
+	"fieldValues",
+	"number",
+	"repository",
+	"state",
+	"title",
+	"url",
 }
 
 func newListCommand() *cobra.Command {
@@ -69,7 +82,9 @@ Use filters to narrow down the results.`,
 	cmd.MarkFlagsMutuallyExclusive("release", "no-release")
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 0, "Limit number of results (0 for no limit)")
 	cmd.Flags().BoolVar(&opts.hasSubIssues, "has-sub-issues", false, "Filter to only show parent issues (issues with sub-issues)")
-	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
+	cmd.Flags().StringVar(&opts.jsonFields, "json", "", "Output JSON with specified fields (comma-separated, or empty to list available fields)")
+	cmd.Flags().Lookup("json").NoOptDefVal = "_list_" // When --json is used without value, list fields
+	cmd.Flags().StringVar(&opts.jq, "jq", "", "Filter JSON output using a jq expression")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open project board in browser")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Filter by repository (owner/repo format)")
 
@@ -281,13 +296,19 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 		items = items[:opts.limit]
 	}
 
-	// Output
-	var outputErr error
-	if opts.json {
-		outputErr = outputJSON(cmd, items)
-	} else {
-		outputErr = outputTable(cmd, items)
+	// Handle --json flag
+	if opts.jsonFields != "" {
+		// List available fields if --json used without value
+		if opts.jsonFields == "_list_" {
+			return listListAvailableFields(cmd)
+		}
+
+		// Output JSON with field filtering and jq
+		return outputListJSON(cmd, items, opts)
 	}
+
+	// Table output
+	outputErr := outputTable(cmd, items)
 
 	// Print note if sub-issue filter had failures
 	if hasSubIssuesFilterFailed && outputErr == nil {
@@ -642,4 +663,144 @@ func enrichIssuesWithProjectFields(client listClient, projectID string, issues [
 	}
 
 	return items, nil
+}
+
+// listListAvailableFields prints available JSON fields for the list command
+func listListAvailableFields(cmd *cobra.Command) error {
+	return listAvailableFields(cmd, listCommandJSONFields)
+}
+
+// parseListJSONFields parses and validates comma-separated field names
+func parseListJSONFields(fieldsStr string) ([]string, error) {
+	parts := strings.Split(fieldsStr, ",")
+	fields := make([]string, 0, len(parts))
+
+	for _, p := range parts {
+		field := strings.TrimSpace(p)
+		if field == "" {
+			continue
+		}
+
+		// Validate field name
+		valid := false
+		for _, available := range listCommandJSONFields {
+			if strings.EqualFold(field, available) {
+				fields = append(fields, available) // Use canonical name
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return nil, fmt.Errorf("unknown field: %q. Run 'gh pmu list --json' to see available fields", field)
+		}
+	}
+
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("no valid fields specified. Run 'gh pmu list --json' to see available fields")
+	}
+
+	return fields, nil
+}
+
+// applyListJQFilter applies a jq filter to JSON data
+func applyListJQFilter(data []byte, jqExpr string) ([]byte, error) {
+	jqCmd := exec.Command("jq", jqExpr)
+	jqCmd.Stdin = strings.NewReader(string(data))
+
+	output, err := jqCmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("jq error: %s", string(exitErr.Stderr))
+		}
+		return nil, fmt.Errorf("failed to run jq: %w", err)
+	}
+
+	return output, nil
+}
+
+// filterListJSONFields filters JSON output to include only specified fields
+func filterListJSONFields(items []api.ProjectItem, fields []string) []map[string]interface{} {
+	result := make([]map[string]interface{}, 0, len(items))
+
+	// Create a set of requested fields for quick lookup
+	fieldSet := make(map[string]bool)
+	for _, f := range fields {
+		fieldSet[strings.ToLower(f)] = true
+	}
+
+	for _, item := range items {
+		if item.Issue == nil {
+			continue
+		}
+
+		filtered := make(map[string]interface{})
+
+		if fieldSet["number"] {
+			filtered["number"] = item.Issue.Number
+		}
+		if fieldSet["title"] {
+			filtered["title"] = item.Issue.Title
+		}
+		if fieldSet["state"] {
+			filtered["state"] = item.Issue.State
+		}
+		if fieldSet["url"] {
+			filtered["url"] = item.Issue.URL
+		}
+		if fieldSet["repository"] {
+			filtered["repository"] = fmt.Sprintf("%s/%s", item.Issue.Repository.Owner, item.Issue.Repository.Name)
+		}
+		if fieldSet["assignees"] {
+			assignees := make([]string, 0, len(item.Issue.Assignees))
+			for _, a := range item.Issue.Assignees {
+				assignees = append(assignees, a.Login)
+			}
+			filtered["assignees"] = assignees
+		}
+		if fieldSet["fieldvalues"] {
+			fieldValues := make(map[string]string)
+			for _, fv := range item.FieldValues {
+				fieldValues[fv.Field] = fv.Value
+			}
+			filtered["fieldValues"] = fieldValues
+		}
+
+		result = append(result, filtered)
+	}
+
+	return result
+}
+
+// outputListJSON outputs items in JSON format with optional field filtering and jq
+func outputListJSON(cmd *cobra.Command, items []api.ProjectItem, opts *listOptions) error {
+	// Parse requested fields
+	fields, err := parseListJSONFields(opts.jsonFields)
+	if err != nil {
+		return err
+	}
+
+	// Build filtered JSON output
+	filteredItems := filterListJSONFields(items, fields)
+
+	// Wrap in items array to match existing format
+	output := map[string]interface{}{
+		"items": filteredItems,
+	}
+
+	// Encode to JSON
+	data, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
+	// Apply jq filter if specified
+	if opts.jq != "" {
+		data, err = applyListJQFilter(data, opts.jq)
+		if err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), string(data))
+	return nil
 }

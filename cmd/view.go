@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,12 +28,31 @@ type viewClient interface {
 }
 
 type viewOptions struct {
-	json       bool
+	jsonFields string // Empty = not set, "all" = all fields, "field1,field2" = specific fields
+	jq         string
 	web        bool
 	comments   bool
 	repo       string
 	bodyFile   bool
 	bodyStdout bool
+}
+
+// viewAvailableFields lists all available JSON fields for the view command
+var viewAvailableFields = []string{
+	"assignees",
+	"author",
+	"body",
+	"comments",
+	"fieldValues",
+	"labels",
+	"milestone",
+	"number",
+	"parentIssue",
+	"state",
+	"subIssues",
+	"subProgress",
+	"title",
+	"url",
 }
 
 func newViewCommand() *cobra.Command {
@@ -52,7 +73,9 @@ Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
 		},
 	}
 
-	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
+	cmd.Flags().StringVar(&opts.jsonFields, "json", "", "Output JSON with specified fields (comma-separated, or empty to list available fields)")
+	cmd.Flags().Lookup("json").NoOptDefVal = "_list_" // When --json is used without value, list fields
+	cmd.Flags().StringVarP(&opts.jq, "jq", "q", "", "Filter JSON output using a jq expression")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open issue in browser")
 	cmd.Flags().BoolVarP(&opts.comments, "comments", "c", false, "Show issue comments")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
@@ -116,6 +139,11 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 
 // runViewWithDeps is the testable implementation of runView
 func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, owner, repo string, number int) error {
+	// Handle --json without fields: list available fields
+	if opts.jsonFields == "_list_" {
+		return listAvailableFields(cmd, viewAvailableFields)
+	}
+
 	// For --web flag, only need basic issue info
 	if opts.web {
 		issue, err := client.GetIssue(owner, repo, number)
@@ -165,8 +193,8 @@ func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, o
 	}
 
 	// Output
-	if opts.json {
-		return outputViewJSON(cmd, issue, fieldValues, subIssues, parentIssue, comments)
+	if opts.jsonFields != "" {
+		return outputViewJSON(cmd, opts, issue, fieldValues, subIssues, parentIssue, comments)
 	}
 
 	return outputViewTable(cmd, issue, fieldValues, subIssues, parentIssue, comments)
@@ -219,7 +247,34 @@ type ParentIssueJSON struct {
 	URL    string `json:"url"`
 }
 
-func outputViewJSON(cmd *cobra.Command, issue *api.Issue, fieldValues []api.FieldValue, subIssues []api.SubIssue, parentIssue *api.Issue, comments []api.Comment) error {
+func outputViewJSON(cmd *cobra.Command, opts *viewOptions, issue *api.Issue, fieldValues []api.FieldValue, subIssues []api.SubIssue, parentIssue *api.Issue, comments []api.Comment) error {
+	// Build full output first
+	fullOutput := buildViewJSONOutput(issue, fieldValues, subIssues, parentIssue, comments)
+
+	// Parse requested fields
+	requestedFields := parseJSONFields(opts.jsonFields, viewAvailableFields)
+
+	// Filter output to only requested fields
+	filteredOutput := filterViewJSONFields(fullOutput, requestedFields)
+
+	// Encode to JSON
+	jsonBytes, err := json.MarshalIndent(filteredOutput, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
+	// Apply jq filter if specified
+	if opts.jq != "" {
+		return applyJQFilter(jsonBytes, opts.jq)
+	}
+
+	// Output JSON
+	fmt.Println(string(jsonBytes))
+	return nil
+}
+
+// buildViewJSONOutput constructs the full JSON output structure
+func buildViewJSONOutput(issue *api.Issue, fieldValues []api.FieldValue, subIssues []api.SubIssue, parentIssue *api.Issue, comments []api.Comment) ViewJSONOutput {
 	output := ViewJSONOutput{
 		Number:      issue.Number,
 		Title:       issue.Title,
@@ -295,9 +350,57 @@ func outputViewJSON(cmd *cobra.Command, issue *api.Issue, fieldValues []api.Fiel
 		}
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(output)
+	return output
+}
+
+// filterViewJSONFields returns a map with only the requested fields
+func filterViewJSONFields(output ViewJSONOutput, fields []string) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for _, field := range fields {
+		switch field {
+		case "number":
+			result["number"] = output.Number
+		case "title":
+			result["title"] = output.Title
+		case "state":
+			result["state"] = output.State
+		case "body":
+			result["body"] = output.Body
+		case "url":
+			result["url"] = output.URL
+		case "author":
+			result["author"] = output.Author
+		case "assignees":
+			result["assignees"] = output.Assignees
+		case "labels":
+			result["labels"] = output.Labels
+		case "milestone":
+			if output.Milestone != "" {
+				result["milestone"] = output.Milestone
+			}
+		case "fieldValues":
+			result["fieldValues"] = output.FieldValues
+		case "subIssues":
+			if output.SubIssues != nil {
+				result["subIssues"] = output.SubIssues
+			}
+		case "subProgress":
+			if output.SubProgress != nil {
+				result["subProgress"] = output.SubProgress
+			}
+		case "parentIssue":
+			if output.ParentIssue != nil {
+				result["parentIssue"] = output.ParentIssue
+			}
+		case "comments":
+			if output.Comments != nil {
+				result["comments"] = output.Comments
+			}
+		}
+	}
+
+	return result
 }
 
 func outputViewTable(cmd *cobra.Command, issue *api.Issue, fieldValues []api.FieldValue, subIssues []api.SubIssue, parentIssue *api.Issue, comments []api.Comment) error {
@@ -539,4 +642,49 @@ func parseIssueURL(url string) (owner, repo string, number int, err error) {
 	}
 
 	return owner, repo, number, nil
+}
+
+// listAvailableFields outputs the list of available JSON fields
+func listAvailableFields(cmd *cobra.Command, fields []string) error {
+	sorted := make([]string, len(fields))
+	copy(sorted, fields)
+	sort.Strings(sorted)
+
+	fmt.Fprintln(cmd.OutOrStdout(), "Specify one or more comma-separated fields for `--json`:")
+	for _, field := range sorted {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", field)
+	}
+	return nil
+}
+
+// parseJSONFields parses comma-separated field names and returns a slice
+// If input is empty or contains only whitespace, returns all available fields
+func parseJSONFields(input string, available []string) []string {
+	input = strings.TrimSpace(input)
+	if input == "" || input == "_list_" {
+		return available
+	}
+
+	parts := strings.Split(input, ",")
+	var result []string
+	for _, p := range parts {
+		field := strings.TrimSpace(p)
+		if field != "" {
+			result = append(result, field)
+		}
+	}
+
+	if len(result) == 0 {
+		return available
+	}
+	return result
+}
+
+// applyJQFilter applies a jq expression to JSON input and outputs the result
+func applyJQFilter(jsonBytes []byte, jqExpr string) error {
+	cmd := exec.Command("jq", jqExpr)
+	cmd.Stdin = strings.NewReader(string(jsonBytes))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

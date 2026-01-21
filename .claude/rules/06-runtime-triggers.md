@@ -1,5 +1,5 @@
 # Runtime Artifact Triggers
-**Version:** v0.29.1
+**Version:** v0.29.2
 **Source:** Reference/Runtime-Artifact-Triggers.md
 **Purpose:** Define when to offer artifact creation/update during development
 ---
