@@ -64,7 +64,7 @@ gh pmu branch close
 
 ## Standalone Usage
 
-`gh pmu` works as a standalone tool without any framework integration. The optional `framework` field in `.gh-pmu.yml` enables workflow restrictions when used with process frameworks like [IDPF](https://github.com/rubrical-studios/virtual-ai-studio).
+`gh pmu` works as a standalone tool without any framework integration. The optional `framework` field in `.gh-pmu.yml` enables workflow restrictions when used with process frameworks like [IDPF](https://github.com/rubrical-studios/idpf-praxis-dist).
 
 **Standalone (default):**
 - All commands work normally
