@@ -48,7 +48,7 @@ fields:
         - P0
         - P1
         - P2
-    - name: Release
+    - name: Branch
       type: TEXT
     - name: Microsprint
       type: TEXT

@@ -337,11 +337,11 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority -> %s", priorityValue))
 	}
 	if opts.backlog {
-		// --backlog clears both release and microsprint
+		// --backlog clears both branch and microsprint
 		clearMicrosprint = true
 		clearRelease = true
 		changeDescriptions = append(changeDescriptions, "Microsprint -> (cleared)")
-		changeDescriptions = append(changeDescriptions, "Release -> (cleared)")
+		changeDescriptions = append(changeDescriptions, "Branch -> (cleared)")
 	}
 	if opts.microsprint != "" {
 		if opts.microsprint == "current" {
@@ -493,6 +493,9 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		return fmt.Errorf("failed to get project fields: %w", err)
 	}
 
+	// Resolve branch field name (Branch for new projects, Release for legacy)
+	branchFieldName := ResolveBranchFieldName(projectFields)
+
 	updatedCount := 0
 	skippedCount := 0
 	errorCount := 0
@@ -535,7 +538,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		if releaseValue != "" {
 			allUpdates = append(allUpdates, api.FieldUpdate{
 				ItemID:    info.ItemID,
-				FieldName: "Release",
+				FieldName: branchFieldName,
 				Value:     releaseValue,
 			})
 		}
@@ -549,7 +552,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		if clearRelease {
 			allUpdates = append(allUpdates, api.FieldUpdate{
 				ItemID:    info.ItemID,
-				FieldName: "Release",
+				FieldName: branchFieldName,
 				Value:     "",
 			})
 		}
@@ -642,9 +645,9 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 
 			if releaseValue != "" && !updateFailed {
 				if err := api.WithRetry(func() error {
-					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", releaseValue, projectFields)
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, branchFieldName, releaseValue, projectFields)
 				}, 3); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to set release for #%d: %v\n", info.Number, err)
+					fmt.Fprintf(os.Stderr, "Warning: failed to set branch for #%d: %v\n", info.Number, err)
 					updateFailed = true
 				}
 			}
@@ -660,9 +663,9 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 
 			if clearRelease && !updateFailed {
 				if err := api.WithRetry(func() error {
-					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Release", "", projectFields)
+					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, branchFieldName, "", projectFields)
 				}, 3); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to clear release for #%d: %v\n", info.Number, err)
+					fmt.Fprintf(os.Stderr, "Warning: failed to clear branch for #%d: %v\n", info.Number, err)
 					updateFailed = true
 				}
 			}

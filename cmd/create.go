@@ -24,6 +24,7 @@ import (
 type createClient interface {
 	CreateIssueWithOptions(owner, repo, title, body string, labels, assignees []string, milestone string) (*api.Issue, error)
 	GetProject(owner string, number int) (*api.Project, error)
+	GetProjectFields(projectID string) ([]api.ProjectField, error)
 	AddIssueToProject(projectID, issueID string) (string, error)
 	SetProjectItemField(projectID, itemID, fieldName, value string) error
 	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
@@ -229,6 +230,13 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
+	// Get project fields to resolve branch field name
+	projectFields, err := client.GetProjectFields(project.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get project fields: %w", err)
+	}
+	branchFieldName := ResolveBranchFieldName(projectFields)
+
 	itemID, err := client.AddIssueToProject(project.ID, issue.ID)
 	if err != nil {
 		return fmt.Errorf("failed to add issue to project: %w", err)
@@ -282,23 +290,25 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 		}
 	}
 
-	// Set release field
+	// Set branch field
 	if opts.release != "" {
 		releaseValue := opts.release
 		if opts.release == "current" {
-			// Resolve "current" to active release - will be implemented with #371
+			// Resolve "current" to active branch
 			releaseIssues, err := client.GetOpenIssuesByLabel(owner, repo, "branch")
 			if err != nil {
-				return fmt.Errorf("failed to get release issues: %w", err)
+				return fmt.Errorf("failed to get branch issues: %w", err)
 			}
-			activeRelease := findActiveReleaseForCreate(releaseIssues)
+			activeRelease := findActiveBranchForCreate(releaseIssues)
 			if activeRelease == nil {
-				return fmt.Errorf("no active release found. Run 'gh pmu release start' to create one")
+				return fmt.Errorf("no active branch found. Run 'gh pmu branch start' to create one")
 			}
-			releaseValue = strings.TrimPrefix(activeRelease.Title, "Release: ")
+			// Support both "Branch: " and "Release: " prefixes
+			releaseValue = strings.TrimPrefix(activeRelease.Title, "Branch: ")
+			releaseValue = strings.TrimPrefix(releaseValue, "Release: ")
 		}
-		if err := client.SetProjectItemField(project.ID, itemID, "Release", releaseValue); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to set release: %v\n", err)
+		if err := client.SetProjectItemField(project.ID, itemID, branchFieldName, releaseValue); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to set branch: %v\n", err)
 		}
 	}
 
@@ -463,11 +473,12 @@ func findActiveMicrosprintForCreate(issues []api.Issue) *api.Issue {
 	return nil
 }
 
-// findActiveReleaseForCreate finds the active release tracker from a list of issues
-// Returns nil if no active release is found
-func findActiveReleaseForCreate(issues []api.Issue) *api.Issue {
+// findActiveBranchForCreate finds the active branch tracker from a list of issues
+// Returns nil if no active branch is found
+// Supports both "Branch: " (new) and "Release: " (legacy) title formats
+func findActiveBranchForCreate(issues []api.Issue) *api.Issue {
 	for i := range issues {
-		if strings.HasPrefix(issues[i].Title, "Release: ") {
+		if strings.HasPrefix(issues[i].Title, "Branch: ") || strings.HasPrefix(issues[i].Title, "Release: ") {
 			return &issues[i]
 		}
 	}

@@ -17,12 +17,14 @@ import (
 type mockCreateClient struct {
 	createdIssue  *api.Issue
 	project       *api.Project
+	projectFields []api.ProjectField
 	itemID        string
 	issuesByLabel []api.Issue
 
 	// Error injection
 	createIssueErr          error
 	getProjectErr           error
+	getProjectFieldsErr     error
 	addIssueToProjectErr    error
 	setProjectItemFieldErr  error
 	getOpenIssuesByLabelErr error
@@ -39,6 +41,11 @@ func newMockCreateClient() *mockCreateClient {
 		project: &api.Project{
 			ID:    "proj-1",
 			Title: "Test Project",
+		},
+		projectFields: []api.ProjectField{
+			{ID: "STATUS_FIELD", Name: "Status", DataType: "SINGLE_SELECT"},
+			{ID: "BRANCH_FIELD", Name: "Branch", DataType: "TEXT"},
+			{ID: "MICROSPRINT_FIELD", Name: "Microsprint", DataType: "TEXT"},
 		},
 		itemID: "item-123",
 	}
@@ -58,6 +65,13 @@ func (m *mockCreateClient) GetProject(owner string, number int) (*api.Project, e
 		return nil, m.getProjectErr
 	}
 	return m.project, nil
+}
+
+func (m *mockCreateClient) GetProjectFields(projectID string) ([]api.ProjectField, error) {
+	if m.getProjectFieldsErr != nil {
+		return nil, m.getProjectFieldsErr
+	}
+	return m.projectFields, nil
 }
 
 func (m *mockCreateClient) AddIssueToProject(projectID, issueID string) (string, error) {
@@ -1309,7 +1323,7 @@ func TestFindActiveMicrosprintForCreate_ExactPrefixMatch(t *testing.T) {
 }
 
 // ============================================================================
-// findActiveReleaseForCreate Tests
+// findActiveBranchForCreate Tests
 // ============================================================================
 
 func TestFindActiveReleaseForCreate_FindsActiveRelease(t *testing.T) {
@@ -1319,7 +1333,7 @@ func TestFindActiveReleaseForCreate_FindsActiveRelease(t *testing.T) {
 		{Number: 3, Title: "Feature: New thing"},
 	}
 
-	result := findActiveReleaseForCreate(issues)
+	result := findActiveBranchForCreate(issues)
 	if result == nil {
 		t.Fatal("Expected to find active release")
 	}
@@ -1334,7 +1348,7 @@ func TestFindActiveReleaseForCreate_NoActiveRelease(t *testing.T) {
 		{Number: 2, Title: "Feature: New thing"},
 	}
 
-	result := findActiveReleaseForCreate(issues)
+	result := findActiveBranchForCreate(issues)
 	if result != nil {
 		t.Errorf("Expected nil for no active release, got #%d", result.Number)
 	}
@@ -1343,7 +1357,7 @@ func TestFindActiveReleaseForCreate_NoActiveRelease(t *testing.T) {
 func TestFindActiveReleaseForCreate_EmptyIssues(t *testing.T) {
 	var issues []api.Issue
 
-	result := findActiveReleaseForCreate(issues)
+	result := findActiveBranchForCreate(issues)
 	if result != nil {
 		t.Error("Expected nil for empty issues slice")
 	}
@@ -1355,7 +1369,7 @@ func TestFindActiveReleaseForCreate_ReturnsFirstMatch(t *testing.T) {
 		{Number: 2, Title: "Release: v2.0.0"},
 	}
 
-	result := findActiveReleaseForCreate(issues)
+	result := findActiveBranchForCreate(issues)
 	if result == nil {
 		t.Fatal("Expected to find active release")
 	}
@@ -1370,7 +1384,7 @@ func TestFindActiveReleaseForCreate_ExactPrefixMatch(t *testing.T) {
 		{Number: 2, Title: "Release: v2.0.0"},      // Correct prefix
 	}
 
-	result := findActiveReleaseForCreate(issues)
+	result := findActiveBranchForCreate(issues)
 	if result == nil {
 		t.Fatal("Expected to find active release")
 	}
@@ -2042,10 +2056,10 @@ func TestRunCreateWithDeps_NoActiveRelease(t *testing.T) {
 	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
 
 	if err == nil {
-		t.Fatal("expected error for no active release")
+		t.Fatal("expected error for no active branch")
 	}
-	if !strings.Contains(err.Error(), "no active release found") {
-		t.Errorf("expected 'no active release found' error, got: %v", err)
+	if !strings.Contains(err.Error(), "no active branch found") {
+		t.Errorf("expected 'no active branch found' error, got: %v", err)
 	}
 }
 

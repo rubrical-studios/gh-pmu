@@ -1761,8 +1761,8 @@ func TestGenerateBranchTrackerTemplate_ContainsIssuesSection(t *testing.T) {
 	if !strings.Contains(result, "## Issues in this branch") {
 		t.Error("Template should contain 'Issues in this branch' section")
 	}
-	if !strings.Contains(result, "Release field in the project") {
-		t.Error("Template should explain issues are tracked via the Release field")
+	if !strings.Contains(result, "Branch field in the project") {
+		t.Error("Template should explain issues are tracked via the Branch field")
 	}
 }
 
