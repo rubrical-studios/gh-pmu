@@ -40,7 +40,19 @@ func isRepoRoot(dir string) bool {
 	return err == nil
 }
 
+// initOptions holds the command-line options for init
+type initOptions struct {
+	nonInteractive bool
+	project        int
+	repo           string
+	owner          string
+	framework      string
+	yes            bool
+}
+
 func newInitCommand() *cobra.Command {
+	opts := &initOptions{}
+
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize gh-pmu configuration for the current project",
@@ -50,14 +62,31 @@ This command will:
 - Auto-detect the current repository from git remote
 - Discover and list available projects for selection
 - Fetch and cache project field metadata from GitHub
-- Create a .gh-pmu.yml configuration file`,
-		RunE: runInit,
+- Create a .gh-pmu.yml configuration file
+
+Non-interactive mode (--non-interactive) disables all prompts and requires
+--project and --repo flags. Use this for CI/CD pipelines and automation.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runInit(cmd, args, opts)
+		},
 	}
+
+	cmd.Flags().BoolVar(&opts.nonInteractive, "non-interactive", false, "Disable UI and prompts (requires --project and --repo)")
+	cmd.Flags().IntVar(&opts.project, "project", 0, "Project number")
+	cmd.Flags().StringVar(&opts.repo, "repo", "", "Repository (owner/repo format)")
+	cmd.Flags().StringVar(&opts.owner, "owner", "", "Project owner (defaults to repo owner)")
+	cmd.Flags().StringVar(&opts.framework, "framework", "IDPF", "Framework type (IDPF or none)")
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Auto-confirm prompts")
 
 	return cmd
 }
 
-func runInit(cmd *cobra.Command, args []string) error {
+func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
+	// Handle non-interactive mode
+	if opts.nonInteractive {
+		return runInitNonInteractive(cmd, opts)
+	}
+
 	u := ui.New(cmd.OutOrStdout())
 	reader := bufio.NewReader(os.Stdin)
 
@@ -72,70 +101,68 @@ func runInit(cmd *cobra.Command, args []string) error {
 		if existingCfg, err := loadExistingFramework("."); err == nil {
 			existingFramework = existingCfg
 		}
-		u.Warning("Configuration file .gh-pmu.yml already exists")
-		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Overwrite?", "y/N"))
-		response, _ := reader.ReadString('\n')
-		response = strings.TrimSpace(strings.ToLower(response))
-		if response != "y" && response != "yes" {
-			u.Info("Aborted")
-			return nil
+		if !opts.yes {
+			u.Warning("Configuration file .gh-pmu.yml already exists")
+			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Overwrite?", "y/N"))
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(strings.ToLower(response))
+			if response != "y" && response != "yes" {
+				u.Info("Aborted")
+				return nil
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
 		}
-		fmt.Fprintln(cmd.OutOrStdout())
 	}
 
-	// Auto-detect repository
-	detectedRepo := detectRepository()
+	// Use flag values if provided, otherwise auto-detect/prompt
 	var owner string
 	var defaultRepo string
+	var projectNumber int
 
-	if detectedRepo != "" {
-		o, _ := splitRepository(detectedRepo)
+	// Handle --repo flag
+	if opts.repo != "" {
+		defaultRepo = opts.repo
+		o, _ := splitRepository(opts.repo)
 		owner = o
-		defaultRepo = detectedRepo
-		u.Success(fmt.Sprintf("Detected repository: %s", detectedRepo))
+		u.Success(fmt.Sprintf("Using repository: %s", opts.repo))
 	} else {
-		u.Warning("Could not detect repository from git remote")
-		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Repository owner", ""))
-		ownerInput, _ := reader.ReadString('\n')
-		owner = strings.TrimSpace(ownerInput)
-		if owner == "" {
-			return fmt.Errorf("repository owner is required")
+		// Auto-detect repository
+		detectedRepo := detectRepository()
+		if detectedRepo != "" {
+			o, _ := splitRepository(detectedRepo)
+			owner = o
+			defaultRepo = detectedRepo
+			u.Success(fmt.Sprintf("Detected repository: %s", detectedRepo))
+		} else {
+			u.Warning("Could not detect repository from git remote")
+			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Repository owner", ""))
+			ownerInput, _ := reader.ReadString('\n')
+			owner = strings.TrimSpace(ownerInput)
+			if owner == "" {
+				return fmt.Errorf("repository owner is required")
+			}
 		}
+	}
+
+	// Handle --owner flag (overrides repo owner for project lookup)
+	if opts.owner != "" {
+		owner = opts.owner
+	}
+
+	// Handle --project flag
+	if opts.project > 0 {
+		projectNumber = opts.project
 	}
 
 	// Initialize API client
 	client := api.NewClient()
 
-	// Fetch projects for owner
-	fmt.Fprintln(cmd.OutOrStdout())
-	spinner := ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Fetching projects for %s...", owner))
-	spinner.Start()
-
-	projects, err := client.ListProjects(owner)
-	spinner.Stop()
-
 	var selectedProject *api.Project
-	var projectNumber int
+	var err error
+	var spinner *ui.Spinner
 
-	if err != nil || len(projects) == 0 {
-		// No projects found or error - fall back to manual entry
-		if err != nil {
-			u.Warning(fmt.Sprintf("Could not fetch projects: %v", err))
-		} else {
-			u.Warning(fmt.Sprintf("No projects found for %s", owner))
-		}
-		fmt.Fprintln(cmd.OutOrStdout())
-
-		// Manual project number entry
-		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Project number", ""))
-		numberInput, _ := reader.ReadString('\n')
-		numberInput = strings.TrimSpace(numberInput)
-		projectNumber, err = strconv.Atoi(numberInput)
-		if err != nil {
-			return fmt.Errorf("invalid project number: %s", numberInput)
-		}
-
-		// Validate project exists
+	// If project number was provided via flag, validate it directly
+	if projectNumber > 0 {
 		spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Validating project %s/%d...", owner, projectNumber))
 		spinner.Start()
 		selectedProject, err = client.GetProject(owner, projectNumber)
@@ -144,38 +171,26 @@ func runInit(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to find project: %w", err)
 		}
-		u.Success(fmt.Sprintf("Found project: %s", selectedProject.Title))
+		u.Success(fmt.Sprintf("Using project: %s (#%d)", selectedProject.Title, selectedProject.Number))
 	} else {
-		// Projects found - show selection menu
-		u.Success(fmt.Sprintf("Found %d project(s)", len(projects)))
+		// Fetch projects for owner
 		fmt.Fprintln(cmd.OutOrStdout())
+		spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Fetching projects for %s...", owner))
+		spinner.Start()
 
-		u.Step(1, 2, "Select Project")
+		projects, err := client.ListProjects(owner)
+		spinner.Stop()
 
-		// Build menu options
-		var menuOptions []string
-		for _, p := range projects {
-			menuOptions = append(menuOptions, fmt.Sprintf("%s (#%d)", p.Title, p.Number))
-		}
-		u.PrintMenu(menuOptions, true)
+		if err != nil || len(projects) == 0 {
+			// No projects found or error - fall back to manual entry
+			if err != nil {
+				u.Warning(fmt.Sprintf("Could not fetch projects: %v", err))
+			} else {
+				u.Warning(fmt.Sprintf("No projects found for %s", owner))
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
 
-		// Get selection
-		defaultSelection := "1"
-		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Select", defaultSelection))
-		selectionInput, _ := reader.ReadString('\n')
-		selectionInput = strings.TrimSpace(selectionInput)
-
-		if selectionInput == "" {
-			selectionInput = defaultSelection
-		}
-
-		selection, err := strconv.Atoi(selectionInput)
-		if err != nil {
-			return fmt.Errorf("invalid selection: %s", selectionInput)
-		}
-
-		if selection == 0 {
-			// Manual entry
+			// Manual project number entry
 			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Project number", ""))
 			numberInput, _ := reader.ReadString('\n')
 			numberInput = strings.TrimSpace(numberInput)
@@ -193,41 +208,96 @@ func runInit(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to find project: %w", err)
 			}
-		} else if selection < 1 || selection > len(projects) {
-			return fmt.Errorf("invalid selection: must be between 0 and %d", len(projects))
+			u.Success(fmt.Sprintf("Found project: %s", selectedProject.Title))
 		} else {
-			selectedProject = &projects[selection-1]
-			projectNumber = selectedProject.Number
-		}
+			// Projects found - show selection menu
+			u.Success(fmt.Sprintf("Found %d project(s)", len(projects)))
+			fmt.Fprintln(cmd.OutOrStdout())
 
-		u.Success(fmt.Sprintf("Project: %s (#%d)", selectedProject.Title, selectedProject.Number))
+			u.Step(1, 2, "Select Project")
+
+			// Build menu options
+			var menuOptions []string
+			for _, p := range projects {
+				menuOptions = append(menuOptions, fmt.Sprintf("%s (#%d)", p.Title, p.Number))
+			}
+			u.PrintMenu(menuOptions, true)
+
+			// Get selection
+			defaultSelection := "1"
+			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Select", defaultSelection))
+			selectionInput, _ := reader.ReadString('\n')
+			selectionInput = strings.TrimSpace(selectionInput)
+
+			if selectionInput == "" {
+				selectionInput = defaultSelection
+			}
+
+			selection, err := strconv.Atoi(selectionInput)
+			if err != nil {
+				return fmt.Errorf("invalid selection: %s", selectionInput)
+			}
+
+			if selection == 0 {
+				// Manual entry
+				fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Project number", ""))
+				numberInput, _ := reader.ReadString('\n')
+				numberInput = strings.TrimSpace(numberInput)
+				projectNumber, err = strconv.Atoi(numberInput)
+				if err != nil {
+					return fmt.Errorf("invalid project number: %s", numberInput)
+				}
+
+				// Validate project exists
+				spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Validating project %s/%d...", owner, projectNumber))
+				spinner.Start()
+				selectedProject, err = client.GetProject(owner, projectNumber)
+				spinner.Stop()
+
+				if err != nil {
+					return fmt.Errorf("failed to find project: %w", err)
+				}
+			} else if selection < 1 || selection > len(projects) {
+				return fmt.Errorf("invalid selection: must be between 0 and %d", len(projects))
+			} else {
+				selectedProject = &projects[selection-1]
+				projectNumber = selectedProject.Number
+			}
+
+			u.Success(fmt.Sprintf("Project: %s (#%d)", selectedProject.Title, selectedProject.Number))
+		}
 	}
 
 	// Step 2: Confirm repository
-	fmt.Fprintln(cmd.OutOrStdout())
-	u.Step(2, 2, "Confirm Repository")
-
 	var repo string
-	if defaultRepo != "" {
-		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Repository", defaultRepo))
-		repoInput, _ := reader.ReadString('\n')
-		repoInput = strings.TrimSpace(repoInput)
-		if repoInput != "" {
-			repo = repoInput
-		} else {
-			repo = defaultRepo
-		}
+	if opts.repo != "" {
+		// Repo already provided via flag, no need to prompt
+		repo = opts.repo
 	} else {
-		fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Repository (owner/repo)", ""))
-		repoInput, _ := reader.ReadString('\n')
-		repo = strings.TrimSpace(repoInput)
-	}
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Step(2, 2, "Confirm Repository")
 
-	if repo == "" {
-		return fmt.Errorf("repository is required")
-	}
+		if defaultRepo != "" {
+			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Repository", defaultRepo))
+			repoInput, _ := reader.ReadString('\n')
+			repoInput = strings.TrimSpace(repoInput)
+			if repoInput != "" {
+				repo = repoInput
+			} else {
+				repo = defaultRepo
+			}
+		} else {
+			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Repository (owner/repo)", ""))
+			repoInput, _ := reader.ReadString('\n')
+			repo = strings.TrimSpace(repoInput)
+		}
 
-	u.Success(fmt.Sprintf("Repository: %s", repo))
+		if repo == "" {
+			return fmt.Errorf("repository is required")
+		}
+
+		u.Success(fmt.Sprintf("Repository: %s", repo))
+	}
 
 	// Prompt for IDPF framework (new projects only, preserve existing on re-init)
 	var framework string
@@ -235,6 +305,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 		// Preserve existing framework value on re-init
 		framework = existingFramework
 		u.Info(fmt.Sprintf("Framework preserved: %s", framework))
+	} else if opts.framework != "" && opts.framework != "IDPF" {
+		// Framework explicitly set via flag to non-default value
+		framework = opts.framework
+		if framework == "none" {
+			u.Info("IDPF validation disabled")
+		} else {
+			u.Success(fmt.Sprintf("Framework: %s", framework))
+		}
+	} else if opts.yes || opts.framework == "IDPF" {
+		// --yes flag or explicit IDPF: use default
+		framework = "IDPF"
+		u.Success("IDPF validation enabled")
 	} else {
 		// New project - prompt for framework
 		framework = "IDPF" // Default to IDPF
@@ -430,6 +512,184 @@ func runInit(cmd *cobra.Command, args []string) error {
 		"Fields":     fmt.Sprintf("%d cached", len(fields)),
 		"Config":     ".gh-pmu.yml",
 	}, []string{"Project", "Repository", "Fields", "Config"})
+
+	return nil
+}
+
+// runInitNonInteractive handles init in non-interactive mode (for CI/CD).
+// It requires --project and --repo flags and outputs errors to STDERR.
+func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
+	// Validate required flags
+	var missingFlags []string
+	if opts.project == 0 {
+		missingFlags = append(missingFlags, "--project")
+	}
+	if opts.repo == "" {
+		missingFlags = append(missingFlags, "--repo")
+	}
+
+	if len(missingFlags) > 0 {
+		fmt.Fprintf(os.Stderr, "error: non-interactive mode requires flags: %s\n", strings.Join(missingFlags, ", "))
+		return fmt.Errorf("missing required flags: %s", strings.Join(missingFlags, ", "))
+	}
+
+	// Validate repo format
+	repoOwner, repoName := splitRepository(opts.repo)
+	if repoOwner == "" || repoName == "" {
+		fmt.Fprintf(os.Stderr, "error: --repo must be in owner/repo format\n")
+		return fmt.Errorf("invalid repo format: %s", opts.repo)
+	}
+
+	// Determine owner (from --owner flag or infer from repo)
+	owner := opts.owner
+	if owner == "" {
+		owner = repoOwner
+	}
+
+	// Determine framework (defaults to IDPF)
+	framework := opts.framework
+	if framework == "" {
+		framework = "IDPF"
+	}
+
+	// Check if config already exists
+	var existingFramework string
+	if _, err := os.Stat(".gh-pmu.yml"); err == nil {
+		if existingCfg, err := loadExistingFramework("."); err == nil {
+			existingFramework = existingCfg
+		}
+		if !opts.yes {
+			fmt.Fprintf(os.Stderr, "error: .gh-pmu.yml already exists (use --yes to overwrite)\n")
+			return fmt.Errorf("config already exists")
+		}
+	}
+
+	// Preserve existing framework on re-init
+	if existingFramework != "" {
+		framework = existingFramework
+	}
+
+	// Initialize API client
+	client := api.NewClient()
+
+	// Validate project exists
+	selectedProject, err := client.GetProject(owner, opts.project)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: failed to find project %s/%d: %v\n", owner, opts.project, err)
+		return fmt.Errorf("failed to find project: %w", err)
+	}
+
+	// Load embedded defaults
+	defs, err := defaults.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: failed to load defaults: %v\n", err)
+		return fmt.Errorf("failed to load embedded defaults: %w", err)
+	}
+
+	// Fetch project fields
+	projectFields, err := client.GetProjectFields(selectedProject.ID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: could not fetch project fields: %v\n", err)
+		return fmt.Errorf("could not fetch project fields: %w", err)
+	}
+
+	// Check and create required fields (IDPF only)
+	if framework == "IDPF" {
+		// Validate required fields exist with expected options
+		for _, reqField := range defs.Fields.Required {
+			field := findFieldByName(projectFields, reqField.Name)
+			if field == nil {
+				fmt.Fprintf(os.Stderr, "error: required field %q not found in project\n", reqField.Name)
+				return fmt.Errorf("required field %q not found in project", reqField.Name)
+			}
+
+			// Validate field type
+			if field.DataType != reqField.Type {
+				fmt.Fprintf(os.Stderr, "error: field %q has type %s, expected %s\n", reqField.Name, field.DataType, reqField.Type)
+				return fmt.Errorf("field %q has type %s, expected %s", reqField.Name, field.DataType, reqField.Type)
+			}
+
+			// Validate options for SINGLE_SELECT fields
+			if reqField.Type == "SINGLE_SELECT" && len(reqField.Options) > 0 {
+				for _, reqOpt := range reqField.Options {
+					found := false
+					for _, opt := range field.Options {
+						if opt.Name == reqOpt {
+							found = true
+							break
+						}
+					}
+					if !found {
+						fmt.Fprintf(os.Stderr, "error: field %q missing required option %q\n", reqField.Name, reqOpt)
+						return fmt.Errorf("field %q missing required option %q", reqField.Name, reqOpt)
+					}
+				}
+			}
+		}
+
+		// Create optional fields if missing
+		for _, optField := range defs.Fields.CreateIfMissing {
+			exists, err := client.FieldExists(selectedProject.ID, optField.Name)
+			if err != nil {
+				continue // Skip on error in non-interactive mode
+			}
+			if !exists {
+				_, _ = client.CreateProjectField(selectedProject.ID, optField.Name, optField.Type, optField.Options)
+			}
+		}
+
+		// Check and create required labels
+		for _, labelDef := range defs.Labels {
+			exists, err := client.LabelExists(repoOwner, repoName, labelDef.Name)
+			if err != nil {
+				continue
+			}
+			if !exists {
+				_ = client.CreateLabel(repoOwner, repoName, labelDef.Name, labelDef.Color, labelDef.Description)
+			}
+		}
+	}
+
+	// Refetch fields after potential creation
+	fields, _ := client.GetProjectFields(selectedProject.ID)
+
+	// Convert to metadata
+	metadata := &ProjectMetadata{
+		ProjectID: selectedProject.ID,
+	}
+	for _, f := range fields {
+		fm := FieldMetadata{
+			ID:       f.ID,
+			Name:     f.Name,
+			DataType: f.DataType,
+		}
+		for _, opt := range f.Options {
+			fm.Options = append(fm.Options, OptionMetadata{
+				ID:   opt.ID,
+				Name: opt.Name,
+			})
+		}
+		metadata.Fields = append(metadata.Fields, fm)
+	}
+
+	// Create config
+	cfg := &InitConfig{
+		ProjectName:   selectedProject.Title,
+		ProjectOwner:  owner,
+		ProjectNumber: opts.project,
+		Repositories:  []string{opts.repo},
+		Framework:     framework,
+	}
+
+	// Write config
+	cwd, _ := os.Getwd()
+	if err := writeConfigWithMetadata(cwd, cfg, metadata); err != nil {
+		fmt.Fprintf(os.Stderr, "error: failed to write config: %v\n", err)
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	// Output success to stdout (minimal for CI/CD parsing)
+	fmt.Fprintf(cmd.OutOrStdout(), "Created .gh-pmu.yml for %s (#%d)\n", selectedProject.Title, opts.project)
 
 	return nil
 }
