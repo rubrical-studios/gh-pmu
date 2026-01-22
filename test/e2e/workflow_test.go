@@ -57,7 +57,7 @@ func TestCreateToCloseWorkflow(t *testing.T) {
 
 	// Step 3: Verify final state shows "Done" status
 	t.Run("verify final state", func(t *testing.T) {
-		result := runPMU(t, cfg.Dir, "view", fmt.Sprintf("%d", issueNum), "--json")
+		result := runPMU(t, cfg.Dir, "view", fmt.Sprintf("%d", issueNum))
 		assertExitCode(t, result, 0)
 		assertContains(t, result.Stdout, "Done")
 	})
@@ -171,7 +171,7 @@ func TestMultiIssueMoveWorkflow(t *testing.T) {
 		for _, num := range issueNums {
 			// Use retry logic for eventual consistency (10 retries, 2s each = 20s max)
 			result := waitForProjectSync(t, cfg, 10,
-				[]string{"view", fmt.Sprintf("%d", num), "--json"},
+				[]string{"view", fmt.Sprintf("%d", num)},
 				"In progress",
 			)
 			assertExitCode(t, result, 0)
