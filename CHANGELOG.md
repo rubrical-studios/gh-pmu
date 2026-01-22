@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.5] - 2026-01-22
+
+### Added
+- Three new standard labels: `security-required`, `legal-required`, `docs-required` (#626)
+- `--state` flag for `board` command to filter by issue state (open/closed/all) (#620)
+- E2E test coverage for release→branch migration (#625)
+
+### Changed
+- Label validation now enforces standard labels only (#626)
+  - Non-standard labels cause errors with helpful message listing available options
+  - Standard labels auto-created on demand with correct color and description
+- Optimized `board` command using Search API for better performance (#620)
+- Optimized `triage` command using Search API for label filtering (#621)
+- Optimized `branch current` and `branch close` with two-phase query (#623)
+- Refactored `intake` command to use SearchRepositoryIssues for consistency (#622)
+
+### Fixed
+- Complete release→branch terminology migration (#614)
+- Empty else branch lint warning in triage command
+
 ## [0.13.4] - 2026-01-21
 
 ### Added
