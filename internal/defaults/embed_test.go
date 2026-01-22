@@ -21,7 +21,7 @@ func TestLoad_HasLabels(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required"}
+	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan"}
 
 	if len(defs.Labels) != len(expectedLabels) {
 		t.Errorf("expected %d labels, got %d", len(expectedLabels), len(defs.Labels))
@@ -167,7 +167,7 @@ func TestGetLabel_Found(t *testing.T) {
 	defs := MustLoad()
 
 	// Test each known label
-	knownLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required"}
+	knownLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan"}
 	for _, name := range knownLabels {
 		label := defs.GetLabel(name)
 		if label == nil {

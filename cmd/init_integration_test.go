@@ -447,3 +447,255 @@ func TestRunInit_Integration_OutputMessages(t *testing.T) {
 
 	_ = env // satisfy unused warning
 }
+
+// ============================================================================
+// Non-Interactive Mode Integration Tests (Issue #609)
+// ============================================================================
+
+// TestRunInit_Integration_NonInteractiveMode tests init with --non-interactive flag
+func TestRunInit_Integration_NonInteractiveMode(t *testing.T) {
+	env := testutil.RequireTestEnv(t)
+
+	// Create a temp directory for testing
+	tempDir, err := os.MkdirTemp("", "gh-pmu-init-noninteractive-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Initialize a git repo (not strictly needed for non-interactive, but good practice)
+	gitInit := exec.Command("git", "init")
+	gitInit.Dir = tempDir
+	if err := gitInit.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	// Run init in non-interactive mode
+	cmd := exec.Command("gh", "pmu", "init",
+		"--non-interactive",
+		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName))
+	cmd.Dir = tempDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		t.Logf("Init stdout: %s", stdout.String())
+		t.Logf("Init stderr: %s", stderr.String())
+		t.Fatalf("Non-interactive init failed: %v", err)
+	}
+
+	// Verify config file was created
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("Config file was not created")
+	}
+
+	// Read and validate config
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read config: %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(configData, &config); err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	// Verify required sections
+	if _, ok := config["project"]; !ok {
+		t.Error("Config missing 'project' section")
+	}
+	if _, ok := config["repositories"]; !ok {
+		t.Error("Config missing 'repositories' section")
+	}
+
+	// Verify framework defaults to IDPF
+	if framework, ok := config["framework"].(string); ok {
+		if framework != "IDPF" {
+			t.Errorf("Expected framework 'IDPF', got %q", framework)
+		}
+	}
+}
+
+// TestRunInit_Integration_NonInteractiveWithOwner tests --owner flag in non-interactive mode
+func TestRunInit_Integration_NonInteractiveWithOwner(t *testing.T) {
+	env := testutil.RequireTestEnv(t)
+
+	tempDir, err := os.MkdirTemp("", "gh-pmu-init-owner-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	gitInit := exec.Command("git", "init")
+	gitInit.Dir = tempDir
+	if err := gitInit.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	// Run init with explicit --owner (same as repo owner in this test)
+	cmd := exec.Command("gh", "pmu", "init",
+		"--non-interactive",
+		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName),
+		"--owner", env.RepoOwner)
+	cmd.Dir = tempDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		t.Logf("Init stderr: %s", stderr.String())
+		t.Fatalf("Non-interactive init with --owner failed: %v", err)
+	}
+
+	// Verify config was created
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Error("Config file was not created")
+	}
+}
+
+// TestRunInit_Integration_NonInteractiveFrameworkNone tests --framework none
+func TestRunInit_Integration_NonInteractiveFrameworkNone(t *testing.T) {
+	env := testutil.RequireTestEnv(t)
+
+	tempDir, err := os.MkdirTemp("", "gh-pmu-init-framework-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	gitInit := exec.Command("git", "init")
+	gitInit.Dir = tempDir
+	if err := gitInit.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	// Run init with --framework none
+	cmd := exec.Command("gh", "pmu", "init",
+		"--non-interactive",
+		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName),
+		"--framework", "none")
+	cmd.Dir = tempDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		t.Logf("Init stderr: %s", stderr.String())
+		t.Fatalf("Non-interactive init with --framework none failed: %v", err)
+	}
+
+	// Verify config was created with framework: none
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read config: %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(configData, &config); err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if framework, ok := config["framework"].(string); ok {
+		if framework != "none" {
+			t.Errorf("Expected framework 'none', got %q", framework)
+		}
+	} else {
+		t.Error("Framework field not found in config")
+	}
+}
+
+// TestRunInit_Integration_NonInteractiveOverwrite tests --yes flag for overwriting
+func TestRunInit_Integration_NonInteractiveOverwrite(t *testing.T) {
+	env := testutil.RequireTestEnv(t)
+
+	tempDir, err := os.MkdirTemp("", "gh-pmu-init-overwrite-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	gitInit := exec.Command("git", "init")
+	gitInit.Dir = tempDir
+	if err := gitInit.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	// Create existing config
+	existingConfig := "project:\n  name: existing\n  owner: test\n  number: 999\n"
+	configPath := filepath.Join(tempDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, []byte(existingConfig), 0644); err != nil {
+		t.Fatalf("Failed to write existing config: %v", err)
+	}
+
+	// Run init with --yes to overwrite
+	cmd := exec.Command("gh", "pmu", "init",
+		"--non-interactive",
+		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName),
+		"--yes")
+	cmd.Dir = tempDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		t.Logf("Init stderr: %s", stderr.String())
+		t.Fatalf("Non-interactive init with --yes failed: %v", err)
+	}
+
+	// Verify config was overwritten (should not contain "existing")
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Failed to read config: %v", err)
+	}
+
+	if strings.Contains(string(configData), "existing") {
+		t.Error("Expected existing config to be overwritten")
+	}
+	if !strings.Contains(string(configData), env.RepoOwner) {
+		t.Error("Expected new config to contain repo owner")
+	}
+}
+
+// TestRunInit_Integration_NonInteractiveMissingFlags tests error handling
+func TestRunInit_Integration_NonInteractiveMissingFlags(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gh-pmu-init-missing-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Run init without required flags
+	cmd := exec.Command("gh", "pmu", "init", "--non-interactive")
+	cmd.Dir = tempDir
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err == nil {
+		t.Error("Expected error when required flags are missing")
+	}
+
+	// Check stderr contains error about missing flags
+	stderrOutput := stderr.String()
+	if !strings.Contains(stderrOutput, "--project") || !strings.Contains(stderrOutput, "--repo") {
+		t.Errorf("Expected stderr to mention missing flags, got: %s", stderrOutput)
+	}
+}

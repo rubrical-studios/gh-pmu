@@ -30,6 +30,9 @@ labels:
   - name: qa-required
     description: Requires QA validation
     color: "fbca04"
+  - name: test-plan
+    description: Issue includes or requires test plan
+    color: "c5def5"
 
 # Project fields configuration
 fields:

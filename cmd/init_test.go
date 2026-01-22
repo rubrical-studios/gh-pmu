@@ -1215,3 +1215,267 @@ func TestFindFieldByName_EmptySlice(t *testing.T) {
 		t.Errorf("findFieldByName() on empty slice = %v, want nil", result)
 	}
 }
+
+// ============================================================================
+// Non-Interactive Mode Tests (Issue #609)
+// ============================================================================
+
+func TestInitCommand_HasNonInteractiveFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("init --help should work: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "--non-interactive") {
+		t.Error("Expected help output to mention '--non-interactive'")
+	}
+}
+
+func TestInitCommand_HasProjectFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+	if !strings.Contains(output, "--project") {
+		t.Error("Expected help output to mention '--project'")
+	}
+}
+
+func TestInitCommand_HasRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+	if !strings.Contains(output, "--repo") {
+		t.Error("Expected help output to mention '--repo'")
+	}
+}
+
+func TestInitCommand_HasOwnerFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+	if !strings.Contains(output, "--owner") {
+		t.Error("Expected help output to mention '--owner'")
+	}
+}
+
+func TestInitCommand_HasFrameworkFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+	if !strings.Contains(output, "--framework") {
+		t.Error("Expected help output to mention '--framework'")
+	}
+}
+
+func TestInitCommand_HasYesFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+	if !strings.Contains(output, "--yes") {
+		t.Error("Expected help output to mention '--yes'")
+	}
+	if !strings.Contains(output, "-y") {
+		t.Error("Expected help output to mention '-y' shorthand")
+	}
+}
+
+func TestInitOptions_DefaultFramework(t *testing.T) {
+	// Verify the default framework is IDPF
+	cmd := newInitCommand()
+
+	// Get the framework flag
+	frameworkFlag := cmd.Flags().Lookup("framework")
+	if frameworkFlag == nil {
+		t.Fatal("Expected --framework flag to exist")
+	}
+
+	if frameworkFlag.DefValue != "IDPF" {
+		t.Errorf("Expected default framework to be 'IDPF', got %q", frameworkFlag.DefValue)
+	}
+}
+
+func TestInitNonInteractive_MissingProjectFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive", "--repo", "owner/repo"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("Expected error when --project is missing in non-interactive mode")
+	}
+
+	// Check error mentions --project
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "--project") {
+		t.Errorf("Expected error to mention --project, got: %s", errOutput)
+	}
+}
+
+func TestInitNonInteractive_MissingRepoFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("Expected error when --repo is missing in non-interactive mode")
+	}
+
+	// Check error mentions --repo
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "--repo") {
+		t.Errorf("Expected error to mention --repo, got: %s", errOutput)
+	}
+}
+
+func TestInitNonInteractive_MissingBothFlags(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("Expected error when both --project and --repo are missing")
+	}
+
+	// Check error mentions both flags
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "--project") || !strings.Contains(errOutput, "--repo") {
+		t.Errorf("Expected error to mention both --project and --repo, got: %s", errOutput)
+	}
+}
+
+func TestInitNonInteractive_InvalidRepoFormat(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5", "--repo", "invalidrepo"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("Expected error for invalid repo format")
+	}
+
+	// Check error mentions format issue
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "owner/repo") && !strings.Contains(errOutput, "invalid repo format") {
+		t.Errorf("Expected error to mention format issue, got: %s", errOutput)
+	}
+}
+
+func TestInitNonInteractive_OwnerInferredFromRepo(t *testing.T) {
+	// Test that owner is correctly inferred from repo
+	// This tests the splitRepository function which is used internally
+	tests := []struct {
+		repo          string
+		expectedOwner string
+	}{
+		{"myorg/myrepo", "myorg"},
+		{"company/repo-name", "company"},
+		{"user123/project", "user123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.repo, func(t *testing.T) {
+			owner, _ := splitRepository(tt.repo)
+			if owner != tt.expectedOwner {
+				t.Errorf("Expected owner %q from repo %q, got %q", tt.expectedOwner, tt.repo, owner)
+			}
+		})
+	}
+}
+
+func TestInitNonInteractive_ExistingConfigWithoutYes(t *testing.T) {
+	// Create temp directory with existing config
+	tmpDir := t.TempDir()
+
+	// Write existing config
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, []byte("project:\n  owner: test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write existing config: %v", err)
+	}
+
+	// Change to temp directory for the test
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5", "--repo", "owner/repo"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("Expected error when config exists without --yes flag")
+	}
+
+	// Check error mentions --yes or already exists
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "--yes") && !strings.Contains(errOutput, "already exists") {
+		t.Errorf("Expected error to mention --yes or already exists, got: %s", errOutput)
+	}
+}
