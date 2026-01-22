@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.4] - 2026-01-21
+
+### Added
+- Non-interactive mode for `gh pmu init` command (#609)
+  - `--non-interactive` flag disables UI and requires all flags
+  - `--project` flag for project number
+  - `--repo` flag for repository (owner/repo format)
+  - `--owner` flag for project owner (optional, inferred from repo)
+  - `--framework` flag for framework type (defaults to IDPF)
+  - `--yes` flag to auto-confirm prompts
+- `test-plan` label added to standard labels (#611)
+
+### Fixed
+- E2E tests using invalid `--json` flag without field arguments
+
 ## [0.13.3] - 2026-01-21
 
 ### Added
