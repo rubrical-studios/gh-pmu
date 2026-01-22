@@ -338,11 +338,9 @@ func parseTriageQuery(query string) triageQueryFilters {
 			if labelName != "" {
 				filters.labels = append(filters.labels, labelName)
 			}
-		} else if part != "is:open" && part != "is:closed" && part != "is:all" {
-			// Unknown query component - may need client-side filtering
-			// For now, we still use Search API but acknowledge there may be
-			// other filters that need client-side handling
 		}
+		// Note: Unknown query components (not is:open/closed/all, label:, repo:, or state:)
+		// are passed through to Search API which may handle them or ignore them
 	}
 
 	return filters
