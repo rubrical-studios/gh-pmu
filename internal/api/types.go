@@ -126,3 +126,15 @@ type IssueRef struct {
 	Repo   string
 	Number int
 }
+
+// MinimalProjectItem represents a project item with minimal issue data.
+// Used for two-phase queries: first fetch minimal data for filtering,
+// then fetch full details only for matching items.
+// This avoids fetching Title, Body, Assignees, Labels for non-matching items.
+type MinimalProjectItem struct {
+	IssueID     string       // GitHub node ID for API operations
+	IssueNumber int          // Issue number for display and IssueRef
+	IssueState  string       // "OPEN" or "CLOSED" for filtering
+	Repository  string       // "owner/repo" format
+	FieldValues []FieldValue // Project field values for filtering
+}

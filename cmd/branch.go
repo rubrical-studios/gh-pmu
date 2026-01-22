@@ -110,6 +110,10 @@ type branchClient interface {
 	GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error)
 	// GetProjectItems returns all items in a project with their field values
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
+	// GetProjectItemsMinimal returns project items with minimal issue data for filtering
+	GetProjectItemsMinimal(projectID string, filter *api.ProjectItemsFilter) ([]api.MinimalProjectItem, error)
+	// GetProjectItemsByIssues returns full project item details for specific issues
+	GetProjectItemsByIssues(projectID string, refs []api.IssueRef) ([]api.ProjectItem, error)
 	// UpdateIssueBody updates an issue's body
 	UpdateIssueBody(issueID, body string) error
 	// WriteFile writes content to a file path
@@ -692,24 +696,31 @@ func runBranchCurrentWithDeps(cmd *cobra.Command, opts *branchCurrentOptions, cf
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Get project items filtered by repository (optimization)
-	filter := &api.ProjectItemsFilter{Repository: fmt.Sprintf("%s/%s", owner, repo)}
-	items, err := client.GetProjectItems(project.ID, filter)
+	// OPTIMIZATION: Two-phase query to avoid fetching full issue details for non-matching items
+	// Phase 1: Get minimal data (issue ID, number, state, field values) for filtering
+	repoFilter := fmt.Sprintf("%s/%s", owner, repo)
+	filter := &api.ProjectItemsFilter{Repository: repoFilter}
+	minimalItems, err := client.GetProjectItemsMinimal(project.ID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
 
 	// Filter items by Branch field matching releaseVersion
 	// Check both "Branch" (new) and "Release" (legacy) field names
-	var releaseIssues []api.Issue
-	for _, item := range items {
-		if item.Issue == nil {
-			continue
-		}
+	var matchingRefs []api.IssueRef
+	for _, item := range minimalItems {
 		// Check if this item has a Branch/Release field matching the target version
 		for _, fv := range item.FieldValues {
 			if (fv.Field == BranchFieldName || fv.Field == LegacyReleaseFieldName) && fv.Value == releaseVersion {
-				releaseIssues = append(releaseIssues, *item.Issue)
+				// Parse repository from item
+				parts := strings.SplitN(item.Repository, "/", 2)
+				if len(parts) == 2 {
+					matchingRefs = append(matchingRefs, api.IssueRef{
+						Owner:  parts[0],
+						Repo:   parts[1],
+						Number: item.IssueNumber,
+					})
+				}
 				break
 			}
 		}
@@ -718,11 +729,32 @@ func runBranchCurrentWithDeps(cmd *cobra.Command, opts *branchCurrentOptions, cf
 	// Display branch details (AC-036-1)
 	fmt.Fprintf(cmd.OutOrStdout(), "Current Branch: %s\n", releaseVersion)
 	fmt.Fprintf(cmd.OutOrStdout(), "Tracker: #%d\n", activeRelease.Number)
-	fmt.Fprintf(cmd.OutOrStdout(), "Issues: %d\n", len(releaseIssues))
+	fmt.Fprintf(cmd.OutOrStdout(), "Issues: %d\n", len(matchingRefs))
 
 	// If refresh flag is set, update tracker issue body (AC-036-3)
-	if opts.refresh {
+	// Phase 2: Only fetch full details when we need titles for the tracker body
+	if opts.refresh && len(matchingRefs) > 0 {
+		fullItems, err := client.GetProjectItemsByIssues(project.ID, matchingRefs)
+		if err != nil {
+			return fmt.Errorf("failed to get issue details: %w", err)
+		}
+
+		var releaseIssues []api.Issue
+		for _, item := range fullItems {
+			if item.Issue != nil {
+				releaseIssues = append(releaseIssues, *item.Issue)
+			}
+		}
+
 		body := generateBranchTrackerBody(releaseIssues)
+		err = client.UpdateIssueBody(activeRelease.ID, body)
+		if err != nil {
+			return fmt.Errorf("failed to update tracker body: %w", err)
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Tracker body updated\n")
+	} else if opts.refresh && len(matchingRefs) == 0 {
+		// No matching issues, update with empty list
+		body := generateBranchTrackerBody(nil)
 		err = client.UpdateIssueBody(activeRelease.ID, body)
 		if err != nil {
 			return fmt.Errorf("failed to update tracker body: %w", err)
@@ -811,30 +843,58 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Get project items filtered by repository (optimization)
-	filter := &api.ProjectItemsFilter{Repository: fmt.Sprintf("%s/%s", owner, repo)}
-	items, err := client.GetProjectItems(project.ID, filter)
+	// OPTIMIZATION: Two-phase query to avoid fetching full issue details for non-matching items
+	// Phase 1: Get minimal data (issue ID, number, state, field values) for filtering
+	repoFilter := fmt.Sprintf("%s/%s", owner, repo)
+	filter := &api.ProjectItemsFilter{Repository: repoFilter}
+	minimalItems, err := client.GetProjectItemsMinimal(project.ID, filter)
 	if err != nil {
 		return fmt.Errorf("failed to get project items: %w", err)
 	}
 
-	// Filter items by Branch field matching releaseVersion
-	// Check both "Branch" (new) and "Release" (legacy) field names
-	var releaseIssues []api.Issue
-	for _, item := range items {
-		if item.Issue == nil {
-			continue
-		}
+	// Filter items by Branch field matching releaseVersion and count done/incomplete
+	// using minimal data (no need for full issue details yet)
+	var matchingRefs []api.IssueRef
+	var doneCount, incompleteCount int
+	for _, item := range minimalItems {
 		// Check if this item has a Branch/Release field matching the target version
 		for _, fv := range item.FieldValues {
 			if (fv.Field == BranchFieldName || fv.Field == LegacyReleaseFieldName) && fv.Value == releaseVersion {
-				releaseIssues = append(releaseIssues, *item.Issue)
+				// Parse repository from item
+				parts := strings.SplitN(item.Repository, "/", 2)
+				if len(parts) == 2 {
+					matchingRefs = append(matchingRefs, api.IssueRef{
+						Owner:  parts[0],
+						Repo:   parts[1],
+						Number: item.IssueNumber,
+					})
+				}
+				// Count done vs incomplete using State from minimal data
+				if item.IssueState == "CLOSED" || item.IssueState == "closed" {
+					doneCount++
+				} else {
+					incompleteCount++
+				}
 				break
 			}
 		}
 	}
 
-	// Count done vs incomplete issues
+	// Phase 2: Fetch full details only for matching issues (for display and operations)
+	var releaseIssues []api.Issue
+	if len(matchingRefs) > 0 {
+		fullItems, err := client.GetProjectItemsByIssues(project.ID, matchingRefs)
+		if err != nil {
+			return fmt.Errorf("failed to get issue details: %w", err)
+		}
+		for _, item := range fullItems {
+			if item.Issue != nil {
+				releaseIssues = append(releaseIssues, *item.Issue)
+			}
+		}
+	}
+
+	// Separate done vs incomplete issues (using full details for operations)
 	var doneIssues, incompleteIssues []api.Issue
 	for _, issue := range releaseIssues {
 		if issue.State == "CLOSED" || issue.State == "closed" {
