@@ -719,6 +719,160 @@ func splitRepoName(nameWithOwner string) []string {
 	return nil
 }
 
+// GetProjectItemsMinimal fetches project items with minimal issue data.
+// This is optimized for filtering by field values (like Branch) without fetching
+// full issue details (Body, Title, Assignees, Labels) which can be large.
+// Use this for two-phase queries: first filter with minimal data, then fetch full details
+// for matching items only.
+func (c *Client) GetProjectItemsMinimal(projectID string, filter *ProjectItemsFilter) ([]MinimalProjectItem, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var allItems []MinimalProjectItem
+	var cursor *string
+
+	for {
+		items, pInfo, err := c.getMinimalProjectItemsPage(projectID, cursor)
+		if err != nil {
+			return nil, err
+		}
+
+		// Filter and process items from this page
+		for _, item := range items {
+			// Apply repository filter if specified
+			if filter != nil && filter.Repository != "" {
+				if item.Repository != filter.Repository {
+					continue
+				}
+			}
+
+			// Apply state filter if specified
+			if filter != nil && filter.State != nil {
+				if item.IssueState != *filter.State {
+					continue
+				}
+			}
+
+			allItems = append(allItems, item)
+		}
+
+		if !pInfo.HasNextPage {
+			break
+		}
+		cursor = &pInfo.EndCursor
+	}
+
+	return allItems, nil
+}
+
+// getMinimalProjectItemsPage fetches a single page of project items with minimal data
+func (c *Client) getMinimalProjectItemsPage(projectID string, cursor *string) ([]MinimalProjectItem, pageInfo, error) {
+	var query struct {
+		Node struct {
+			ProjectV2 struct {
+				Items struct {
+					Nodes []struct {
+						Content struct {
+							TypeName string `graphql:"__typename"`
+							Issue    struct {
+								ID         string
+								Number     int
+								State      string
+								Repository struct {
+									NameWithOwner string
+								}
+							} `graphql:"... on Issue"`
+						}
+						FieldValues struct {
+							Nodes []struct {
+								TypeName string `graphql:"__typename"`
+								// Single select field value
+								ProjectV2ItemFieldSingleSelectValue struct {
+									Name  string
+									Field struct {
+										ProjectV2SingleSelectField struct {
+											Name string
+										} `graphql:"... on ProjectV2SingleSelectField"`
+									}
+								} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
+								// Text field value
+								ProjectV2ItemFieldTextValue struct {
+									Text  string
+									Field struct {
+										ProjectV2Field struct {
+											Name string
+										} `graphql:"... on ProjectV2Field"`
+									}
+								} `graphql:"... on ProjectV2ItemFieldTextValue"`
+							}
+						} `graphql:"fieldValues(first: 20)"`
+					}
+					PageInfo struct {
+						HasNextPage bool
+						EndCursor   string
+					}
+				} `graphql:"items(first: 100, after: $cursor)"`
+			} `graphql:"... on ProjectV2"`
+		} `graphql:"node(id: $projectId)"`
+	}
+
+	variables := map[string]interface{}{
+		"projectId": graphql.ID(projectID),
+		"cursor":    (*graphql.String)(nil),
+	}
+	if cursor != nil {
+		variables["cursor"] = graphql.String(*cursor)
+	}
+
+	err := c.gql.Query("GetProjectItemsMinimal", &query, variables)
+	if err != nil {
+		return nil, pageInfo{}, fmt.Errorf("failed to get minimal project items: %w", err)
+	}
+
+	var items []MinimalProjectItem
+	for _, node := range query.Node.ProjectV2.Items.Nodes {
+		// Skip non-issue items
+		if node.Content.TypeName != "Issue" {
+			continue
+		}
+
+		item := MinimalProjectItem{
+			IssueID:     node.Content.Issue.ID,
+			IssueNumber: node.Content.Issue.Number,
+			IssueState:  node.Content.Issue.State,
+			Repository:  node.Content.Issue.Repository.NameWithOwner,
+		}
+
+		// Parse field values
+		for _, fv := range node.FieldValues.Nodes {
+			switch fv.TypeName {
+			case "ProjectV2ItemFieldSingleSelectValue":
+				if fv.ProjectV2ItemFieldSingleSelectValue.Name != "" {
+					item.FieldValues = append(item.FieldValues, FieldValue{
+						Field: fv.ProjectV2ItemFieldSingleSelectValue.Field.ProjectV2SingleSelectField.Name,
+						Value: fv.ProjectV2ItemFieldSingleSelectValue.Name,
+					})
+				}
+			case "ProjectV2ItemFieldTextValue":
+				if fv.ProjectV2ItemFieldTextValue.Text != "" {
+					item.FieldValues = append(item.FieldValues, FieldValue{
+						Field: fv.ProjectV2ItemFieldTextValue.Field.ProjectV2Field.Name,
+						Value: fv.ProjectV2ItemFieldTextValue.Text,
+					})
+				}
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	return items, pageInfo{
+		HasNextPage: query.Node.ProjectV2.Items.PageInfo.HasNextPage,
+		EndCursor:   query.Node.ProjectV2.Items.PageInfo.EndCursor,
+	}, nil
+}
+
 // GetProjectItemsByIssues fetches project items for specific issues using a targeted query.
 // This is more efficient than GetProjectItems when you know which issues you need,
 // as it only fetches the specified issues rather than the entire project.

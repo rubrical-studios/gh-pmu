@@ -1,5 +1,5 @@
 {
-  "version": "0.29.2",
+  "version": "0.29.3",
   "deployedAt": "2026-01-11",
   "scripts": {
     "framework/analyze-commits.js": {
@@ -85,160 +85,160 @@
   },
   "rules": {
     "01-anti-hallucination.md": {
-      "checksum": "9048f1deb07412e3505a8759a31b85fc5c00594719491dd1aa030d5838da34a9",
+      "checksum": "96d388c70fe66077e2cf75b6f6299f0ea5c34991a2aed557e97bd001156ef81b",
       "deployedAt": "2026-01-21",
       "source": "Assistant/Anti-Hallucination-Rules-for-Software-Development.md"
     },
     "02-github-workflow.md": {
-      "checksum": "abe3c62fbcaeb920b06c66adbb7f5651263997d4a04286cbce2dca779d478933",
+      "checksum": "12bc5c22d2fa533dad8d81af6b85e15a4016fcd0588ed593315f1a3037a08ad3",
       "deployedAt": "2026-01-21",
       "source": "Reference/GitHub-Workflow.md"
     },
     "04-charter-enforcement.md": {
-      "checksum": "89f0364e142014b67984c0890ccf34973ff2c21aa2be4f0981a2a22695f059b4",
+      "checksum": "d88bfcde8dce9caf6a1c8dec0cc301b85e32522d038600cad4201c4f6a997110",
       "deployedAt": "2026-01-21",
       "source": "Reference/Charter-Enforcement.md"
     },
     "06-runtime-triggers.md": {
-      "checksum": "5a526ffdf78fee8de693c9f7e27d8c20e36f79db50b0a1c1c7af3781f2f71bed",
+      "checksum": "6b6ef437931b97de2917dc93d1f4dfca2161c6db95dbe60125f30921c45211ba",
       "deployedAt": "2026-01-21",
       "source": "Reference/Runtime-Artifact-Triggers.md"
     },
     "03-startup.md": {
-      "checksum": "118b6746d294f23d457314012825167a63eca3c06094b0d2610c8fe9f10032e6",
+      "checksum": "205d7e74323c88b74cad4cda1d0ebfcc272f0162578b074a33eecb0d9f08a022",
       "deployedAt": "2026-01-21",
       "source": "generated"
     },
     "05-windows-shell.md": {
-      "checksum": "d2111921927d1c36e3752d0cd96ba4979ab075946eb53020343127efdc192fcf",
+      "checksum": "77fedde0911ac3d6b313a69c032a66be3cc3c015c8d9f07db0aa194a0df8e29d",
       "deployedAt": "2026-01-21",
       "source": "Reference/Windows-Shell-Safety.md"
     }
   },
   "hooks": {
     "workflow-trigger.js": {
-      "checksum": "980a03cebf613160a179b4649076f24502115dee36770b534a3c93cba057f9e9",
+      "checksum": "e2aa709da3085276942a9fddcaff31c06ba7440a98fde3bca291a0e598e2001f",
       "deployedAt": "2026-01-21",
       "source": "Templates/hooks/workflow-trigger.js"
     }
   },
   "commands": {
     "assign-branch.md": {
-      "checksum": "36951d3b95cca8e0f2c5bd6cc65e0809178a2319ebb2b5f6bbc8df6344ee56ce",
+      "checksum": "21b9e50fb3c53640684252f2e183b251ee6301eb52a1d49ec46365df1bde54a7",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/assign-branch.md",
       "extensible": false
     },
     "switch-branch.md": {
-      "checksum": "baff27fce4f297a7e21889402005fcfb8a056855c697ebff8ae4004819787e45",
+      "checksum": "c613fc4152509b5101719c162f10f2261c53fb7d0958ed3ec4629eebcadedcd4",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/switch-branch.md",
       "extensible": false
     },
     "transfer-issue.md": {
-      "checksum": "1aa8ae63262aa80ecebe80ec3027365c75de25416f4bce79061f49d74e8ccc15",
+      "checksum": "ef67cc94a393bc94b30d6e4b259d7e6a0a6da57981a26877b2f7ff29862ae721",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/transfer-issue.md",
       "extensible": false
     },
     "plan-sprint.md": {
-      "checksum": "cd987baf5cb96ac3b6179c4e5ddd0a133c50eefa65b69788d8d71c27d8c5d04e",
+      "checksum": "8066c502e310b2d70c7926a594263b354512936945e1fb956558fb8b82de661b",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/plan-sprint.md",
       "extensible": false
     },
     "sprint-status.md": {
-      "checksum": "0c9b6680b79d8ebae849a41a2cee03e673bdccbf1dfc60ff1e2a45b343cc54aa",
+      "checksum": "708bb366f01fd56bd00f4c97937b9dddd1a592cb593f381bd310c0c5cf51900d",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/sprint-status.md",
       "extensible": false
     },
     "sprint-retro.md": {
-      "checksum": "6c5eeea919ec690d37e366c499b8990a17355e33fde5b6ca2746ea4f2bd8f0fa",
+      "checksum": "ef6c5392e9d495bfab8b3307d493ce09be86e947a3147efc4fce2bda7af22174",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/sprint-retro.md",
       "extensible": false
     },
     "end-sprint.md": {
-      "checksum": "1482a4ff30e4a016f58f12745e95805a40869b19b02d12b46a33866dc93f5008",
+      "checksum": "9bdb8eab633ba652b26a3ec983db84869495f715eb1d9b081ef67201c5a851fc",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/end-sprint.md",
       "extensible": false
     },
     "create-branch.md": {
-      "checksum": "6aa935fed048940e5d446ffaf7bb2e103d3d35d6b21a2cf35123e0c763f9f7bb",
+      "checksum": "22572cfc9d6089e27910540937c2290713488927713867393db7a03667274670",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/create-branch.md",
       "extensible": true
     },
     "prepare-release.md": {
-      "checksum": "8ff893d54d3654745232e42f1e6215941e72c31711de3a05bca59fd124c48648",
+      "checksum": "085b37d026531e316a41af71fc80e8233b086dba0dd0c053113c0c77832df1bb",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/prepare-release.md",
       "extensible": true
     },
     "prepare-beta.md": {
-      "checksum": "3175e60f92cc736a4debc63334053653e30605ef5747066da5e936e59afbb336",
+      "checksum": "ffd0aeda5290db8499a27a6c1d465247ef4a7e3ff7f51dd61933a8674dd3ea81",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/prepare-beta.md",
       "extensible": true
     },
     "merge-branch.md": {
-      "checksum": "32a0f1ca92ffdd17f7257957da648fbc59e43e4da25dccd5762020c2369c27ea",
+      "checksum": "0b679d414fcbd5a0a9bdf608953f8b22f36ecef19d7549225ffbf3cf6a0140da",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/merge-branch.md",
       "extensible": true
     },
     "destroy-branch.md": {
-      "checksum": "17d30335e8e8ece15d8d90a8ab3d796268c27dcc77a5f01ff4669128a9b9f4df",
+      "checksum": "359326035ade85b82a359f5aff5b26d7422a058bcbcde7a9fd8e6a8be5d7a606",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/destroy-branch.md",
       "extensible": true
     },
     "charter.md": {
-      "checksum": "3d444ee8623d34c52dbed567349ec63e2f46785ea49563c69937b78a48409cb0",
+      "checksum": "1a69d55db484021cc8074770156cd662d9de0edb50cbbabf1e53b3ffdc42b7e3",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/charter.md",
       "extensible": false
     },
     "extensions.md": {
-      "checksum": "581ccbc4f9da72225dda4a2575adf24c5d9d1722b070ce11a625e0372be64374",
+      "checksum": "6c65053d8a29e1a22c1eefb835a3e5b9f247b955bf25fbd2fd0b513342d80324",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/extensions.md",
       "extensible": false
     },
     "create-prd.md": {
-      "checksum": "b8606ca5c54e1a3c473ec7848fc00a67c76caf37b1b00541ed3665df2426c98d",
+      "checksum": "9dd4f7fc3c8c71c98e8862af431534e90d9f445b3fa6783672b3d30d05ceadd4",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/create-prd.md",
       "extensible": true
     },
     "create-backlog.md": {
-      "checksum": "b82dde9e4db440ae40a510c4fe21bc6af3b785be2b7e39c2c9f4691f1b24184a",
+      "checksum": "bf4ecf7eb48f79a127a8c3b82262d7a266c0400ccdbeda3d37483b91da667692",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/create-backlog.md",
       "extensible": false
     },
     "add-story.md": {
-      "checksum": "a8bb0274a9d710e805e5c84b38d9f87f3011d045e8ca735244d8b268727f8962",
+      "checksum": "fe90d32e6186415f0a2666b13346fd48081bf6fc3037267dd42e91b9d414e94a",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/add-story.md",
       "extensible": false
     },
     "split-story.md": {
-      "checksum": "1095e75e0d68b641fb4e9263e07c3526a711fef6aba7003745a75f3cde09731a",
+      "checksum": "7e680a73a2908043256563cb1c99ea13bbcae5bcbf2693a4304c7887172f1e00",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/split-story.md",
       "extensible": false
     },
     "emergency-bug.md": {
-      "checksum": "27474d9c99f5bb0596081af11d179a14f2ddd5633a569cc6d5f1cf08976a00b1",
+      "checksum": "583326e94eb00395ef342da4be006c7d932f0cfe31407fd7cb340f5a64bbb7df",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/emergency-bug.md",
       "extensible": false
     },
     "pivot.md": {
-      "checksum": "7f5c0ebe3ae28526f5a5cc43ce7f91e42c39398e79ddafacfd01adeaee8c5df0",
+      "checksum": "ea0522312298c528c4cbf2c525a74b0c1dfc45746ec91fcc9bb7372849edb7d0",
       "deployedAt": "2026-01-21",
       "source": "Templates/commands/pivot.md",
       "extensible": false

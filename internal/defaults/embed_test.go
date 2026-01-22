@@ -21,7 +21,7 @@ func TestLoad_HasLabels(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan"}
+	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required"}
 
 	if len(defs.Labels) != len(expectedLabels) {
 		t.Errorf("expected %d labels, got %d", len(expectedLabels), len(defs.Labels))
@@ -167,7 +167,7 @@ func TestGetLabel_Found(t *testing.T) {
 	defs := MustLoad()
 
 	// Test each known label
-	knownLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan"}
+	knownLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required"}
 	for _, name := range knownLabels {
 		label := defs.GetLabel(name)
 		if label == nil {
@@ -195,6 +195,50 @@ func TestGetLabel_NotFound(t *testing.T) {
 		label := defs.GetLabel(name)
 		if label != nil {
 			t.Errorf("GetLabel(%q) = %v, want nil", name, label)
+		}
+	}
+}
+
+func TestGetLabelNames(t *testing.T) {
+	defs := MustLoad()
+
+	names := defs.GetLabelNames()
+
+	// Should have same count as Labels
+	if len(names) != len(defs.Labels) {
+		t.Errorf("GetLabelNames() returned %d names, want %d", len(names), len(defs.Labels))
+	}
+
+	// All standard labels should be in the list
+	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required"}
+	nameSet := make(map[string]bool)
+	for _, name := range names {
+		nameSet[name] = true
+	}
+
+	for _, expected := range expectedLabels {
+		if !nameSet[expected] {
+			t.Errorf("GetLabelNames() missing expected label %q", expected)
+		}
+	}
+}
+
+func TestIsStandardLabel(t *testing.T) {
+	defs := MustLoad()
+
+	// Standard labels should return true
+	standardLabels := []string{"branch", "bug", "enhancement", "security-required", "legal-required", "docs-required"}
+	for _, name := range standardLabels {
+		if !defs.IsStandardLabel(name) {
+			t.Errorf("IsStandardLabel(%q) = false, want true", name)
+		}
+	}
+
+	// Non-standard labels should return false
+	nonStandardLabels := []string{"foo", "bar", "custom-label", "my-label"}
+	for _, name := range nonStandardLabels {
+		if defs.IsStandardLabel(name) {
+			t.Errorf("IsStandardLabel(%q) = true, want false", name)
 		}
 	}
 }

@@ -14,10 +14,14 @@ import (
 type mockBoardClient struct {
 	project    *api.Project
 	boardItems []api.BoardItem
+	issues     []api.Issue
+	fieldsByID map[string][]api.FieldValue
 
 	// Error injection
-	getProjectErr    error
-	getBoardItemsErr error
+	getProjectErr      error
+	getBoardItemsErr   error
+	searchIssuesErr    error
+	getFieldsForIssues error
 }
 
 func newMockBoardClient() *mockBoardClient {
@@ -43,6 +47,23 @@ func (m *mockBoardClient) GetProjectItemsForBoard(projectID string, filter *api.
 		return nil, m.getBoardItemsErr
 	}
 	return m.boardItems, nil
+}
+
+func (m *mockBoardClient) SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error) {
+	if m.searchIssuesErr != nil {
+		return nil, m.searchIssuesErr
+	}
+	return m.issues, nil
+}
+
+func (m *mockBoardClient) GetProjectFieldsForIssues(projectID string, issueIDs []string) (map[string][]api.FieldValue, error) {
+	if m.getFieldsForIssues != nil {
+		return nil, m.getFieldsForIssues
+	}
+	if m.fieldsByID == nil {
+		return make(map[string][]api.FieldValue), nil
+	}
+	return m.fieldsByID, nil
 }
 
 // ============================================================================
@@ -287,6 +308,7 @@ func TestNewBoardCommand(t *testing.T) {
 	}{
 		{"status", "s"},
 		{"priority", "p"},
+		{"state", ""},
 		{"limit", "n"},
 		{"no-border", ""},
 		{"json", ""},
@@ -551,5 +573,256 @@ func TestOutputBoardBox(t *testing.T) {
 
 	if !strings.Contains(output, "#1") {
 		t.Error("expected issue #1")
+	}
+}
+
+// ============================================================================
+// Search API Optimization Tests
+// ============================================================================
+
+func TestRunBoardWithDeps_UsesSearchAPIWhenRepoConfigured(t *testing.T) {
+	mock := newMockBoardClient()
+	// Set up issues for Search API path
+	mock.issues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Search Issue", State: "OPEN"},
+	}
+	mock.fieldsByID = map[string][]api.FieldValue{
+		"issue-1": {
+			{Field: "Status", Value: "Backlog"},
+			{Field: "Priority", Value: "P1"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// state defaults to "open", so Search API should be used
+	opts := &boardOptions{state: "open"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Search Issue") {
+		t.Error("expected Search Issue in output from Search API path")
+	}
+}
+
+func TestRunBoardWithDeps_FallbackWhenStateAll(t *testing.T) {
+	mock := newMockBoardClient()
+	// Set up board items for fallback path (GetProjectItemsForBoard)
+	mock.boardItems = []api.BoardItem{
+		{Number: 1, Title: "Fallback Issue", Status: "Backlog", State: "OPEN"},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// state=all should use fallback path
+	opts := &boardOptions{state: "all"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Fallback Issue") {
+		t.Error("expected Fallback Issue in output from fallback path")
+	}
+}
+
+func TestRunBoardWithDeps_StateFilterInFallbackPath(t *testing.T) {
+	mock := newMockBoardClient()
+	// No repo configured - forces fallback path
+	mock.boardItems = []api.BoardItem{
+		{Number: 1, Title: "Open Issue", Status: "Backlog", State: "OPEN"},
+		{Number: 2, Title: "Closed Issue", Status: "Backlog", State: "CLOSED"},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{}, // No repo - forces fallback
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// state=open in fallback path should filter client-side
+	opts := &boardOptions{state: "open"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Open Issue") {
+		t.Error("expected Open Issue in output")
+	}
+	if strings.Contains(output, "Closed Issue") {
+		t.Error("Closed Issue should be filtered out when state=open")
+	}
+}
+
+func TestRunBoardWithDeps_SearchAPIError(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.searchIssuesErr = errors.New("search API error")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+	}
+
+	cmd := newBoardCommand()
+	opts := &boardOptions{state: "open"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to search issues") {
+		t.Errorf("expected 'failed to search issues' error, got: %v", err)
+	}
+}
+
+func TestRunBoardWithDeps_EnrichError(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.issues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Test", State: "OPEN"},
+	}
+	mock.getFieldsForIssues = errors.New("enrich error")
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/test-repo"},
+	}
+
+	cmd := newBoardCommand()
+	opts := &boardOptions{state: "open"}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to enrich issues") {
+		t.Errorf("expected 'failed to enrich issues' error, got: %v", err)
+	}
+}
+
+func TestFilterBoardItemsByState(t *testing.T) {
+	items := []api.BoardItem{
+		{Number: 1, Title: "Open 1", State: "OPEN"},
+		{Number: 2, Title: "Closed 1", State: "CLOSED"},
+		{Number: 3, Title: "Open 2", State: "OPEN"},
+	}
+
+	tests := []struct {
+		state         string
+		expectedCount int
+	}{
+		{"open", 2},
+		{"OPEN", 2},
+		{"closed", 1},
+		{"CLOSED", 1},
+	}
+
+	for _, tt := range tests {
+		filtered := filterBoardItemsByState(items, tt.state)
+		if len(filtered) != tt.expectedCount {
+			t.Errorf("filterBoardItemsByState(state=%q): got %d items, want %d", tt.state, len(filtered), tt.expectedCount)
+		}
+	}
+}
+
+func TestEnrichIssuesToBoardItems(t *testing.T) {
+	mock := newMockBoardClient()
+	mock.fieldsByID = map[string][]api.FieldValue{
+		"issue-1": {
+			{Field: "Status", Value: "In Progress"},
+			{Field: "Priority", Value: "P0"},
+		},
+		"issue-2": {
+			{Field: "Status", Value: "Done"},
+		},
+	}
+
+	issues := []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Issue One", State: "OPEN"},
+		{ID: "issue-2", Number: 2, Title: "Issue Two", State: "CLOSED"},
+	}
+
+	items, err := enrichIssuesToBoardItems(mock, "proj-1", issues, "test-org/test-repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+
+	// Check first item
+	if items[0].Number != 1 {
+		t.Errorf("item 0 number = %d, want 1", items[0].Number)
+	}
+	if items[0].Status != "In Progress" {
+		t.Errorf("item 0 status = %q, want 'In Progress'", items[0].Status)
+	}
+	if items[0].Priority != "P0" {
+		t.Errorf("item 0 priority = %q, want 'P0'", items[0].Priority)
+	}
+	if items[0].Repository != "test-org/test-repo" {
+		t.Errorf("item 0 repository = %q, want 'test-org/test-repo'", items[0].Repository)
+	}
+
+	// Check second item
+	if items[1].Status != "Done" {
+		t.Errorf("item 1 status = %q, want 'Done'", items[1].Status)
+	}
+	if items[1].Priority != "" {
+		t.Errorf("item 1 priority = %q, want empty", items[1].Priority)
+	}
+}
+
+func TestEnrichIssuesToBoardItems_EmptyInput(t *testing.T) {
+	mock := newMockBoardClient()
+
+	items, err := enrichIssuesToBoardItems(mock, "proj-1", []api.Issue{}, "test-org/test-repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if items != nil {
+		t.Errorf("expected nil for empty input, got %v", items)
 	}
 }

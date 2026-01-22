@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.20.1
+// **Version:** 0.21.0
 /**
  * workflow-trigger.js
  *
@@ -39,11 +39,11 @@ process.stdin.on('end', () => {
         const basePrompt = promptLower.replace(/\s*--refresh\s*/gi, '').trim();
         const isCommandRequest = ['commands', 'list-commands'].includes(basePrompt);
         const triggerMatch = prompt.match(/^(bug|enhancement|idea|proposal):/i);
-        const workMatch = prompt.match(/^work\s+#?(\d+)/i);
-        // Batch work patterns: "work all in Ready", "work all issues in sprint-5"
-        const batchWorkMatch = prompt.match(/^work\s+all\s+(?:issues\s+)?in\s+(\w+[-\w]*)/i);
+        // Broad "work" trigger - matches any prompt starting with "work "
+        // We'll opportunistically extract issue numbers or status later
+        const workTrigger = prompt.match(/^work\s/i);
 
-        if (!isCommandRequest && !triggerMatch && !workMatch && !batchWorkMatch) {
+        if (!isCommandRequest && !triggerMatch && !workTrigger) {
             process.exit(0);
         }
 
@@ -75,9 +75,27 @@ process.stdin.on('end', () => {
             process.exit(0);
         }
 
-        // Handle 'work #N' command - validate branch assignment
-        if (workMatch) {
-            const issueNumber = workMatch[1];
+        // Handle 'work' commands - broad trigger with opportunistic extraction
+        // Supports: work #123, work on #123, work issue 45, work all in Ready, etc.
+        if (workTrigger) {
+            // Try to extract issue number using flexible patterns:
+            // 1. Explicit #N reference anywhere: "work on #123", "work #123 now"
+            // 2. Number after work [on] [issue]: "work 123", "work on 45", "work issue 789"
+            const explicitIssue = prompt.match(/#(\d+)/);
+            const implicitIssue = prompt.match(/^work\s+(?:on\s+)?(?:issue\s+)?(\d+)/i);
+            const issueNumber = explicitIssue ? explicitIssue[1] : (implicitIssue ? implicitIssue[1] : null);
+
+            // Try to extract batch status: "work all in Ready", "work the issues in backlog"
+            const statusMatch = prompt.match(/\bin\s+(\w+[-\w]*)/i);
+            const statusOrSprint = statusMatch ? statusMatch[1] : null;
+
+            // If no issue number and no status, exit silently (let Claude handle naturally)
+            if (!issueNumber && !statusOrSprint) {
+                process.exit(0);
+            }
+
+            // Single issue work (has issue number)
+            if (issueNumber) {
 
             try {
                 // Query issue's Branch and Sprint fields via gh pmu view
@@ -178,21 +196,20 @@ process.stdin.on('end', () => {
                 console.log(JSON.stringify(output));
                 process.exit(0);
             }
-        }
+            }
 
-        // Handle batch work command: "work all in Ready", "work all issues in sprint-5"
-        if (batchWorkMatch) {
-            const statusOrSprint = batchWorkMatch[1];
-
-            try {
+            // Batch work (has status but no specific issue number)
+            if (statusOrSprint) {
+                try {
                 // Query issues in the specified status
                 const result = execSync(
                     `gh pmu list --status ${statusOrSprint} --json`,
                     { encoding: 'utf-8', timeout: 15000 }
                 );
 
-                const issues = JSON.parse(result);
-                if (issues && issues.length > 0) {
+                const data = JSON.parse(result);
+                const issues = data.items || [];
+                if (issues.length > 0) {
                     let contextMessage = `[BATCH WORK: ${issues.length} issues in ${statusOrSprint}]\n\n`;
                     contextMessage += `[AUTO-TODO: BATCH ISSUES]\n`;
                     contextMessage += `Create a todo list with these issues:\n`;
@@ -232,6 +249,7 @@ process.stdin.on('end', () => {
                 };
                 console.log(JSON.stringify(output));
                 process.exit(0);
+            }
             }
         }
 

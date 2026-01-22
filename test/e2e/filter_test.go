@@ -5,6 +5,7 @@ package e2e
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 // TestFilterByStatus tests filtering issues by status field.
@@ -152,4 +153,138 @@ func TestFilterCombined(t *testing.T) {
 
 	// Verify issue appears
 	assertContains(t, result.Stdout, fmt.Sprintf("#%d", issue))
+}
+
+// TestFilterByBranch tests filtering issues by branch field using --branch flag.
+func TestFilterByBranch(t *testing.T) {
+	cfg := setupTestConfig(t)
+
+	// Generate unique branch name
+	branchName := fmt.Sprintf("release/e2e-filter-%d", time.Now().UnixNano())
+
+	// Track resources for cleanup
+	var issueNums []int
+	var trackerIssueNum int
+
+	// Cleanup at end of test
+	defer func() {
+		for _, num := range issueNums {
+			runCleanupAfterTest(t, num)
+		}
+		if trackerIssueNum > 0 {
+			runCleanupAfterTest(t, trackerIssueNum)
+		}
+		// Ensure branch is closed
+		runPMU(t, cfg.Dir, "branch", "close", "--yes")
+	}()
+
+	// Step 1: Start a branch to assign issues to
+	t.Run("start branch", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "branch", "start", "--name", branchName)
+		assertExitCode(t, result, 0)
+		trackerIssueNum = extractIssueNumber(t, result.Stdout)
+	})
+
+	// Step 2: Create two issues - one assigned to branch, one not
+	t.Run("create test issues", func(t *testing.T) {
+		// Create issue that will be assigned to branch
+		branchIssue := createTestIssue(t, cfg, "Filter Test - With Branch")
+		issueNums = append(issueNums, branchIssue)
+
+		// Create issue that will NOT be assigned to branch
+		noBranchIssue := createTestIssue(t, cfg, "Filter Test - No Branch")
+		issueNums = append(issueNums, noBranchIssue)
+
+		// Assign first issue to branch
+		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", branchIssue), "--branch", "current")
+		assertExitCode(t, result, 0)
+	})
+
+	// Step 3: Filter by branch - should show only assigned issue
+	t.Run("filter by branch value", func(t *testing.T) {
+		result := waitForProjectSync(t, cfg, 5,
+			[]string{"list", "--branch", branchName},
+			fmt.Sprintf("#%d", issueNums[0]),
+		)
+		assertExitCode(t, result, 0)
+
+		// Verify branch-assigned issue appears
+		assertContains(t, result.Stdout, fmt.Sprintf("#%d", issueNums[0]))
+
+		// Verify non-branch issue does NOT appear
+		assertNotContains(t, result.Stdout, fmt.Sprintf("#%d", issueNums[1]))
+	})
+
+	// Step 4: Filter by branch using "current" keyword
+	t.Run("filter by branch current", func(t *testing.T) {
+		result := waitForProjectSync(t, cfg, 5,
+			[]string{"list", "--branch", "current"},
+			fmt.Sprintf("#%d", issueNums[0]),
+		)
+		assertExitCode(t, result, 0)
+
+		// Verify branch-assigned issue appears
+		assertContains(t, result.Stdout, fmt.Sprintf("#%d", issueNums[0]))
+	})
+}
+
+// TestFilterByNoBranch tests filtering issues without branch assignment using --no-branch flag.
+func TestFilterByNoBranch(t *testing.T) {
+	cfg := setupTestConfig(t)
+
+	// Generate unique branch name
+	branchName := fmt.Sprintf("release/e2e-nobranch-%d", time.Now().UnixNano())
+
+	// Track resources for cleanup
+	var issueNums []int
+	var trackerIssueNum int
+
+	// Cleanup at end of test
+	defer func() {
+		for _, num := range issueNums {
+			runCleanupAfterTest(t, num)
+		}
+		if trackerIssueNum > 0 {
+			runCleanupAfterTest(t, trackerIssueNum)
+		}
+		// Ensure branch is closed
+		runPMU(t, cfg.Dir, "branch", "close", "--yes")
+	}()
+
+	// Step 1: Start a branch
+	t.Run("start branch", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "branch", "start", "--name", branchName)
+		assertExitCode(t, result, 0)
+		trackerIssueNum = extractIssueNumber(t, result.Stdout)
+	})
+
+	// Step 2: Create two issues - one assigned to branch, one not
+	t.Run("create test issues", func(t *testing.T) {
+		// Create issue that will be assigned to branch
+		branchIssue := createTestIssue(t, cfg, "No-Branch Filter Test - With Branch")
+		issueNums = append(issueNums, branchIssue)
+
+		// Create issue that will NOT be assigned to branch
+		noBranchIssue := createTestIssue(t, cfg, "No-Branch Filter Test - No Branch")
+		issueNums = append(issueNums, noBranchIssue)
+
+		// Assign first issue to branch
+		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", branchIssue), "--branch", "current")
+		assertExitCode(t, result, 0)
+	})
+
+	// Step 3: Filter by --no-branch - should show only unassigned issue
+	t.Run("filter by no-branch", func(t *testing.T) {
+		result := waitForProjectSync(t, cfg, 5,
+			[]string{"list", "--no-branch"},
+			fmt.Sprintf("#%d", issueNums[1]),
+		)
+		assertExitCode(t, result, 0)
+
+		// Verify non-branch issue appears
+		assertContains(t, result.Stdout, fmt.Sprintf("#%d", issueNums[1]))
+
+		// Verify branch-assigned issue does NOT appear
+		assertNotContains(t, result.Stdout, fmt.Sprintf("#%d", issueNums[0]))
+	})
 }

@@ -20,13 +20,15 @@ type mockIntakeClient struct {
 
 	// Call tracking
 	getProjectItemsCalls []getProjectItemsCallIntake
+	searchIssuesCalled   bool
+	lastSearchFilters    api.SearchFilters
 
 	// Error injection
-	getProjectErr          error
-	getProjectItemsErr     error
-	getRepositoryIssuesErr error
-	addIssueToProjectErr   error
-	setProjectItemFieldErr error
+	getProjectErr             error
+	getProjectItemsErr        error
+	searchRepositoryIssuesErr error
+	addIssueToProjectErr      error
+	setProjectItemFieldErr    error
 }
 
 type getProjectItemsCallIntake struct {
@@ -64,9 +66,11 @@ func (m *mockIntakeClient) GetProjectItems(projectID string, filter *api.Project
 	return m.projectItems, nil
 }
 
-func (m *mockIntakeClient) GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error) {
-	if m.getRepositoryIssuesErr != nil {
-		return nil, m.getRepositoryIssuesErr
+func (m *mockIntakeClient) SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error) {
+	m.searchIssuesCalled = true
+	m.lastSearchFilters = filters
+	if m.searchRepositoryIssuesErr != nil {
+		return nil, m.searchRepositoryIssuesErr
 	}
 	return m.repositoryIssues, nil
 }
@@ -674,9 +678,9 @@ func TestRunIntakeWithDeps_JSONOutput(t *testing.T) {
 
 func TestRunIntakeWithDeps_FilterByLabel(t *testing.T) {
 	mock := newMockIntakeClient()
+	// Simulate server-side label filtering - only return issues matching the label filter
 	mock.repositoryIssues = []api.Issue{
 		{ID: "issue-1", Number: 1, Title: "Bug Issue", Labels: []api.Label{{Name: "bug"}}},
-		{ID: "issue-2", Number: 2, Title: "Feature Issue", Labels: []api.Label{{Name: "feature"}}},
 	}
 	cfg := &config.Config{
 		Project:      config.Project{Owner: "test-org", Number: 1},
@@ -691,6 +695,14 @@ func TestRunIntakeWithDeps_FilterByLabel(t *testing.T) {
 	err := runIntakeWithDeps(cmd, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify SearchRepositoryIssues was called with correct label filters
+	if !mock.searchIssuesCalled {
+		t.Error("expected SearchRepositoryIssues to be called")
+	}
+	if len(mock.lastSearchFilters.Labels) != 1 || mock.lastSearchFilters.Labels[0] != "bug" {
+		t.Errorf("expected Labels=[bug], got %v", mock.lastSearchFilters.Labels)
 	}
 
 	output := buf.String()

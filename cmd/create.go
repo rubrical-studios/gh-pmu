@@ -453,7 +453,7 @@ func validateCreateOptions(status, body, release string) error {
 		statusLower == "in_review" || statusLower == "in review" ||
 		statusLower == "done"
 	if requiresRelease && release == "" {
-		return fmt.Errorf("cannot create issue with status '%s' without --release flag\nUse: gh pmu create --status %s --release \"release/vX.Y.Z\"", status, strings.ToLower(status))
+		return fmt.Errorf("cannot create issue with status '%s' without --branch flag\nUse: gh pmu create --status %s --branch \"release/vX.Y.Z\"", status, strings.ToLower(status))
 	}
 
 	return nil

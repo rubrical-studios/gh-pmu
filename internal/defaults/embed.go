@@ -63,3 +63,17 @@ func (d *Defaults) GetLabel(name string) *LabelDef {
 	}
 	return nil
 }
+
+// GetLabelNames returns a slice of all standard label names.
+func (d *Defaults) GetLabelNames() []string {
+	names := make([]string, len(d.Labels))
+	for i := range d.Labels {
+		names[i] = d.Labels[i].Name
+	}
+	return names
+}
+
+// IsStandardLabel returns true if the given label name is a standard label.
+func (d *Defaults) IsStandardLabel(name string) bool {
+	return d.GetLabel(name) != nil
+}

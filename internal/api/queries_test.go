@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -155,6 +156,25 @@ func TestGetProjectItems_NilClient(t *testing.T) {
 
 	// ACT: Call GetProjectItems
 	items, err := client.GetProjectItems("project-id", nil)
+
+	// ASSERT: Should return error about uninitialized client
+	if err == nil {
+		t.Fatal("Expected error when gql is nil, got nil")
+	}
+	if items != nil {
+		t.Error("Expected nil items when error occurs")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected error about uninitialized client, got: %v", err)
+	}
+}
+
+func TestGetProjectItemsMinimal_NilClient(t *testing.T) {
+	// ARRANGE: Create client with nil gql
+	client := &Client{gql: nil}
+
+	// ACT: Call GetProjectItemsMinimal
+	items, err := client.GetProjectItemsMinimal("project-id", nil)
 
 	// ASSERT: Should return error about uninitialized client
 	if err == nil {
@@ -2684,6 +2704,234 @@ func TestGetProjectItems_WithLimit_Zero(t *testing.T) {
 	}
 	if callCount != 2 {
 		t.Errorf("Expected 2 API calls with no limit, got %d", callCount)
+	}
+}
+
+// ============================================================================
+// GetProjectItemsMinimal Tests
+// ============================================================================
+
+func TestGetProjectItemsMinimal_QueryError(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return errors.New("query failed")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItemsMinimal("proj-id", nil)
+
+	if err == nil {
+		t.Fatal("Expected error when query fails")
+	}
+	if items != nil {
+		t.Error("Expected nil items when error occurs")
+	}
+	if !strings.Contains(err.Error(), "failed to get minimal project items") {
+		t.Errorf("Expected 'failed to get minimal project items' error, got: %v", err)
+	}
+}
+
+func TestGetProjectItemsMinimal_EmptyResult(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItemsMinimal("proj-id", nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("Expected empty items, got %d", len(items))
+	}
+}
+
+func TestGetProjectItemsMinimal_WithItems(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItemsMinimal" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+
+				// Create one test item
+				nodeType := nodes.Type().Elem()
+				newSlice := reflect.MakeSlice(nodes.Type(), 1, 1)
+				node0 := reflect.New(nodeType).Elem()
+
+				// Set Content
+				content := node0.FieldByName("Content")
+				content.FieldByName("TypeName").SetString("Issue")
+				issue := content.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("issue-123")
+				issue.FieldByName("Number").SetInt(42)
+				issue.FieldByName("State").SetString("OPEN")
+				repo := issue.FieldByName("Repository")
+				repo.FieldByName("NameWithOwner").SetString("owner/repo")
+
+				// Set FieldValues
+				fieldValues := node0.FieldByName("FieldValues")
+				fvNodes := fieldValues.FieldByName("Nodes")
+				fvNodeType := fvNodes.Type().Elem()
+				fvSlice := reflect.MakeSlice(fvNodes.Type(), 1, 1)
+				fv0 := reflect.New(fvNodeType).Elem()
+				fv0.FieldByName("TypeName").SetString("ProjectV2ItemFieldTextValue")
+				textVal := fv0.FieldByName("ProjectV2ItemFieldTextValue")
+				textVal.FieldByName("Text").SetString("release/v1.0.0")
+				textField := textVal.FieldByName("Field")
+				innerField := textField.FieldByName("ProjectV2Field")
+				innerField.FieldByName("Name").SetString("Branch")
+				fvSlice.Index(0).Set(fv0)
+				fvNodes.Set(fvSlice)
+
+				newSlice.Index(0).Set(node0)
+				nodes.Set(newSlice)
+
+				// Set PageInfo
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItemsMinimal("proj-id", nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item, got %d", len(items))
+	}
+	if items[0].IssueNumber != 42 {
+		t.Errorf("Expected issue number 42, got %d", items[0].IssueNumber)
+	}
+	if items[0].IssueState != "OPEN" {
+		t.Errorf("Expected state OPEN, got %s", items[0].IssueState)
+	}
+	if items[0].Repository != "owner/repo" {
+		t.Errorf("Expected repository owner/repo, got %s", items[0].Repository)
+	}
+	if len(items[0].FieldValues) != 1 {
+		t.Fatalf("Expected 1 field value, got %d", len(items[0].FieldValues))
+	}
+	if items[0].FieldValues[0].Field != "Branch" {
+		t.Errorf("Expected field name Branch, got %s", items[0].FieldValues[0].Field)
+	}
+}
+
+func TestGetProjectItemsMinimal_WithFilter(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItemsMinimal" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+
+				// Create two test items with different repositories
+				nodeType := nodes.Type().Elem()
+				newSlice := reflect.MakeSlice(nodes.Type(), 2, 2)
+
+				for i := 0; i < 2; i++ {
+					node := reflect.New(nodeType).Elem()
+					content := node.FieldByName("Content")
+					content.FieldByName("TypeName").SetString("Issue")
+					issue := content.FieldByName("Issue")
+					issue.FieldByName("ID").SetString(fmt.Sprintf("issue-%d", i))
+					issue.FieldByName("Number").SetInt(int64(i + 1))
+					issue.FieldByName("State").SetString("OPEN")
+					repo := issue.FieldByName("Repository")
+					if i == 0 {
+						repo.FieldByName("NameWithOwner").SetString("owner/repo")
+					} else {
+						repo.FieldByName("NameWithOwner").SetString("other/repo")
+					}
+					newSlice.Index(i).Set(node)
+				}
+				nodes.Set(newSlice)
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	filter := &ProjectItemsFilter{Repository: "owner/repo"}
+	items, err := client.GetProjectItemsMinimal("proj-id", filter)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should only return the item matching the filter
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item after filtering, got %d", len(items))
+	}
+	if items[0].Repository != "owner/repo" {
+		t.Errorf("Expected repository owner/repo, got %s", items[0].Repository)
+	}
+}
+
+func TestGetProjectItemsMinimal_SkipsNonIssues(t *testing.T) {
+	mock := &queryMockClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetProjectItemsMinimal" {
+				v := reflect.ValueOf(query).Elem()
+				node := v.FieldByName("Node")
+				projectV2 := node.FieldByName("ProjectV2")
+				items := projectV2.FieldByName("Items")
+				nodes := items.FieldByName("Nodes")
+
+				// Create two items - one Issue, one DraftIssue
+				nodeType := nodes.Type().Elem()
+				newSlice := reflect.MakeSlice(nodes.Type(), 2, 2)
+
+				// Issue item
+				node0 := reflect.New(nodeType).Elem()
+				content0 := node0.FieldByName("Content")
+				content0.FieldByName("TypeName").SetString("Issue")
+				issue := content0.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("issue-1")
+				issue.FieldByName("Number").SetInt(1)
+				issue.FieldByName("State").SetString("OPEN")
+				repo := issue.FieldByName("Repository")
+				repo.FieldByName("NameWithOwner").SetString("owner/repo")
+				newSlice.Index(0).Set(node0)
+
+				// DraftIssue item (should be skipped)
+				node1 := reflect.New(nodeType).Elem()
+				content1 := node1.FieldByName("Content")
+				content1.FieldByName("TypeName").SetString("DraftIssue")
+				newSlice.Index(1).Set(node1)
+
+				nodes.Set(newSlice)
+
+				pageInfo := items.FieldByName("PageInfo")
+				pageInfo.FieldByName("HasNextPage").SetBool(false)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	items, err := client.GetProjectItemsMinimal("proj-id", nil)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	// Should only return 1 item (the Issue, not the DraftIssue)
+	if len(items) != 1 {
+		t.Fatalf("Expected 1 item (skipping DraftIssue), got %d", len(items))
 	}
 }
 
