@@ -17,7 +17,7 @@ import (
 type intakeClient interface {
 	GetProject(owner string, number int) (*api.Project, error)
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
-	GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error)
+	SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error)
 	AddIssueToProject(projectID, issueID string) (string, error)
 	SetProjectItemField(projectID, itemID, fieldName, value string) error
 }
@@ -138,8 +138,14 @@ func runIntakeWithDeps(cmd *cobra.Command, opts *intakeOptions, cfg *config.Conf
 		}
 		owner, repo := parts[0], parts[1]
 
-		// Get open issues from repository
-		issues, err := client.GetRepositoryIssues(owner, repo, "open")
+		// Build search filters - use Search API for server-side filtering
+		searchFilters := api.SearchFilters{
+			State:  "open",
+			Labels: opts.label, // Server-side label filtering when --label specified
+		}
+
+		// Get open issues from repository via Search API
+		issues, err := client.SearchRepositoryIssues(owner, repo, searchFilters, 0)
 		if err != nil {
 			cmd.PrintErrf("Warning: failed to get issues from %s: %v\n", repoFullName, err)
 			continue
@@ -154,10 +160,7 @@ func runIntakeWithDeps(cmd *cobra.Command, opts *intakeOptions, cfg *config.Conf
 		}
 	}
 
-	// Apply label filter if specified
-	if len(opts.label) > 0 {
-		untrackedIssues = filterIntakeByLabel(untrackedIssues, opts.label)
-	}
+	// Note: Label filtering is now done server-side via SearchFilters.Labels
 
 	// Apply assignee filter if specified
 	if len(opts.assignee) > 0 {
