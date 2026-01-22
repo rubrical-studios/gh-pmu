@@ -799,6 +799,68 @@ func TestCreateIssue_WithLabels_ErrorsForNonStandardLabels(t *testing.T) {
 	}
 }
 
+func TestCreateIssue_WithLabels_AutoCreatesStandardLabel(t *testing.T) {
+	// This test verifies that CreateIssue auto-creates standard labels that don't exist.
+	queryCallCount := 0
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			queryCallCount++
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-123")
+			}
+			if name == "GetLabelID" {
+				// First call returns empty (label doesn't exist), second call returns the created label
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				if queryCallCount > 2 {
+					// After creation, return the label ID
+					label.FieldByName("ID").SetString("label-bug-123")
+				}
+				// First calls return empty ID (label not found)
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "CreateLabel" {
+				// Verify the label is being created with correct properties
+				input := variables["input"].(CreateLabelInput)
+				if string(input.Name) != "bug" {
+					t.Errorf("Expected label name 'bug', got '%s'", input.Name)
+				}
+				// "bug" label should have color "d73a4a" per defaults.yml
+				if string(input.Color) != "d73a4a" {
+					t.Errorf("Expected bug label color 'd73a4a', got '%s'", input.Color)
+				}
+			}
+			if name == "CreateIssue" {
+				// Return a successful issue creation
+				v := reflect.ValueOf(mutation).Elem()
+				createIssue := v.FieldByName("CreateIssue")
+				issue := createIssue.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("issue-123")
+				issue.FieldByName("Number").SetInt(1)
+				issue.FieldByName("Title").SetString("Test Issue")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/1")
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	// "bug" is a standard label, should be auto-created if missing
+	issue, err := client.CreateIssue("owner", "repo", "Test Issue", "body", []string{"bug"})
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if issue == nil {
+		t.Fatal("Expected issue to be created")
+	}
+}
+
 // ============================================================================
 // getLabelID Tests with Mocking
 // ============================================================================
