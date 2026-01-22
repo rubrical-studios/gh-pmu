@@ -27,6 +27,7 @@ type triageOptions struct {
 // This allows for easier testing with mock implementations.
 type triageClient interface {
 	GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error)
+	SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error)
 	GetProject(owner string, number int) (*api.Project, error)
 	AddIssueToProject(projectID, issueID string) (string, error)
 	AddLabelToIssue(owner, repo, issueID, labelName string) error
@@ -299,11 +300,55 @@ func describeTriageActions(cmd *cobra.Command, cfg *config.Config, tc *config.Tr
 	}
 }
 
-func searchIssuesForTriage(client triageClient, cfg *config.Config, query string, targetRepo string) ([]api.Issue, error) {
-	// Parse the query to determine what to search for
-	// For now, we search issues in configured repositories and filter locally
-	// A more sophisticated implementation would use GitHub's search API
+// triageQueryFilters holds parsed query components for triage searches
+type triageQueryFilters struct {
+	state          string   // "open", "closed", or "all"
+	labels         []string // positive label filters (label:X)
+	negatedLabels  []string // negative label filters (-label:X)
+	canUseSearchAPI bool    // true if all filters can be handled by Search API
+}
 
+// parseTriageQuery extracts label and state filters from a triage query string
+func parseTriageQuery(query string) triageQueryFilters {
+	filters := triageQueryFilters{
+		state:           "open",
+		labels:          []string{},
+		negatedLabels:   []string{},
+		canUseSearchAPI: true,
+	}
+
+	// Parse state
+	if strings.Contains(query, "is:closed") {
+		filters.state = "closed"
+	} else if strings.Contains(query, "is:all") {
+		filters.state = "all"
+	}
+
+	// Parse labels using simple tokenization
+	// Handle both "label:name" and "-label:name"
+	parts := strings.Fields(query)
+	for _, part := range parts {
+		if strings.HasPrefix(part, "-label:") {
+			labelName := strings.TrimPrefix(part, "-label:")
+			if labelName != "" {
+				filters.negatedLabels = append(filters.negatedLabels, labelName)
+			}
+		} else if strings.HasPrefix(part, "label:") {
+			labelName := strings.TrimPrefix(part, "label:")
+			if labelName != "" {
+				filters.labels = append(filters.labels, labelName)
+			}
+		} else if part != "is:open" && part != "is:closed" && part != "is:all" {
+			// Unknown query component - may need client-side filtering
+			// For now, we still use Search API but acknowledge there may be
+			// other filters that need client-side handling
+		}
+	}
+
+	return filters
+}
+
+func searchIssuesForTriage(client triageClient, cfg *config.Config, query string, targetRepo string) ([]api.Issue, error) {
 	// Determine which repositories to search
 	repos := cfg.Repositories
 	if targetRepo != "" {
@@ -314,6 +359,9 @@ func searchIssuesForTriage(client triageClient, cfg *config.Config, query string
 		repos = []string{targetRepo}
 	}
 
+	// Parse query to extract filters
+	queryFilters := parseTriageQuery(query)
+
 	var allIssues []api.Issue
 
 	for _, repoFullName := range repos {
@@ -323,23 +371,64 @@ func searchIssuesForTriage(client triageClient, cfg *config.Config, query string
 		}
 		owner, repo := parts[0], parts[1]
 
-		// Determine state from query
-		state := "open"
-		if strings.Contains(query, "is:closed") {
-			state = "closed"
-		} else if strings.Contains(query, "is:all") {
-			state = "all"
-		}
+		// Determine if we can use Search API optimization
+		// Use Search API when we have label filters (positive or negative)
+		useSearchAPI := len(queryFilters.labels) > 0 || len(queryFilters.negatedLabels) > 0
 
-		issues, err := client.GetRepositoryIssues(owner, repo, state)
-		if err != nil {
-			continue
-		}
+		var issues []api.Issue
+		var err error
 
-		// Filter based on query components
-		for _, issue := range issues {
-			if matchesTriageQuery(issue, query) {
-				allIssues = append(allIssues, issue)
+		if useSearchAPI {
+			// Build search filters for optimized query
+			searchFilters := api.SearchFilters{
+				State:  queryFilters.state,
+				Labels: queryFilters.labels,
+			}
+
+			// Add negated labels to the Search field (Search API supports -label:X syntax)
+			var searchParts []string
+			for _, label := range queryFilters.negatedLabels {
+				searchParts = append(searchParts, fmt.Sprintf("-label:%s", label))
+			}
+			if len(searchParts) > 0 {
+				searchFilters.Search = strings.Join(searchParts, " ")
+			}
+
+			issues, err = client.SearchRepositoryIssues(owner, repo, searchFilters, 0)
+			if err != nil {
+				// Fall back to old method on Search API error
+				issues, err = client.GetRepositoryIssues(owner, repo, queryFilters.state)
+				if err != nil {
+					continue
+				}
+				// Filter client-side as fallback
+				for _, issue := range issues {
+					if matchesTriageQuery(issue, query) {
+						allIssues = append(allIssues, issue)
+					}
+				}
+				continue
+			}
+
+			// Search API already filtered by labels, but still apply any other query filters
+			// that might exist (for robustness)
+			for _, issue := range issues {
+				if matchesTriageQuery(issue, query) {
+					allIssues = append(allIssues, issue)
+				}
+			}
+		} else {
+			// No label filters - use original method
+			issues, err = client.GetRepositoryIssues(owner, repo, queryFilters.state)
+			if err != nil {
+				continue
+			}
+
+			// Filter based on query components
+			for _, issue := range issues {
+				if matchesTriageQuery(issue, query) {
+					allIssues = append(allIssues, issue)
+				}
 			}
 		}
 	}

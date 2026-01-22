@@ -14,7 +14,9 @@ import (
 // mockTriageClient implements triageClient interface for testing
 type mockTriageClient struct {
 	issues             []api.Issue
+	searchIssues       []api.Issue
 	issuesError        error
+	searchIssuesError  error
 	project            *api.Project
 	projectError       error
 	addToProjectItemID string
@@ -22,6 +24,8 @@ type mockTriageClient struct {
 	addLabelError      error
 	setFieldError      error
 	getIssuesCalled    bool
+	searchIssuesCalled bool
+	lastSearchFilters  api.SearchFilters
 	getProjectCalled   bool
 	addToProjectCalled bool
 	addLabelCalls      []string
@@ -31,6 +35,19 @@ type mockTriageClient struct {
 func (m *mockTriageClient) GetRepositoryIssues(owner, repo, state string) ([]api.Issue, error) {
 	m.getIssuesCalled = true
 	return m.issues, m.issuesError
+}
+
+func (m *mockTriageClient) SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error) {
+	m.searchIssuesCalled = true
+	m.lastSearchFilters = filters
+	if m.searchIssuesError != nil {
+		return nil, m.searchIssuesError
+	}
+	// Return searchIssues if set, otherwise fall back to issues
+	if m.searchIssues != nil {
+		return m.searchIssues, nil
+	}
+	return m.issues, nil
 }
 
 func (m *mockTriageClient) GetProject(owner string, number int) (*api.Project, error) {
@@ -555,11 +572,10 @@ func TestOutputTriageTable(t *testing.T) {
 }
 
 func TestSearchIssuesForTriage(t *testing.T) {
-	t.Run("returns matching issues from repository", func(t *testing.T) {
+	t.Run("returns matching issues from repository with labels via Search API", func(t *testing.T) {
 		mock := &mockTriageClient{
-			issues: []api.Issue{
+			searchIssues: []api.Issue{
 				{Number: 1, Title: "Bug fix", State: "OPEN", Labels: []api.Label{{Name: "bug"}}},
-				{Number: 2, Title: "Feature", State: "OPEN", Labels: []api.Label{{Name: "enhancement"}}},
 			},
 		}
 
@@ -572,8 +588,9 @@ func TestSearchIssuesForTriage(t *testing.T) {
 			t.Fatalf("searchIssuesForTriage() error = %v", err)
 		}
 
-		if !mock.getIssuesCalled {
-			t.Error("expected GetRepositoryIssues to be called")
+		// With label filter, Search API should be used
+		if !mock.searchIssuesCalled {
+			t.Error("expected SearchRepositoryIssues to be called when query has label filter")
 		}
 
 		// Should only return issue #1 with "bug" label
@@ -1363,4 +1380,267 @@ func TestRunTriageWithDeps(t *testing.T) {
 			t.Errorf("expected 'Aborted' message, got:\n%s", output)
 		}
 	})
+}
+
+// ============================================================================
+// parseTriageQuery Tests
+// ============================================================================
+
+func TestParseTriageQuery(t *testing.T) {
+	tests := []struct {
+		name           string
+		query          string
+		expectedState  string
+		expectedLabels []string
+		expectedNeg    []string
+	}{
+		{
+			name:           "simple positive label",
+			query:          "label:bug",
+			expectedState:  "open",
+			expectedLabels: []string{"bug"},
+			expectedNeg:    []string{},
+		},
+		{
+			name:           "simple negative label",
+			query:          "-label:triaged",
+			expectedState:  "open",
+			expectedLabels: []string{},
+			expectedNeg:    []string{"triaged"},
+		},
+		{
+			name:           "multiple positive labels",
+			query:          "label:bug label:urgent",
+			expectedState:  "open",
+			expectedLabels: []string{"bug", "urgent"},
+			expectedNeg:    []string{},
+		},
+		{
+			name:           "mixed positive and negative labels",
+			query:          "label:bug -label:triaged",
+			expectedState:  "open",
+			expectedLabels: []string{"bug"},
+			expectedNeg:    []string{"triaged"},
+		},
+		{
+			name:           "with is:closed state",
+			query:          "is:closed label:done",
+			expectedState:  "closed",
+			expectedLabels: []string{"done"},
+			expectedNeg:    []string{},
+		},
+		{
+			name:           "with is:all state",
+			query:          "is:all label:needs-review",
+			expectedState:  "all",
+			expectedLabels: []string{"needs-review"},
+			expectedNeg:    []string{},
+		},
+		{
+			name:           "no labels - state only",
+			query:          "is:open",
+			expectedState:  "open",
+			expectedLabels: []string{},
+			expectedNeg:    []string{},
+		},
+		{
+			name:           "complex query",
+			query:          "is:open label:bug label:p0 -label:triaged -label:wontfix",
+			expectedState:  "open",
+			expectedLabels: []string{"bug", "p0"},
+			expectedNeg:    []string{"triaged", "wontfix"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseTriageQuery(tt.query)
+
+			if result.state != tt.expectedState {
+				t.Errorf("state = %q, want %q", result.state, tt.expectedState)
+			}
+
+			if len(result.labels) != len(tt.expectedLabels) {
+				t.Errorf("labels count = %d, want %d", len(result.labels), len(tt.expectedLabels))
+			} else {
+				for i, label := range tt.expectedLabels {
+					if result.labels[i] != label {
+						t.Errorf("labels[%d] = %q, want %q", i, result.labels[i], label)
+					}
+				}
+			}
+
+			if len(result.negatedLabels) != len(tt.expectedNeg) {
+				t.Errorf("negatedLabels count = %d, want %d", len(result.negatedLabels), len(tt.expectedNeg))
+			} else {
+				for i, label := range tt.expectedNeg {
+					if result.negatedLabels[i] != label {
+						t.Errorf("negatedLabels[%d] = %q, want %q", i, result.negatedLabels[i], label)
+					}
+				}
+			}
+		})
+	}
+}
+
+// ============================================================================
+// Search API Optimization Tests
+// ============================================================================
+
+func TestSearchIssuesForTriage_UsesSearchAPIWithLabels(t *testing.T) {
+	mock := &mockTriageClient{
+		searchIssues: []api.Issue{
+			{Number: 1, Title: "Bug fix", State: "OPEN", Labels: []api.Label{{Name: "bug"}}},
+		},
+	}
+
+	cfg := &config.Config{
+		Repositories: []string{"owner/repo"},
+	}
+
+	// Query with label should use Search API
+	issues, err := searchIssuesForTriage(mock, cfg, "is:open label:bug", "")
+	if err != nil {
+		t.Fatalf("searchIssuesForTriage() error = %v", err)
+	}
+
+	if !mock.searchIssuesCalled {
+		t.Error("expected SearchRepositoryIssues to be called when query has labels")
+	}
+
+	if mock.getIssuesCalled {
+		t.Error("GetRepositoryIssues should not be called when Search API is used")
+	}
+
+	// Verify search filters were set correctly
+	if len(mock.lastSearchFilters.Labels) != 1 || mock.lastSearchFilters.Labels[0] != "bug" {
+		t.Errorf("expected Labels=[bug], got %v", mock.lastSearchFilters.Labels)
+	}
+
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(issues))
+	}
+}
+
+func TestSearchIssuesForTriage_UsesSearchAPIWithNegatedLabels(t *testing.T) {
+	mock := &mockTriageClient{
+		searchIssues: []api.Issue{
+			{Number: 1, Title: "Untriaged Issue", State: "OPEN", Labels: []api.Label{}},
+		},
+	}
+
+	cfg := &config.Config{
+		Repositories: []string{"owner/repo"},
+	}
+
+	// Query with negated label should use Search API
+	issues, err := searchIssuesForTriage(mock, cfg, "is:open -label:triaged", "")
+	if err != nil {
+		t.Fatalf("searchIssuesForTriage() error = %v", err)
+	}
+
+	if !mock.searchIssuesCalled {
+		t.Error("expected SearchRepositoryIssues to be called when query has negated labels")
+	}
+
+	// Verify negated labels were passed in Search field
+	if !strings.Contains(mock.lastSearchFilters.Search, "-label:triaged") {
+		t.Errorf("expected Search to contain '-label:triaged', got %q", mock.lastSearchFilters.Search)
+	}
+
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(issues))
+	}
+}
+
+func TestSearchIssuesForTriage_FallsBackWithoutLabels(t *testing.T) {
+	mock := &mockTriageClient{
+		issues: []api.Issue{
+			{Number: 1, Title: "Open Issue", State: "OPEN"},
+		},
+	}
+
+	cfg := &config.Config{
+		Repositories: []string{"owner/repo"},
+	}
+
+	// Query without labels should NOT use Search API
+	issues, err := searchIssuesForTriage(mock, cfg, "is:open", "")
+	if err != nil {
+		t.Fatalf("searchIssuesForTriage() error = %v", err)
+	}
+
+	if mock.searchIssuesCalled {
+		t.Error("SearchRepositoryIssues should NOT be called when query has no labels")
+	}
+
+	if !mock.getIssuesCalled {
+		t.Error("expected GetRepositoryIssues to be called for queries without labels")
+	}
+
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(issues))
+	}
+}
+
+func TestSearchIssuesForTriage_FallsBackOnSearchAPIError(t *testing.T) {
+	mock := &mockTriageClient{
+		searchIssuesError: fmt.Errorf("search API error"),
+		issues: []api.Issue{
+			{Number: 1, Title: "Bug Issue", State: "OPEN", Labels: []api.Label{{Name: "bug"}}},
+		},
+	}
+
+	cfg := &config.Config{
+		Repositories: []string{"owner/repo"},
+	}
+
+	// Should fall back to GetRepositoryIssues on Search API error
+	issues, err := searchIssuesForTriage(mock, cfg, "is:open label:bug", "")
+	if err != nil {
+		t.Fatalf("searchIssuesForTriage() error = %v", err)
+	}
+
+	if !mock.searchIssuesCalled {
+		t.Error("expected SearchRepositoryIssues to be attempted")
+	}
+
+	if !mock.getIssuesCalled {
+		t.Error("expected GetRepositoryIssues to be called as fallback")
+	}
+
+	// Should return the issue from fallback
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue from fallback, got %d", len(issues))
+	}
+}
+
+func TestSearchIssuesForTriage_SearchAPIWithClosedState(t *testing.T) {
+	mock := &mockTriageClient{
+		searchIssues: []api.Issue{
+			{Number: 1, Title: "Closed Bug", State: "CLOSED", Labels: []api.Label{{Name: "bug"}}},
+		},
+	}
+
+	cfg := &config.Config{
+		Repositories: []string{"owner/repo"},
+	}
+
+	issues, err := searchIssuesForTriage(mock, cfg, "is:closed label:bug", "")
+	if err != nil {
+		t.Fatalf("searchIssuesForTriage() error = %v", err)
+	}
+
+	if !mock.searchIssuesCalled {
+		t.Error("expected SearchRepositoryIssues to be called")
+	}
+
+	// Verify state was passed correctly
+	if mock.lastSearchFilters.State != "closed" {
+		t.Errorf("expected State=closed, got %q", mock.lastSearchFilters.State)
+	}
+
+	if len(issues) != 1 {
+		t.Errorf("expected 1 issue, got %d", len(issues))
+	}
 }
