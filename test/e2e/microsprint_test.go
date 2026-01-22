@@ -8,6 +8,72 @@ import (
 	"time"
 )
 
+// TestMicrosprintStartWithBranch tests starting a microsprint with --branch flag.
+// Verifies the branch context is included in the tracker title and field.
+func TestMicrosprintStartWithBranch(t *testing.T) {
+	cfg := setupTestConfig(t)
+
+	// Generate unique names
+	branchName := fmt.Sprintf("release/e2e-ms-branch-%d", time.Now().UnixNano())
+	sprintSuffix := fmt.Sprintf("branch-test-%d", time.Now().UnixNano()%10000)
+
+	// Track resources for cleanup
+	var trackerIssueNum int
+	var branchTrackerNum int
+
+	// Cleanup at end of test
+	defer func() {
+		if trackerIssueNum > 0 {
+			runCleanupAfterTest(t, trackerIssueNum)
+		}
+		if branchTrackerNum > 0 {
+			runCleanupAfterTest(t, branchTrackerNum)
+		}
+		// Ensure microsprint and branch are closed
+		runPMU(t, cfg.Dir, "microsprint", "close", "--skip-retro")
+		runPMU(t, cfg.Dir, "branch", "close", "--yes")
+	}()
+
+	// Step 1: Start a branch first (required context for --branch flag)
+	t.Run("start branch", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "branch", "start", "--name", branchName)
+		assertExitCode(t, result, 0)
+		branchTrackerNum = extractIssueNumber(t, result.Stdout)
+	})
+
+	// Step 2: Start microsprint with --branch flag
+	t.Run("start microsprint with branch", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "microsprint", "start", "--name", sprintSuffix, "--branch", branchName)
+		assertExitCode(t, result, 0)
+
+		// Verify branch context is mentioned in output
+		assertContains(t, result.Stdout, branchName)
+
+		// Extract tracker issue number
+		trackerIssueNum = extractIssueNumber(t, result.Stdout)
+	})
+
+	// Step 3: Verify microsprint tracker has branch context in title
+	t.Run("verify branch in tracker title", func(t *testing.T) {
+		if trackerIssueNum == 0 {
+			t.Skip("No tracker issue number available")
+		}
+
+		// View the microsprint current to check the title includes branch
+		result := runPMU(t, cfg.Dir, "microsprint", "current")
+		assertExitCode(t, result, 0)
+
+		// Title should contain branch name in brackets: [release/e2e-ms-branch-xxx]
+		assertContains(t, result.Stdout, branchName)
+	})
+
+	// Step 4: Clean up - close microsprint
+	t.Run("close microsprint", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "microsprint", "close", "--skip-retro")
+		assertExitCode(t, result, 0)
+	})
+}
+
 // TestMicrosprintLifecycle tests the complete microsprint workflow:
 // start -> add issue -> current -> list -> close
 func TestMicrosprintLifecycle(t *testing.T) {
