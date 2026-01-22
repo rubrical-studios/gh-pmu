@@ -18,10 +18,10 @@ type mockBoardClient struct {
 	fieldsByID map[string][]api.FieldValue
 
 	// Error injection
-	getProjectErr       error
-	getBoardItemsErr    error
-	searchIssuesErr     error
-	getFieldsForIssues  error
+	getProjectErr      error
+	getBoardItemsErr   error
+	searchIssuesErr    error
+	getFieldsForIssues error
 }
 
 func newMockBoardClient() *mockBoardClient {

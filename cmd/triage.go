@@ -302,10 +302,10 @@ func describeTriageActions(cmd *cobra.Command, cfg *config.Config, tc *config.Tr
 
 // triageQueryFilters holds parsed query components for triage searches
 type triageQueryFilters struct {
-	state          string   // "open", "closed", or "all"
-	labels         []string // positive label filters (label:X)
-	negatedLabels  []string // negative label filters (-label:X)
-	canUseSearchAPI bool    // true if all filters can be handled by Search API
+	state           string   // "open", "closed", or "all"
+	labels          []string // positive label filters (label:X)
+	negatedLabels   []string // negative label filters (-label:X)
+	canUseSearchAPI bool     // true if all filters can be handled by Search API
 }
 
 // parseTriageQuery extracts label and state filters from a triage query string

@@ -64,33 +64,33 @@ type mockBranchClient struct {
 	projectItemsByIssues   []api.ProjectItem        // For GetProjectItemsByIssues
 
 	// Captured calls for verification
-	createIssueCalls            []createIssueCall
-	addToProjectCalls           []addToProjectCall
-	setFieldCalls               []setFieldCall
-	updateIssueBodyCalls        []updateIssueBodyCall
-	writeFileCalls              []writeFileCall
-	gitAddCalls                 []gitAddCall
-	closeIssueCalls             []closeIssueCall
-	gitTagCalls                 []gitTagCall
-	getProjectItemsCalls        []getProjectItemsCall
-	getProjectItemsMinimalCalls []getProjectItemsCall
+	createIssueCalls             []createIssueCall
+	addToProjectCalls            []addToProjectCall
+	setFieldCalls                []setFieldCall
+	updateIssueBodyCalls         []updateIssueBodyCall
+	writeFileCalls               []writeFileCall
+	gitAddCalls                  []gitAddCall
+	closeIssueCalls              []closeIssueCall
+	gitTagCalls                  []gitTagCall
+	getProjectItemsCalls         []getProjectItemsCall
+	getProjectItemsMinimalCalls  []getProjectItemsCall
 	getProjectItemsByIssuesCalls []getProjectItemsByIssuesCall
 
 	// Error injection
-	createIssueErr              error
-	getOpenIssuesErr            error
-	getClosedIssuesErr          error
-	addToProjectErr             error
-	setFieldErr                 error
-	getProjectErr               error
-	getIssueErr                 error
-	getProjectItemErr           error
-	getProjectItemFieldErr      error
-	getReleaseIssuesErr         error
-	reopenIssueErr              error
-	getProjectItemsErr          error
-	getProjectItemsMinimalErr   error
-	getProjectItemsByIssuesErr  error
+	createIssueErr             error
+	getOpenIssuesErr           error
+	getClosedIssuesErr         error
+	addToProjectErr            error
+	setFieldErr                error
+	getProjectErr              error
+	getIssueErr                error
+	getProjectItemErr          error
+	getProjectItemFieldErr     error
+	getReleaseIssuesErr        error
+	reopenIssueErr             error
+	getProjectItemsErr         error
+	getProjectItemsMinimalErr  error
+	getProjectItemsByIssuesErr error
 }
 
 // Helper types for call tracking

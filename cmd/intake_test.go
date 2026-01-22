@@ -19,16 +19,16 @@ type mockIntakeClient struct {
 	addedItemID      string
 
 	// Call tracking
-	getProjectItemsCalls   []getProjectItemsCallIntake
-	searchIssuesCalled     bool
-	lastSearchFilters      api.SearchFilters
+	getProjectItemsCalls []getProjectItemsCallIntake
+	searchIssuesCalled   bool
+	lastSearchFilters    api.SearchFilters
 
 	// Error injection
-	getProjectErr          error
-	getProjectItemsErr     error
+	getProjectErr             error
+	getProjectItemsErr        error
 	searchRepositoryIssuesErr error
-	addIssueToProjectErr   error
-	setProjectItemFieldErr error
+	addIssueToProjectErr      error
+	setProjectItemFieldErr    error
 }
 
 type getProjectItemsCallIntake struct {
