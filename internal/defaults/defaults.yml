@@ -33,6 +33,15 @@ labels:
   - name: test-plan
     description: Issue includes or requires test plan
     color: "c5def5"
+  - name: security-required
+    description: Requires security review
+    color: "b60205"
+  - name: legal-required
+    description: Requires legal review
+    color: "5319e7"
+  - name: docs-required
+    description: Requires documentation updates
+    color: "0052cc"
 
 # Project fields configuration
 fields:

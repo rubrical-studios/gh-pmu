@@ -29,8 +29,11 @@ func (c *Client) CreateIssue(owner, repo, title, body string, labels []string) (
 	// Get label IDs if labels are provided (batch query for efficiency)
 	var labelIDs []graphql.ID
 	if len(labels) > 0 {
-		// Load defaults for potential auto-creation
-		defs, _ := defaults.Load()
+		// Load defaults for validation and auto-creation
+		defs, loadErr := defaults.Load()
+		if loadErr != nil {
+			return nil, fmt.Errorf("failed to load defaults: %w", loadErr)
+		}
 
 		labelIDMap, err := c.getLabelIDs(owner, repo, labels)
 		if err != nil {
@@ -43,25 +46,25 @@ func (c *Client) CreateIssue(owner, repo, title, body string, labels []string) (
 				continue
 			}
 
-			// Label not found - check if it's in defaults
-			if defs != nil {
-				if labelDef := defs.GetLabel(labelName); labelDef != nil {
-					// Auto-create from defaults
-					fmt.Fprintf(os.Stderr, "Creating label %q from defaults...\n", labelName)
-					if createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description); createErr != nil {
-						fmt.Fprintf(os.Stderr, "Warning: could not create label %q: %v\n", labelName, createErr)
-						continue
-					}
-					// Get the newly created label's ID
-					if newID, err := c.getLabelID(owner, repo, labelName); err == nil {
-						labelIDs = append(labelIDs, graphql.ID(newID))
-					}
-					continue
-				}
+			// Label not found in repo - check if it's a standard label
+			labelDef := defs.GetLabel(labelName)
+			if labelDef == nil {
+				// Not a standard label - error out with helpful message
+				return nil, fmt.Errorf("label %q is not a standard label\nAvailable standard labels: %s",
+					labelName, strings.Join(defs.GetLabelNames(), ", "))
 			}
 
-			// Label not in defaults - warn user
-			fmt.Fprintf(os.Stderr, "Warning: label %q does not exist and is not a default label\n", labelName)
+			// Auto-create from defaults
+			fmt.Fprintf(os.Stderr, "Creating standard label %q...\n", labelName)
+			if createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description); createErr != nil {
+				return nil, fmt.Errorf("failed to create label %q: %w", labelName, createErr)
+			}
+			// Get the newly created label's ID
+			newID, getErr := c.getLabelID(owner, repo, labelName)
+			if getErr != nil {
+				return nil, fmt.Errorf("failed to get ID for newly created label %q: %w", labelName, getErr)
+			}
+			labelIDs = append(labelIDs, graphql.ID(newID))
 		}
 	}
 
@@ -768,7 +771,8 @@ func (c *Client) getLabelIDs(owner, repo string, labelNames []string) (map[strin
 }
 
 // EnsureLabelExists checks if a label exists and creates it if not.
-// Returns the label ID. Uses a default gray color for auto-created labels.
+// Returns the label ID. Only creates labels that are defined in the standard defaults.
+// Returns an error for non-standard labels.
 func (c *Client) EnsureLabelExists(owner, repo, labelName string) (string, error) {
 	// First try to get the existing label
 	labelID, err := c.getLabelID(owner, repo, labelName)
@@ -776,9 +780,22 @@ func (c *Client) EnsureLabelExists(owner, repo, labelName string) (string, error
 		return labelID, nil
 	}
 
-	// Label doesn't exist, create it with default gray color
-	fmt.Fprintf(os.Stderr, "Creating label %q in %s/%s...\n", labelName, owner, repo)
-	createErr := c.CreateLabel(owner, repo, labelName, "cccccc", "")
+	// Label doesn't exist - check if it's a standard label
+	defs, loadErr := defaults.Load()
+	if loadErr != nil {
+		return "", fmt.Errorf("failed to load defaults: %w", loadErr)
+	}
+
+	labelDef := defs.GetLabel(labelName)
+	if labelDef == nil {
+		// Not a standard label - return error with helpful message
+		return "", fmt.Errorf("label %q is not a standard label\nAvailable standard labels: %s",
+			labelName, strings.Join(defs.GetLabelNames(), ", "))
+	}
+
+	// Auto-create the standard label with its defined properties
+	fmt.Fprintf(os.Stderr, "Creating standard label %q in %s/%s...\n", labelName, owner, repo)
+	createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description)
 	if createErr != nil {
 		return "", createErr
 	}
@@ -860,8 +877,11 @@ func (c *Client) CreateIssueWithOptions(owner, repo, title, body string, labels,
 	// Get label IDs if labels are provided (batch query for efficiency)
 	var labelIDs []graphql.ID
 	if len(labels) > 0 {
-		// Load defaults for potential auto-creation
-		defs, _ := defaults.Load()
+		// Load defaults for validation and auto-creation
+		defs, loadErr := defaults.Load()
+		if loadErr != nil {
+			return nil, fmt.Errorf("failed to load defaults: %w", loadErr)
+		}
 
 		labelIDMap, err := c.getLabelIDs(owner, repo, labels)
 		if err != nil {
@@ -874,25 +894,25 @@ func (c *Client) CreateIssueWithOptions(owner, repo, title, body string, labels,
 				continue
 			}
 
-			// Label not found - check if it's in defaults
-			if defs != nil {
-				if labelDef := defs.GetLabel(labelName); labelDef != nil {
-					// Auto-create from defaults
-					fmt.Fprintf(os.Stderr, "Creating label %q from defaults...\n", labelName)
-					if createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description); createErr != nil {
-						fmt.Fprintf(os.Stderr, "Warning: could not create label %q: %v\n", labelName, createErr)
-						continue
-					}
-					// Get the newly created label's ID
-					if newID, err := c.getLabelID(owner, repo, labelName); err == nil {
-						labelIDs = append(labelIDs, graphql.ID(newID))
-					}
-					continue
-				}
+			// Label not found in repo - check if it's a standard label
+			labelDef := defs.GetLabel(labelName)
+			if labelDef == nil {
+				// Not a standard label - error out with helpful message
+				return nil, fmt.Errorf("label %q is not a standard label\nAvailable standard labels: %s",
+					labelName, strings.Join(defs.GetLabelNames(), ", "))
 			}
 
-			// Label not in defaults - warn user
-			fmt.Fprintf(os.Stderr, "Warning: label %q does not exist and is not a default label\n", labelName)
+			// Auto-create from defaults
+			fmt.Fprintf(os.Stderr, "Creating standard label %q...\n", labelName)
+			if createErr := c.CreateLabel(owner, repo, labelDef.Name, labelDef.Color, labelDef.Description); createErr != nil {
+				return nil, fmt.Errorf("failed to create label %q: %w", labelName, createErr)
+			}
+			// Get the newly created label's ID
+			newID, getErr := c.getLabelID(owner, repo, labelName)
+			if getErr != nil {
+				return nil, fmt.Errorf("failed to get ID for newly created label %q: %w", labelName, getErr)
+			}
+			labelIDs = append(labelIDs, graphql.ID(newID))
 		}
 	}
 
