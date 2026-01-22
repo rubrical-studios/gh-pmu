@@ -17,11 +17,15 @@ import (
 type boardClient interface {
 	GetProject(owner string, number int) (*api.Project, error)
 	GetProjectItemsForBoard(projectID string, filter *api.BoardItemsFilter) ([]api.BoardItem, error)
+	// Search API methods for optimized queries
+	SearchRepositoryIssues(owner, repo string, filters api.SearchFilters, limit int) ([]api.Issue, error)
+	GetProjectFieldsForIssues(projectID string, issueIDs []string) (map[string][]api.FieldValue, error)
 }
 
 type boardOptions struct {
 	status   string
 	priority string
+	state    string // Issue state filter: "open", "closed", or "all"
 	limit    int
 	noBorder bool
 	json     bool
@@ -45,6 +49,7 @@ const (
 func newBoardCommand() *cobra.Command {
 	opts := &boardOptions{
 		limit: 10,
+		state: "open", // Default to open issues only
 	}
 
 	cmd := &cobra.Command{
@@ -56,8 +61,14 @@ Shows issues organized in columns by their status field, similar to
 a Kanban board. Each column displays issue numbers and truncated titles.
 
 Examples:
-  # Show full board with all status columns
+  # Show full board with all status columns (open issues only, default)
   gh pmu board
+
+  # Include closed issues
+  gh pmu board --state all
+
+  # Show only closed issues
+  gh pmu board --state closed
 
   # Show only a single status column
   gh pmu board --status in_progress
@@ -80,6 +91,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Show only specified status column")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Filter by priority")
+	cmd.Flags().StringVar(&opts.state, "state", "open", "Filter by issue state: open, closed, or all")
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 10, "Limit issues per column")
 	cmd.Flags().BoolVar(&opts.noBorder, "no-border", false, "Display without box borders")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output as JSON grouped by status")
@@ -117,18 +129,55 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// Build filter
-	var filter *api.BoardItemsFilter
-	if len(cfg.Repositories) > 0 {
-		filter = &api.BoardItemsFilter{
-			Repository: cfg.Repositories[0],
-		}
-	}
+	var items []api.BoardItem
 
-	// Fetch project items (optimized query for board display)
-	items, err := client.GetProjectItemsForBoard(project.ID, filter)
-	if err != nil {
-		return fmt.Errorf("failed to get project items: %w", err)
+	// Determine if we can use the optimized Search API path
+	// Search API supports state filtering server-side, which is much more efficient
+	// when we only want open issues (the common case)
+	useSearchAPI := len(cfg.Repositories) > 0 && opts.state != "all"
+
+	if useSearchAPI {
+		// Parse repository owner/name
+		repoParts := strings.SplitN(cfg.Repositories[0], "/", 2)
+		if len(repoParts) != 2 {
+			return fmt.Errorf("invalid repository format: %s (expected owner/repo)", cfg.Repositories[0])
+		}
+
+		// Build search filters with server-side state filtering
+		searchFilters := api.SearchFilters{
+			State: opts.state,
+		}
+
+		// Fetch issues via Search API (state filtered server-side)
+		issues, err := client.SearchRepositoryIssues(repoParts[0], repoParts[1], searchFilters, 0)
+		if err != nil {
+			return fmt.Errorf("failed to search issues: %w", err)
+		}
+
+		// Enrich with project field values and convert to BoardItems
+		items, err = enrichIssuesToBoardItems(client, project.ID, issues, cfg.Repositories[0])
+		if err != nil {
+			return fmt.Errorf("failed to enrich issues: %w", err)
+		}
+	} else {
+		// Fallback: Use GetProjectItemsForBoard when no repo or state=all
+		// This path fetches all items and requires client-side filtering
+		var filter *api.BoardItemsFilter
+		if len(cfg.Repositories) > 0 {
+			filter = &api.BoardItemsFilter{
+				Repository: cfg.Repositories[0],
+			}
+		}
+
+		items, err = client.GetProjectItemsForBoard(project.ID, filter)
+		if err != nil {
+			return fmt.Errorf("failed to get project items: %w", err)
+		}
+
+		// Apply state filter client-side (only needed for fallback path)
+		if opts.state != "" && opts.state != "all" {
+			items = filterBoardItemsByState(items, opts.state)
+		}
 	}
 
 	// Apply priority filter if specified
@@ -238,6 +287,68 @@ func filterBoardItemsByPriority(items []api.BoardItem, priority string) []api.Bo
 		}
 	}
 	return filtered
+}
+
+// filterBoardItemsByState filters board items by issue state (open/closed)
+func filterBoardItemsByState(items []api.BoardItem, state string) []api.BoardItem {
+	var filtered []api.BoardItem
+	stateLower := strings.ToLower(state)
+	for _, item := range items {
+		// BoardItem.State is OPEN or CLOSED (uppercase from GitHub API)
+		if strings.EqualFold(item.State, stateLower) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+// enrichIssuesToBoardItems converts issues to BoardItems and enriches them with project field values.
+// This is used when fetching via SearchRepositoryIssues to add project-specific fields (Status, Priority, etc.).
+func enrichIssuesToBoardItems(client boardClient, projectID string, issues []api.Issue, repository string) ([]api.BoardItem, error) {
+	if len(issues) == 0 {
+		return nil, nil
+	}
+
+	// Collect issue IDs for batch enrichment
+	issueIDs := make([]string, 0, len(issues))
+	issueByID := make(map[string]*api.Issue)
+	for i := range issues {
+		issueIDs = append(issueIDs, issues[i].ID)
+		issueByID[issues[i].ID] = &issues[i]
+	}
+
+	// Fetch project field values for all issues
+	fieldValuesByID, err := client.GetProjectFieldsForIssues(projectID, issueIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project fields: %w", err)
+	}
+
+	// Convert to BoardItems
+	items := make([]api.BoardItem, 0, len(issues))
+	for _, issue := range issues {
+		item := api.BoardItem{
+			Number:     issue.Number,
+			Title:      issue.Title,
+			State:      issue.State,
+			Repository: repository,
+		}
+
+		// Add field values if available
+		if fieldValues, ok := fieldValuesByID[issue.ID]; ok {
+			for _, fv := range fieldValues {
+				switch strings.ToLower(fv.Field) {
+				case "status":
+					item.Status = fv.Value
+				case "priority":
+					item.Priority = fv.Value
+				}
+			}
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
 }
 
 // groupBoardItemsByStatus groups board items by their status field value

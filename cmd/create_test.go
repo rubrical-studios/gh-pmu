@@ -1157,21 +1157,21 @@ func TestValidateCreateOptions_DoneWithoutBody(t *testing.T) {
 	}
 }
 
-func TestValidateCreateOptions_DoneWithBodyWithoutRelease(t *testing.T) {
+func TestValidateCreateOptions_DoneWithBodyWithoutBranch(t *testing.T) {
 	err := validateCreateOptions("Done", "Issue completed", "")
 	if err == nil {
-		t.Fatal("Expected error for Done without release")
+		t.Fatal("Expected error for Done without branch")
 	}
 
-	if !strings.Contains(err.Error(), "--release") {
-		t.Errorf("Expected error about release, got: %v", err)
+	if !strings.Contains(err.Error(), "--branch") {
+		t.Errorf("Expected error about branch, got: %v", err)
 	}
 }
 
-func TestValidateCreateOptions_DoneWithBodyWithRelease(t *testing.T) {
+func TestValidateCreateOptions_DoneWithBodyWithBranch(t *testing.T) {
 	err := validateCreateOptions("Done", "Issue completed", "v1.0.0")
 	if err != nil {
-		t.Errorf("Expected no error for Done with body and release, got: %v", err)
+		t.Errorf("Expected no error for Done with body and branch, got: %v", err)
 	}
 }
 
@@ -1197,25 +1197,25 @@ func TestValidateCreateOptions_DoneWithAllChecked(t *testing.T) {
 
 	err := validateCreateOptions("Done", body, "v1.0.0")
 	if err != nil {
-		t.Errorf("Expected no error for Done with all checked and release, got: %v", err)
+		t.Errorf("Expected no error for Done with all checked and branch, got: %v", err)
 	}
 }
 
-func TestValidateCreateOptions_InReviewWithoutRelease(t *testing.T) {
+func TestValidateCreateOptions_InReviewWithoutBranch(t *testing.T) {
 	err := validateCreateOptions("In Review", "Issue body", "")
 	if err == nil {
-		t.Fatal("Expected error for In Review without release")
+		t.Fatal("Expected error for In Review without branch")
 	}
 
-	if !strings.Contains(err.Error(), "--release") {
-		t.Errorf("Expected error about release, got: %v", err)
+	if !strings.Contains(err.Error(), "--branch") {
+		t.Errorf("Expected error about branch, got: %v", err)
 	}
 }
 
-func TestValidateCreateOptions_InReviewWithRelease(t *testing.T) {
+func TestValidateCreateOptions_InReviewWithBranch(t *testing.T) {
 	err := validateCreateOptions("In Review", "Issue body", "v1.0.0")
 	if err != nil {
-		t.Errorf("Expected no error for In Review with body and release, got: %v", err)
+		t.Errorf("Expected no error for In Review with body and branch, got: %v", err)
 	}
 }
 
