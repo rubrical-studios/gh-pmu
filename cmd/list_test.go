@@ -432,7 +432,7 @@ func TestRunListWithDeps_WithReleaseFilter(t *testing.T) {
 	}
 
 	cmd := newListCommand()
-	opts := &listOptions{release: "v1.0.0"}
+	opts := &listOptions{branch: "v1.0.0"}
 	err := runListWithDeps(cmd, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -460,7 +460,7 @@ func TestRunListWithDeps_WithReleaseCurrentFilter(t *testing.T) {
 	}
 
 	cmd := newListCommand()
-	opts := &listOptions{release: "current"}
+	opts := &listOptions{branch: "current"}
 	err := runListWithDeps(cmd, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -491,7 +491,7 @@ func TestRunListWithDeps_WithNoReleaseFilter(t *testing.T) {
 	}
 
 	cmd := newListCommand()
-	opts := &listOptions{noRelease: true}
+	opts := &listOptions{noBranch: true}
 	err := runListWithDeps(cmd, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -655,7 +655,7 @@ func TestRunListWithDeps_ReleaseWithParentheses(t *testing.T) {
 	}
 
 	cmd := newListCommand()
-	opts := &listOptions{release: "current"}
+	opts := &listOptions{branch: "current"}
 	err := runListWithDeps(cmd, opts, cfg, mock)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

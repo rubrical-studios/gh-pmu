@@ -31,8 +31,8 @@ type listOptions struct {
 	assignee     string
 	label        string
 	search       string
-	release      string
-	noRelease    bool
+	branch       string
+	noBranch     bool
 	microsprint  string
 	state        string
 	limit        int
@@ -75,11 +75,11 @@ Use filters to narrow down the results.`,
 	cmd.Flags().StringVarP(&opts.assignee, "assignee", "a", "", "Filter by assignee login")
 	cmd.Flags().StringVarP(&opts.label, "label", "l", "", "Filter by label name")
 	cmd.Flags().StringVarP(&opts.search, "search", "q", "", "Search in issue title and body")
-	cmd.Flags().StringVarP(&opts.release, "release", "r", "", "Filter by release (e.g., v1.0.0, current)")
-	cmd.Flags().BoolVar(&opts.noRelease, "no-release", false, "Filter to issues without a release assignment")
+	cmd.Flags().StringVarP(&opts.branch, "branch", "b", "", "Filter by branch (e.g., release/v1.0.0, current)")
+	cmd.Flags().BoolVar(&opts.noBranch, "no-branch", false, "Filter to issues without a branch assignment")
 	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Filter by microsprint (e.g., 2025-12-20-a, current)")
 	cmd.Flags().StringVar(&opts.state, "state", "", "Filter by issue state (open or closed)")
-	cmd.MarkFlagsMutuallyExclusive("release", "no-release")
+	cmd.MarkFlagsMutuallyExclusive("branch", "no-branch")
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 0, "Limit number of results (0 for no limit)")
 	cmd.Flags().BoolVar(&opts.hasSubIssues, "has-sub-issues", false, "Filter to only show parent issues (issues with sub-issues)")
 	cmd.Flags().StringVar(&opts.jsonFields, "json", "", "Output JSON with specified fields (comma-separated, or empty to list available fields)")
@@ -222,9 +222,9 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 	}
 
 	// Apply branch filter
-	if opts.release != "" {
-		targetRelease := opts.release
-		if opts.release == "current" && repoFilter != "" {
+	if opts.branch != "" {
+		targetBranch := opts.branch
+		if opts.branch == "current" && repoFilter != "" {
 			// Resolve "current" to active branch
 			parts := strings.Split(repoFilter, "/")
 			if len(parts) == 2 {
@@ -233,15 +233,15 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 					for _, issue := range releaseIssues {
 						// Support both "Branch: " and "Release: " prefixes
 						if strings.HasPrefix(issue.Title, "Branch: ") {
-							targetRelease = strings.TrimPrefix(issue.Title, "Branch: ")
-							if idx := strings.Index(targetRelease, " ("); idx > 0 {
-								targetRelease = targetRelease[:idx]
+							targetBranch = strings.TrimPrefix(issue.Title, "Branch: ")
+							if idx := strings.Index(targetBranch, " ("); idx > 0 {
+								targetBranch = targetBranch[:idx]
 							}
 							break
 						} else if strings.HasPrefix(issue.Title, "Release: ") {
-							targetRelease = strings.TrimPrefix(issue.Title, "Release: ")
-							if idx := strings.Index(targetRelease, " ("); idx > 0 {
-								targetRelease = targetRelease[:idx]
+							targetBranch = strings.TrimPrefix(issue.Title, "Release: ")
+							if idx := strings.Index(targetBranch, " ("); idx > 0 {
+								targetBranch = targetBranch[:idx]
 							}
 							break
 						}
@@ -250,11 +250,11 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 			}
 		}
 		// Filter by both "Branch" and "Release" field names for backward compatibility
-		items = filterByBranchFieldValue(items, targetRelease)
+		items = filterByBranchFieldValue(items, targetBranch)
 	}
 
 	// Apply no-branch filter (issues without branch assignment)
-	if opts.noRelease {
+	if opts.noBranch {
 		items = filterByEmptyBranchField(items)
 	}
 

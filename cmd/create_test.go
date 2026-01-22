@@ -1120,8 +1120,8 @@ func TestValidateCreateOptions_ReadyWithoutRelease(t *testing.T) {
 		t.Fatal("Expected error for Ready status without release")
 	}
 
-	if !strings.Contains(err.Error(), "--release") {
-		t.Errorf("Expected error to mention --release flag, got: %v", err)
+	if !strings.Contains(err.Error(), "--branch") {
+		t.Errorf("Expected error to mention --branch flag, got: %v", err)
 	}
 }
 

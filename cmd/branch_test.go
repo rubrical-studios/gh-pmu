@@ -594,7 +594,7 @@ func TestRunBranchAddWithDeps_SetsReleaseField(t *testing.T) {
 
 	cfg := testBranchConfig()
 	// Add release field to config
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 	cleanup := setupBranchTestDir(t, cfg)
@@ -647,7 +647,7 @@ func TestRunBranchAddWithDeps_OutputsConfirmation(t *testing.T) {
 	mock.projectItemID = "ITEM_42"
 
 	cfg := testBranchConfig()
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 	cleanup := setupBranchTestDir(t, cfg)
@@ -680,7 +680,7 @@ func TestRunBranchAddWithDeps_NoActiveRelease_ReturnsError(t *testing.T) {
 	mock.openIssues = []api.Issue{} // No active release
 
 	cfg := testBranchConfig()
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 
@@ -729,7 +729,7 @@ func TestRunBranchRemoveWithDeps_ClearsReleaseField(t *testing.T) {
 	mock.projectItemFieldValue = "v1.2.0" // Currently assigned
 
 	cfg := testBranchConfig()
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 
@@ -777,7 +777,7 @@ func TestRunBranchRemoveWithDeps_OutputsConfirmation(t *testing.T) {
 	mock.projectItemFieldValue = "v1.2.0"
 
 	cfg := testBranchConfig()
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 
@@ -823,7 +823,7 @@ func TestRunBranchRemoveWithDeps_WarnsIfNotAssigned(t *testing.T) {
 	mock.projectItemFieldValue = "" // Not assigned
 
 	cfg := testBranchConfig()
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 
@@ -2302,7 +2302,7 @@ func TestRunBranchCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) 
 			"backlog": "Backlog",
 		},
 	}
-	cfg.Fields["release"] = config.Field{
+	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
 	cfg.Fields["microsprint"] = config.Field{

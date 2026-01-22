@@ -560,15 +560,15 @@ func runBranchAddWithDeps(cmd *cobra.Command, opts *branchAddOptions, cfg *confi
 		return fmt.Errorf("failed to get project item for issue #%d: %w", opts.issueNumber, err)
 	}
 
-	// Set the Branch text field (config key is "release" for backward compatibility)
-	releaseField, ok := cfg.Fields["release"]
+	// Set the Branch text field
+	branchField, ok := cfg.Fields["branch"]
 	if !ok {
-		return fmt.Errorf("release field not configured")
+		return fmt.Errorf("branch field not configured")
 	}
 
-	err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, releaseVersion)
+	err = client.SetProjectItemField(project.ID, itemID, branchField.Field, releaseVersion)
 	if err != nil {
-		return fmt.Errorf("failed to set release field: %w", err)
+		return fmt.Errorf("failed to set branch field: %w", err)
 	}
 
 	// Output confirmation (AC-019-2)
@@ -632,16 +632,16 @@ func runBranchRemoveWithDeps(cmd *cobra.Command, opts *branchRemoveOptions, cfg 
 		return fmt.Errorf("failed to get project item for issue #%d: %w", opts.issueNumber, err)
 	}
 
-	// Get release field config
-	releaseField, ok := cfg.Fields["release"]
+	// Get branch field config
+	branchField, ok := cfg.Fields["branch"]
 	if !ok {
-		return fmt.Errorf("release field not configured")
+		return fmt.Errorf("branch field not configured")
 	}
 
 	// Check current field value (AC-039-3)
-	currentValue, err := client.GetProjectItemFieldValue(project.ID, itemID, releaseField.Field)
+	currentValue, err := client.GetProjectItemFieldValue(project.ID, itemID, branchField.Field)
 	if err != nil {
-		return fmt.Errorf("failed to get current release field value: %w", err)
+		return fmt.Errorf("failed to get current branch field value: %w", err)
 	}
 
 	// If not assigned to a release, warn and return
@@ -651,9 +651,9 @@ func runBranchRemoveWithDeps(cmd *cobra.Command, opts *branchRemoveOptions, cfg 
 	}
 
 	// Clear the Branch text field (AC-039-1)
-	err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
+	err = client.SetProjectItemField(project.ID, itemID, branchField.Field, "")
 	if err != nil {
-		return fmt.Errorf("failed to clear release field: %w", err)
+		return fmt.Errorf("failed to clear branch field: %w", err)
 	}
 
 	// Output confirmation (AC-039-2)
@@ -935,8 +935,8 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 				}
 
 				// Clear Branch field
-				if releaseField, ok := cfg.Fields["release"]; ok {
-					_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, "")
+				if branchField, ok := cfg.Fields["branch"]; ok {
+					_ = client.SetProjectItemField(project.ID, itemID, branchField.Field, "")
 				}
 
 				// Clear Microsprint field

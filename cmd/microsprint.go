@@ -53,8 +53,8 @@ type microsprintClient interface {
 
 // microsprintStartOptions holds the options for the microsprint start command
 type microsprintStartOptions struct {
-	name    string
-	release string
+	name   string
+	branch string
 }
 
 // microsprintCloseOptions holds the options for the microsprint close command
@@ -167,7 +167,7 @@ all issues in a sprint share the same release.`,
 	}
 
 	cmd.Flags().StringVar(&opts.name, "name", "", "Optional name suffix for the microsprint")
-	cmd.Flags().StringVar(&opts.release, "release", "", "Release context for the microsprint (required for IDPF)")
+	cmd.Flags().StringVar(&opts.branch, "branch", "", "Branch context for the microsprint (required for IDPF)")
 
 	return cmd
 }
@@ -578,9 +578,9 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 		return err
 	}
 
-	// IDPF: Require release context for microsprints
-	if cfg.IsIDPF() && opts.release == "" {
-		return fmt.Errorf("microsprint requires a release context\nUse: gh pmu microsprint start --release <release-name>")
+	// IDPF: Require branch context for microsprints
+	if cfg.IsIDPF() && opts.branch == "" {
+		return fmt.Errorf("microsprint requires a branch context\nUse: gh pmu microsprint start --branch <branch-name>")
 	}
 
 	// Generate microsprint name: YYYY-MM-DD-{suffix}
@@ -642,17 +642,17 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 
 	title := fmt.Sprintf("Microsprint: %s", microsprintName)
 
-	// IDPF: Append release context to title
-	if opts.release != "" {
-		title = fmt.Sprintf("%s [%s]", title, opts.release)
+	// IDPF: Append branch context to title
+	if opts.branch != "" {
+		title = fmt.Sprintf("%s [%s]", title, opts.branch)
 	}
 
 	// Generate body template
 	body := generateMicrosprintTrackerTemplate(microsprintName)
 
-	// Add release metadata if IDPF
-	if opts.release != "" {
-		body = fmt.Sprintf("<!-- release: %s -->\n\n%s\n## Release Context\n\nThis microsprint is targeting **%s**.\n", opts.release, body, opts.release)
+	// Add branch metadata if IDPF
+	if opts.branch != "" {
+		body = fmt.Sprintf("<!-- branch: %s -->\n\n%s\n## Branch Context\n\nThis microsprint is targeting **%s**.\n", opts.branch, body, opts.branch)
 	}
 
 	// Create tracker issue with microsprint label
@@ -687,13 +687,13 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 		}
 	}
 
-	// IDPF: Set release field on tracker issue
-	if opts.release != "" {
-		releaseField, ok := cfg.Fields["release"]
+	// IDPF: Set branch field on tracker issue
+	if opts.branch != "" {
+		branchField, ok := cfg.Fields["branch"]
 		if ok {
-			err = client.SetProjectItemField(project.ID, itemID, releaseField.Field, opts.release)
+			err = client.SetProjectItemField(project.ID, itemID, branchField.Field, opts.branch)
 			if err != nil {
-				return fmt.Errorf("failed to set release: %w", err)
+				return fmt.Errorf("failed to set branch: %w", err)
 			}
 		}
 	}
@@ -701,8 +701,8 @@ func runMicrosprintStartWithDeps(cmd *cobra.Command, opts *microsprintStartOptio
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "Started microsprint: %s\n", title)
 	fmt.Fprintf(cmd.OutOrStdout(), "Tracker issue: #%d\n", issue.Number)
-	if opts.release != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "Release context: %s\n", opts.release)
+	if opts.branch != "" {
+		fmt.Fprintf(cmd.OutOrStdout(), "Branch context: %s\n", opts.branch)
 	}
 
 	return nil
@@ -936,8 +936,8 @@ func runMicrosprintAddWithDeps(cmd *cobra.Command, opts *microsprintAddOptions, 
 		// Extract release from microsprint tracker title: "Microsprint: 2025-12-20-a [release/v2.0.0]"
 		releaseVersion := extractReleaseFromMicrosprintTitle(activeTracker.Title)
 		if releaseVersion != "" {
-			if releaseField, ok := cfg.Fields["release"]; ok {
-				_ = client.SetProjectItemField(project.ID, itemID, releaseField.Field, releaseVersion)
+			if branchField, ok := cfg.Fields["branch"]; ok {
+				_ = client.SetProjectItemField(project.ID, itemID, branchField.Field, releaseVersion)
 			}
 		}
 	}
