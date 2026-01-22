@@ -1,5 +1,5 @@
 ---
-version: "v0.29.2"
+version: "v0.29.3"
 description: Discover, view, and manage extension points in release commands
 argument-hint: <subcommand> [options]
 ---
