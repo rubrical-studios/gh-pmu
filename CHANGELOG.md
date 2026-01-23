@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.6] - 2026-01-22
+
+### Added
+- Four new standard labels for workflow states (#628)
+  - `emergency` - P0 emergency issue requiring immediate attention
+  - `approval-required` - Requires explicit approval before proceeding
+  - `blocked` - Issue is blocked by external dependency
+  - `scope-creep` - Issue has grown beyond original scope
+
 ## [0.13.5] - 2026-01-22
 
 ### Added
