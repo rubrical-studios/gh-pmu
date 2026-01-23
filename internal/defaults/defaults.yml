@@ -42,6 +42,18 @@ labels:
   - name: docs-required
     description: Requires documentation updates
     color: "0052cc"
+  - name: emergency
+    description: P0 emergency issue requiring immediate attention
+    color: "b60205"
+  - name: approval-required
+    description: Requires explicit approval before proceeding
+    color: "fbca04"
+  - name: blocked
+    description: Issue is blocked by external dependency
+    color: "e11d21"
+  - name: scope-creep
+    description: Issue has grown beyond original scope
+    color: "f9a825"
 
 # Project fields configuration
 fields:
