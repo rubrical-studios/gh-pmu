@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.9] - 2026-01-24
+
+### Added
+- Claude workflow reminder automatically prepended to issue bodies in IDPF projects (#638)
+
 ## [0.13.8] - 2026-01-24
 
 ### Changed
