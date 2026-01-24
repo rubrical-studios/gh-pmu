@@ -7,6 +7,8 @@
 
 **P**roject **M**anagement **U**nified — a GitHub CLI extension for project management and sub-issue hierarchy.
 
+> **Note:** gh-pmu is designed for **Kanban-style GitHub Projects** with status-based columns (Backlog, In Progress, In Review, Done). It integrates seamlessly with the [IDPF-Praxis](https://github.com/rubrical-studios/idpf-praxis-dist) framework for structured development workflows, but works standalone without any framework.
+
 ## Features
 
 📋 **Project Management** - List, view, create, and update issues with project field values in one command

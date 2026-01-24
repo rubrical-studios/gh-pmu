@@ -312,6 +312,7 @@ func TestNewBoardCommand(t *testing.T) {
 		{"limit", "n"},
 		{"no-border", ""},
 		{"json", ""},
+		{"repo", "R"},
 	}
 
 	for _, f := range flags {
@@ -824,5 +825,116 @@ func TestEnrichIssuesToBoardItems_EmptyInput(t *testing.T) {
 
 	if items != nil {
 		t.Errorf("expected nil for empty input, got %v", items)
+	}
+}
+
+// ============================================================================
+// --repo Flag Tests
+// ============================================================================
+
+func TestRunBoardWithDeps_RepoFlagOverridesConfig(t *testing.T) {
+	mock := newMockBoardClient()
+	// Set up issues for Search API path
+	mock.issues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Repo Flag Issue", State: "OPEN"},
+	}
+	mock.fieldsByID = map[string][]api.FieldValue{
+		"issue-1": {
+			{Field: "Status", Value: "Backlog"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"test-org/config-repo"}, // Config repo
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// Use --repo flag to override config
+	opts := &boardOptions{
+		repo:  "other-org/other-repo",
+		state: "open",
+	}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Repo Flag Issue") {
+		t.Error("expected Repo Flag Issue in output")
+	}
+}
+
+func TestRunBoardWithDeps_RepoFlagInvalidFormat(t *testing.T) {
+	mock := newMockBoardClient()
+
+	cfg := &config.Config{
+		Project: config.Project{Owner: "test-org", Number: 1},
+	}
+
+	cmd := newBoardCommand()
+	opts := &boardOptions{
+		repo: "invalid-format", // Missing owner/repo format
+	}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+
+	if err == nil {
+		t.Fatal("expected error for invalid repo format, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid --repo format") {
+		t.Errorf("expected 'invalid --repo format' error, got: %v", err)
+	}
+}
+
+func TestRunBoardWithDeps_RepoFlagWithNoConfigRepo(t *testing.T) {
+	mock := newMockBoardClient()
+	// Set up issues for Search API path
+	mock.issues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "No Config Repo Issue", State: "OPEN"},
+	}
+	mock.fieldsByID = map[string][]api.FieldValue{
+		"issue-1": {
+			{Field: "Status", Value: "Backlog"},
+		},
+	}
+
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{}, // No repo in config
+		Fields: map[string]config.Field{
+			"status": {
+				Field:  "Status",
+				Values: map[string]string{"backlog": "Backlog"},
+			},
+		},
+	}
+
+	cmd := newBoardCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// Use --repo flag when no config repo exists
+	opts := &boardOptions{
+		repo:  "flag-org/flag-repo",
+		state: "open",
+	}
+	err := runBoardWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No Config Repo Issue") {
+		t.Error("expected No Config Repo Issue in output")
 	}
 }
