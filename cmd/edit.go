@@ -165,6 +165,10 @@ func runEditWithDeps(cmd *cobra.Command, opts *editOptions, cfg *config.Config, 
 		body = content
 	}
 	if body != "" {
+		// Add Claude workflow reminder for IDPF projects
+		if cfg.IsIDPF() {
+			body = prependClaudeReminder(body)
+		}
 		if err := client.UpdateIssueBody(issue.ID, body); err != nil {
 			return fmt.Errorf("failed to update body: %w", err)
 		}

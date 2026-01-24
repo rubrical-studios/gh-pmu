@@ -2307,3 +2307,37 @@ func TestRunCreateWithDeps_BodyStdinAndBodyFileMutuallyExclusive(t *testing.T) {
 		t.Errorf("expected mutual exclusivity error, got: %v", err)
 	}
 }
+
+func TestPrependClaudeReminder_AddsReminderToBody(t *testing.T) {
+	body := "## Problem\n\nSome problem description."
+	result := prependClaudeReminder(body)
+
+	if !strings.HasPrefix(result, "> **Claude:**") {
+		t.Errorf("expected result to start with Claude reminder, got: %s", result[:50])
+	}
+	if !strings.Contains(result, "## Problem") {
+		t.Error("expected original body content to be preserved")
+	}
+}
+
+func TestPrependClaudeReminder_DoesNotDuplicateReminder(t *testing.T) {
+	body := "> **Claude:** Before acting, review `.claude/rules/02-github-workflow.md`. Wait for explicit \"work\" trigger.\n\n## Problem\n\nSome problem."
+	result := prependClaudeReminder(body)
+
+	// Count occurrences of "Claude:"
+	count := strings.Count(result, "Claude:")
+	if count != 1 {
+		t.Errorf("expected exactly 1 Claude reminder, got %d", count)
+	}
+}
+
+func TestPrependClaudeReminder_DetectsExistingReminder(t *testing.T) {
+	// Test with slightly different wording that still contains key markers
+	body := "> Claude: Follow github-workflow rules.\n\n## Problem"
+	result := prependClaudeReminder(body)
+
+	// Should not add another reminder
+	if strings.Count(result, "Claude:") != 1 {
+		t.Errorf("should not duplicate reminder when existing one detected, got: %s", result)
+	}
+}
