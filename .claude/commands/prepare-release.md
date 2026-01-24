@@ -56,7 +56,6 @@ gh pmu branch current --json issues | jq '.[] | select(.status != "done")'
 git log $(git describe --tags --abbrev=0)..HEAD --oneline
 ```
 
-<!-- USER-EXTENSION-START: post-analysis -->
 ### Analyze Commits
 
 ```bash
@@ -75,6 +74,8 @@ node .claude/scripts/framework/recommend-version.js
 ```
 
 Uses the commit analysis to recommend a version bump.
+
+<!-- USER-EXTENSION-START: post-analysis -->
 
 ### Documentation Review
 
@@ -98,9 +99,11 @@ The script analyzes which E2E tests may be impacted by changes:
 - `recommendation`: Suggested test review actions
 
 **If `newCommandsWithoutTests` is non-empty, warn user about missing coverage.**
+
 <!-- USER-EXTENSION-END: post-analysis -->
 
 **ASK USER:** Confirm version.
+
 ## Phase 2: Validation
 
 <!-- USER-EXTENSION-START: pre-validation -->
@@ -122,14 +125,17 @@ The script outputs JSON: `{"success": true/false, "message": "..."}`
 **If `success` is false, STOP and report the error.**
 
 Runs `golangci-lint run --timeout=5m` to catch lint errors before tagging.
+
 <!-- USER-EXTENSION-END: pre-validation -->
 
+<!-- USER-EXTENSION-START: post-validation -->
+
 ### Step 2.1: Run Tests
+
 ```bash
 go test ./...
 ```
 
-<!-- USER-EXTENSION-START: post-validation -->
 ### Coverage Gate
 
 **If `--skip-coverage` was passed, skip this section.**
@@ -209,7 +215,7 @@ gh pr create --base main --head $(git branch --show-current) --title "Release $V
 
 ### Wait for CI
 ```bash
-node .claude/scripts/framework/wait-for-ci.js
+node .claude/scripts/shared/wait-for-ci.js
 ```
 **If CI fails, STOP and report.**
 
