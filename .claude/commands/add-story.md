@@ -1,5 +1,5 @@
 ---
-version: "v0.29.3"
+version: "v0.31.0"
 description: Add story to epic with charter compliance (project)
 argument-hint: "[epic-number]"
 ---
@@ -84,7 +84,20 @@ Derive: `PRD/{name}/PRD-{name}.md → PRD/{name}/Test-Plan-{name}.md`
 **Step 2:** Generate test cases from acceptance criteria
 **Step 3:** Update test plan with new story section
 **Step 4:** Commit test plan changes
-## Phase 5: Report Completion
+## Phase 5: Update PRD Tracker (if applicable)
+Check for PRD Tracker in epic body:
+```bash
+gh issue view $epic_num --json body --jq '.body' | grep -oE "\*\*PRD Tracker:\*\* #[0-9]+"
+```
+**If found:** Add comment to PRD tracker:
+```bash
+gh issue comment $prd_num --body "📝 **Story Added**
+Story #{story_num}: {Story Title}
+Epic: #{epic_num}
+Added via \`/add-story\`"
+```
+**If not found:** Skip (not PRD-derived)
+## Phase 6: Report Completion
 ```
 Story created: #{story_num}
 Story: {Title}
@@ -92,6 +105,7 @@ Epic: #{epic_num} - {Epic Title}
 Priority: {P0|P1|P2}
 Charter compliance: ✅ Aligned (or ⚠️ Proceeded with warning)
 Test plan: {Updated|Not applicable}
+PRD tracker: {Updated #{prd_num}|Not PRD-derived}
 Next steps:
 1. Work the story: work #{story_num}
 2. View epic progress: gh pmu sub list #{epic_num}

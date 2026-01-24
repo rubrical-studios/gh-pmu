@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// **Version:** 0.29.3
+// **Version:** 0.31.0
 /**
  * switch-branch.js
  *

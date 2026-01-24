@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.7] - 2026-01-23
+
+### Added
+- `--repo` flag for `board` command to view boards from different repositories (#632)
+- Kanban-style project focus documented in CLI help and README (#631)
+- IDPF-Praxis framework integration note in documentation (#631)
+
 ## [0.13.6] - 2026-01-22
 
 ### Added

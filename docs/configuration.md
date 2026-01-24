@@ -2,6 +2,8 @@
 
 gh-pmu uses a `.gh-pmu.yml` file in your repository root to configure project connections, field aliases, and triage rules.
 
+> **Note:** gh-pmu is designed for Kanban-style GitHub Projects with status-based columns (e.g., Backlog, In Progress, In Review, Done). If your project uses a different board style, some features may not apply.
+
 ## Quick Setup
 
 Run the interactive setup:

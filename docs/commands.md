@@ -393,8 +393,18 @@ View project board in terminal.
 # Show board
 gh pmu board
 
-# Compact view
-gh pmu board --compact
+# Show board for a different repository
+gh pmu board --repo owner/other-repo
+
+# Filter by status or priority
+gh pmu board --status in_progress
+gh pmu board --priority p0
+
+# Limit issues per column
+gh pmu board --limit 5
+
+# Output as JSON
+gh pmu board --json
 ```
 
 **Output:**

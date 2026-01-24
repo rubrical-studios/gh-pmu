@@ -29,6 +29,7 @@ type boardOptions struct {
 	limit    int
 	noBorder bool
 	json     bool
+	repo     string
 }
 
 // Box drawing characters
@@ -83,7 +84,10 @@ Examples:
   gh pmu board --no-border
 
   # Output as JSON grouped by status
-  gh pmu board --json`,
+  gh pmu board --json
+
+  # Show board for a different repository
+  gh pmu board --repo owner/other-repo`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runBoard(cmd, opts)
 		},
@@ -95,6 +99,7 @@ Examples:
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 10, "Limit issues per column")
 	cmd.Flags().BoolVar(&opts.noBorder, "no-border", false, "Display without box borders")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output as JSON grouped by status")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Filter by repository (owner/repo format)")
 
 	return cmd
 }
@@ -129,18 +134,31 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 		return fmt.Errorf("failed to get project: %w", err)
 	}
 
+	// Determine repository filter (--repo flag takes precedence over config)
+	repoFilter := ""
+	if opts.repo != "" {
+		// Validate repo format
+		parts := strings.Split(opts.repo, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --repo format: expected owner/repo, got %s", opts.repo)
+		}
+		repoFilter = opts.repo
+	} else if len(cfg.Repositories) > 0 {
+		repoFilter = cfg.Repositories[0]
+	}
+
 	var items []api.BoardItem
 
 	// Determine if we can use the optimized Search API path
 	// Search API supports state filtering server-side, which is much more efficient
 	// when we only want open issues (the common case)
-	useSearchAPI := len(cfg.Repositories) > 0 && opts.state != "all"
+	useSearchAPI := repoFilter != "" && opts.state != "all"
 
 	if useSearchAPI {
 		// Parse repository owner/name
-		repoParts := strings.SplitN(cfg.Repositories[0], "/", 2)
+		repoParts := strings.SplitN(repoFilter, "/", 2)
 		if len(repoParts) != 2 {
-			return fmt.Errorf("invalid repository format: %s (expected owner/repo)", cfg.Repositories[0])
+			return fmt.Errorf("invalid repository format: %s (expected owner/repo)", repoFilter)
 		}
 
 		// Build search filters with server-side state filtering
@@ -155,7 +173,7 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 		}
 
 		// Enrich with project field values and convert to BoardItems
-		items, err = enrichIssuesToBoardItems(client, project.ID, issues, cfg.Repositories[0])
+		items, err = enrichIssuesToBoardItems(client, project.ID, issues, repoFilter)
 		if err != nil {
 			return fmt.Errorf("failed to enrich issues: %w", err)
 		}
@@ -163,9 +181,9 @@ func runBoardWithDeps(cmd *cobra.Command, opts *boardOptions, cfg *config.Config
 		// Fallback: Use GetProjectItemsForBoard when no repo or state=all
 		// This path fetches all items and requires client-side filtering
 		var filter *api.BoardItemsFilter
-		if len(cfg.Repositories) > 0 {
+		if repoFilter != "" {
 			filter = &api.BoardItemsFilter{
-				Repository: cfg.Repositories[0],
+				Repository: repoFilter,
 			}
 		}
 

@@ -1,5 +1,5 @@
 ---
-version: "v0.29.3"
+version: "v0.31.0"
 description: Create GitHub epics/stories from PRD (project)
 argument-hint: "<prd-issue-number>"
 ---
@@ -59,25 +59,36 @@ Load `PRD/{name}/Test-Plan-{name}.md`, match test cases to stories by title/acce
 | Rust | `#[test] fn test_*()` |
 | Unknown | Generic pseudocode |
 ## Phase 5: Create Epic Issues
+Use `gh pmu create` to automatically add issues to the project board.
 ```bash
-gh issue create --repo {repository} \
+gh pmu create \
   --title "Epic: {Epic Name}" \
   --label "epic" \
-  --body "## Epic: {Epic Name}
+  --status backlog \
+  -F .tmp-epic-body.md
+```
+**Epic body template** (write to `.tmp-epic-body.md`):
+```markdown
+## Epic: {Epic Name}
 **PRD:** PRD/{name}/PRD-{name}.md
+**PRD Tracker:** #{prd_issue_number}
 **Test Plan:** PRD/{name}/Test-Plan-{name}.md
 ## Description
 {Epic description from PRD}
 ## Stories
-Stories will be linked as sub-issues."
+Stories will be linked as sub-issues.
 ```
+Clean up: `rm .tmp-epic-body.md`
 ## Phase 6: Create Story Issues with Test Cases
+Use `gh pmu create` to automatically add issues to the project board.
 ```bash
-gh issue create --repo {repository} \
+gh pmu create \
   --title "Story: {Story Title}" \
   --label "story" \
-  --body "{story_body_with_test_cases}"
+  --status backlog \
+  -F .tmp-story-body.md
 ```
+Clean up: `rm .tmp-story-body.md`
 Link to parent: `gh pmu sub add {epic_number} {story_number}`
 ### Story Body Template
 ```markdown
@@ -105,14 +116,29 @@ test('{criterion 1} succeeds with valid input', () => {
 **Priority:** {P0|P1|P2}
 ```
 ## Phase 7: Update PRD Status
-Update PRD document status to "Backlog Created", add comment to tracking issue:
+**Step 1:** Update PRD document status to "Backlog Created"
+**Step 2:** Prepend instruction banner to PRD tracker issue body:
+```markdown
+> **📋 PRD In Progress** — When all stories are complete, run `/complete-prd {issue_number}` to verify and close.
+## Backlog Summary
+✅ Epics: {count}
+✅ Stories: {count}
+---
+{original PRD issue body}
+```
+**Step 3:** Add summary comment:
 ```bash
 gh issue comment $issue_num --body "## Backlog Created
 ✅ Epics: {count}
 ✅ Stories: {count}
-✅ Test cases embedded
-**Next:** Work stories via \`work #N\`"
+**Next:** Work stories via \`work #N\`
+**When complete:** Run \`/complete-prd $issue_num\`"
 ```
+**Step 4:** Move PRD to In Progress:
+```bash
+gh pmu move $issue_num --status in_progress
+```
+**Note:** PRD remains open until `/complete-prd` verifies all stories are Done.
 ## Error Handling
 | Situation | Response |
 |-----------|----------|

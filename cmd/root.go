@@ -12,6 +12,10 @@ func NewRootCommand() *cobra.Command {
 		Short: "Streamline GitHub project workflows",
 		Long: `gh-pmu streamlines GitHub project workflows with unified issue tracking and sub-issue hierarchy.
 
+Designed for Kanban-style GitHub Projects with status-based columns
+(Backlog, In Progress, In Review, Done). Works seamlessly with the
+IDPF-Praxis framework for structured development workflows.
+
 This extension combines and replaces:
   - gh-pm (https://github.com/yahsan2/gh-pm) - Project management
   - gh-sub-issue (https://github.com/yahsan2/gh-sub-issue) - Sub-issue hierarchy
