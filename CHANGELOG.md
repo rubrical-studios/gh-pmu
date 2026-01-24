@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.10] - 2026-01-24
+
+### Changed
+- Microsprint commands are now deprecated and will be removed in a future release (#645)
+  - All `gh pmu microsprint` subcommands display deprecation message and exit
+  - No operations are performed
+
+### Fixed
+- Added test coverage for Claude workflow reminder in IDPF projects (#644)
+
 ## [0.13.9] - 2026-01-24
 
 ### Added
