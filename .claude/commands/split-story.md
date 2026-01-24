@@ -1,5 +1,5 @@
 ---
-version: "v0.29.3"
+version: "v0.31.0"
 description: Split story into smaller stories (project)
 argument-hint: "<story-number>"
 ---
@@ -81,7 +81,21 @@ Test cases inherited from original story (see test plan).
 **Step 2:** Find original story section in test plan
 **Step 3:** Replace with split story sections, redistributing test cases
 **Step 4:** Commit test plan changes
-## Phase 7: Report Completion
+## Phase 7: Update PRD Tracker (if applicable)
+Check for PRD Tracker in epic body:
+```bash
+gh issue view $epic_num --json body --jq '.body' | grep -oE "\*\*PRD Tracker:\*\* #[0-9]+"
+```
+**If found:** Add comment to PRD tracker:
+```bash
+gh issue comment $prd_num --body "✂️ **Story Split**
+Original: #{original_num} - {Original Title}
+Split into: #{new_story_1}, #{new_story_2}
+Epic: #{epic_num}
+Split via \`/split-story\`"
+```
+**If not found:** Skip (not PRD-derived)
+## Phase 8: Report Completion
 ```
 Story split complete: #{original_num} → {count} stories
 Original story: #{original_num} - {Original Title} (CLOSED)
@@ -91,6 +105,7 @@ New stories created:
 Parent epic: #{epic_num}
 Charter compliance: ✅ All stories aligned (or ⚠️ Proceeded with warning)
 Test plan: {Updated|Not applicable}
+PRD tracker: {Updated #{prd_num}|Not PRD-derived}
 Next steps:
 1. Work a split story: work #{new_story_1}
 2. View epic progress: gh pmu sub list #{epic_num}

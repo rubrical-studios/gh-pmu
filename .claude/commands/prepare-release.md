@@ -1,5 +1,5 @@
 ---
-version: "v0.29.3"
+version: "v0.31.0"
 description: Prepare release with PR, merge to main, and tag
 argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
 ---
@@ -247,6 +247,15 @@ git pull origin main
 git tag -a $VERSION -m "Release $VERSION"
 git push origin $VERSION
 ```
+### Step 4.6: Wait for CI Workflow
+```bash
+node .claude/scripts/framework/wait-for-ci.js
+```
+**If CI fails, STOP.**
+### Step 4.7: Update Release Notes
+```bash
+node .claude/scripts/framework/update-release-notes.js
+```
 
 <!-- USER-EXTENSION-START: post-tag -->
 ### Monitor Release Workflow
@@ -305,6 +314,8 @@ Do NOT auto-close issues just because they shipped.
 
 **After tagging:**
 - [ ] Tag pushed
+- [ ] CI workflow completed
+- [ ] Release notes updated
 
 <!-- USER-EXTENSION-START: checklist-after-tag -->
 - [ ] All CI jobs completed
@@ -317,9 +328,9 @@ Do NOT auto-close issues just because they shipped.
 
 ## Phase 5: Close & Cleanup
 **ASK USER:** Confirm deployment verified.
-### Step 5.1: Close Tracker Issue
+### Step 5.1: Add Deployment Comment
 ```bash
-gh issue close [TRACKER_NUMBER] --comment "Release $VERSION deployed successfully"
+gh issue comment [TRACKER_NUMBER] --body "Release $VERSION deployed successfully"
 ```
 ### Step 5.2: Delete Working Branch
 ```bash
