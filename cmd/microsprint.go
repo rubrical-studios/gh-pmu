@@ -131,12 +131,33 @@ func checkMultipleActiveMicrosprints(issues []api.Issue) error {
 	return nil
 }
 
+// microsprintDeprecationMessage is shown when any microsprint command is invoked
+const microsprintDeprecationMessage = `Microsprint commands are deprecated and will be removed in a future release.
+
+The microsprint concept is being retired from the IDPF workflow.
+No operations have been performed.
+`
+
 // newMicrosprintCommand creates the microsprint command group
 func newMicrosprintCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "microsprint",
-		Short: "Manage microsprints for IDPF-Agile development",
-		Long:  `Microsprint commands for hour-scale work batches.`,
+		Short: "Manage microsprints for IDPF-Agile development (DEPRECATED)",
+		Long:  `Microsprint commands for hour-scale work batches. DEPRECATED: This feature will be removed in a future release.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Print deprecation message and exit for all subcommands
+			// The parent "microsprint" command without subcommands shows help normally
+			if cmd.Name() != "microsprint" {
+				fmt.Fprint(cmd.OutOrStdout(), microsprintDeprecationMessage)
+				os.Exit(0)
+			}
+			return nil
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			// Show deprecation message and help if no subcommand specified
+			fmt.Fprint(cmd.OutOrStdout(), microsprintDeprecationMessage)
+			_ = cmd.Help()
+		},
 	}
 
 	cmd.AddCommand(newMicrosprintStartCommand())
