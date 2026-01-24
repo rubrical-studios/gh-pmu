@@ -21,6 +21,9 @@ type mockCreateClient struct {
 	itemID        string
 	issuesByLabel []api.Issue
 
+	// Capture for verification
+	lastBody string
+
 	// Error injection
 	createIssueErr          error
 	getProjectErr           error
@@ -55,6 +58,7 @@ func (m *mockCreateClient) CreateIssueWithOptions(owner, repo, title, body strin
 	if m.createIssueErr != nil {
 		return nil, m.createIssueErr
 	}
+	m.lastBody = body
 	issue := m.createdIssue
 	issue.Title = title
 	return issue, nil
@@ -2339,5 +2343,71 @@ func TestPrependClaudeReminder_DetectsExistingReminder(t *testing.T) {
 	// Should not add another reminder
 	if strings.Count(result, "Claude:") != 1 {
 		t.Errorf("should not duplicate reminder when existing one detected, got: %s", result)
+	}
+}
+
+func TestRunCreateWithDeps_IDPFProjectAddsClaudeReminder(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project:   config.Project{Owner: "test-org", Number: 1},
+		Framework: "IDPF-Agile", // IDPF framework
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", body: "## Problem\n\nTest problem."}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the body was prepended with Claude reminder
+	if !strings.Contains(mock.lastBody, "Claude:") {
+		t.Error("expected Claude reminder to be prepended for IDPF project")
+	}
+	if !strings.Contains(mock.lastBody, "## Problem") {
+		t.Error("expected original body content to be preserved")
+	}
+}
+
+func TestRunCreateWithDeps_NonIDPFProjectNoClaudeReminder(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project:   config.Project{Owner: "test-org", Number: 1},
+		Framework: "none", // Non-IDPF framework
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", body: "## Problem\n\nTest problem."}
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify the body was NOT prepended with Claude reminder
+	if strings.Contains(mock.lastBody, "Claude:") {
+		t.Error("expected no Claude reminder for non-IDPF project")
+	}
+	if !strings.Contains(mock.lastBody, "## Problem") {
+		t.Error("expected original body content to be preserved")
+	}
+}
+
+func TestRunCreateWithDeps_IDPFProjectEmptyBodyNoReminder(t *testing.T) {
+	mock := newMockCreateClient()
+	cfg := &config.Config{
+		Project:   config.Project{Owner: "test-org", Number: 1},
+		Framework: "IDPF-Agile",
+	}
+
+	cmd := newCreateCommand()
+	opts := &createOptions{title: "Test Issue", body: ""} // Empty body
+	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Empty body should stay empty (no reminder prepended to nothing)
+	if mock.lastBody != "" {
+		t.Errorf("expected empty body to remain empty, got: %s", mock.lastBody)
 	}
 }
