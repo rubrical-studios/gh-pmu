@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.8] - 2026-01-24
+
+### Changed
+- Error message for unchecked checkboxes now includes Claude workflow reminder (#635)
+
 ## [0.13.7] - 2026-01-23
 
 ### Added

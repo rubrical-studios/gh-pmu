@@ -102,7 +102,7 @@ func validateStatusTransition(cfg *config.Config, ctx *issueValidationContext, t
 			return &ValidationError{
 				IssueNumber: ctx.Number,
 				Message:     fmt.Sprintf("Has %d unchecked checkbox(es):%s", unchecked, itemList),
-				Suggestion:  fmt.Sprintf("Complete these items before moving to %s, or use --force to bypass.", targetStatus),
+				Suggestion:  fmt.Sprintf("Complete these items before moving to %s, or use --force to bypass.\nClaude: Review GitHub-Workflow rules before using --force.", targetStatus),
 			}
 		}
 	}
