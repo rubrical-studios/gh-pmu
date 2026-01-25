@@ -1380,6 +1380,30 @@ func TestRunViewWithDeps_JQWithoutJSONError(t *testing.T) {
 	}
 }
 
+func TestRunViewWithDeps_TemplateNotSupportedError(t *testing.T) {
+	mock := newMockViewClient()
+	cmd := newViewCommand()
+
+	opts := &viewOptions{template: "{{.title}}"}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for --template")
+	}
+	// Should mention --template is not supported
+	if !strings.Contains(err.Error(), "--template is not supported") {
+		t.Errorf("expected '--template is not supported' error, got: %v", err)
+	}
+	// Should mention gh issue view as alternative
+	if !strings.Contains(err.Error(), "gh issue view") {
+		t.Errorf("expected error to mention 'gh issue view', got: %v", err)
+	}
+	// Should mention --jq for project fields
+	if !strings.Contains(err.Error(), "--jq") {
+		t.Errorf("expected error to mention '--jq', got: %v", err)
+	}
+}
+
 // ============================================================================
 // JSON Output with Project Fields Tests
 // ============================================================================

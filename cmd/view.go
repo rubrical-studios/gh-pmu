@@ -30,6 +30,7 @@ type viewClient interface {
 type viewOptions struct {
 	jsonFields string // Empty = not set, "all" = all fields, "field1,field2" = specific fields
 	jq         string
+	template   string // Go template (not supported - returns helpful error)
 	web        bool
 	comments   bool
 	repo       string
@@ -85,6 +86,7 @@ Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
 	cmd.Flags().StringVar(&opts.jsonFields, "json", "", "Output JSON with specified fields (comma-separated). Use --json-fields to list available fields")
 	cmd.Flags().Bool("json-fields", false, "List available JSON fields")
 	cmd.Flags().StringVarP(&opts.jq, "jq", "q", "", "Filter JSON output using a jq expression")
+	cmd.Flags().StringVarP(&opts.template, "template", "t", "", "Format output using a Go template (not supported; see error for alternatives)")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open issue in browser")
 	cmd.Flags().BoolVarP(&opts.comments, "comments", "c", false, "Show issue comments")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
@@ -172,6 +174,11 @@ func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, o
 	// Validate --jq requires --json
 	if opts.jq != "" && opts.jsonFields == "" {
 		return fmt.Errorf("--jq requires --json")
+	}
+
+	// --template is not supported; provide helpful error with alternatives
+	if opts.template != "" {
+		return fmt.Errorf("--template is not supported; use 'gh issue view %d --template' for standard fields, or use --jq for project fields", number)
 	}
 
 	// For --web flag, only need basic issue info
