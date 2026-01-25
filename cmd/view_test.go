@@ -1300,3 +1300,186 @@ func TestRunViewWithDeps_BodyStdout_EmptyBody(t *testing.T) {
 		t.Errorf("stdout output = %q, want empty string", buf.String())
 	}
 }
+
+// ============================================================================
+// Flag Mutual Exclusivity Tests
+// ============================================================================
+
+func TestRunViewWithDeps_JSONWithBodyFileError(t *testing.T) {
+	mock := newMockViewClient()
+	cmd := newViewCommand()
+
+	opts := &viewOptions{jsonFields: "title", bodyFile: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for --json with --body-file")
+	}
+	if !strings.Contains(err.Error(), "cannot use --json with --body-file") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_JSONWithBodyStdoutError(t *testing.T) {
+	mock := newMockViewClient()
+	cmd := newViewCommand()
+
+	opts := &viewOptions{jsonFields: "title", bodyStdout: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for --json with --body-stdout")
+	}
+	if !strings.Contains(err.Error(), "cannot use --json with --body-stdout") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_JSONWithWebError(t *testing.T) {
+	mock := newMockViewClient()
+	cmd := newViewCommand()
+
+	opts := &viewOptions{jsonFields: "title", web: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for --json with --web")
+	}
+	if !strings.Contains(err.Error(), "cannot use --json with --web") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_JSONWithCommentsError(t *testing.T) {
+	mock := newMockViewClient()
+	cmd := newViewCommand()
+
+	opts := &viewOptions{jsonFields: "title", comments: true}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for --json with --comments")
+	}
+	if !strings.Contains(err.Error(), "cannot use --json with --comments") {
+		t.Errorf("expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestRunViewWithDeps_JQWithoutJSONError(t *testing.T) {
+	mock := newMockViewClient()
+	cmd := newViewCommand()
+
+	opts := &viewOptions{jq: ".title"}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+
+	if err == nil {
+		t.Fatal("expected error for --jq without --json")
+	}
+	if !strings.Contains(err.Error(), "--jq requires --json") {
+		t.Errorf("expected jq requires json error, got: %v", err)
+	}
+}
+
+// ============================================================================
+// JSON Output with Project Fields Tests
+// ============================================================================
+
+func TestRunViewWithDeps_JSONWithProjectFields(t *testing.T) {
+	mock := newMockViewClient()
+	mock.issue = &api.Issue{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+	}
+	mock.fieldValues = []api.FieldValue{
+		{Field: "Status", Value: "In Progress"},
+		{Field: "Priority", Value: "P1"},
+		{Field: "Branch", Value: "release/v1.0"},
+	}
+
+	cmd := newViewCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	opts := &viewOptions{jsonFields: "fieldValues"}
+	err := runViewWithDeps(cmd, opts, mock, "owner", "repo", 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Note: JSON is written to stdout, not the buffer
+	// We verify no error occurred and the function completed
+}
+
+func TestBuildViewJSONOutput_FieldValues(t *testing.T) {
+	issue := &api.Issue{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://github.com/owner/repo/issues/42",
+		Author: api.Actor{Login: "testuser"},
+	}
+	fieldValues := []api.FieldValue{
+		{Field: "Status", Value: "In Progress"},
+		{Field: "Priority", Value: "P1"},
+		{Field: "Branch", Value: "release/v1.0"},
+	}
+
+	output := buildViewJSONOutput(issue, fieldValues, nil, nil, nil)
+
+	if output.FieldValues["Status"] != "In Progress" {
+		t.Errorf("expected Status 'In Progress', got %q", output.FieldValues["Status"])
+	}
+	if output.FieldValues["Priority"] != "P1" {
+		t.Errorf("expected Priority 'P1', got %q", output.FieldValues["Priority"])
+	}
+	if output.FieldValues["Branch"] != "release/v1.0" {
+		t.Errorf("expected Branch 'release/v1.0', got %q", output.FieldValues["Branch"])
+	}
+}
+
+func TestFilterViewJSONFields_SelectsRequestedFields(t *testing.T) {
+	output := ViewJSONOutput{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		Body:   "Body text",
+		URL:    "https://example.com",
+		Author: "testuser",
+	}
+
+	result := filterViewJSONFields(output, []string{"number", "title"})
+
+	if result["number"] != 42 {
+		t.Errorf("expected number 42, got %v", result["number"])
+	}
+	if result["title"] != "Test Issue" {
+		t.Errorf("expected title 'Test Issue', got %v", result["title"])
+	}
+	if _, exists := result["body"]; exists {
+		t.Error("expected body to be excluded")
+	}
+	if _, exists := result["state"]; exists {
+		t.Error("expected state to be excluded")
+	}
+}
+
+func TestParseJSONFields_CommaSeparated(t *testing.T) {
+	result := parseJSONFields("number,title,state", viewAvailableFields)
+
+	if len(result) != 3 {
+		t.Fatalf("expected 3 fields, got %d", len(result))
+	}
+	if result[0] != "number" || result[1] != "title" || result[2] != "state" {
+		t.Errorf("unexpected fields: %v", result)
+	}
+}
+
+func TestParseJSONFields_EmptyReturnsAll(t *testing.T) {
+	result := parseJSONFields("", viewAvailableFields)
+
+	if len(result) != len(viewAvailableFields) {
+		t.Errorf("expected all %d fields, got %d", len(viewAvailableFields), len(result))
+	}
+}

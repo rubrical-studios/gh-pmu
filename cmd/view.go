@@ -67,14 +67,23 @@ Displays issue details including title, body, state, labels, assignees,
 and all project-specific fields like Status and Priority.
 
 Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
-		Args: cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			// --json-fields doesn't require an issue number
+			if listFields, _ := cmd.Flags().GetBool("json-fields"); listFields {
+				return nil
+			}
+			if len(args) != 1 {
+				return fmt.Errorf("accepts 1 arg(s), received %d", len(args))
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runView(cmd, args, opts)
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.jsonFields, "json", "", "Output JSON with specified fields (comma-separated, or empty to list available fields)")
-	cmd.Flags().Lookup("json").NoOptDefVal = "_list_" // When --json is used without value, list fields
+	cmd.Flags().StringVar(&opts.jsonFields, "json", "", "Output JSON with specified fields (comma-separated). Use --json-fields to list available fields")
+	cmd.Flags().Bool("json-fields", false, "List available JSON fields")
 	cmd.Flags().StringVarP(&opts.jq, "jq", "q", "", "Filter JSON output using a jq expression")
 	cmd.Flags().BoolVarP(&opts.web, "web", "w", false, "Open issue in browser")
 	cmd.Flags().BoolVarP(&opts.comments, "comments", "c", false, "Show issue comments")
@@ -86,6 +95,11 @@ Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
 }
 
 func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
+	// Handle --json-fields: list available fields (no issue number needed)
+	if listFields, _ := cmd.Flags().GetBool("json-fields"); listFields {
+		return listAvailableFields(cmd, viewAvailableFields)
+	}
+
 	// Load configuration
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -139,9 +153,25 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 
 // runViewWithDeps is the testable implementation of runView
 func runViewWithDeps(cmd *cobra.Command, opts *viewOptions, client viewClient, owner, repo string, number int) error {
-	// Handle --json without fields: list available fields
-	if opts.jsonFields == "_list_" {
-		return listAvailableFields(cmd, viewAvailableFields)
+	// Validate flag mutual exclusivity
+	if opts.jsonFields != "" {
+		if opts.bodyFile {
+			return fmt.Errorf("cannot use --json with --body-file")
+		}
+		if opts.bodyStdout {
+			return fmt.Errorf("cannot use --json with --body-stdout")
+		}
+		if opts.web {
+			return fmt.Errorf("cannot use --json with --web")
+		}
+		if opts.comments {
+			return fmt.Errorf("cannot use --json with --comments; use --json comments instead")
+		}
+	}
+
+	// Validate --jq requires --json
+	if opts.jq != "" && opts.jsonFields == "" {
+		return fmt.Errorf("--jq requires --json")
 	}
 
 	// For --web flag, only need basic issue info
