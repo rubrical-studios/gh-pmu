@@ -2594,8 +2594,8 @@ func TestRunMoveWithDeps_NonIDPFProjectNoWarning(t *testing.T) {
 	// ARRANGE - Issue with unchecked checkboxes but non-IDPF project
 	body := "## Acceptance Criteria\n- [ ] Unchecked item"
 	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
-	cfg := testMoveConfig()       // Non-IDPF (no Framework set, defaults to empty)
-	cfg.Framework = "none"        // Explicitly non-IDPF
+	cfg := testMoveConfig() // Non-IDPF (no Framework set, defaults to empty)
+	cfg.Framework = "none"  // Explicitly non-IDPF
 
 	cmd := &cobra.Command{}
 	buf := new(bytes.Buffer)
