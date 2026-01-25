@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.11] - 2026-01-24
+
+### Added
+- `--json` and `--jq` flags for `view` command with project field support (#647)
+- `--json-fields` flag to list available JSON fields for view command (#647)
+- `--template` flag for `view` command with helpful error directing to `gh issue view` (#650)
+- Confirmation prompt when `--force` bypasses checkbox validation on move command (#648)
+- IDPF workflow warning after `--force` bypass: "WARNING: Workflow rules may have been violated" (#648)
+
+### Changed
+- `--yes` flag on move command now also skips `--force` confirmation prompt (#648)
+
 ## [0.13.10] - 2026-01-24
 
 ### Changed

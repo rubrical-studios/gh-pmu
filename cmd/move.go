@@ -113,7 +113,7 @@ Examples:
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
 	cmd.Flags().BoolVarP(&opts.force, "force", "f", false, "Bypass checkbox validation (still requires body and branch)")
-	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompt for recursive operations")
+	cmd.Flags().BoolVarP(&opts.yes, "yes", "y", false, "Skip confirmation prompts (for --recursive and --force)")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the issue (owner/repo format)")
 
 	return cmd
@@ -419,12 +419,25 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		if !opts.dryRun && validationErrors.HasErrors() {
 			return &validationErrors
 		}
+		// Prompt for confirmation when --force bypasses checkbox validation
 		if !opts.dryRun && len(forceWarnings) > 0 {
-			fmt.Fprintf(os.Stderr, "Warning: --force bypassing checkbox validation:\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Warning: --force bypasses checkbox validation:\n")
 			for _, w := range forceWarnings {
-				fmt.Fprintf(os.Stderr, "  %s\n", w)
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", w)
 			}
-			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(cmd.OutOrStdout())
+
+			if !opts.yes {
+				fmt.Fprintf(cmd.OutOrStdout(), "Proceed anyway? [y/N]: ")
+				var response string
+				_, _ = fmt.Scanln(&response)
+				response = strings.ToLower(strings.TrimSpace(response))
+				if response != "y" && response != "yes" {
+					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					return nil
+				}
+				fmt.Fprintln(cmd.OutOrStdout())
+			}
 		}
 	}
 
@@ -692,6 +705,12 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 
 	if multiIssueMode {
 		fmt.Printf("\nSummary: %d updated, %d skipped, %d failed\n", updatedCount, skippedCount, errorCount)
+	}
+
+	// IDPF: Warn about potential workflow rule violations after --force bypass
+	if cfg.IsIDPF() && len(forceWarnings) > 0 && updatedCount > 0 {
+		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprintln(cmd.OutOrStdout(), "WARNING: Workflow rules may have been violated.")
 	}
 
 	if hasErrors {
