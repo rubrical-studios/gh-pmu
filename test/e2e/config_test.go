@@ -14,6 +14,7 @@ const testConfig = `project:
     name: IDPF-gh-pmu-testing
     number: 41
     owner: rubrical-studios
+framework: IDPF-Agile
 repositories:
     - rubrical-studios/gh-pmu-e2e-test
 defaults:

@@ -290,3 +290,69 @@ func TestCreateWithWorkflowLabels(t *testing.T) {
 		assertHasLabel(t, enhancementNum, "enhancement")
 	})
 }
+
+// TestForceYesWorkflowWarning tests that --force --yes bypasses validation
+// and outputs the IDPF workflow warning
+func TestForceYesWorkflowWarning(t *testing.T) {
+	cfg := setupTestConfig(t)
+
+	var issueNum int
+
+	// Cleanup at end of test
+	defer func() {
+		if issueNum > 0 {
+			runCleanupAfterTest(t, issueNum)
+		}
+	}()
+
+	// Step 1: Create issue
+	t.Run("create issue", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "create",
+			"--title", "[E2E] Force Yes Workflow Warning Test",
+			"--status", "backlog",
+		)
+		assertExitCode(t, result, 0)
+		issueNum = extractIssueNumber(t, result.Stdout)
+		t.Logf("Created issue #%d", issueNum)
+	})
+
+	// Step 2: Add unchecked checkboxes to the body
+	t.Run("add unchecked checkboxes to body", func(t *testing.T) {
+		if issueNum == 0 {
+			t.Skip("No issue number available")
+		}
+		body := "## Acceptance Criteria\n- [ ] Unchecked item 1\n- [ ] Unchecked item 2"
+		result := runPMU(t, cfg.Dir, "edit", fmt.Sprintf("%d", issueNum), "--body", body)
+		assertExitCode(t, result, 0)
+		t.Logf("Updated issue #%d with unchecked checkboxes", issueNum)
+	})
+
+	// Step 3: Move to in_progress (allowed without --force)
+	t.Run("move to in_progress", func(t *testing.T) {
+		if issueNum == 0 {
+			t.Skip("No issue number available")
+		}
+		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", issueNum), "--status", "in_progress")
+		assertExitCode(t, result, 0)
+		assertContains(t, result.Stdout, "In progress")
+	})
+
+	// Step 4: Try to move to done with --force --yes (should succeed with warning)
+	t.Run("move to done with force yes", func(t *testing.T) {
+		if issueNum == 0 {
+			t.Skip("No issue number available")
+		}
+		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", issueNum),
+			"--status", "done", "--force", "--yes")
+		assertExitCode(t, result, 0)
+
+		// Should show warning about bypassing checkbox validation
+		assertContains(t, result.Stdout, "Warning: --force bypasses checkbox validation")
+
+		// Should show IDPF workflow warning (test config now has framework: IDPF-Agile)
+		assertContains(t, result.Stdout, "WARNING: Workflow rules may have been violated")
+
+		// Should have updated the status
+		assertContains(t, result.Stdout, "Done")
+	})
+}

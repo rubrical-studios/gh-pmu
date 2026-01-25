@@ -2467,3 +2467,258 @@ func TestRunMoveWithDeps_BatchMutations_ReducedAPICalls(t *testing.T) {
 		t.Errorf("Expected 30 field updates (10 issues × 3 fields), got %d", len(mock.fieldUpdates))
 	}
 }
+
+// =============================================================================
+// REQ-648: --force Confirmation Prompt Tests
+// =============================================================================
+
+// testIDPFMoveConfig returns a config with IDPF framework enabled
+func testIDPFMoveConfig() *config.Config {
+	cfg := testMoveConfig()
+	cfg.Framework = "IDPF"
+	return cfg
+}
+
+// setupMockWithIssueAndBody creates a mock client with an issue that has a body
+func setupMockWithIssueAndBody(number int, title, body, itemID string) *mockMoveClient {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{
+		ID:     "proj-1",
+		Number: 1,
+		Title:  "Test Project",
+	}
+	mock.issues[fmt.Sprintf("testowner/testrepo#%d", number)] = &api.Issue{
+		ID:     fmt.Sprintf("issue-%d", number),
+		Number: number,
+		Title:  title,
+		Body:   body,
+		Repository: api.Repository{
+			Owner: "testowner",
+			Name:  "testrepo",
+		},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: itemID,
+			Issue: &api.Issue{
+				Number: number,
+				Title:  title,
+				Body:   body,
+				Repository: api.Repository{
+					Owner: "testowner",
+					Name:  "testrepo",
+				},
+			},
+		},
+	}
+	return mock
+}
+
+// AC-648-1: Given --force --yes, Then confirmation prompt is skipped
+func TestRunMoveWithDeps_ForceYesSkipsConfirmation(t *testing.T) {
+	// ARRANGE - Issue with unchecked checkboxes to trigger force warning
+	body := "## Acceptance Criteria\n- [ ] Unchecked item\n- [ ] Another unchecked"
+	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
+	// Add active branch for branch assignment requirement
+	mock.openIssuesByLabel["branch"] = []api.Issue{
+		{ID: "BRANCH_1", Number: 100, Title: "Branch: release/v1.0.0", State: "OPEN"},
+	}
+	cfg := testIDPFMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// --force --yes with status=done to trigger checkbox validation
+	opts := &moveOptions{status: "done", force: true, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Should NOT prompt for confirmation (no "Proceed anyway?" in output)
+	if strings.Contains(output, "Proceed anyway?") {
+		t.Error("Expected --yes to skip confirmation prompt, but 'Proceed anyway?' was found in output")
+	}
+	// Should still show warning about bypassing
+	if !strings.Contains(output, "Warning: --force bypasses checkbox validation") {
+		t.Error("Expected warning about --force bypassing validation")
+	}
+	// Should have made the update
+	if len(mock.fieldUpdates) == 0 {
+		t.Error("Expected field updates to be made with --force --yes")
+	}
+}
+
+// AC-648-2: Given IDPF project with --force bypass, Then WARNING is displayed after update
+func TestRunMoveWithDeps_IDPFProjectOutputsWarningAfterForceBypass(t *testing.T) {
+	// ARRANGE - Issue with unchecked checkboxes
+	body := "## Acceptance Criteria\n- [ ] Unchecked item"
+	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
+	// Add active branch for branch assignment requirement
+	mock.openIssuesByLabel["branch"] = []api.Issue{
+		{ID: "BRANCH_1", Number: 100, Title: "Branch: release/v1.0.0", State: "OPEN"},
+	}
+	cfg := testIDPFMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "done", force: true, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// IDPF project should show workflow warning after force bypass
+	if !strings.Contains(output, "WARNING: Workflow rules may have been violated") {
+		t.Errorf("Expected IDPF warning after force bypass, got output: %s", output)
+	}
+}
+
+// AC-648-3: Given non-IDPF project with --force, Then no warning is displayed
+func TestRunMoveWithDeps_NonIDPFProjectNoWarning(t *testing.T) {
+	// ARRANGE - Issue with unchecked checkboxes but non-IDPF project
+	body := "## Acceptance Criteria\n- [ ] Unchecked item"
+	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
+	cfg := testMoveConfig()       // Non-IDPF (no Framework set, defaults to empty)
+	cfg.Framework = "none"        // Explicitly non-IDPF
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "done", force: true, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Non-IDPF project should NOT show workflow warning
+	if strings.Contains(output, "WARNING: Workflow rules may have been violated") {
+		t.Errorf("Expected no IDPF warning for non-IDPF project, but got output: %s", output)
+	}
+	// Also no confirmation prompt for non-IDPF
+	if strings.Contains(output, "Warning: --force bypasses checkbox validation") {
+		t.Errorf("Expected no force warning for non-IDPF project, but got output: %s", output)
+	}
+}
+
+// AC-648-4: Given --force with unchecked items, Then unchecked items are shown in prompt
+func TestRunMoveWithDeps_ForceShowsUncheckedItemsInWarning(t *testing.T) {
+	// ARRANGE - Issue with specific unchecked checkboxes
+	body := "## Acceptance Criteria\n- [ ] Item A\n- [x] Done item\n- [ ] Item B"
+	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
+	mock.openIssuesByLabel["branch"] = []api.Issue{
+		{ID: "BRANCH_1", Number: 100, Title: "Branch: release/v1.0.0", State: "OPEN"},
+	}
+	cfg := testIDPFMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "done", force: true, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Should show the count of unchecked checkboxes in warning
+	if !strings.Contains(output, "#42 has 2 unchecked checkbox(es)") {
+		t.Errorf("Expected warning to show unchecked checkbox count, got output: %s", output)
+	}
+}
+
+// AC-648-5: Given --force dry-run, Then no changes are made but validation passes
+func TestRunMoveWithDeps_ForceDryRunNoChanges(t *testing.T) {
+	// ARRANGE - Issue with unchecked checkboxes
+	body := "## Acceptance Criteria\n- [ ] Unchecked item"
+	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
+	mock.openIssuesByLabel["branch"] = []api.Issue{
+		{ID: "BRANCH_1", Number: 100, Title: "Branch: release/v1.0.0", State: "OPEN"},
+	}
+	cfg := testIDPFMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// dry-run with --force - no changes should be made
+	opts := &moveOptions{status: "done", force: true, dryRun: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Dry-run should not make any field updates
+	if len(mock.fieldUpdates) != 0 {
+		t.Errorf("Expected no field updates in dry-run mode, got %d", len(mock.fieldUpdates))
+	}
+}
+
+// AC-648-6: Given --force with no unchecked checkboxes, Then no confirmation needed
+func TestRunMoveWithDeps_ForceNoUncheckedNoWarning(t *testing.T) {
+	// ARRANGE - Issue with all checkboxes checked
+	body := "## Acceptance Criteria\n- [x] Done item\n- [x] Another done item"
+	mock := setupMockWithIssueAndBody(42, "Test Issue", body, "item-42")
+	mock.openIssuesByLabel["branch"] = []api.Issue{
+		{ID: "BRANCH_1", Number: 100, Title: "Branch: release/v1.0.0", State: "OPEN"},
+	}
+	cfg := testIDPFMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "done", force: true, yes: true}
+
+	// ACT
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+
+	// ASSERT
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// With all checkboxes checked, --force doesn't bypass anything, so no warning
+	if strings.Contains(output, "Warning: --force bypasses checkbox validation") {
+		t.Errorf("Expected no bypass warning when all checkboxes are checked, got output: %s", output)
+	}
+	// Also no workflow violation warning since nothing was bypassed
+	if strings.Contains(output, "WARNING: Workflow rules may have been violated") {
+		t.Errorf("Expected no workflow warning when no bypass occurred, got output: %s", output)
+	}
+}
