@@ -288,7 +288,7 @@ node .claude/scripts/framework/update-release-notes.js
 
 Updates GitHub Release with formatted notes from CHANGELOG.
 
-### Clean Up Old Release Assets (Optional)
+### Clean Up Old Release Assets
 
 ```bash
 node .claude/scripts/shared/cleanup-release-assets.js --keep 3 --dry-run
