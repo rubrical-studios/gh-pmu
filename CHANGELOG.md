@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-01-26
+
+### Added
+- Auto-create project from IDPF Kanban template during `gh pmu init` (#656)
+  - When no projects exist and IDPF framework selected, offers to create from template #30
+  - Automatically links repository and runs intake to populate board
+- New API methods: `CopyProjectFromTemplate`, `GetOwnerID`, `LinkProjectToRepository`
+
+### Changed
+- **BREAKING:** Removed all microsprint support (#654)
+  - `gh pmu microsprint` command removed
+  - `--microsprint` flag removed from `move` and `create` commands
+  - Microsprint field automatically removed during `gh pmu init`
+- Fixed root command `Use` field from `gh-pmu` to `gh pmu` for correct help text (#654)
+
+### Fixed
+- E2E tests updated for IDPF branch and body validation requirements
+
 ## [0.13.11] - 2026-01-24
 
 ### Added
