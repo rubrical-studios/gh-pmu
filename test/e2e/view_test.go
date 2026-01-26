@@ -59,6 +59,10 @@ func TestViewJSONWithStandardFields(t *testing.T) {
 func TestViewJSONWithProjectFields(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	_, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	// Create a test issue and set project fields
 	var testIssueNum int
 	defer func() {
@@ -69,6 +73,9 @@ func TestViewJSONWithProjectFields(t *testing.T) {
 
 	t.Run("create and configure test issue", func(t *testing.T) {
 		testIssueNum = createTestIssue(t, cfg, "JSON Project Fields Test")
+
+		// Assign to branch (required for IDPF validation)
+		assignIssueToBranch(t, cfg, testIssueNum)
 
 		// Move to in_progress to set status field
 		result := runPMU(t, cfg.Dir, "move", itoa(testIssueNum), "--status", "in_progress")

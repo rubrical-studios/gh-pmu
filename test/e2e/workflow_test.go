@@ -12,6 +12,10 @@ import (
 func TestCreateToCloseWorkflow(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	_, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	var issueNum int
 
 	// Cleanup at end of test
@@ -33,7 +37,18 @@ func TestCreateToCloseWorkflow(t *testing.T) {
 		t.Logf("Created issue #%d", issueNum)
 	})
 
-	// Step 2: Move through workflow sequentially (not parallel)
+	// Step 2: Assign to branch (required for IDPF validation)
+	t.Run("assign to branch", func(t *testing.T) {
+		assignIssueToBranch(t, cfg, issueNum)
+	})
+
+	// Step 3: Add body (required for IDPF validation when moving to in_review/done)
+	t.Run("add body", func(t *testing.T) {
+		result := runPMU(t, cfg.Dir, "edit", fmt.Sprintf("%d", issueNum), "--body", "Test issue body for workflow test")
+		assertExitCode(t, result, 0)
+	})
+
+	// Step 4: Move through workflow sequentially (not parallel)
 	// backlog -> in_progress
 	t.Run("move to in_progress", func(t *testing.T) {
 		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", issueNum), "--status", "in_progress")
@@ -128,6 +143,10 @@ func TestSubIssueWorkflow(t *testing.T) {
 func TestMultiIssueMoveWorkflow(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	_, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	var issueNums []int
 
 	// Cleanup at end of test
@@ -146,7 +165,14 @@ func TestMultiIssueMoveWorkflow(t *testing.T) {
 		}
 	})
 
-	// Step 2: Move multiple issues in single command
+	// Step 2: Assign all issues to branch (required for IDPF validation)
+	t.Run("assign issues to branch", func(t *testing.T) {
+		for _, num := range issueNums {
+			assignIssueToBranch(t, cfg, num)
+		}
+	})
+
+	// Step 3: Move multiple issues in single command
 	t.Run("move multiple issues", func(t *testing.T) {
 		args := []string{"move"}
 		for _, num := range issueNums {
@@ -296,6 +322,10 @@ func TestCreateWithWorkflowLabels(t *testing.T) {
 func TestForceYesWorkflowWarning(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	_, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	var issueNum int
 
 	// Cleanup at end of test
@@ -316,7 +346,15 @@ func TestForceYesWorkflowWarning(t *testing.T) {
 		t.Logf("Created issue #%d", issueNum)
 	})
 
-	// Step 2: Add unchecked checkboxes to the body
+	// Step 2: Assign to branch (required for IDPF validation)
+	t.Run("assign to branch", func(t *testing.T) {
+		if issueNum == 0 {
+			t.Skip("No issue number available")
+		}
+		assignIssueToBranch(t, cfg, issueNum)
+	})
+
+	// Step 3: Add unchecked checkboxes to the body
 	t.Run("add unchecked checkboxes to body", func(t *testing.T) {
 		if issueNum == 0 {
 			t.Skip("No issue number available")
@@ -327,7 +365,7 @@ func TestForceYesWorkflowWarning(t *testing.T) {
 		t.Logf("Updated issue #%d with unchecked checkboxes", issueNum)
 	})
 
-	// Step 3: Move to in_progress (allowed without --force)
+	// Step 4: Move to in_progress (allowed without --force since branch is assigned)
 	t.Run("move to in_progress", func(t *testing.T) {
 		if issueNum == 0 {
 			t.Skip("No issue number available")

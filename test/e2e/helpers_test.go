@@ -230,3 +230,54 @@ func assertHasLabel(t *testing.T, issueNum int, expectedLabel string) {
 	}
 	t.Errorf("Issue #%d missing expected label %q, has: %v", issueNum, expectedLabel, labels)
 }
+
+// TestBranchInfo holds information about a test branch
+type TestBranchInfo struct {
+	Name         string
+	TrackerIssue int
+}
+
+// setupTestBranch creates a test branch for tests that need to move issues.
+// Returns branch info and a cleanup function. The cleanup function should be
+// deferred to ensure the branch is closed even if the test fails.
+func setupTestBranch(t *testing.T, cfg *TestConfig) (*TestBranchInfo, func()) {
+	t.Helper()
+
+	// Generate unique branch name with timestamp
+	branchName := fmt.Sprintf("release/e2e-%d", time.Now().UnixNano())
+
+	// Start the branch
+	result := runPMU(t, cfg.Dir, "branch", "start", "--name", branchName)
+	if result.ExitCode != 0 {
+		t.Fatalf("Failed to start test branch: %s\nStderr: %s", result.Stdout, result.Stderr)
+	}
+
+	trackerNum := extractIssueNumber(t, result.Stdout)
+
+	info := &TestBranchInfo{
+		Name:         branchName,
+		TrackerIssue: trackerNum,
+	}
+
+	cleanup := func() {
+		// Close the branch
+		runPMU(t, cfg.Dir, "branch", "close", "--yes")
+		// Clean up tracker issue
+		if trackerNum > 0 {
+			runCleanupAfterTest(t, trackerNum)
+		}
+	}
+
+	return info, cleanup
+}
+
+// assignIssueToBranch assigns an issue to the current branch.
+// This is required before moving issues to in_progress when IDPF validation is enabled.
+func assignIssueToBranch(t *testing.T, cfg *TestConfig, issueNum int) {
+	t.Helper()
+
+	result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", issueNum), "--branch", "current")
+	if result.ExitCode != 0 {
+		t.Fatalf("Failed to assign issue #%d to branch: %s\nStderr: %s", issueNum, result.Stdout, result.Stderr)
+	}
+}
