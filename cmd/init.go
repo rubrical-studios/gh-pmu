@@ -349,6 +349,22 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 		return fmt.Errorf("could not fetch project fields: %w", err)
 	}
 
+	// Remove deprecated Microsprint field if it exists
+	microsprintField := findFieldByName(projectFields, "Microsprint")
+	if microsprintField != nil {
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Warning("Found deprecated Microsprint field")
+		spinner = ui.NewSpinner(cmd.OutOrStdout(), "Removing Microsprint field...")
+		spinner.Start()
+		err := client.DeleteProjectField(microsprintField.ID)
+		spinner.Stop()
+		if err != nil {
+			u.Warning(fmt.Sprintf("Could not remove Microsprint field: %v", err))
+		} else {
+			u.Success("Removed deprecated Microsprint field")
+		}
+	}
+
 	// Check and create required fields (IDPF only)
 	repoOwner, repoName := splitRepository(repo)
 	if framework == "IDPF" {

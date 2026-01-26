@@ -3173,3 +3173,55 @@ func TestCreateIssueWithOptions_MutationError(t *testing.T) {
 		t.Errorf("Expected 'failed to create issue' error, got: %v", err)
 	}
 }
+
+// ============================================================================
+// DeleteProjectField Tests
+// ============================================================================
+
+func TestDeleteProjectField_Success(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name != "DeleteProjectV2Field" {
+				t.Errorf("Expected mutation name 'DeleteProjectV2Field', got '%s'", name)
+			}
+			return nil
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.DeleteProjectField("FIELD_123")
+
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestDeleteProjectField_MutationError(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return errors.New("cannot delete built-in field")
+		},
+	}
+
+	client := NewClientWithGraphQL(mock)
+	err := client.DeleteProjectField("FIELD_123")
+
+	if err == nil {
+		t.Fatal("Expected error when mutation fails")
+	}
+	if !strings.Contains(err.Error(), "failed to delete project field") {
+		t.Errorf("Expected 'failed to delete project field' error, got: %v", err)
+	}
+}
+
+func TestDeleteProjectField_NilClient(t *testing.T) {
+	client := &Client{gql: nil}
+	err := client.DeleteProjectField("FIELD_123")
+
+	if err == nil {
+		t.Fatal("Expected error when GraphQL client is nil")
+	}
+	if !strings.Contains(err.Error(), "GraphQL client not initialized") {
+		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
+	}
+}

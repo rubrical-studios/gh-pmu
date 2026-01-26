@@ -604,6 +604,39 @@ type ProjectV2SingleSelectFieldOptionInput struct {
 	Description graphql.String `json:"description,omitempty"`
 }
 
+// DeleteProjectField deletes a field from a GitHub project.
+// Note: Built-in fields (Title, Assignees, etc.) cannot be deleted.
+func (c *Client) DeleteProjectField(fieldID string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		DeleteProjectV2Field struct {
+			ProjectV2Field struct {
+				ID string
+			} `graphql:"projectV2Field"`
+		} `graphql:"deleteProjectV2Field(input: $input)"`
+	}
+
+	input := struct {
+		FieldID graphql.ID `json:"fieldId"`
+	}{
+		FieldID: graphql.ID(fieldID),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("DeleteProjectV2Field", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to delete project field: %w", err)
+	}
+
+	return nil
+}
+
 // AddLabelToIssue adds a label to an issue.
 // If the label doesn't exist in the repository, it will be created automatically.
 func (c *Client) AddLabelToIssue(owner, repo, issueID, labelName string) error {
