@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -48,7 +47,6 @@ func newMockCreateClient() *mockCreateClient {
 		projectFields: []api.ProjectField{
 			{ID: "STATUS_FIELD", Name: "Status", DataType: "SINGLE_SELECT"},
 			{ID: "BRANCH_FIELD", Name: "Branch", DataType: "TEXT"},
-			{ID: "MICROSPRINT_FIELD", Name: "Microsprint", DataType: "TEXT"},
 		},
 		itemID: "item-123",
 	}
@@ -250,22 +248,6 @@ func TestCreateCommand_HasFromFileFlag(t *testing.T) {
 // =============================================================================
 // REQ-006: Integration with Create Command
 // =============================================================================
-
-func TestCreateCommand_HasMicrosprintFlag(t *testing.T) {
-	cmd := NewRootCommand()
-	createCmd, _, err := cmd.Find([]string{"create"})
-	if err != nil {
-		t.Fatalf("create command not found: %v", err)
-	}
-
-	flag := createCmd.Flags().Lookup("microsprint")
-	if flag == nil {
-		t.Fatal("Expected --microsprint flag to exist")
-	}
-	if flag.Shorthand != "M" {
-		t.Errorf("Expected shorthand 'M', got '%s'", flag.Shorthand)
-	}
-}
 
 func TestCreateCommand_RequiresTitleInNonInteractiveMode(t *testing.T) {
 	cmd := NewRootCommand()
@@ -1250,83 +1232,6 @@ func TestValidateCreateOptions_CaseInsensitive(t *testing.T) {
 }
 
 // ============================================================================
-// findActiveMicrosprintForCreate Tests
-// ============================================================================
-
-func TestFindActiveMicrosprintForCreate_FindsActiveToday(t *testing.T) {
-	today := time.Now().Format("2006-01-02")
-	issues := []api.Issue{
-		{Number: 1, Title: "Microsprint: 2024-01-01-A"},
-		{Number: 2, Title: "Microsprint: " + today + "-A"},
-		{Number: 3, Title: "Other Issue"},
-	}
-
-	result := findActiveMicrosprintForCreate(issues)
-	if result == nil {
-		t.Fatal("Expected to find active microsprint")
-	}
-	if result.Number != 2 {
-		t.Errorf("Expected issue #2, got #%d", result.Number)
-	}
-}
-
-func TestFindActiveMicrosprintForCreate_NoActiveToday(t *testing.T) {
-	issues := []api.Issue{
-		{Number: 1, Title: "Microsprint: 2024-01-01-A"},
-		{Number: 2, Title: "Microsprint: 2024-01-02-B"},
-		{Number: 3, Title: "Other Issue"},
-	}
-
-	result := findActiveMicrosprintForCreate(issues)
-	if result != nil {
-		t.Errorf("Expected nil for no active microsprint today, got #%d", result.Number)
-	}
-}
-
-func TestFindActiveMicrosprintForCreate_EmptyIssues(t *testing.T) {
-	var issues []api.Issue
-
-	result := findActiveMicrosprintForCreate(issues)
-	if result != nil {
-		t.Error("Expected nil for empty issues slice")
-	}
-}
-
-func TestFindActiveMicrosprintForCreate_ReturnsFirstMatch(t *testing.T) {
-	today := time.Now().Format("2006-01-02")
-	issues := []api.Issue{
-		{Number: 1, Title: "Microsprint: " + today + "-A"},
-		{Number: 2, Title: "Microsprint: " + today + "-B"},
-	}
-
-	result := findActiveMicrosprintForCreate(issues)
-	if result == nil {
-		t.Fatal("Expected to find active microsprint")
-	}
-	if result.Number != 1 {
-		t.Errorf("Expected first match (issue #1), got #%d", result.Number)
-	}
-}
-
-func TestFindActiveMicrosprintForCreate_ExactPrefixMatch(t *testing.T) {
-	today := time.Now().Format("2006-01-02")
-	issues := []api.Issue{
-		{Number: 1, Title: "Microsprint: " + today},       // Missing suffix
-		{Number: 2, Title: "Microsprint: " + today + "-"}, // Has proper prefix
-	}
-
-	result := findActiveMicrosprintForCreate(issues)
-	// The function looks for prefix "Microsprint: " + today + "-"
-	// So issue #1 should NOT match, issue #2 SHOULD match
-	if result == nil {
-		t.Fatal("Expected to find active microsprint")
-	}
-	if result.Number != 2 {
-		t.Errorf("Expected issue #2 with proper prefix, got #%d", result.Number)
-	}
-}
-
-// ============================================================================
 // findActiveBranchForCreate Tests
 // ============================================================================
 
@@ -1991,43 +1896,6 @@ func TestRunCreateWithDeps_WithPriority(t *testing.T) {
 	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestRunCreateWithDeps_WithMicrosprint(t *testing.T) {
-	today := time.Now().Format("2006-01-02")
-	mock := newMockCreateClient()
-	mock.issuesByLabel = []api.Issue{
-		{Number: 100, Title: "Microsprint: " + today + "-A"},
-	}
-	cfg := &config.Config{
-		Project: config.Project{Owner: "test-org", Number: 1},
-	}
-
-	cmd := newCreateCommand()
-	opts := &createOptions{title: "Test Issue", microsprint: "current"}
-	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestRunCreateWithDeps_NoActiveMicrosprint(t *testing.T) {
-	mock := newMockCreateClient()
-	mock.issuesByLabel = []api.Issue{} // No microsprints
-	cfg := &config.Config{
-		Project: config.Project{Owner: "test-org", Number: 1},
-	}
-
-	cmd := newCreateCommand()
-	opts := &createOptions{title: "Test Issue", microsprint: "current"}
-	err := runCreateWithDeps(cmd, opts, cfg, mock, "owner", "repo")
-
-	if err == nil {
-		t.Fatal("expected error for no active microsprint")
-	}
-	if !strings.Contains(err.Error(), "no active microsprint found") {
-		t.Errorf("expected 'no active microsprint found' error, got: %v", err)
 	}
 }
 

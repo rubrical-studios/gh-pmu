@@ -178,58 +178,8 @@ repositories:
 // REQ-030: Command Restrictions
 // =============================================================================
 
-// AC-030-1: Given IDPF-Structured framework, When running `microsprint start`,
-// Then error: "Microsprint commands not applicable for IDPF-Structured. Use `gh pmu release start --version X.Y.Z`"
-func TestValidateCommand_StructuredFramework_MicrosprintBlocked(t *testing.T) {
-	// ARRANGE
-	framework := "IDPF-Structured"
-	command := "microsprint"
-
-	// ACT
-	err := ValidateCommand(framework, command)
-
-	// ASSERT
-	if err == nil {
-		t.Fatalf("Expected error for microsprint on IDPF-Structured, got nil")
-	}
-
-	// Verify error message contains helpful suggestion
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "not applicable") {
-		t.Errorf("Expected error to mention 'not applicable', got: %s", errMsg)
-	}
-	if !strings.Contains(errMsg, "release") {
-		t.Errorf("Expected error to suggest 'release' command, got: %s", errMsg)
-	}
-}
-
-// AC-030-2: Given IDPF-LTS framework, When running `microsprint start`,
-// Then error suggesting `patch` command
-func TestValidateCommand_LTSFramework_MicrosprintBlocked(t *testing.T) {
-	// ARRANGE
-	framework := "IDPF-LTS"
-	command := "microsprint"
-
-	// ACT
-	err := ValidateCommand(framework, command)
-
-	// ASSERT
-	if err == nil {
-		t.Fatalf("Expected error for microsprint on IDPF-LTS, got nil")
-	}
-
-	// Verify error message contains helpful suggestion
-	errMsg := err.Error()
-	if !strings.Contains(errMsg, "not applicable") {
-		t.Errorf("Expected error to mention 'not applicable', got: %s", errMsg)
-	}
-	if !strings.Contains(errMsg, "patch") {
-		t.Errorf("Expected error to suggest 'patch' command, got: %s", errMsg)
-	}
-}
-
-// AC-030-3: Given IDPF-Agile framework, When running `patch start`,
-// Then error suggesting `microsprint` command
+// AC-030-1: Given IDPF-Agile framework, When running `patch start`,
+// Then error suggesting `branch` command
 func TestValidateCommand_AgileFramework_PatchBlocked(t *testing.T) {
 	// ARRANGE
 	framework := "IDPF-Agile"
@@ -248,23 +198,23 @@ func TestValidateCommand_AgileFramework_PatchBlocked(t *testing.T) {
 	if !strings.Contains(errMsg, "not applicable") {
 		t.Errorf("Expected error to mention 'not applicable', got: %s", errMsg)
 	}
-	if !strings.Contains(errMsg, "microsprint") {
-		t.Errorf("Expected error to suggest 'microsprint' command, got: %s", errMsg)
+	if !strings.Contains(errMsg, "branch") {
+		t.Errorf("Expected error to suggest 'branch' command, got: %s", errMsg)
 	}
 }
 
 // Test that valid commands pass validation
-func TestValidateCommand_AgileFramework_MicrosprintAllowed(t *testing.T) {
+func TestValidateCommand_AgileFramework_BranchAllowed(t *testing.T) {
 	// ARRANGE
 	framework := "IDPF-Agile"
-	command := "microsprint"
+	command := "branch"
 
 	// ACT
 	err := ValidateCommand(framework, command)
 
 	// ASSERT
 	if err != nil {
-		t.Errorf("Expected microsprint to be allowed on IDPF-Agile, got error: %v", err)
+		t.Errorf("Expected branch to be allowed on IDPF-Agile, got error: %v", err)
 	}
 }
 
@@ -305,7 +255,7 @@ func TestValidateCommand_LTSFramework_PatchAllowed(t *testing.T) {
 func TestValidateCommand_NoFramework_AllCommandsAllowed(t *testing.T) {
 	// ARRANGE
 	framework := "" // No framework detected
-	commands := []string{"microsprint", "release", "patch"}
+	commands := []string{"branch", "release", "patch"}
 
 	for _, command := range commands {
 		// ACT
@@ -318,18 +268,18 @@ func TestValidateCommand_NoFramework_AllCommandsAllowed(t *testing.T) {
 	}
 }
 
-// AC-031-2: Given no framework, Then microsprint, release, and patch commands all available
-func TestValidateCommand_NoFramework_MicrosprintAvailable(t *testing.T) {
+// AC-031-2: Given no framework, Then branch, release, and patch commands all available
+func TestValidateCommand_NoFramework_BranchAvailable(t *testing.T) {
 	// ARRANGE
 	framework := ""
-	command := "microsprint"
+	command := "branch"
 
 	// ACT
 	err := ValidateCommand(framework, command)
 
 	// ASSERT
 	if err != nil {
-		t.Errorf("Expected microsprint to be available with no framework, got error: %v", err)
+		t.Errorf("Expected branch to be available with no framework, got error: %v", err)
 	}
 }
 

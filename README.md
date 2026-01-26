@@ -19,7 +19,7 @@
 
 📊 **Board View** - Terminal Kanban board visualization
 
-🚀 **Workflow Commands** - Branch and microsprint management with artifact generation
+🚀 **Workflow Commands** - Branch management with artifact generation
 
 🔄 **Cross-Repository** - Work with sub-issues across multiple repositories
 
@@ -53,14 +53,9 @@ gh pmu move 42 --status in_progress
 # Create sub-issue
 gh pmu sub create --parent 42 --title "Subtask"
 
-# Start a microsprint (AI-assisted development workflow)
-gh pmu microsprint start
-gh pmu microsprint add 42
-gh pmu microsprint close --commit
-
 # Start a branch (release, patch, or feature workflow)
-gh pmu branch start --branch release/v1.2.0
-gh pmu branch add 42
+gh pmu branch start --name release/v1.2.0
+gh pmu move 42 --branch current
 gh pmu branch close
 ```
 
@@ -101,7 +96,7 @@ fields:
 | [Commands](docs/commands.md) | Complete command reference with examples |
 | [Sub-Issues](docs/sub-issues.md) | Parent-child hierarchies, epics, progress tracking |
 | [Batch Operations](docs/batch-operations.md) | Intake, triage, and split workflows |
-| [Workflows](docs/workflows.md) | Microsprint and branch management |
+| [Workflows](docs/workflows.md) | Branch management |
 | [gh vs gh pmu](docs/gh-comparison.md) | When to use each CLI |
 | [Development](docs/development.md) | Building, testing, contributing |
 
@@ -111,7 +106,7 @@ fields:
 Project:    init, list, view, create, edit, comment, move, close, board, field
 Sub-Issues: sub add, sub create, sub list, sub remove
 Batch:      intake, triage, split
-Workflows:  branch, microsprint
+Workflows:  branch
 Utilities:  filter, history
 ```
 
@@ -125,13 +120,12 @@ Flags and features not available in base `gh` CLI:
 |---------|--------------|---------|
 | `list` | `--status`, `--priority`, `--has-sub-issues` | Filter by project fields |
 | `view` | `--body-file`, `--body-stdout`, `--comments` | Export body, show comments |
-| `create` | `--status`, `--priority`, `--microsprint`, `--from-file` | Set project fields on create |
+| `create` | `--status`, `--priority`, `--branch`, `--from-file` | Set project fields on create |
 | `edit` | `--body-file`, `--body-stdin`, `--remove-label` | Round-trip body editing |
 | `close` | `--update-status` | Move to 'done' before closing |
-| `move` | `--recursive`, `--dry-run`, `--depth`, `--microsprint` | Cascade updates to sub-issues |
+| `move` | `--recursive`, `--dry-run`, `--depth`, `--branch` | Cascade updates to sub-issues |
 | `sub create` | `--inherit-labels`, `--inherit-milestone` | Inherit from parent issue |
 | `split` | `--from`, `--dry-run` | Create sub-issues from checklist |
-| `microsprint` | `start`, `add`, `close`, `--skip-retro`, `--commit` | AI-assisted development batches |
 | `branch` | `start`, `add`, `close`, `reopen`, `--tag` | Branch-based deployment workflow |
 
 See [gh vs gh pmu](docs/gh-comparison.md) for detailed comparison.

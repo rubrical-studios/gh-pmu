@@ -1735,7 +1735,7 @@ func TestRealConfigFileNotCorrupted(t *testing.T) {
 	// Verify it contains the real project owner, not test data
 	if strings.Contains(string(content), "testowner") {
 		t.Error("Real .gh-pmu.yml contains 'testowner' - tests have corrupted the config file! " +
-			"Tests that call cfg.Save() must use setupReleaseTestDir/setupMicrosprintTestDir for isolation.")
+			"Tests that call cfg.Save() must use setupBranchTestDir for isolation.")
 	}
 
 	// Verify it contains expected owner

@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -261,9 +260,6 @@ func testMoveConfig() *config.Config {
 					"medium": "Medium",
 					"low":    "Low",
 				},
-			},
-			"microsprint": {
-				Field: "Microsprint",
 			},
 		},
 	}
@@ -1490,104 +1486,6 @@ func TestCollectSubIssuesRecursive_MaxDepthZero(t *testing.T) {
 }
 
 // =============================================================================
-// REQ-005: Integration with Move Command
-// =============================================================================
-
-// AC-005-1: Given `gh pmu move 42 --microsprint 2025-12-13-a`, Then Microsprint field set to specified value
-func TestRunMoveWithDeps_MicrosprintExplicitValue(t *testing.T) {
-	mock := setupMockWithIssue(42, "Test Issue", "item-42")
-	cfg := testMoveConfig()
-
-	cmd := &cobra.Command{}
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	opts := &moveOptions{microsprint: "2025-12-13-a"}
-
-	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	// Verify Microsprint field was set
-	found := false
-	for _, update := range mock.fieldUpdates {
-		if update.fieldName == "Microsprint" && update.value == "2025-12-13-a" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("Expected Microsprint field to be set to '2025-12-13-a', updates: %+v", mock.fieldUpdates)
-	}
-}
-
-// AC-005-2: Given `gh pmu move 42 --microsprint current`, Then Microsprint field set to active microsprint name
-func TestRunMoveWithDeps_MicrosprintCurrent(t *testing.T) {
-	mock := setupMockWithIssue(42, "Test Issue", "item-42")
-	// Add active microsprint - use today's date so test passes regardless of when it runs
-	today := time.Now().Format("2006-01-02")
-	microsprintName := today + "-a"
-	mock.openIssuesByLabel["microsprint"] = []api.Issue{
-		{
-			ID:     "TRACKER_100",
-			Number: 100,
-			Title:  "Microsprint: " + microsprintName,
-			State:  "OPEN",
-		},
-	}
-	cfg := testMoveConfig()
-
-	cmd := &cobra.Command{}
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	opts := &moveOptions{microsprint: "current"}
-
-	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	// Verify Microsprint field was set to active microsprint name
-	found := false
-	for _, update := range mock.fieldUpdates {
-		if update.fieldName == "Microsprint" && update.value == microsprintName {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("Expected Microsprint field to be set to '%s', updates: %+v", microsprintName, mock.fieldUpdates)
-	}
-}
-
-// AC-005-3: Given `--microsprint current` with no active microsprint, Then error with suggestion to run `microsprint start`
-func TestRunMoveWithDeps_MicrosprintCurrentNoActive(t *testing.T) {
-	mock := setupMockWithIssue(42, "Test Issue", "item-42")
-	// No active microsprint
-	mock.openIssuesByLabel["microsprint"] = []api.Issue{}
-	cfg := testMoveConfig()
-
-	cmd := &cobra.Command{}
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	opts := &moveOptions{microsprint: "current"}
-
-	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
-	if err == nil {
-		t.Fatal("Expected error when no active microsprint")
-	}
-
-	if !strings.Contains(err.Error(), "no active microsprint") {
-		t.Errorf("Expected error to mention 'no active microsprint', got: %v", err)
-	}
-}
-
 // =============================================================================
 // REQ-006: Branch Flag Tests
 // =============================================================================
@@ -1699,19 +1597,6 @@ func TestMoveCommand_HasBacklogFlag(t *testing.T) {
 	}
 }
 
-func TestMoveCommand_HasSprintAlias(t *testing.T) {
-	cmd := NewRootCommand()
-	moveCmd, _, err := cmd.Find([]string{"move"})
-	if err != nil {
-		t.Fatalf("move command not found: %v", err)
-	}
-
-	flag := moveCmd.Flags().Lookup("sprint")
-	if flag == nil {
-		t.Fatal("Expected --sprint alias to exist")
-	}
-}
-
 func TestRunMoveWithDeps_BacklogClearsFields(t *testing.T) {
 	mock := setupMockWithIssue(42, "Test Issue", "item-42")
 	cfg := testMoveConfig()
@@ -1728,40 +1613,15 @@ func TestRunMoveWithDeps_BacklogClearsFields(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Verify both Microsprint and Release fields were cleared (set to empty)
-	microsprintCleared := false
+	// Verify Release field was cleared (set to empty)
 	releaseCleared := false
 	for _, update := range mock.fieldUpdates {
-		if update.fieldName == "Microsprint" && update.value == "" {
-			microsprintCleared = true
-		}
 		if update.fieldName == "Release" && update.value == "" {
 			releaseCleared = true
 		}
 	}
-	if !microsprintCleared {
-		t.Error("Expected Microsprint field to be cleared")
-	}
 	if !releaseCleared {
 		t.Error("Expected Release field to be cleared")
-	}
-}
-
-func TestRunMove_BacklogCannotCombineWithMicrosprint(t *testing.T) {
-	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"move", "42", "--backlog", "--microsprint", "2025-01-01-a"})
-
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("Expected error when combining --backlog with --microsprint")
-	}
-
-	if !strings.Contains(err.Error(), "cannot be combined") {
-		t.Errorf("Expected error about combining flags, got: %v", err)
 	}
 }
 
@@ -1782,16 +1642,12 @@ func TestRunMoveWithDeps_BacklogWithStatus(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Verify Status was set and Microsprint/Release were cleared
+	// Verify Status was set and Release was cleared
 	statusSet := false
-	microsprintCleared := false
 	releaseCleared := false
 	for _, update := range mock.fieldUpdates {
 		if update.fieldName == "Status" && update.value == "Todo" {
 			statusSet = true
-		}
-		if update.fieldName == "Microsprint" && update.value == "" {
-			microsprintCleared = true
 		}
 		if update.fieldName == "Release" && update.value == "" {
 			releaseCleared = true
@@ -1799,9 +1655,6 @@ func TestRunMoveWithDeps_BacklogWithStatus(t *testing.T) {
 	}
 	if !statusSet {
 		t.Error("Expected Status field to be set")
-	}
-	if !microsprintCleared {
-		t.Error("Expected Microsprint field to be cleared")
 	}
 	if !releaseCleared {
 		t.Error("Expected Release field to be cleared")

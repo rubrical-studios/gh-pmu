@@ -37,8 +37,6 @@ fields:
             ready: Ready
     release:
         field: Release
-    microsprint:
-        field: Microsprint
 `
 
 // TestConfig holds the paths for a test configuration

@@ -21,7 +21,7 @@ func (c *Client) CreateIssue(owner, repo, title, body string, labels []string) (
 	}
 
 	// First, get the repository ID
-	repoID, err := c.getRepositoryID(owner, repo)
+	repoID, err := c.GetRepositoryID(owner, repo)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +412,8 @@ type ProjectV2FieldValue struct {
 
 // Helper methods
 
-func (c *Client) getRepositoryID(owner, repo string) (string, error) {
+// GetRepositoryID returns the node ID for a repository.
+func (c *Client) GetRepositoryID(owner, repo string) (string, error) {
 	var query struct {
 		Repository struct {
 			ID string
@@ -602,6 +603,163 @@ type ProjectV2SingleSelectFieldOptionInput struct {
 	Name        graphql.String `json:"name"`
 	Color       graphql.String `json:"color,omitempty"`
 	Description graphql.String `json:"description,omitempty"`
+}
+
+// DeleteProjectField deletes a field from a GitHub project.
+// Note: Built-in fields (Title, Assignees, etc.) cannot be deleted.
+func (c *Client) DeleteProjectField(fieldID string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		DeleteProjectV2Field struct {
+			ProjectV2Field struct {
+				ID string
+			} `graphql:"projectV2Field"`
+		} `graphql:"deleteProjectV2Field(input: $input)"`
+	}
+
+	input := struct {
+		FieldID graphql.ID `json:"fieldId"`
+	}{
+		FieldID: graphql.ID(fieldID),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("DeleteProjectV2Field", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to delete project field: %w", err)
+	}
+
+	return nil
+}
+
+// CopyProjectFromTemplate creates a new project by copying from a template project.
+// ownerID is the node ID of the owner (user or organization)
+// sourceProjectID is the node ID of the template project to copy from
+// title is the title for the new project
+func (c *Client) CopyProjectFromTemplate(ownerID, sourceProjectID, title string) (*Project, error) {
+	if c.gql == nil {
+		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		CopyProjectV2 struct {
+			ProjectV2 struct {
+				ID     string
+				Number int
+				Title  string
+				URL    string
+			}
+		} `graphql:"copyProjectV2(input: $input)"`
+	}
+
+	input := struct {
+		OwnerId         graphql.ID     `json:"ownerId"`
+		ProjectId       graphql.ID     `json:"projectId"`
+		Title           graphql.String `json:"title"`
+		IncludeDraftIssues graphql.Boolean `json:"includeDraftIssues"`
+	}{
+		OwnerId:         graphql.ID(ownerID),
+		ProjectId:       graphql.ID(sourceProjectID),
+		Title:           graphql.String(title),
+		IncludeDraftIssues: graphql.Boolean(false),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("CopyProjectV2", &mutation, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy project: %w", err)
+	}
+
+	return &Project{
+		ID:     mutation.CopyProjectV2.ProjectV2.ID,
+		Number: mutation.CopyProjectV2.ProjectV2.Number,
+		Title:  mutation.CopyProjectV2.ProjectV2.Title,
+		URL:    mutation.CopyProjectV2.ProjectV2.URL,
+	}, nil
+}
+
+// GetOwnerID returns the node ID for a user or organization.
+func (c *Client) GetOwnerID(owner string) (string, error) {
+	if c.gql == nil {
+		return "", fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	// Try as organization first
+	var orgQuery struct {
+		Organization struct {
+			ID string
+		} `graphql:"organization(login: $login)"`
+	}
+
+	variables := map[string]interface{}{
+		"login": graphql.String(owner),
+	}
+
+	err := c.gql.Query("GetOrganizationID", &orgQuery, variables)
+	if err == nil && orgQuery.Organization.ID != "" {
+		return orgQuery.Organization.ID, nil
+	}
+
+	// Fall back to user
+	var userQuery struct {
+		User struct {
+			ID string
+		} `graphql:"user(login: $login)"`
+	}
+
+	err = c.gql.Query("GetUserID", &userQuery, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to get owner ID for %s: %w", owner, err)
+	}
+
+	if userQuery.User.ID == "" {
+		return "", fmt.Errorf("owner not found: %s", owner)
+	}
+
+	return userQuery.User.ID, nil
+}
+
+// LinkProjectToRepository adds a repository to a project's linked repositories.
+func (c *Client) LinkProjectToRepository(projectID, repositoryID string) error {
+	if c.gql == nil {
+		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
+	}
+
+	var mutation struct {
+		LinkProjectV2ToRepository struct {
+			Repository struct {
+				ID string
+			}
+		} `graphql:"linkProjectV2ToRepository(input: $input)"`
+	}
+
+	input := struct {
+		ProjectId    graphql.ID `json:"projectId"`
+		RepositoryId graphql.ID `json:"repositoryId"`
+	}{
+		ProjectId:    graphql.ID(projectID),
+		RepositoryId: graphql.ID(repositoryID),
+	}
+
+	variables := map[string]interface{}{
+		"input": input,
+	}
+
+	err := c.gql.Mutate("LinkProjectV2ToRepository", &mutation, variables)
+	if err != nil {
+		return fmt.Errorf("failed to link repository to project: %w", err)
+	}
+
+	return nil
 }
 
 // AddLabelToIssue adds a label to an issue.
@@ -869,7 +1027,7 @@ func (c *Client) CreateIssueWithOptions(owner, repo, title, body string, labels,
 	}
 
 	// First, get the repository ID
-	repoID, err := c.getRepositoryID(owner, repo)
+	repoID, err := c.GetRepositoryID(owner, repo)
 	if err != nil {
 		return nil, err
 	}
@@ -1316,15 +1474,6 @@ func (c *Client) GetAuthenticatedUser() (string, error) {
 	return query.Viewer.Login, nil
 }
 
-// GetIssuesByMicrosprint returns issues assigned to a specific microsprint
-// This queries the project items and filters by the Microsprint text field
-func (c *Client) GetIssuesByMicrosprint(owner, repo, microsprintName string) ([]Issue, error) {
-	// This is a simplified implementation - for production we'd query the project
-	// and filter by the Microsprint field value
-	// For now, return empty slice - the close command doesn't strictly need this
-	return []Issue{}, nil
-}
-
 // LabelExists checks if a label exists in a repository
 func (c *Client) LabelExists(owner, repo, labelName string) (bool, error) {
 	_, err := c.getLabelID(owner, repo, labelName)
@@ -1345,7 +1494,7 @@ func (c *Client) CreateLabel(owner, repo, name, color, description string) error
 	}
 
 	// Get repository ID first
-	repoID, err := c.getRepositoryID(owner, repo)
+	repoID, err := c.GetRepositoryID(owner, repo)
 	if err != nil {
 		return fmt.Errorf("failed to get repository ID: %w", err)
 	}

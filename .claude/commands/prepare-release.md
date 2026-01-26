@@ -251,7 +251,9 @@ git pull origin main
 **ASK USER:** Confirm ready to tag.
 ```bash
 git tag -a $VERSION -m "Release $VERSION"
+echo 'release-authorized' > .release-authorized
 git push origin $VERSION
+rm .release-authorized
 ```
 ### Step 4.6: Wait for CI Workflow
 ```bash
@@ -286,7 +288,7 @@ node .claude/scripts/framework/update-release-notes.js
 
 Updates GitHub Release with formatted notes from CHANGELOG.
 
-### Clean Up Old Release Assets (Optional)
+### Clean Up Old Release Assets
 
 ```bash
 node .claude/scripts/shared/cleanup-release-assets.js --keep 3 --dry-run

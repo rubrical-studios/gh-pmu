@@ -141,7 +141,7 @@ release:
 ```
 
 **Notes:**
-- `gh pmu init` auto-creates Release/Microsprint fields and labels if missing
+- `gh pmu init` auto-creates Branch field and labels if missing
 - Coverage gate runs during `/prepare-release` to catch test coverage gaps
 - Set `enabled: false` to disable the coverage gate
 
@@ -248,6 +248,6 @@ metadata:
 ## See Also
 
 - [Commands Reference](commands.md) - Full command documentation
-- [Workflows Guide](workflows.md) - Microsprint and branch workflows
+- [Workflows Guide](workflows.md) - Branch workflows
 - [Sub-Issues Guide](sub-issues.md) - Hierarchy management
 - [Batch Operations](batch-operations.md) - Intake, triage, split

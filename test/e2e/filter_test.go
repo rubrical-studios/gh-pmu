@@ -12,6 +12,10 @@ import (
 func TestFilterByStatus(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	_, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	// Track issues for cleanup
 	var issueNums []int
 
@@ -28,9 +32,10 @@ func TestFilterByStatus(t *testing.T) {
 		backlogIssue := createTestIssue(t, cfg, "Filter Test - Backlog")
 		issueNums = append(issueNums, backlogIssue)
 
-		// Create issue and move to In Progress
+		// Create issue, assign to branch, and move to In Progress
 		inProgressIssue := createTestIssue(t, cfg, "Filter Test - In Progress")
 		issueNums = append(issueNums, inProgressIssue)
+		assignIssueToBranch(t, cfg, inProgressIssue)
 		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", inProgressIssue), "--status", "in_progress")
 		assertExitCode(t, result, 0)
 	})
@@ -126,6 +131,10 @@ func TestFilterByPriority(t *testing.T) {
 func TestFilterCombined(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	_, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	// Track issues for cleanup
 	var issueNums []int
 
@@ -139,6 +148,9 @@ func TestFilterCombined(t *testing.T) {
 	// Create issue with specific status and priority
 	issue := createTestIssue(t, cfg, "Filter Combined Test")
 	issueNums = append(issueNums, issue)
+
+	// Assign to branch (required for IDPF validation)
+	assignIssueToBranch(t, cfg, issue)
 
 	// Move to specific status
 	result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", issue), "--status", "in_progress", "--priority", "p1")

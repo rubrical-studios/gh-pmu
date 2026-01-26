@@ -6,9 +6,6 @@ labels:
   - name: branch
     description: Branch tracker issue
     color: "0e8a16"
-  - name: microsprint
-    description: Microsprint tracker issue
-    color: "1d76db"
   - name: epic
     description: Parent issue with sub-issues
     color: "3fb950"
@@ -76,6 +73,4 @@ fields:
         - P1
         - P2
     - name: Branch
-      type: TEXT
-    - name: Microsprint
       type: TEXT

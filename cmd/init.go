@@ -160,6 +160,7 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 	var selectedProject *api.Project
 	var err error
 	var spinner *ui.Spinner
+	var projectAutoCreated bool
 
 	// If project number was provided via flag, validate it directly
 	if projectNumber > 0 {
@@ -182,7 +183,7 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 		spinner.Stop()
 
 		if err != nil || len(projects) == 0 {
-			// No projects found or error - fall back to manual entry
+			// No projects found or error
 			if err != nil {
 				u.Warning(fmt.Sprintf("Could not fetch projects: %v", err))
 			} else {
@@ -190,7 +191,43 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 			}
 			fmt.Fprintln(cmd.OutOrStdout())
 
-			// Manual project number entry
+			// Check if we should offer to auto-create a project (fresh init with IDPF)
+			// Only offer when: no existing config AND (--framework IDPF OR interactive)
+			canAutoCreate := existingFramework == "" && (opts.framework == "IDPF" || opts.framework == "")
+
+			if canAutoCreate {
+				// Prompt about IDPF framework first
+				useIDPF := opts.framework == "IDPF"
+				if opts.framework == "" {
+					fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Use IDPF framework with auto-created project?", "Y/n"))
+					frameworkInput, _ := reader.ReadString('\n')
+					frameworkInput = strings.TrimSpace(strings.ToLower(frameworkInput))
+					useIDPF = frameworkInput != "n" && frameworkInput != "no"
+				}
+
+				if useIDPF {
+					// Offer to create project from template
+					fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Create new project from Kanban template?", "Y/n"))
+					createInput, _ := reader.ReadString('\n')
+					createInput = strings.TrimSpace(strings.ToLower(createInput))
+
+					if createInput != "n" && createInput != "no" {
+						// Auto-create project from template #30
+						selectedProject, err = autoCreateProject(cmd, client, u, owner, defaultRepo)
+						if err != nil {
+							return err
+						}
+						projectNumber = selectedProject.Number
+						projectAutoCreated = true
+
+						// Set framework early since we know it's IDPF
+						existingFramework = "IDPF"
+						goto projectSelected
+					}
+				}
+			}
+
+			// Fall back to manual project number entry
 			fmt.Fprint(cmd.OutOrStdout(), u.Prompt("Project number", ""))
 			numberInput, _ := reader.ReadString('\n')
 			numberInput = strings.TrimSpace(numberInput)
@@ -268,6 +305,7 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 		}
 	}
 
+projectSelected:
 	// Step 2: Confirm repository
 	var repo string
 	if opts.repo != "" {
@@ -347,6 +385,22 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 
 	if err != nil {
 		return fmt.Errorf("could not fetch project fields: %w", err)
+	}
+
+	// Remove deprecated Microsprint field if it exists
+	microsprintField := findFieldByName(projectFields, "Microsprint")
+	if microsprintField != nil {
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Warning("Found deprecated Microsprint field")
+		spinner = ui.NewSpinner(cmd.OutOrStdout(), "Removing Microsprint field...")
+		spinner.Start()
+		err := client.DeleteProjectField(microsprintField.ID)
+		spinner.Stop()
+		if err != nil {
+			u.Warning(fmt.Sprintf("Could not remove Microsprint field: %v", err))
+		} else {
+			u.Success("Removed deprecated Microsprint field")
+		}
 	}
 
 	// Check and create required fields (IDPF only)
@@ -503,6 +557,22 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 	cwd, _ := os.Getwd()
 	if err := writeConfigWithMetadata(cwd, cfg, metadata); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	// Run intake to populate project board (for auto-created projects)
+	var intakeCount int
+	if projectAutoCreated {
+		fmt.Fprintln(cmd.OutOrStdout())
+		u.Info("Running intake to populate project board...")
+
+		intakeCount, err = runIntakeForInit(cmd, client, selectedProject, repo, u)
+		if err != nil {
+			u.Warning(fmt.Sprintf("Intake completed with warnings: %v", err))
+		} else if intakeCount > 0 {
+			u.Success(fmt.Sprintf("Added %d existing issue(s) to project", intakeCount))
+		} else {
+			u.Info("No untracked issues found")
+		}
 	}
 
 	// Print summary
@@ -1104,4 +1174,133 @@ func findFieldByName(fields []api.ProjectField, name string) *api.ProjectField {
 		}
 	}
 	return nil
+}
+
+// autoCreateProject creates a new project from the IDPF Kanban template.
+// It copies from template project #30, links the repository, and sets default repo.
+func autoCreateProject(cmd *cobra.Command, client *api.Client, u *ui.UI, owner, repo string) (*api.Project, error) {
+	// Template project: rubrical-studios #30 (IDPF Kanban template)
+	const templateOwner = "rubrical-studios"
+	const templateNumber = 30
+
+	fmt.Fprintln(cmd.OutOrStdout())
+	u.Info("Creating project from IDPF Kanban template...")
+
+	// Get owner ID for the new project
+	spinner := ui.NewSpinner(cmd.OutOrStdout(), "Getting owner information...")
+	spinner.Start()
+	ownerID, err := client.GetOwnerID(owner)
+	spinner.Stop()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get owner ID: %w", err)
+	}
+
+	// Get template project
+	spinner = ui.NewSpinner(cmd.OutOrStdout(), "Fetching template project...")
+	spinner.Start()
+	templateProject, err := client.GetProject(templateOwner, templateNumber)
+	spinner.Stop()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get template project: %w", err)
+	}
+
+	// Derive project title from repository name
+	_, repoName := splitRepository(repo)
+	projectTitle := fmt.Sprintf("%s Board", repoName)
+
+	// Copy project from template
+	spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating project '%s'...", projectTitle))
+	spinner.Start()
+	newProject, err := client.CopyProjectFromTemplate(ownerID, templateProject.ID, projectTitle)
+	spinner.Stop()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create project: %w", err)
+	}
+	u.Success(fmt.Sprintf("Created project: %s (#%d)", newProject.Title, newProject.Number))
+
+	// Link repository to project
+	repoOwner, repoName := splitRepository(repo)
+	spinner = ui.NewSpinner(cmd.OutOrStdout(), "Linking repository...")
+	spinner.Start()
+	repoID, err := client.GetRepositoryID(repoOwner, repoName)
+	if err != nil {
+		spinner.Stop()
+		u.Warning(fmt.Sprintf("Could not get repository ID: %v", err))
+	} else {
+		err = client.LinkProjectToRepository(newProject.ID, repoID)
+		spinner.Stop()
+		if err != nil {
+			u.Warning(fmt.Sprintf("Could not link repository: %v", err))
+		} else {
+			u.Success("Repository linked to project")
+		}
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout())
+	u.Info(fmt.Sprintf("Project URL: %s", newProject.URL))
+
+	return newProject, nil
+}
+
+// runIntakeForInit runs a simplified intake to add existing issues to the newly created project.
+// Returns the count of issues added.
+func runIntakeForInit(cmd *cobra.Command, client *api.Client, project *api.Project, repo string, u *ui.UI) (int, error) {
+	repoOwner, repoName := splitRepository(repo)
+	if repoOwner == "" || repoName == "" {
+		return 0, fmt.Errorf("invalid repository format: %s", repo)
+	}
+
+	// Search for open issues in the repository
+	filters := api.SearchFilters{
+		State:  "open",
+		Labels: []string{},
+	}
+
+	spinner := ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Searching for issues in %s...", repo))
+	spinner.Start()
+	issues, err := client.SearchRepositoryIssues(repoOwner, repoName, filters, 100)
+	spinner.Stop()
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to search issues: %w", err)
+	}
+
+	if len(issues) == 0 {
+		return 0, nil
+	}
+
+	// Get existing items in project to avoid duplicates
+	spinner = ui.NewSpinner(cmd.OutOrStdout(), "Checking existing project items...")
+	spinner.Start()
+	existingItems, err := client.GetProjectItems(project.ID, nil)
+	spinner.Stop()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get project items: %w", err)
+	}
+
+	// Build set of existing issue IDs
+	existingIDs := make(map[string]bool)
+	for _, item := range existingItems {
+		if item.Issue != nil && item.Issue.ID != "" {
+			existingIDs[item.Issue.ID] = true
+		}
+	}
+
+	// Add untracked issues to project
+	addedCount := 0
+	for _, issue := range issues {
+		// Skip if already in project
+		if existingIDs[issue.ID] {
+			continue
+		}
+
+		_, err := client.AddIssueToProject(project.ID, issue.ID)
+		if err != nil {
+			u.Warning(fmt.Sprintf("Could not add issue #%d: %v", issue.Number, err))
+			continue
+		}
+		addedCount++
+	}
+
+	return addedCount, nil
 }

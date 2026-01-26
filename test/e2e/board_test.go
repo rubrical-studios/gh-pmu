@@ -12,6 +12,10 @@ import (
 func TestBoardRendering(t *testing.T) {
 	cfg := setupTestConfig(t)
 
+	// Setup test branch (required for IDPF validation when moving to in_progress)
+	branchInfo, branchCleanup := setupTestBranch(t, cfg)
+	defer branchCleanup()
+
 	// Track issues for cleanup
 	var issueNums []int
 
@@ -28,17 +32,24 @@ func TestBoardRendering(t *testing.T) {
 		backlogIssue := createTestIssue(t, cfg, "Board Test - Backlog")
 		issueNums = append(issueNums, backlogIssue)
 
-		// Create issue and move to In Progress
+		// Create issue, assign to branch, and move to In Progress
 		inProgressIssue := createTestIssue(t, cfg, "Board Test - In Progress")
 		issueNums = append(issueNums, inProgressIssue)
+		assignIssueToBranch(t, cfg, inProgressIssue)
 		result := runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", inProgressIssue), "--status", "in_progress")
 		assertExitCode(t, result, 0)
 
-		// Create issue and move to Done
+		// Create issue, assign to branch, add body, and move to Done
 		doneIssue := createTestIssue(t, cfg, "Board Test - Done")
 		issueNums = append(issueNums, doneIssue)
+		assignIssueToBranch(t, cfg, doneIssue)
+		// Add body (required for IDPF validation when moving to done)
+		runPMU(t, cfg.Dir, "edit", fmt.Sprintf("%d", doneIssue), "--body", "Test issue body for done status")
 		result = runPMU(t, cfg.Dir, "move", fmt.Sprintf("%d", doneIssue), "--status", "done")
 		assertExitCode(t, result, 0)
+
+		// Log branch info for debugging
+		t.Logf("Using test branch: %s (tracker #%d)", branchInfo.Name, branchInfo.TrackerIssue)
 	})
 
 	// Step 2: Run board command

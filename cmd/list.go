@@ -33,7 +33,6 @@ type listOptions struct {
 	search       string
 	branch       string
 	noBranch     bool
-	microsprint  string
 	state        string
 	limit        int
 	hasSubIssues bool
@@ -77,7 +76,6 @@ Use filters to narrow down the results.`,
 	cmd.Flags().StringVarP(&opts.search, "search", "q", "", "Search in issue title and body")
 	cmd.Flags().StringVarP(&opts.branch, "branch", "b", "", "Filter by branch (e.g., release/v1.0.0, current)")
 	cmd.Flags().BoolVar(&opts.noBranch, "no-branch", false, "Filter to issues without a branch assignment")
-	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Filter by microsprint (e.g., 2025-12-20-a, current)")
 	cmd.Flags().StringVar(&opts.state, "state", "", "Filter by issue state (open or closed)")
 	cmd.MarkFlagsMutuallyExclusive("branch", "no-branch")
 	cmd.Flags().IntVarP(&opts.limit, "limit", "n", 0, "Limit number of results (0 for no limit)")
@@ -256,27 +254,6 @@ func runListWithDeps(cmd *cobra.Command, opts *listOptions, cfg *config.Config, 
 	// Apply no-branch filter (issues without branch assignment)
 	if opts.noBranch {
 		items = filterByEmptyBranchField(items)
-	}
-
-	// Apply microsprint filter
-	if opts.microsprint != "" {
-		targetMicrosprint := opts.microsprint
-		if opts.microsprint == "current" && repoFilter != "" {
-			// Resolve "current" to active microsprint
-			parts := strings.Split(repoFilter, "/")
-			if len(parts) == 2 {
-				microsprintIssues, err := client.GetOpenIssuesByLabel(parts[0], parts[1], "microsprint")
-				if err == nil {
-					for _, issue := range microsprintIssues {
-						if strings.HasPrefix(issue.Title, "Microsprint: ") {
-							targetMicrosprint = strings.TrimPrefix(issue.Title, "Microsprint: ")
-							break
-						}
-					}
-				}
-			}
-		}
-		items = filterByFieldValue(items, "Microsprint", targetMicrosprint)
 	}
 
 	// Apply state filter (skip if search API was used - already filtered server-side)
