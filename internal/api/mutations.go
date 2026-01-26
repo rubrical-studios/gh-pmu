@@ -659,14 +659,14 @@ func (c *Client) CopyProjectFromTemplate(ownerID, sourceProjectID, title string)
 	}
 
 	input := struct {
-		OwnerId         graphql.ID     `json:"ownerId"`
-		ProjectId       graphql.ID     `json:"projectId"`
-		Title           graphql.String `json:"title"`
+		OwnerId            graphql.ID      `json:"ownerId"`
+		ProjectId          graphql.ID      `json:"projectId"`
+		Title              graphql.String  `json:"title"`
 		IncludeDraftIssues graphql.Boolean `json:"includeDraftIssues"`
 	}{
-		OwnerId:         graphql.ID(ownerID),
-		ProjectId:       graphql.ID(sourceProjectID),
-		Title:           graphql.String(title),
+		OwnerId:            graphql.ID(ownerID),
+		ProjectId:          graphql.ID(sourceProjectID),
+		Title:              graphql.String(title),
 		IncludeDraftIssues: graphql.Boolean(false),
 	}
 

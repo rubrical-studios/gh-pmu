@@ -30,21 +30,21 @@ type createClient interface {
 }
 
 type createOptions struct {
-	title       string
-	body        string
-	bodyFile    string
-	bodyStdin   bool
-	editor      bool
-	template    string
-	web         bool
-	status      string
-	priority    string
-	release     string
-	labels      []string
-	assignees   []string
-	milestone   string
-	repo        string
-	fromFile    string
+	title     string
+	body      string
+	bodyFile  string
+	bodyStdin bool
+	editor    bool
+	template  string
+	web       bool
+	status    string
+	priority  string
+	release   string
+	labels    []string
+	assignees []string
+	milestone string
+	repo      string
+	fromFile  string
 }
 
 func newCreateCommand() *cobra.Command {
