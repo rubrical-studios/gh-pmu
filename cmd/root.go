@@ -8,9 +8,9 @@ var version = "dev"
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "gh-pmu",
+		Use:   "gh pmu",
 		Short: "Streamline GitHub project workflows",
-		Long: `gh-pmu streamlines GitHub project workflows with unified issue tracking and sub-issue hierarchy.
+		Long: `gh pmu streamlines GitHub project workflows with unified issue tracking and sub-issue hierarchy.
 
 Designed for Kanban-style GitHub Projects with status-based columns
 (Backlog, In Progress, In Review, Done). Works seamlessly with the
@@ -40,7 +40,6 @@ Use 'gh pmu <command> --help' for more information about a command.`,
 	cmd.AddCommand(newSplitCommand())
 	cmd.AddCommand(newHistoryCommand())
 	cmd.AddCommand(newFilterCommand())
-	cmd.AddCommand(newMicrosprintCommand())
 	cmd.AddCommand(newBranchCommand())
 
 	return cmd

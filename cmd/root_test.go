@@ -24,8 +24,8 @@ func TestRootCommandHelp(t *testing.T) {
 	}
 
 	// Verify it contains expected content
-	if !bytes.Contains([]byte(output), []byte("gh-pm")) {
-		t.Errorf("Expected output to contain 'gh-pm', got: %s", output)
+	if !bytes.Contains([]byte(output), []byte("gh pmu")) {
+		t.Errorf("Expected output to contain 'gh pmu', got: %s", output)
 	}
 }
 
@@ -42,7 +42,8 @@ func TestRootCommandVersion(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !bytes.Contains([]byte(output), []byte("gh-pm")) {
-		t.Errorf("Expected version output to contain 'gh-pm', got: %s", output)
+	// Cobra uses first word of Use field for version output
+	if !bytes.Contains([]byte(output), []byte("version")) {
+		t.Errorf("Expected version output to contain 'version', got: %s", output)
 	}
 }

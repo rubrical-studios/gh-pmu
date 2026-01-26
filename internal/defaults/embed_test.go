@@ -21,7 +21,7 @@ func TestLoad_HasLabels(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required", "emergency", "approval-required", "blocked", "scope-creep"}
+	expectedLabels := []string{"branch", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required", "emergency", "approval-required", "blocked", "scope-creep"}
 
 	if len(defs.Labels) != len(expectedLabels) {
 		t.Errorf("expected %d labels, got %d", len(expectedLabels), len(defs.Labels))
@@ -98,9 +98,8 @@ func TestLoad_HasCreateIfMissingFields(t *testing.T) {
 	}
 
 	expectedFields := map[string]string{
-		"Priority":    "SINGLE_SELECT",
-		"Branch":      "TEXT",
-		"Microsprint": "TEXT",
+		"Priority": "SINGLE_SELECT",
+		"Branch":   "TEXT",
 	}
 
 	if len(defs.Fields.CreateIfMissing) != len(expectedFields) {
@@ -167,7 +166,7 @@ func TestGetLabel_Found(t *testing.T) {
 	defs := MustLoad()
 
 	// Test each known label
-	knownLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required", "emergency", "approval-required", "blocked", "scope-creep"}
+	knownLabels := []string{"branch", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required", "emergency", "approval-required", "blocked", "scope-creep"}
 	for _, name := range knownLabels {
 		label := defs.GetLabel(name)
 		if label == nil {
@@ -210,7 +209,7 @@ func TestGetLabelNames(t *testing.T) {
 	}
 
 	// All standard labels should be in the list
-	expectedLabels := []string{"branch", "microsprint", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required", "emergency", "approval-required", "blocked", "scope-creep"}
+	expectedLabels := []string{"branch", "epic", "story", "proposal", "prd", "bug", "enhancement", "qa-required", "test-plan", "security-required", "legal-required", "docs-required", "emergency", "approval-required", "blocked", "scope-creep"}
 	nameSet := make(map[string]bool)
 	for _, name := range names {
 		nameSet[name] = true

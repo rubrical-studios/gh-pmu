@@ -94,6 +94,40 @@ type mockBranchClient struct {
 }
 
 // Helper types for call tracking
+type createIssueCall struct {
+	owner  string
+	repo   string
+	title  string
+	body   string
+	labels []string
+}
+
+type addToProjectCall struct {
+	projectID string
+	issueID   string
+}
+
+type setFieldCall struct {
+	projectID string
+	itemID    string
+	fieldID   string
+	value     string
+}
+
+type closeIssueCall struct {
+	issueID string
+}
+
+type updateIssueBodyCall struct {
+	issueID string
+	body    string
+}
+
+type writeFileCall struct {
+	path    string
+	content string
+}
+
 type gitAddCall struct {
 	paths []string
 }
@@ -2343,7 +2377,7 @@ func TestRunBranchCloseWithDeps_NoParkingLotConfig(t *testing.T) {
 	}
 }
 
-func TestRunBranchCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) {
+func TestRunBranchCloseWithDeps_ClearsBranchField(t *testing.T) {
 	// ARRANGE: Incomplete issues that need to be moved to backlog
 	mock := setupMockForBranch()
 	mock.openIssues = []api.Issue{
@@ -2382,9 +2416,6 @@ func TestRunBranchCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) 
 	cfg.Fields["branch"] = config.Field{
 		Field: "Release",
 	}
-	cfg.Fields["microsprint"] = config.Field{
-		Field: "Microsprint",
-	}
 	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
 
@@ -2409,18 +2440,6 @@ func TestRunBranchCloseWithDeps_ClearsReleaseAndMicrosprintFields(t *testing.T) 
 	}
 	if !releaseCleared {
 		t.Errorf("Expected Release field to be cleared, calls: %+v", mock.setFieldCalls)
-	}
-
-	// Verify Microsprint field was cleared (set to "")
-	microsprintCleared := false
-	for _, call := range mock.setFieldCalls {
-		if call.fieldID == "Microsprint" && call.value == "" {
-			microsprintCleared = true
-			break
-		}
-	}
-	if !microsprintCleared {
-		t.Errorf("Expected Microsprint field to be cleared, calls: %+v", mock.setFieldCalls)
 	}
 
 	// Verify Status was set to Backlog

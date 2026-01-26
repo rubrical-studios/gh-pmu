@@ -12,6 +12,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// parseOwnerRepo extracts owner and repo from the first configured repository
+func parseOwnerRepo(cfg *config.Config) (string, string, error) {
+	if len(cfg.Repositories) == 0 {
+		return "", "", fmt.Errorf("no repositories configured")
+	}
+	parts := strings.SplitN(cfg.Repositories[0], "/", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid repository format: %s", cfg.Repositories[0])
+	}
+	return parts[0], parts[1], nil
+}
+
 // semverRegex matches valid semver versions with optional v prefix
 var semverRegex = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)$`)
 
@@ -323,7 +335,7 @@ func newBranchCloseCommand() *cobra.Command {
 If no branch name is specified and exactly one branch is active, that branch
 will be used. If multiple branches are active, you must specify which one to close.
 
-Incomplete issues will be moved to backlog with Branch and Microsprint fields cleared.
+Incomplete issues will be moved to backlog with Branch field cleared.
 Release artifacts should be created beforehand using /prepare-release.
 
 Examples:
@@ -982,7 +994,7 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 		}
 		fmt.Fprintln(cmd.OutOrStdout())
 
-		// Move non-parking-lot incomplete issues to backlog and clear Release/Microsprint fields
+		// Move non-parking-lot incomplete issues to backlog and clear Branch field
 		if len(issuesToMove) > 0 {
 			fmt.Fprintln(cmd.OutOrStdout(), "Moving incomplete issues to backlog...")
 
@@ -997,11 +1009,6 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 				// Clear Branch field
 				if branchField, ok := cfg.Fields["branch"]; ok {
 					_ = client.SetProjectItemField(project.ID, itemID, branchField.Field, "")
-				}
-
-				// Clear Microsprint field
-				if microsprintField, ok := cfg.Fields["microsprint"]; ok {
-					_ = client.SetProjectItemField(project.ID, itemID, microsprintField.Field, "")
 				}
 
 				// Set status to backlog
@@ -1048,7 +1055,7 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 	// Output confirmation
 	fmt.Fprintf(cmd.OutOrStdout(), "✓ Branch closed: %s\n", releaseVersion)
 	if len(issuesToMove) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Branch and Microsprint cleared)\n", len(issuesToMove))
+		fmt.Fprintf(cmd.OutOrStdout(), "✓ %d issue(s) moved to backlog (Branch cleared)\n", len(issuesToMove))
 	}
 	if opts.tag {
 		fmt.Fprintf(cmd.OutOrStdout(), "✓ Tag created: %s\n", releaseVersion)

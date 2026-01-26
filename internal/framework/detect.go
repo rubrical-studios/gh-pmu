@@ -96,24 +96,22 @@ var frameworkCommandMap = map[string]struct {
 	suggestions map[string]string
 }{
 	"IDPF-Agile": {
-		allowed: []string{"microsprint"},
+		allowed: []string{"branch"},
 		suggestions: map[string]string{
-			"release": "microsprint start",
-			"patch":   "microsprint start",
+			"release": "branch start --name ...",
+			"patch":   "branch start --name ...",
 		},
 	},
 	"IDPF-Structured": {
 		allowed: []string{"release"},
 		suggestions: map[string]string{
-			"microsprint": "release start --version X.Y.Z",
-			"patch":       "release start --version X.Y.Z",
+			"patch": "release start --version X.Y.Z",
 		},
 	},
 	"IDPF-LTS": {
 		allowed: []string{"patch"},
 		suggestions: map[string]string{
-			"microsprint": "patch start --version X.Y.Z",
-			"release":     "patch start --version X.Y.Z",
+			"release": "patch start --version X.Y.Z",
 		},
 	},
 }

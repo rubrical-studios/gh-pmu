@@ -1019,7 +1019,7 @@ func TestDiscoverActiveReleases(t *testing.T) {
 			issues: []api.Issue{
 				{Title: "Release: v1.0.0"},
 				{Title: "Some other issue"},
-				{Title: "Microsprint: 2024-01-01"},
+				{Title: "Feature: New feature"},
 			},
 			expected: []string{"v1.0.0"},
 		},

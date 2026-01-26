@@ -498,59 +498,6 @@ func TestRunListWithDeps_WithNoReleaseFilter(t *testing.T) {
 	}
 }
 
-func TestRunListWithDeps_WithMicrosprintFilter(t *testing.T) {
-	mock := newMockListClient()
-	mock.projectItems = []api.ProjectItem{
-		{
-			ID:    "item-1",
-			Issue: &api.Issue{Number: 1, Title: "Sprint Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Microsprint", Value: "2025-12-20-A"},
-			},
-		},
-	}
-
-	cfg := &config.Config{
-		Project:      config.Project{Owner: "test-org", Number: 1},
-		Repositories: []string{"owner/repo"},
-	}
-
-	cmd := newListCommand()
-	opts := &listOptions{microsprint: "2025-12-20-A"}
-	err := runListWithDeps(cmd, opts, cfg, mock)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestRunListWithDeps_WithMicrosprintCurrentFilter(t *testing.T) {
-	mock := newMockListClient()
-	mock.projectItems = []api.ProjectItem{
-		{
-			ID:    "item-1",
-			Issue: &api.Issue{Number: 1, Title: "Sprint Issue"},
-			FieldValues: []api.FieldValue{
-				{Field: "Microsprint", Value: "2025-12-20-A"},
-			},
-		},
-	}
-	mock.openIssuesByLabel = []api.Issue{
-		{Number: 100, Title: "Microsprint: 2025-12-20-A"},
-	}
-
-	cfg := &config.Config{
-		Project:      config.Project{Owner: "test-org", Number: 1},
-		Repositories: []string{"owner/repo"},
-	}
-
-	cmd := newListCommand()
-	opts := &listOptions{microsprint: "current"}
-	err := runListWithDeps(cmd, opts, cfg, mock)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestRunListWithDeps_WithHasSubIssuesFilter(t *testing.T) {
 	mock := newMockListClient()
 	mock.projectItems = []api.ProjectItem{

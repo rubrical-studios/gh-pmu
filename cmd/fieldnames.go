@@ -12,9 +12,6 @@ const (
 	// LegacyReleaseFieldName is the legacy name for the branch tracking field.
 	// Used for backward compatibility with existing projects.
 	LegacyReleaseFieldName = "Release"
-
-	// MicrosprintFieldName is the name of the microsprint tracking field.
-	MicrosprintFieldName = "Microsprint"
 )
 
 // ResolveBranchFieldName returns the appropriate field name for branch tracking

@@ -35,8 +35,7 @@ Utilities:
   history     Show git commit history with issue references
 
 Workflow Commands:
-  microsprint Manage microsprints for IDPF-Agile development
-  branch      Manage branches for IDPF-Structured development
+  branch      Manage branches for development workflows
   validation  Manage status transition validation rules
 
 Flags:
@@ -196,7 +195,7 @@ gh pmu create --title "Security fix" --label bug --label security
 |------|---------|
 | `--status` | Set project status field on create |
 | `--priority` | Set project priority field on create |
-| `--microsprint` | Assign to microsprint (use 'current' for active) |
+| `--branch` | Assign to branch (use 'current' for active) |
 | `--from-file` | Create issue from YAML/JSON file |
 | `--interactive` | Prompt for all fields interactively |
 
@@ -625,59 +624,24 @@ ghi9012 docs: Update API reference
 
 ## Workflow Commands
 
-Commands for managing development workflows at different cadences.
-
-### microsprint
-
-Manage microsprints for IDPF-Agile development (hour-scale work batches).
-
-```bash
-# Start a new microsprint
-gh pmu microsprint start
-gh pmu microsprint start --name "auth"   # With optional suffix
-
-# Add/remove issues from current microsprint
-gh pmu microsprint add 42
-gh pmu microsprint remove 42
-
-# View current microsprint
-gh pmu microsprint current
-gh pmu microsprint current --refresh     # Update tracker issue body
-
-# Close microsprint with artifacts
-gh pmu microsprint close                 # Interactive retrospective prompts
-gh pmu microsprint close --skip-retro    # Skip prompts, generate empty template
-gh pmu microsprint close --commit        # Auto-commit artifacts
-
-# List microsprint history
-gh pmu microsprint list
-gh pmu microsprint list --refresh    # Force API fetch, update cache
-
-# Resolve multiple active microsprints
-gh pmu microsprint resolve
-```
-
-**Artifacts generated on close:**
-- `Microsprints/{name}/review.md` - Issue summary
-- `Microsprints/{name}/retro.md` - Retrospective notes
+Commands for managing development workflows.
 
 ### branch
 
-Manage branches for IDPF-Structured development (branch-based deployment).
+Manage branches for development workflows (release, patch, feature branches).
 
 ```bash
 # Start a new branch (creates git branch and tracker issue)
-gh pmu branch start --branch release/v2.0.0
+gh pmu branch start --name release/v2.0.0
 
 # Start a patch branch
-gh pmu branch start --branch patch/v1.9.1
+gh pmu branch start --name patch/v1.9.1
 
 # Start a hotfix branch
-gh pmu branch start --branch hotfix-auth-bypass
+gh pmu branch start --name hotfix-auth-bypass
 
-# Manage issues in branch
-gh pmu branch add 42
-gh pmu branch remove 42
+# Assign issues to current branch
+gh pmu move 42 --branch current
 
 # View current branch
 gh pmu branch current
@@ -691,8 +655,8 @@ gh pmu branch list --refresh         # Force API fetch, update cache
 ```
 
 **Notes:**
-- The `--branch` flag is required and specifies the branch name to create
-- Branch name is used for tracker title, Release field, and artifact directory
+- The `--name` flag is required and specifies the branch name to create
+- Branch name is used for tracker title, Branch field, and artifact directory
 - Supports any branch naming convention: `release/v2.0.0`, `patch/v1.9.1`, `hotfix-auth-bypass`
 
 ### validation
@@ -741,7 +705,7 @@ These flags work with most commands:
 ## See Also
 
 - [Configuration Guide](configuration.md) - Setup and field aliases
-- [Workflows Guide](workflows.md) - Microsprint, release, and patch
+- [Workflows Guide](workflows.md) - Branch-based workflows
 - [Sub-Issues Guide](sub-issues.md) - Hierarchy management
 - [Batch Operations](batch-operations.md) - Intake, triage, split
 - [gh vs gh pmu](gh-comparison.md) - When to use which

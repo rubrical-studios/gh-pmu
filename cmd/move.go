@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
 	"github.com/rubrical-studios/gh-pmu/internal/config"
@@ -12,17 +11,16 @@ import (
 )
 
 type moveOptions struct {
-	status      string
-	priority    string
-	microsprint string
-	branch      string // branch field (formerly release)
-	backlog     bool
-	recursive   bool
-	depth       int
-	dryRun      bool
-	force       bool   // bypass checkbox validation
-	yes         bool   // skip confirmation
-	repo        string // repository override (owner/repo format)
+	status    string
+	priority  string
+	branch    string // branch field (formerly release)
+	backlog   bool
+	recursive bool
+	depth     int
+	dryRun    bool
+	force     bool   // bypass checkbox validation
+	yes       bool   // skip confirmation
+	repo      string // repository override (owner/repo format)
 }
 
 // moveClient defines the interface for API methods used by move functions.
@@ -76,10 +74,7 @@ Examples:
   # Add issue to a specific branch
   gh pmu move 42 --branch release/v1.2.0
 
-  # Add issue to the current active microsprint
-  gh pmu move 42 --microsprint current
-
-  # Return an issue to backlog (clears branch and microsprint)
+  # Return an issue to backlog (clears branch field)
   gh pmu move 42 --backlog
 
   # Recursively update an epic and all its sub-issues
@@ -104,11 +99,8 @@ Examples:
 
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Set project status field")
 	cmd.Flags().StringVarP(&opts.priority, "priority", "p", "", "Set project priority field")
-	cmd.Flags().StringVarP(&opts.microsprint, "microsprint", "m", "", "Set microsprint field (use 'current' for active microsprint)")
-	cmd.Flags().StringVar(&opts.microsprint, "sprint", "", "Alias for --microsprint")
-	cmd.MarkFlagsMutuallyExclusive("microsprint", "sprint") // Can't use both at once
 	cmd.Flags().StringVarP(&opts.branch, "branch", "b", "", "Set branch field (use 'current' for active branch)")
-	cmd.Flags().BoolVar(&opts.backlog, "backlog", false, "Clear branch and microsprint fields (return to backlog)")
+	cmd.Flags().BoolVar(&opts.backlog, "backlog", false, "Clear branch field (return to backlog)")
 	cmd.Flags().BoolVarP(&opts.recursive, "recursive", "r", false, "Apply changes to all sub-issues recursively")
 	cmd.Flags().IntVar(&opts.depth, "depth", 10, "Maximum depth for recursive operations")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be changed without making changes")
@@ -133,13 +125,13 @@ type issueInfo struct {
 
 func runMove(cmd *cobra.Command, args []string, opts *moveOptions) error {
 	// Validate at least one flag is provided
-	if opts.status == "" && opts.priority == "" && opts.microsprint == "" && opts.branch == "" && !opts.backlog {
-		return fmt.Errorf("at least one of --status, --priority, --microsprint, --branch, or --backlog is required")
+	if opts.status == "" && opts.priority == "" && opts.branch == "" && !opts.backlog {
+		return fmt.Errorf("at least one of --status, --priority, --branch, or --backlog is required")
 	}
 
-	// Validate --backlog cannot be combined with --branch or --microsprint
-	if opts.backlog && (opts.branch != "" || opts.microsprint != "") {
-		return fmt.Errorf("--backlog cannot be combined with --branch or --microsprint")
+	// Validate --backlog cannot be combined with --branch
+	if opts.backlog && opts.branch != "" {
+		return fmt.Errorf("--backlog cannot be combined with --branch")
 	}
 
 	// Load configuration
@@ -314,9 +306,7 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 
 	statusValue := ""
 	priorityValue := ""
-	microsprintValue := ""
 	releaseValue := ""
-	clearMicrosprint := false
 	clearRelease := false
 	var changeDescriptions []string
 
@@ -335,29 +325,9 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority -> %s", priorityValue))
 	}
 	if opts.backlog {
-		// --backlog clears both branch and microsprint
-		clearMicrosprint = true
+		// --backlog clears branch field
 		clearRelease = true
-		changeDescriptions = append(changeDescriptions, "Microsprint -> (cleared)")
 		changeDescriptions = append(changeDescriptions, "Branch -> (cleared)")
-	}
-	if opts.microsprint != "" {
-		if opts.microsprint == "current" {
-			firstOwner := issuesToUpdate[0].Owner
-			firstRepo := issuesToUpdate[0].Repo
-			microsprintIssues, err := client.GetOpenIssuesByLabel(firstOwner, firstRepo, "microsprint")
-			if err != nil {
-				return fmt.Errorf("failed to get microsprint issues: %w", err)
-			}
-			activeTracker := findActiveMicrosprintForMove(microsprintIssues)
-			if activeTracker == nil {
-				return fmt.Errorf("no active microsprint found")
-			}
-			microsprintValue = strings.TrimPrefix(activeTracker.Title, "Microsprint: ")
-		} else {
-			microsprintValue = opts.microsprint
-		}
-		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Microsprint -> %s", microsprintValue))
 	}
 	if opts.branch != "" {
 		if opts.branch == "current" {
@@ -539,25 +509,11 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 				Value:     priorityValue,
 			})
 		}
-		if microsprintValue != "" {
-			allUpdates = append(allUpdates, api.FieldUpdate{
-				ItemID:    info.ItemID,
-				FieldName: "Microsprint",
-				Value:     microsprintValue,
-			})
-		}
 		if releaseValue != "" {
 			allUpdates = append(allUpdates, api.FieldUpdate{
 				ItemID:    info.ItemID,
 				FieldName: branchFieldName,
 				Value:     releaseValue,
-			})
-		}
-		if clearMicrosprint {
-			allUpdates = append(allUpdates, api.FieldUpdate{
-				ItemID:    info.ItemID,
-				FieldName: "Microsprint",
-				Value:     "",
 			})
 		}
 		if clearRelease {
@@ -645,29 +601,11 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 				}
 			}
 
-			if microsprintValue != "" && !updateFailed {
-				if err := api.WithRetry(func() error {
-					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", microsprintValue, projectFields)
-				}, 3); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to set microsprint for #%d: %v\n", info.Number, err)
-					updateFailed = true
-				}
-			}
-
 			if releaseValue != "" && !updateFailed {
 				if err := api.WithRetry(func() error {
 					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, branchFieldName, releaseValue, projectFields)
 				}, 3); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to set branch for #%d: %v\n", info.Number, err)
-					updateFailed = true
-				}
-			}
-
-			if clearMicrosprint && !updateFailed {
-				if err := api.WithRetry(func() error {
-					return client.SetProjectItemFieldWithFields(project.ID, info.ItemID, "Microsprint", "", projectFields)
-				}, 3); err != nil {
-					fmt.Fprintf(os.Stderr, "Warning: failed to clear microsprint for #%d: %v\n", info.Number, err)
 					updateFailed = true
 				}
 			}
@@ -836,20 +774,6 @@ func collectSubIssuesRecursive(client moveClient, owner, repo string, number int
 	}
 
 	return result, nil
-}
-
-// findActiveMicrosprintForMove finds today's active microsprint tracker from a list of issues
-// Returns nil if no active microsprint is found for today
-func findActiveMicrosprintForMove(issues []api.Issue) *api.Issue {
-	today := time.Now().Format("2006-01-02")
-	prefix := "Microsprint: " + today + "-"
-
-	for i := range issues {
-		if strings.HasPrefix(issues[i].Title, prefix) {
-			return &issues[i]
-		}
-	}
-	return nil
 }
 
 // findActiveBranchForMove finds the active branch tracker from a list of issues

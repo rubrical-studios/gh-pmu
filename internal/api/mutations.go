@@ -1316,15 +1316,6 @@ func (c *Client) GetAuthenticatedUser() (string, error) {
 	return query.Viewer.Login, nil
 }
 
-// GetIssuesByMicrosprint returns issues assigned to a specific microsprint
-// This queries the project items and filters by the Microsprint text field
-func (c *Client) GetIssuesByMicrosprint(owner, repo, microsprintName string) ([]Issue, error) {
-	// This is a simplified implementation - for production we'd query the project
-	// and filter by the Microsprint field value
-	// For now, return empty slice - the close command doesn't strictly need this
-	return []Issue{}, nil
-}
-
 // LabelExists checks if a label exists in a repository
 func (c *Client) LabelExists(owner, repo, labelName string) (bool, error) {
 	_, err := c.getLabelID(owner, repo, labelName)
