@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-01-27T01:40:39.892Z",
+  "version": "1.0.0",
+  "skillCount": 25,
+  "skills": [
+    {
+      "name": "anti-pattern-analysis",
+      "description": "Systematic detection of anti-patterns during code review with actionable refactoring guidance",
+      "triggers": []
+    },
+    {
+      "name": "api-versioning",
+      "description": "Guide developers through API versioning strategies, deprecation workflows, and backward compatibility patterns",
+      "triggers": []
+    },
+    {
+      "name": "bdd-writing",
+      "description": "Guide developers on writing BDD specifications using Gherkin syntax, feature files, and step definitions",
+      "triggers": []
+    },
+    {
+      "name": "beginner-testing",
+      "description": "Introduce test-driven development to beginners with simple Flask/Sinatra test examples and TDD concepts",
+      "triggers": []
+    },
+    {
+      "name": "ci-cd-pipeline-design",
+      "description": "Guide developers through CI/CD pipeline design including architecture patterns, stage design, and security considerations",
+      "triggers": []
+    },
+    {
+      "name": "codebase-analysis",
+      "description": "Analyze existing codebases to extract structure, tech stack, and patterns",
+      "triggers": []
+    },
+    {
+      "name": "common-errors",
+      "description": "Diagnose and solve common beginner programming mistakes in Flask or Sinatra development with detailed explanations",
+      "triggers": []
+    },
+    {
+      "name": "create-prd",
+      "description": "Transform proposals into detailed PRD documents using Inception/ context",
+      "triggers": []
+    },
+    {
+      "name": "electron-development",
+      "description": "Patterns and solutions for Electron app development with Vite, Playwright E2E testing, and Windows platform considerations",
+      "triggers": [
+        "electron",
+        "vite",
+        "playwright",
+        "e2e",
+        "windows",
+        "ipc",
+        "electron-store",
+        "forge"
+      ]
+    },
+    {
+      "name": "error-handling-patterns",
+      "description": "Guide developers through consistent error handling including error hierarchies, API responses, and logging integration",
+      "triggers": []
+    },
+    {
+      "name": "extract-prd",
+      "description": "Extract lifecycle artifacts from existing codebases",
+      "triggers": []
+    },
+    {
+      "name": "flask-setup",
+      "description": "Set up Python Flask development environment for beginners with step-by-step guidance, virtual environment creation, and troubleshooting",
+      "triggers": []
+    },
+    {
+      "name": "migration-patterns",
+      "description": "Guide developers through database migration best practices including versioning, rollbacks, and zero-downtime strategies",
+      "triggers": []
+    },
+    {
+      "name": "mutation-testing",
+      "description": "Guide developers through mutation testing to assess and improve test suite quality",
+      "triggers": []
+    },
+    {
+      "name": "playwright-setup",
+      "description": "Installation verification and troubleshooting for Playwright browser automation framework",
+      "triggers": [
+        "playwright",
+        "testing",
+        "e2e",
+        "browser",
+        "automation",
+        "ci",
+        "github-actions"
+      ]
+    },
+    {
+      "name": "postgresql-integration",
+      "description": "Guide developers through PostgreSQL setup, connection configuration, query patterns, and best practices",
+      "triggers": []
+    },
+    {
+      "name": "property-based-testing",
+      "description": "Guide developers through property-based testing including property definition, shrinking, and framework-specific implementation",
+      "triggers": []
+    },
+    {
+      "name": "sinatra-setup",
+      "description": "Set up Ruby Sinatra development environment for beginners with step-by-step guidance, Bundler setup, and troubleshooting",
+      "triggers": []
+    },
+    {
+      "name": "sqlite-integration",
+      "description": "Add SQLite database to Flask or Sinatra app with beginner-friendly code examples and teaching comments",
+      "triggers": []
+    },
+    {
+      "name": "tdd-failure-recovery",
+      "description": "Guide experienced developers through TDD failure scenarios and recovery procedures when tests behave unexpectedly",
+      "triggers": []
+    },
+    {
+      "name": "tdd-green-phase",
+      "description": "Guide experienced developers through GREEN phase of TDD cycle - writing minimal implementation to pass failing tests",
+      "triggers": []
+    },
+    {
+      "name": "tdd-red-phase",
+      "description": "Guide experienced developers through RED phase of TDD cycle - writing failing tests and verifying expected failures",
+      "triggers": []
+    },
+    {
+      "name": "tdd-refactor-phase",
+      "description": "Guide experienced developers through REFACTOR phase of TDD cycle - improving code quality while maintaining green tests",
+      "triggers": []
+    },
+    {
+      "name": "test-writing-patterns",
+      "description": "Guide experienced developers on test structure, patterns, assertions, and test doubles for effective test-driven development",
+      "triggers": []
+    },
+    {
+      "name": "uml-generation",
+      "description": "Generate UML diagrams from project source code using PlantUML with online rendering",
+      "triggers": []
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 # Windows Shell Safety for Claude Code
-**Version:** v0.31.0
+**Version:** v0.33.2
 **Source:** Reference/Windows-Shell-Safety.md
 ---
 **MUST READ:** Auto-loaded on Windows at session startup.
@@ -41,11 +41,11 @@ rm .tmp-body.md
 ## gh pmu Body Flags
 **Prefer `--body-stdout` / `--body-stdin`** for cleaner workflows.
 ```bash
-# Export body, edit, update (preferred - no tmp/ directory)
-gh pmu view 123 --body-stdout > .tmp-body.md
-gh pmu edit 123 -F .tmp-body.md && rm .tmp-body.md
+# Export body, edit, update (use issue-specific temp file name)
+gh pmu view 123 --body-stdout > .tmp-123.md
+gh pmu edit 123 -F .tmp-123.md && rm .tmp-123.md
 
-# Creating issues with body from file
+# Creating issues with body from file (new issue, no number yet)
 gh pmu create --title "Bug: ..." -F .tmp-body.md --status backlog
 
 # Alternative: Body-File Pattern (uses tmp/ directory)
@@ -67,6 +67,7 @@ cd "$USERPROFILE/My Projects"
 1. **Use relative paths** for temp files (`.tmp-*`) - absolute paths get backslashes stripped
 2. **Use Write tool** instead of `cat`, `echo >`, or heredocs
 3. **Clean up** immediately after use
+4. **Use unique names** when editing multiple issues - include issue number (`.tmp-123.md`)
 ```bash
 # Pattern: Write tool creates file, Bash uses it
 gh issue create --body-file .tmp-body.md
@@ -86,6 +87,20 @@ echo "The file is \`important\`"
 gh api graphql --input .tmp-query.json
 rm .tmp-query.json
 ```
+## Flag Values with Spaces
+**Flags taking string values can fail when space-separated.**
+`--flag value` can be misinterpreted as `--flag` (no value) plus `value` (extra argument).
+```bash
+# BAD - value interpreted as separate argument
+gh pmu view 3 --json status --jq '.status'
+# Error: accepts 1 arg(s), received 2
+
+# GOOD - use = to attach value directly
+gh pmu view 3 --json=status --jq='.status'
+gh pmu view 3 --json=number,title,status
+```
+**Use `=` syntax for:** single-value string flags like `--json=status`, `--jq='.field'`
+**Safe rule:** When in doubt, use `--flag=value`.
 ## Loops with Command Substitution
 **Loops using `$(...)` fail.** File globbing works.
 ```bash
@@ -113,6 +128,43 @@ echo %USERPROFILE%
 echo "$USERPROFILE"
 export MY_VAR=value
 ```
+## Dangerous rm Patterns
+**NEVER use `rm -rf` with multiple paths on Windows Git Bash.**
+```bash
+# DANGEROUS
+rm -rf .vite/ out/ dist/
+
+# SAFE - one at a time
+rm -rf .vite
+rm -rf out
+rm -rf dist
+```
+## Process Management
+**Use PowerShell for killing processes on Windows Git Bash.**
+Git Bash mangles Windows command flags (interprets `/F` as a path).
+```bash
+# BAD - Git Bash interprets /F as path
+taskkill /F /IM "electron.exe"
+
+# GOOD - Single quotes pass command verbatim to PowerShell
+powershell -Command 'Stop-Process -Name "electron" -Force -ErrorAction SilentlyContinue'
+```
+**Recommended cleanup sequence:**
+```bash
+# 1. Kill app processes
+powershell -Command 'Stop-Process -Name "YourAppName" -Force -ErrorAction SilentlyContinue'
+
+# 2. Kill stray Electron processes
+powershell -Command 'Stop-Process -Name "electron" -Force -ErrorAction SilentlyContinue'
+
+# 3. Wait for file handles to release
+sleep 2
+
+# 4. Clean build directories (one at a time!)
+rm -rf .vite
+rm -rf out
+```
+**Detection:** "Device or resource busy" errors mean processes are still running.
 ## Quick Reference
 | Pattern | Windows Safe? | Alternative |
 |---------|:-------------:|-------------|
@@ -124,10 +176,13 @@ export MY_VAR=value
 | Backslash paths | No | Forward slashes |
 | Absolute paths in Bash args | No | Relative paths (`.tmp-*`) |
 | `--body "..."` multi-line | Unreliable | `--body-file` |
-| `--body-stdout` / `--body-stdin` | Yes | - |
+| `--body-stdout` / `--body-stdin` | Yes | Use `.tmp-{issue#}.md` for edits |
+| `--flag value` (string flags) | Unreliable | `--flag=value` |
 | JSON inline | No | `--input` or temp file |
 | Pipes `\|` | Yes | - |
 | Redirection `>` `>>` | Yes | - |
 | `$VAR` expansion | Yes | - |
+| `rm -rf path1 path2` | No | Delete one path at a time |
+| `taskkill /F /IM` | No | PowerShell `Stop-Process` |
 ---
 **End of Windows Shell Safety**

@@ -1,0 +1,347 @@
+{
+  "generatedAt": "2026-01-27T01:40:41.067Z",
+  "version": "1.0.0",
+  "categories": {
+    "ci": {
+      "name": "CI Integration",
+      "description": "CI build verification and merge gates",
+      "recipes": [
+        {
+          "name": "ci-gate-before-merge",
+          "description": "Block merge/tag until CI passes",
+          "extensionPoints": [
+            "post-pr-create",
+            "pre-tag",
+            "post-prepare"
+          ],
+          "template": "### Wait for CI\n\n```bash\nnode .claude/scripts/shared/wait-for-ci.js\n```\n\n**If CI fails, STOP and report the error.**\n\nCommon failures:\n- Build errors: Check compilation output\n- Test failures: Run tests locally to debug\n- Lint errors: Run linter with --fix",
+          "prerequisites": [
+            "wait-for-ci.js (included with framework)"
+          ],
+          "appliesTo": [
+            "prepare-release:post-pr-create",
+            "prepare-release:pre-tag",
+            "prepare-beta:post-prepare",
+            "prepare-beta:pre-tag",
+            "merge-branch:post-pr-create"
+          ]
+        },
+        {
+          "name": "ci-status-check",
+          "description": "Quick CI status without blocking workflow",
+          "extensionPoints": [
+            "post-analysis",
+            "post-prepare"
+          ],
+          "template": "### Check CI Status\n\n```bash\ngh run list --limit 1 --json status,conclusion,name\n```\n\nReport status but do not block workflow.",
+          "prerequisites": [
+            "gh CLI (GitHub CLI)"
+          ],
+          "appliesTo": [
+            "prepare-release:post-analysis",
+            "prepare-beta:post-analysis"
+          ]
+        }
+      ]
+    },
+    "coverage": {
+      "name": "Test Coverage",
+      "description": "Test coverage threshold enforcement",
+      "recipes": [
+        {
+          "name": "coverage-gate",
+          "description": "Block release if coverage below threshold",
+          "extensionPoints": [
+            "post-validation"
+          ],
+          "template": "### Coverage Gate\n\n**If `--skip-coverage` was passed, skip this section.**\n\n```bash\n# Example: Node.js with nyc/istanbul\nnyc --check-coverage --lines 80 --functions 80 --branches 70\n\n# Example: Go\ngo test -coverprofile=coverage.out ./...\ngo tool cover -func=coverage.out | grep total | awk '{print $3}'\n```\n\n**If coverage is below threshold, STOP and report.**\n\nThresholds:\n- Lines: 80%\n- Functions: 80%\n- Branches: 70%",
+          "prerequisites": [
+            "Coverage tool for your language (nyc, go test -cover, pytest-cov, etc.)"
+          ],
+          "appliesTo": [
+            "prepare-release:post-validation",
+            "prepare-beta:post-validation"
+          ]
+        },
+        {
+          "name": "coverage-report",
+          "description": "Generate coverage report without blocking",
+          "extensionPoints": [
+            "post-validation",
+            "post-prepare"
+          ],
+          "template": "### Coverage Report\n\nGenerate coverage report for review:\n\n```bash\n# Example: Generate HTML report\nnyc report --reporter=html --report-dir=coverage\n\n# Example: Upload to Codecov\nbash <(curl -s https://codecov.io/bash)\n```\n\nReport location: `coverage/index.html`",
+          "prerequisites": [
+            "Coverage tool configured",
+            "(Optional) Codecov or similar service"
+          ],
+          "appliesTo": [
+            "prepare-release:post-validation",
+            "prepare-beta:post-validation"
+          ]
+        }
+      ]
+    },
+    "docs": {
+      "name": "Documentation",
+      "description": "Auto-generate changelog, release notes",
+      "recipes": [
+        {
+          "name": "auto-changelog",
+          "description": "Generate changelog from commits",
+          "extensionPoints": [
+            "post-analysis",
+            "pre-commit"
+          ],
+          "template": "### Generate Changelog\n\n```bash\nnode .claude/scripts/shared/generate-changelog.js\n```\n\nUpdates `CHANGELOG.md` with commits since last tag, grouped by type (feat, fix, etc.).",
+          "prerequisites": [
+            "generate-changelog.js (included with framework)",
+            "Conventional commit messages"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-commit",
+            "prepare-beta:pre-commit"
+          ]
+        }
+      ]
+    },
+    "notifications": {
+      "name": "Notifications",
+      "description": "Slack, Discord, email alerts on release events",
+      "recipes": [
+        {
+          "name": "slack-release-notification",
+          "description": "Post to Slack when release is tagged",
+          "extensionPoints": [
+            "post-tag",
+            "post-close"
+          ],
+          "template": "### Slack Notification\n\n```bash\ncurl -X POST -H 'Content-type: application/json' \\\n  --data '{\"text\":\"Release '$VERSION' has been tagged and deployed.\"}' \\\n  \"$SLACK_WEBHOOK_URL\"\n```\n\n**Note:** Set `SLACK_WEBHOOK_URL` environment variable or replace with your webhook.",
+          "prerequisites": [
+            "Slack incoming webhook URL",
+            "SLACK_WEBHOOK_URL environment variable"
+          ],
+          "appliesTo": [
+            "prepare-release:post-tag",
+            "prepare-release:post-close",
+            "prepare-beta:post-tag"
+          ]
+        }
+      ]
+    },
+    "security": {
+      "name": "Security",
+      "description": "Dependency audit, secret scanning",
+      "recipes": [
+        {
+          "name": "dependency-audit",
+          "description": "Check for known vulnerabilities in dependencies",
+          "extensionPoints": [
+            "pre-validation"
+          ],
+          "template": "### Dependency Audit\n\n```bash\n# Node.js\nnpm audit --audit-level=high\n\n# Go\ngo list -m all | nancy sleuth\n\n# Python\npip-audit\n```\n\n**If high/critical vulnerabilities found, STOP and report.**",
+          "prerequisites": [
+            "Audit tool for your language (npm audit, nancy, pip-audit, etc.)"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation"
+          ]
+        }
+      ]
+    },
+    "testing": {
+      "name": "Testing",
+      "description": "Run tests before release validation",
+      "recipes": [
+        {
+          "name": "dotnet-tests",
+          "description": "Run .NET tests with dotnet CLI",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\ndotnet test\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "\"*.csproj or *.sln\""
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "go-tests",
+          "description": "Run Go tests with go test",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\ngo test ./...\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "go.mod"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "java-gradle-tests",
+          "description": "Run Java tests with Gradle",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\ngradle test\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "build.gradle"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "java-maven-tests",
+          "description": "Run Java tests with Maven",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\nmvn test\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "pom.xml"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "nodejs-tests",
+          "description": "Run Node.js tests with npm",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\nnpm test\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "package.json with test script"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "php-phpunit-tests",
+          "description": "Run PHP tests with PHPUnit",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\ncomposer test\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "composer.json with phpunit"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "python-pytest",
+          "description": "Run Python tests with pytest",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\npytest\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "pytest installed"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "ruby-rspec-tests",
+          "description": "Run Ruby tests with RSpec",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\nbundle exec rspec\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "Gemfile with rspec"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "rust-tests",
+          "description": "Run Rust tests with cargo",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Run Tests\n\n```bash\ncargo test\n```\n\n**If tests fail, STOP and fix before continuing.**",
+          "prerequisites": [
+            "Cargo.toml"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
+          ]
+        },
+        {
+          "name": "test-plan-generator",
+          "description": "Generate test plan skeleton from branch issues",
+          "extensionPoints": [
+            "pre-tag"
+          ],
+          "template": "### Generate Test Plan\n\n```bash\nnode .claude/scripts/shared/generate-test-plan.js\n```\n\nCreates `Construction/Test-Plans/{version}-test-plan.md` with:\n- Test cases derived from branch issues\n- Acceptance criteria extracted as expected results\n- Test execution tracking table\n\n**Review the generated test plan and complete TODO items.**",
+          "prerequisites": [
+            "generate-test-plan.js (included with framework)",
+            "gh pmu extension installed",
+            "Issues assigned to branch"
+          ],
+          "appliesTo": [
+            "prepare-release:pre-tag",
+            "prepare-beta:pre-tag"
+          ]
+        }
+      ]
+    }
+  },
+  "_schema": {
+    "description": "Extension recipes for /extensions recipes command",
+    "generatedFrom": ".claude/recipes/ source files",
+    "category": {
+      "name": "Display name",
+      "description": "Short description for category list",
+      "recipes": "Array of recipe objects"
+    },
+    "recipe": {
+      "name": "Recipe identifier (kebab-case)",
+      "description": "What this recipe does",
+      "extensionPoints": "Which extension point types this applies to",
+      "template": "Markdown content to paste into extension block",
+      "prerequisites": "What is needed before using this recipe",
+      "appliesTo": "Specific command:point combinations where this makes sense"
+    }
+  }
+}

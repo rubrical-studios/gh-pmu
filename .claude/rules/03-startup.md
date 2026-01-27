@@ -1,6 +1,6 @@
 # Session Startup
 
-**Version:** 0.31.0
+**Version:** 0.33.2
 **Framework:** IDPF-Agile
 **Domain Specialist:** Backend-Specialist
 
@@ -10,88 +10,59 @@
 
 When starting a new session:
 
-1. **Confirm Date**: State the date from environment info
-2. **Charter Detection**: Check project charter status (see Charter Detection below)
-3. **Load Specialist**: Read `E:\Projects\idpf-praxis-dist/System-Instructions/Domain/Base/Backend-Specialist.md`
-4. **Report Ready**: Confirm initialization with charter status and "Active Role: Backend-Specialist"
-5. **Ask**: What would you like to work on?
+1. **Gather Information**: Collect session data (see table below)
+2. **Charter Detection**: Check project charter status
+3. **Display Session Initialized**: Show consolidated status block
+4. **Ask**: What would you like to work on?
+
+### Session Information Sources
+
+| Field | Source |
+|-------|--------|
+| Date | Environment/system date |
+| Repository | `basename $(git rev-parse --show-toplevel)` |
+| Branch | `git branch --show-current` + clean/dirty status |
+| Process Framework | `framework-config.json` → `processFramework` |
+| Framework Version | `framework-manifest.json` → `version` |
+| Active Role | `framework-config.json` → `domainSpecialist` |
+| Charter Status | `Active` or `Pending` |
+| GitHub Workflow | `gh pmu --version` |
 
 ---
 
-## Charter Detection
+## Charter Detection (Mandatory)
 
-At startup, check for project charter:
+**Charter is mandatory.** Check for project charter at startup:
 
-### Step 1: Check for Opt-Out
+1. Check CHARTER.md exists: `test -f CHARTER.md`
+2. Check for template placeholders: `/{[a-z][a-z0-9-]*}/`
 
-```bash
-test -f .no-charter
-```
+### Charter Status
 
-**If `.no-charter` exists:** Skip all charter prompting, proceed to specialist loading.
+- **Active** (exists, no placeholders): Proceed to display
+- **Pending** (missing or template): Auto-run `/charter` command
 
-### Step 2: Check for CHARTER.md
+**BLOCKING:** Session startup does not complete until charter is configured.
 
-```bash
-test -f CHARTER.md
-```
+---
 
-**If CHARTER.md does not exist:** Go to Step 4 (Extraction/Inception prompt).
+## Display Session Initialized Block
 
-### Step 3: Template Detection
-
-Check if CHARTER.md contains unfilled template placeholders:
+**Date appears ONLY here.** Format:
 
 ```
-Regex: /{[a-z][a-z0-9-]*}/
+Session Initialized
+- Date: {date}
+- Repository: {repo-name}
+- Branch: {branch} ({clean|dirty})
+- Process Framework: IDPF-Agile
+- Framework Version: {version}
+- Active Role: Backend-Specialist
+- Charter Status: {Active|Pending}
+- GitHub Workflow: Active via gh pmu {version}
 ```
 
-**If placeholders found (template):** Go to Step 4 (Extraction/Inception prompt).
-**If no placeholders (complete):** Display charter summary:
-
-```
-📋 Project: {project-name} (from CHARTER.md)
-   Vision: {vision summary}
-   Current focus: {current focus}
-```
-
-Then proceed to specialist loading.
-
-### Step 4: Extraction/Inception Prompt
-
-When no charter or template detected, offer to create one:
-
-**If existing code found:**
-```
-📁 I found code in this project but no charter files.
-
-A charter helps me understand your project's goals.
-Would you like me to:
-
-  1. Analyze the code and draft a charter
-  2. Skip for now
-  3. Never ask for this project
-```
-
-**If no code (new project):**
-```
-📁 This looks like a new project.
-
-A charter helps me understand your goals.
-Would you like me to:
-
-  1. Guide you through charter creation
-  2. Skip for now
-  3. Never ask for this project
-```
-
-### User Response Handling
-
-| Choice | Action |
-|--------|--------|
-| **Option 1** | Run `/charter` command (Extraction or Inception mode) |
-| **Option 2** | Skip, proceed to specialist loading (don't ask again this session) |
-| **Option 3** | Create `.no-charter` file, add to `.gitignore`, proceed |
+If Charter Status is Pending, display blocking message and run `/charter`.
 
 ---
 
