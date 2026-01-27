@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// **Version:** 0.31.0
 /**
+ * @framework-script 0.33.2
  * transfer-issue.js
  *
  * Transfer an issue between releases or sprints.

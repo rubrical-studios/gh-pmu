@@ -3225,3 +3225,43 @@ func TestDeleteProjectField_NilClient(t *testing.T) {
 		t.Errorf("Expected 'GraphQL client not initialized' error, got: %v", err)
 	}
 }
+
+func TestDeleteProjectV2FieldInput_HasRequiredFields(t *testing.T) {
+	input := DeleteProjectV2FieldInput{
+		FieldID: "field-123",
+	}
+	if input.FieldID != "field-123" {
+		t.Errorf("Expected FieldID 'field-123', got '%s'", input.FieldID)
+	}
+}
+
+func TestDeleteProjectField_InputVariables(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			input, ok := variables["input"].(DeleteProjectV2FieldInput)
+			if !ok {
+				t.Fatal("Expected input to be DeleteProjectV2FieldInput type")
+			}
+			if input.FieldID != "FIELD_ABC" {
+				t.Errorf("Expected FieldID 'FIELD_ABC', got '%s'", input.FieldID)
+			}
+			return nil
+		},
+	}
+	client := NewClientWithGraphQL(mock)
+	_ = client.DeleteProjectField("FIELD_ABC")
+}
+
+func TestDeleteProjectField_EmptyFieldID(t *testing.T) {
+	mock := &mockGraphQLClient{
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			return nil
+		},
+	}
+	client := NewClientWithGraphQL(mock)
+	err := client.DeleteProjectField("")
+	// Documents current behavior - passes empty ID to API
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}

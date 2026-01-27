@@ -171,6 +171,7 @@ type subCreateOptions struct {
 	parent           string
 	title            string
 	body             string
+	bodyFile         string
 	repo             string // Target repository for the new issue (owner/repo format)
 	labels           []string
 	assignees        []string
@@ -212,6 +213,7 @@ Examples:
 	cmd.Flags().StringVarP(&opts.parent, "parent", "p", "", "Parent issue number or reference (required)")
 	cmd.Flags().StringVarP(&opts.title, "title", "t", "", "Issue title (required)")
 	cmd.Flags().StringVarP(&opts.body, "body", "b", "", "Issue body")
+	cmd.Flags().StringVarP(&opts.bodyFile, "body-file", "F", "", "Read body text from file (use \"-\" to read from standard input)")
 	cmd.Flags().StringVarP(&opts.repo, "repo", "R", "", "Repository for the new issue (owner/repo format, defaults to parent's repo)")
 	cmd.Flags().StringArrayVarP(&opts.labels, "label", "l", nil, "Add labels to the sub-issue (can be specified multiple times)")
 	cmd.Flags().StringArrayVarP(&opts.assignees, "assignee", "a", nil, "Assign users to the sub-issue (can be specified multiple times)")
@@ -241,6 +243,20 @@ func runSubCreate(cmd *cobra.Command, opts *subCreateOptions) error {
 
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Validate body flags mutual exclusivity
+	if opts.body != "" && opts.bodyFile != "" {
+		return fmt.Errorf("cannot use --body and --body-file together")
+	}
+
+	// Read body from file if specified
+	if opts.bodyFile != "" {
+		content, err := readBodyFile(opts.bodyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read body file: %w", err)
+		}
+		opts.body = content
 	}
 
 	// Parse parent issue reference

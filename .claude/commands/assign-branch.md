@@ -1,21 +1,54 @@
 ---
-version: "v0.31.0"
+version: "v0.33.2"
 allowed-tools: Bash, AskUserQuestion
-description: Assign issues to a branch (project)
+description: "Assign issues to a branch: [#issue...] [branch/...] [--all] (project)"
+argument-hint: "[#issue...] [branch/name] [--all]"
 ---
+
 <!-- MANAGED -->
 Assign issues to a branch.
+
+Run the assign-branch script:
+
 ```bash
 node .claude/scripts/shared/assign-branch.js "$ARGUMENTS"
 ```
-## Handling "NO_RELEASE_FOUND"
-If script outputs `NO_RELEASE_FOUND`, no open branches exist. Script also outputs:
-1. **CONTEXT:** - Info about last version, labels, input
+
+## Handling "NO_RELEASE_FOUND" Output
+
+If the script outputs `NO_RELEASE_FOUND`, it means no open branches exist. The script will also output:
+
+1. **CONTEXT:** - Information about last version, issue labels, user input
 2. **SUGGESTIONS:** - Formatted as `number|branch|description`
-When you see this:
-1. Parse SUGGESTIONS for branch options
-2. Use `AskUserQuestion` to let user select (recommended first, descriptions included, Other for custom)
-3. Create branch: `gh pmu branch start --name "<selected>"`
-4. Re-run original assign-branch command
+
+When you see this output:
+
+1. Parse the SUGGESTIONS lines to extract branch options
+2. Use `AskUserQuestion` to let the user select a branch:
+   - Present options with the `(recommended)` one first
+   - Include descriptions to help user decide
+   - "Other" option allows custom branch name
+3. After user selects, create the branch:
+   ```bash
+   gh pmu branch start --name "<selected-branch>"
+   ```
+4. Then re-run the original assign-branch command with the new branch
+
+## Example Flow
+
+Script output:
+```
+NO_RELEASE_FOUND
+SUGGESTIONS:
+1|patch/v0.15.1|Next patch version (bug fixes only) (recommended)
+2|release/v0.16.0|Next minor version (new features)
+```
+
+Claude should:
+1. Use AskUserQuestion with options: "patch/v0.15.1 (Recommended)", "release/v0.16.0"
+2. User selects → run `gh pmu branch start --name "patch/v0.15.1"`
+3. Re-run original command to complete assignment
+
 ## Normal Output
-If branches exist, report result directly.
+
+If branches exist, report the result to the user directly.

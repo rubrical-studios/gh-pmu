@@ -460,6 +460,111 @@ func TestSubCreateCommand_HasBodyFlag(t *testing.T) {
 	}
 }
 
+func TestSubCreateCommand_HasBodyFileFlag(t *testing.T) {
+	cmd := NewRootCommand()
+	subCmd, _, err := cmd.Find([]string{"sub", "create"})
+	if err != nil {
+		t.Fatalf("sub create command not found: %v", err)
+	}
+
+	flag := subCmd.Flags().Lookup("body-file")
+	if flag == nil {
+		t.Fatal("Expected --body-file flag to exist")
+	}
+
+	if flag.Shorthand != "F" {
+		t.Errorf("Expected --body-file shorthand to be 'F', got '%s'", flag.Shorthand)
+	}
+}
+
+func TestSubCreate_BodyAndBodyFileMutualExclusivity(t *testing.T) {
+	// Create temp config
+	config := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, config)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	// Create temp body file
+	tmpfile, err := os.CreateTemp("", "body-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	_, _ = tmpfile.WriteString("Body from file")
+	_ = tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"sub", "create",
+		"--parent", "1",
+		"--title", "Test",
+		"--body", "inline body",
+		"--body-file", tmpfile.Name(),
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err = cmd.Execute()
+
+	if err == nil {
+		t.Fatal("Expected error when using --body and --body-file together")
+	}
+	if !strings.Contains(err.Error(), "cannot use --body and --body-file together") {
+		t.Errorf("Expected mutual exclusivity error, got: %v", err)
+	}
+}
+
+func TestSubCreate_BodyFileNotFound(t *testing.T) {
+	// Create temp config
+	config := `
+project:
+  owner: "test-owner"
+  number: 1
+repositories:
+  - "owner/repo"
+`
+	dir := createTempConfig(t, config)
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{
+		"sub", "create",
+		"--parent", "1",
+		"--title", "Test",
+		"--body-file", "nonexistent-file-that-does-not-exist.md",
+	})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	err := cmd.Execute()
+
+	if err == nil {
+		t.Fatal("Expected error when body file doesn't exist")
+	}
+	if !strings.Contains(err.Error(), "failed to read body file") {
+		t.Errorf("Expected 'failed to read body file' error, got: %v", err)
+	}
+}
+
 // ============================================================================
 // outputSubListJSON Tests
 // ============================================================================

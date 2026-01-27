@@ -605,6 +605,11 @@ type ProjectV2SingleSelectFieldOptionInput struct {
 	Description graphql.String `json:"description,omitempty"`
 }
 
+// DeleteProjectV2FieldInput represents the input for deleting a project field
+type DeleteProjectV2FieldInput struct {
+	FieldID graphql.ID `json:"fieldId"`
+}
+
 // DeleteProjectField deletes a field from a GitHub project.
 // Note: Built-in fields (Title, Assignees, etc.) cannot be deleted.
 func (c *Client) DeleteProjectField(fieldID string) error {
@@ -620,9 +625,7 @@ func (c *Client) DeleteProjectField(fieldID string) error {
 		} `graphql:"deleteProjectV2Field(input: $input)"`
 	}
 
-	input := struct {
-		FieldID graphql.ID `json:"fieldId"`
-	}{
+	input := DeleteProjectV2FieldInput{
 		FieldID: graphql.ID(fieldID),
 	}
 

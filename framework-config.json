@@ -1,43 +1,25 @@
 {
-  "frameworkVersion": "0.31.0",
-  "installedDate": "2026-01-23",
+  "frameworkVersion": "0.33.2",
+  "installedDate": "2026-01-27",
   "extensibleCommands": [
-    "open-release",
+    "create-branch",
     "prepare-release",
     "prepare-beta",
-    "close-release"
+    "merge-branch",
+    "destroy-branch",
+    "create-prd"
   ],
-  "frameworkScripts": {
-    "framework": [
-      "analyze-commits.js",
-      "recommend-version.js",
-      "wait-for-ci.js",
-      "update-release-notes.js"
-    ],
-    "shared": [
-      "assign-release.js",
-      "cleanup-release-assets.js",
-      "end-sprint.js",
-      "generate-changelog.js",
-      "plan-sprint.js",
-      "sprint-retro.js",
-      "sprint-status.js",
-      "switch-release.js",
-      "transfer-issue.js"
-    ],
-    "lib": [
-      "gh.js",
-      "git.js",
-      "output.js",
-      "poll.js"
-    ],
-    "hooks": [
-      "workflow-trigger.js"
-    ]
-  },
+  "frameworkScripts": {},
   "userScripts": {
     "close-release": [
       "monitor-release.js"
+    ],
+    "e2e": [
+      "analyze-e2e-impact.js",
+      "run-e2e-gate.js"
+    ],
+    "open-release": [
+      "verify-config.js"
     ],
     "prepare-release": [
       "coverage.js",
