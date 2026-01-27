@@ -43,6 +43,7 @@ gh pmu sub create --parent <number> --title "Title" [flags]
 - `--parent` - Parent issue number (required)
 - `--title` - Sub-issue title (required)
 - `--body` - Issue body
+- `--body-file` / `-F` - Read body from file
 - `--status` - Set status field
 - `--priority` - Set priority field
 - `--repo` - Create in different repository

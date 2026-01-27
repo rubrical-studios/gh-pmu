@@ -499,8 +499,8 @@ repositories:
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	tmpfile.WriteString("Body from file")
-	tmpfile.Close()
+	_, _ = tmpfile.WriteString("Body from file")
+	_ = tmpfile.Close()
 	defer os.Remove(tmpfile.Name())
 
 	cmd := NewRootCommand()

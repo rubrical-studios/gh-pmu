@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-01-27
+
+### Added
+- `--body-file` / `-F` flag for `gh pmu sub create` command (#660)
+  - Provides consistency with `gh pmu create` and `gh issue create`
+  - Supports reading body from file or stdin with `-`
+
+### Fixed
+- GraphQL variable type missing in `deleteProjectV2Field` mutation (#661)
+  - The shurcooL/graphql library requires named types to generate variable declarations
+  - Added `DeleteProjectV2FieldInput` struct following existing patterns
+
+### Changed
+- Updated IDPF framework to v0.33.2
+
 ## [0.14.0] - 2026-01-26
 
 ### Added
