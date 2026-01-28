@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 /**
- * @framework-script 0.33.2
+ * @framework-script 0.33.3
  * workflow-trigger.js
  *
  * UserPromptSubmit hook that:
  * 1. Detects workflow trigger prefixes and injects reminders
  * 2. Responds to 'commands' with available triggers and slash commands
  * 3. Validates branch assignment for 'work #N' commands
+ * 4. Detects analysis keywords and injects STOP reminder (#1056)
  *
  * Trigger prefixes: bug:, enhancement:, idea:, proposal:
  * Work command: work #N (validates branch assignment, provides branch context)
+ * Analysis keywords: evaluate, analyze, assess, review, investigate, check, verify
+ *   - When combined with issue reference, injects STOP reminder
+ *   - Prevents analysis requests from drifting into implementation
  *
  * Performance optimizations:
  * - Early exit for non-matching prompts (no I/O)
@@ -23,6 +27,10 @@ const { execSync } = require('child_process');
 
 // Cache file location
 const CACHE_FILE = path.join(process.cwd(), '.claude', 'hooks', '.command-cache.json');
+
+// Analysis keywords that trigger STOP-after-report behavior
+// When these appear with an issue reference, inject reminder to report only
+const ANALYSIS_KEYWORDS = ['evaluate', 'analyze', 'assess', 'review', 'investigate', 'check', 'verify'];
 
 let input = '';
 
@@ -42,8 +50,13 @@ process.stdin.on('end', () => {
         // Broad "work" trigger - matches any prompt starting with "work "
         // We'll opportunistically extract issue numbers or status later
         const workTrigger = prompt.match(/^work\s/i);
+        // Analysis trigger - detect analysis keywords with issue references
+        // This prevents "evaluate #123" from drifting into implementation
+        const hasAnalysisKeyword = ANALYSIS_KEYWORDS.some(kw => promptLower.includes(kw));
+        const hasIssueRef = prompt.match(/#\d+|\bissue\s+\d+|\b\d{2,}\b/i);
+        const analysisMatch = hasAnalysisKeyword && hasIssueRef && !workTrigger;
 
-        if (!isCommandRequest && !triggerMatch && !workTrigger) {
+        if (!isCommandRequest && !triggerMatch && !workTrigger && !analysisMatch) {
             process.exit(0);
         }
 
@@ -260,6 +273,19 @@ process.stdin.on('end', () => {
                 hookSpecificOutput: {
                     hookEventName: "UserPromptSubmit",
                     additionalContext: "[WORKFLOW TRIGGER: Create GitHub issue first. Wait for 'work' instruction before implementing.]"
+                }
+            };
+            console.log(JSON.stringify(output));
+        }
+
+        // Handle analysis requests - inject STOP reminder
+        // Prevents "evaluate #123" from drifting into implementation
+        if (analysisMatch) {
+            const output = {
+                systemMessage: `Success`,
+                hookSpecificOutput: {
+                    hookEventName: "UserPromptSubmit",
+                    additionalContext: "[ANALYSIS MODE: Report findings and STOP. Do NOT implement, fix, or run commands with side effects until explicit 'work' instruction.]"
                 }
             };
             console.log(JSON.stringify(output));

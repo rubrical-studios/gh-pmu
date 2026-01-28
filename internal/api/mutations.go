@@ -619,9 +619,7 @@ func (c *Client) DeleteProjectField(fieldID string) error {
 
 	var mutation struct {
 		DeleteProjectV2Field struct {
-			ProjectV2Field struct {
-				ID string
-			} `graphql:"projectV2Field"`
+			ClientMutationID string `graphql:"clientMutationId"`
 		} `graphql:"deleteProjectV2Field(input: $input)"`
 	}
 

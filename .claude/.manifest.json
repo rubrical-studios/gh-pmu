@@ -1,187 +1,187 @@
 {
-  "version": "0.33.2",
+  "version": "0.33.3",
   "deployedAt": "2026-01-27",
   "scripts": {
     "shared/analyze-commits.js": {
-      "checksum": "cad3123de63fa2f460ece0d15930214f7caf8eb760ec187ce1b71d7a857b9156",
+      "checksum": "b900824a1c26465037666d13ec32f162987380496ccbbc1377e16240e6ae3bb6",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/analyze-commits.js"
     },
     "shared/assign-branch.js": {
-      "checksum": "615903d67fff0bb9f42e845ada55cf8662ecf5f1967f91614159a8ad58bae088",
+      "checksum": "ca332890b3c5d9c861e78656411ac465577ad5447814fe706b08aafad4f33689",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/assign-branch.js"
     },
     "shared/cleanup-release-assets.js": {
-      "checksum": "48a807efec73b39974f737238d36dde11b2d37884bed7e99a4fcc69454d50f8c",
+      "checksum": "9c4cfa83a65389b00d10096f974b9eab094853201e5d96b528838f7184a21074",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/cleanup-release-assets.js"
     },
     "shared/generate-changelog.js": {
-      "checksum": "204d0c8d2d88cfdb8e6a7116fe7a8c11814c8445186baa668ea33f4d318518c0",
+      "checksum": "9ff9cf1f8daa1c32b32d68ec48fd5ab353640fd257afa6dbb9b50cb91c41da95",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/generate-changelog.js"
     },
     "shared/install-skill.js": {
-      "checksum": "d02bf71cb63e5017344b16a995e5e16a2eacf16d5e6272756bba60cd6d82cd99",
+      "checksum": "989be8bad75b92700a3f621fc84195bb25c3972ddd9c2c23bd7d2383cfba34a1",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/install-skill.js"
     },
     "shared/recommend-version.js": {
-      "checksum": "1f925269da32bdf73313a2515984a0476c0673249414e735fc13321188451a7a",
+      "checksum": "629f28fc79ecdde931afde290a6fdb613f05ef701dfc67513f218e730a3a7e6f",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/recommend-version.js"
     },
     "shared/switch-branch.js": {
-      "checksum": "9add110d3e4b4a102e229f6190d12f3e294f06f31b8a4acda7e30496a19c15e1",
+      "checksum": "3a2f4a201e2a32ffee7464ca8e87c0b0da73cfe78cebfb54ccb55323bc16a9e8",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/switch-branch.js"
     },
     "shared/transfer-issue.js": {
-      "checksum": "3652108e29a38cdc380319b9d28055ff9674b044d9837fec6800a2046aed954c",
+      "checksum": "cd4f38b9d0818b54f0b837ae7d05ee5e641b0fffe505cd210bef14538fe86aa1",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/transfer-issue.js"
     },
     "shared/update-release-notes.js": {
-      "checksum": "e8e8f68764f4a9567934b65cdf1ab28ba35ad171a6dc0869f8efdb4bfd99dbe7",
+      "checksum": "85bb385edf18f15c1b82801b2479813d1681b6cbb2bf3988757f34f534203899",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/update-release-notes.js"
     },
     "shared/wait-for-ci.js": {
-      "checksum": "a2b2e52f88532527b2530ae09284b54cbadaf0a70e08c0e268183c5656c7e1e4",
+      "checksum": "4a99c94ad07071f4adaa41ebea2a077c4bccf589b86292cb0fafeba9f6416b2b",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/wait-for-ci.js"
     },
     "shared/lib/gh.js": {
-      "checksum": "f1e8c769f8297043710caba74a76d9af4ef30704d8ded38a4663c5f9cbb4fd92",
+      "checksum": "b2f9d9efd787f5f04f01ed7efb533ba7886ea3fbafcd2892cd744d1de807d9aa",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/lib/gh.js"
     },
     "shared/lib/git.js": {
-      "checksum": "9568792209fe6d1b9de8f7d54aab3252079c5d91d59b520815cd86bc5a62f6ac",
+      "checksum": "ba670e366393b5db5e42ef4b8e8b37e0ac1f503c68930ade05754bbc0f92828d",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/lib/git.js"
     },
     "shared/lib/output.js": {
-      "checksum": "bbcc607eb1fabd94b43b36ba8bd984f574cc7836f935f7143b8b11d2ece0a950",
+      "checksum": "1ae3bf6b852f9c7da11f183c447ae448619f324d09b64f85a3b77b4f6e0a7425",
       "deployedAt": "2026-01-27",
       "source": "Templates/scripts/shared/lib/output.js"
     },
     "hooks/workflow-trigger.js": {
-      "checksum": "c9f4ab5c937e0f233510adcd198454d4cf860d7a0abe24abb030fd1c4766749c",
+      "checksum": "dafe2665aa97c41680a2f246f046904428be708bdee784fc774f6501c1591ce7",
       "deployedAt": "2026-01-27",
       "source": "Templates/hooks/workflow-trigger.js"
     }
   },
   "commands": {
     "change-domain-expert.md": {
-      "checksum": "4cfb80d00c4c9ec9f81f153a619fb08b7a0c55c75282c4b28fc6089cce3fb276",
+      "checksum": "56090874c80dce493829c00f3bb160644c0a81bde2ac35fc684cf44a39be4f3a",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/change-domain-expert.md"
     },
     "playwright-check.md": {
-      "checksum": "336c699e88027df9f1891970d87a662088714c9cb7ad02b18c68a1c1ef5692ab",
+      "checksum": "80d9de313346b131f2330a2ed8da10dc5a3f7a7b2d3eb62546c0beae7028ec6b",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/playwright-check.md"
     },
     "assign-branch.md": {
-      "checksum": "8d63b1dc50cfb9aa3753e06ff425974eb7a618c4cbaf200cf545d20a4c255e8f",
+      "checksum": "355677d5906a8e5d583ef3c4b697e468c398205b65e990f049bffbd21619eda5",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/assign-branch.md",
       "extensible": false
     },
     "switch-branch.md": {
-      "checksum": "c9052d0e685fc988c4176e0b8424d7d89653a8116d0b545b19e91f40c8991a95",
+      "checksum": "451f4bd8560fcb550d430477ff3fa4f27c40f04030fecb68e25c2b8ebd43c632",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/switch-branch.md",
       "extensible": false
     },
     "transfer-issue.md": {
-      "checksum": "22e94cda00138d2f120f5a5ae720153add6a8bedd768654990d47282c03cb059",
+      "checksum": "e6dd09aa4c4da2552435a65ea0f2fb353f4b4afe7044f354c0a05600a063c92e",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/transfer-issue.md",
       "extensible": false
     },
     "create-branch.md": {
-      "checksum": "6f839563672e7c041812d92fa28dac05245cf6af7082e73f8dbebe756e56f06f",
+      "checksum": "3eb7b43b6d62b8f9f20e7000570a33b98044c61abb81ed8e78c444ec3cd496b4",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/create-branch.md",
       "extensible": true
     },
     "prepare-release.md": {
-      "checksum": "123f4ec2ee9cd45cb6de2eecc61a914c4e440bab4115e22dca0cd0236cb0d48c",
+      "checksum": "ab55f5b035c8a7bf944388e2ce7617e9ddd2eba11e03a6c44099d39238ecf61d",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/prepare-release.md",
       "extensible": true
     },
     "prepare-beta.md": {
-      "checksum": "a10ba181230b3b3b0abd2016e86f0dd106b8ceb26121a3b8f5acd655f9c83ee7",
+      "checksum": "5fa98c17b90501c075aa10997f7dbb71169544fc583c170e8b6d4d33700d5645",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/prepare-beta.md",
       "extensible": true
     },
     "merge-branch.md": {
-      "checksum": "85a6869bcc92813db69350936a21d0d8c388e78e20894ba56b13bbeb305ab62d",
+      "checksum": "cc00d66d50451ff8fbbb42280ee66cbd319bc5a4a893f0724e588a3623d1ad66",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/merge-branch.md",
       "extensible": true
     },
     "destroy-branch.md": {
-      "checksum": "995027896c35194988449f64e177fca29bdc3c82b97814421b6aabca99f476cb",
+      "checksum": "6c3feee60e41a261328f2160fcc840e2f3bb77057f8a1f88887d145725628253",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/destroy-branch.md",
       "extensible": true
     },
     "charter.md": {
-      "checksum": "b42dad7115ee120b58446503eb0101fbde6535d2d14b2d0ebbf3a8181866e380",
+      "checksum": "558e860d330f610c4398742d42673632d38e3d671f2240da4fd6f54821a35d49",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/charter.md",
       "extensible": false
     },
     "extensions.md": {
-      "checksum": "ed38ee59c0c1d1f4f4bac7b9a4a25e80706c28f4af1af1a415bb736d8e5e230d",
+      "checksum": "11c5b8675d7a9d5fa665e31850c46a90bfc34395fc977e96d2ae41be124afd5a",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/extensions.md",
       "extensible": false
     },
     "create-prd.md": {
-      "checksum": "c3205bee9f239949edc7df2b6a54ff68307d1bc9ee34e0f4241196f555ba327e",
+      "checksum": "68d1123c0ead91a9f396a3c24d65b902c6e3c5bf06bd53bbb80d59c9e1bddc8c",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/create-prd.md",
       "extensible": true
     },
     "create-backlog.md": {
-      "checksum": "f610047b72c06313f5b03b30f14982fc1dfb902ab37d14bd3e61dd79e0e70052",
+      "checksum": "7e4c6b0a6b4f7525e74fa3cab63ebaa3386d0c2f9d3feeb912ef9969d3d71990",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/create-backlog.md",
       "extensible": false
     },
     "complete-prd.md": {
-      "checksum": "d7a987734101461aeccc608d0f418d8c341e371883b2ace7679f7f88e2e68aed",
+      "checksum": "11448d188d0e8382380f26931878617effe2694c9f80eb96437cb04de016637c",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/complete-prd.md",
       "extensible": false
     },
     "add-story.md": {
-      "checksum": "ad9f028fc0e4aca28a51f19a1a2331103cb0baeb740ebd00e4dcf8cb25fac6ee",
+      "checksum": "9018361d960b39503523da44ab035ed7176666c6d0c8df149fae4a06e19fc997",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/add-story.md",
       "extensible": false
     },
     "split-story.md": {
-      "checksum": "0266bea298089a5d4d9779c22c55efca93334f866d2be32c22cd2f7099316731",
+      "checksum": "8d6b422a112dc0c586cafc74ed70afb42e05cd7332b972f1e5fdfaed9ea158b5",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/split-story.md",
       "extensible": false
     },
     "emergency-bug.md": {
-      "checksum": "8a5e7a0f76656519d6a54617219094d7732e4268e5f63a07ce9dc9b5ce1a79cd",
+      "checksum": "df274b5c35aebb5abf86e6f298a76e9b64c0935f3db51d35b89548469206b948",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/emergency-bug.md",
       "extensible": false
     },
     "pivot.md": {
-      "checksum": "8a0c7e5cc0312feb1c7adc12b29857fabbfdc7811104dade892176e55e0c5f45",
+      "checksum": "4ecc97d63fc780ff922b92b6af04b9e156112d52ab419a2c65f828c70c2e3cdb",
       "deployedAt": "2026-01-27",
       "source": "Templates/commands/pivot.md",
       "extensible": false
@@ -189,7 +189,7 @@
   },
   "hooks": {
     "workflow-trigger.js": {
-      "checksum": "c9f4ab5c937e0f233510adcd198454d4cf860d7a0abe24abb030fd1c4766749c",
+      "checksum": "dafe2665aa97c41680a2f246f046904428be708bdee784fc774f6501c1591ce7",
       "deployedAt": "2026-01-27",
       "source": "Templates/hooks/workflow-trigger.js"
     }

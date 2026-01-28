@@ -1,5 +1,5 @@
 # GitHub Workflow Integration
-**Version:** v0.33.2
+**Version:** v0.33.3
 **Source:** Reference/GitHub-Workflow.md
 ---
 **MUST READ:** At session startup and after compaction.
@@ -90,6 +90,18 @@ Prefer slash commands over raw `gh pmu` commands:
 - **No auto-close keywords until Done** - Use `Refs #XXX` (not `Fixes/Closes/Resolves #XXX`) until user approves
 - **All work on working branches** - Never push to main directly; work requires branch tracker; checkout working branch before working (see Branch Semantics)
 - **Work requires explicit trigger** - After "evaluate", "review", or "assess" commands, STOP after analysis. Never implement until user says "work", "fix that", or "implement that". Clarifying questions ≠ work permission.
+### Analysis vs Work (HARD STOP)
+**Analysis keywords:** evaluate, analyze, assess, review, investigate, check, verify
+**When these appear with issue reference (#N):**
+1. Report findings only
+2. **STOP** - Do not implement
+3. Use **read-only** commands (queries, not mutations)
+4. End with: "Analysis complete. Say 'work' to implement."
+**Forbidden during analysis:**
+- Running scripts with side effects
+- Creating/editing/moving issues (except reading)
+- Making code changes
+- Any `gh pmu move`, `git commit`, `node script.js` that modifies state
 ### Commit Message Keywords
 | Phase | Use | Avoid |
 |-------|-----|-------|

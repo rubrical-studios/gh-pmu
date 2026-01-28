@@ -113,9 +113,6 @@ metadata:
         - name: Target date
           id: PVTF_lAHOAATLPs4BJeuXzg5oVC8
           data_type: DATE
-        - name: Microsprint
-          id: PVTF_lAHOAATLPs4BJeuXzg6bQ8Y
-          data_type: TEXT
         - name: Branch
           id: PVTF_lAHOAATLPs4BJeuXzg8L4a8
           data_type: TEXT

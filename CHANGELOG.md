@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-01-27
+
+### Fixed
+- GraphQL union type error in `deleteProjectV2Field` mutation return selection (#661)
+  - Changed return struct to use `ClientMutationID` instead of `ProjectV2Field.ID`
+  - Avoids "Selections can't be made directly on unions" error during `gh pmu init`
+
+### Changed
+- Updated IDPF framework to v0.33.3
+
 ## [0.14.1] - 2026-01-27
 
 ### Added
