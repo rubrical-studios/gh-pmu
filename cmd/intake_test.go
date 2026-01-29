@@ -115,6 +115,10 @@ func TestIntakeCommand(t *testing.T) {
 		if applyFlag.Shorthand != "a" {
 			t.Errorf("expected --apply shorthand 'a', got %s", applyFlag.Shorthand)
 		}
+		// Verify NoOptDefVal is set to allow --apply without a value
+		if applyFlag.NoOptDefVal == "" {
+			t.Error("expected --apply NoOptDefVal to be set (allow usage without value)")
+		}
 
 		// Check --dry-run flag
 		dryRunFlag := cmd.Flags().Lookup("dry-run")
@@ -891,6 +895,75 @@ func TestRunIntakeWithDeps_SingleRepo_CorrectResults(t *testing.T) {
 	call := mock.getProjectItemsCalls[0]
 	if call.filter == nil || call.filter.Repository != "owner/repo" {
 		t.Errorf("Expected repository filter to be set")
+	}
+}
+
+// =============================================================================
+// --apply Without Value Tests (Issue #667)
+// =============================================================================
+
+// Test that --apply flag can be used without a value (NoOptDefVal)
+func TestRunIntakeWithDeps_ApplyWithoutValue(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Untracked Issue", State: "OPEN"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+		Defaults: config.Defaults{
+			Status:   "backlog",
+			Priority: "p2",
+		},
+	}
+
+	// Simulate --apply being set without a value (NoOptDefVal triggers this)
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// Mark the apply flag as changed (as Cobra does when --apply is used)
+	_ = cmd.Flags().Set("apply", " ") // NoOptDefVal value
+	opts := &intakeOptions{apply: " "}
+
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Added 1 issue") {
+		t.Errorf("expected 'Added 1 issue' message, got: %s", output)
+	}
+}
+
+// Test that --apply with explicit fields continues to work
+func TestRunIntakeWithDeps_ApplyWithExplicitFields(t *testing.T) {
+	mock := newMockIntakeClient()
+	mock.repositoryIssues = []api.Issue{
+		{ID: "issue-1", Number: 1, Title: "Untracked Issue", State: "OPEN"},
+	}
+	cfg := &config.Config{
+		Project:      config.Project{Owner: "test-org", Number: 1},
+		Repositories: []string{"owner/repo"},
+	}
+
+	cmd := newIntakeCommand()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+
+	// Simulate --apply status:backlog,priority:p1
+	_ = cmd.Flags().Set("apply", "status:backlog,priority:p1")
+	opts := &intakeOptions{apply: "status:backlog,priority:p1"}
+
+	err := runIntakeWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Added 1 issue") {
+		t.Errorf("expected 'Added 1 issue' message, got: %s", output)
 	}
 }
 
