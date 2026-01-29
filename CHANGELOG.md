@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-01-29
+
+### Fixed
+- `gh pmu intake --apply` now works without a value (#667)
+  - Flag accepts optional value using Cobra's `NoOptDefVal`
+  - When used without value, applies config defaults as documented
+- `gh pmu view --json=status` now returns actual project status (#668)
+  - Added `status`, `priority`, `branch` as direct JSON fields
+  - Previously returned `null` even when issue had valid project status
+  - Fields extract values from `fieldValues` map for convenience
+
 ## [0.14.2] - 2026-01-27
 
 ### Fixed

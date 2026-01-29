@@ -923,7 +923,7 @@ func TestRunIntakeWithDeps_ApplyWithoutValue(t *testing.T) {
 	cmd.SetOut(&buf)
 
 	// Mark the apply flag as changed (as Cobra does when --apply is used)
-	cmd.Flags().Set("apply", " ") // NoOptDefVal value
+	_ = cmd.Flags().Set("apply", " ") // NoOptDefVal value
 	opts := &intakeOptions{apply: " "}
 
 	err := runIntakeWithDeps(cmd, opts, cfg, mock)
@@ -953,7 +953,7 @@ func TestRunIntakeWithDeps_ApplyWithExplicitFields(t *testing.T) {
 	cmd.SetOut(&buf)
 
 	// Simulate --apply status:backlog,priority:p1
-	cmd.Flags().Set("apply", "status:backlog,priority:p1")
+	_ = cmd.Flags().Set("apply", "status:backlog,priority:p1")
 	opts := &intakeOptions{apply: "status:backlog,priority:p1"}
 
 	err := runIntakeWithDeps(cmd, opts, cfg, mock)
