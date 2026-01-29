@@ -67,6 +67,7 @@ Use --apply to automatically add discovered issues to the project.`,
 	}
 
 	cmd.Flags().StringVarP(&opts.apply, "apply", "a", "", "Add untracked issues to project (optionally set fields: status:backlog,priority:p1)")
+	cmd.Flags().Lookup("apply").NoOptDefVal = " " // Allow --apply without a value (uses config defaults)
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would be added without making changes")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "Output in JSON format")
 	cmd.Flags().StringArrayVarP(&opts.label, "label", "l", nil, "Filter issues by label (can be specified multiple times)")

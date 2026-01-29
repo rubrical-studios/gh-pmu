@@ -43,13 +43,16 @@ var viewAvailableFields = []string{
 	"assignees",
 	"author",
 	"body",
+	"branch",
 	"comments",
 	"fieldValues",
 	"labels",
 	"milestone",
 	"number",
 	"parentIssue",
+	"priority",
 	"state",
+	"status",
 	"subIssues",
 	"subProgress",
 	"title",
@@ -418,6 +421,27 @@ func filterViewJSONFields(output ViewJSONOutput, fields []string) map[string]int
 			}
 		case "fieldValues":
 			result["fieldValues"] = output.FieldValues
+		case "status":
+			// Extract status from fieldValues (project field)
+			if val, ok := output.FieldValues["Status"]; ok && val != "" {
+				result["status"] = val
+			} else {
+				result["status"] = nil
+			}
+		case "priority":
+			// Extract priority from fieldValues (project field)
+			if val, ok := output.FieldValues["Priority"]; ok && val != "" {
+				result["priority"] = val
+			} else {
+				result["priority"] = nil
+			}
+		case "branch":
+			// Extract branch from fieldValues (project field)
+			if val, ok := output.FieldValues["Branch"]; ok && val != "" {
+				result["branch"] = val
+			} else {
+				result["branch"] = nil
+			}
 		case "subIssues":
 			if output.SubIssues != nil {
 				result["subIssues"] = output.SubIssues

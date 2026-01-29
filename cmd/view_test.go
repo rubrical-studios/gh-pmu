@@ -1507,3 +1507,171 @@ func TestParseJSONFields_EmptyReturnsAll(t *testing.T) {
 		t.Errorf("expected all %d fields, got %d", len(viewAvailableFields), len(result))
 	}
 }
+
+// ============================================================================
+// Project Field Shorthand Tests (Issue #668)
+// ============================================================================
+
+func TestViewAvailableFields_IncludesProjectFields(t *testing.T) {
+	// Verify status, priority, branch are in available fields
+	projectFields := []string{"status", "priority", "branch"}
+	for _, field := range projectFields {
+		found := false
+		for _, available := range viewAvailableFields {
+			if available == field {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected %q to be in viewAvailableFields", field)
+		}
+	}
+}
+
+func TestFilterViewJSONFields_StatusFromFieldValues(t *testing.T) {
+	output := ViewJSONOutput{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://example.com",
+		Author: "testuser",
+		FieldValues: map[string]string{
+			"Status":   "In Progress",
+			"Priority": "P1",
+		},
+	}
+
+	result := filterViewJSONFields(output, []string{"status"})
+
+	if result["status"] != "In Progress" {
+		t.Errorf("expected status 'In Progress', got %v", result["status"])
+	}
+}
+
+func TestFilterViewJSONFields_PriorityFromFieldValues(t *testing.T) {
+	output := ViewJSONOutput{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://example.com",
+		Author: "testuser",
+		FieldValues: map[string]string{
+			"Status":   "In Progress",
+			"Priority": "P1",
+		},
+	}
+
+	result := filterViewJSONFields(output, []string{"priority"})
+
+	if result["priority"] != "P1" {
+		t.Errorf("expected priority 'P1', got %v", result["priority"])
+	}
+}
+
+func TestFilterViewJSONFields_BranchFromFieldValues(t *testing.T) {
+	output := ViewJSONOutput{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://example.com",
+		Author: "testuser",
+		FieldValues: map[string]string{
+			"Status": "In Progress",
+			"Branch": "release/v1.0",
+		},
+	}
+
+	result := filterViewJSONFields(output, []string{"branch"})
+
+	if result["branch"] != "release/v1.0" {
+		t.Errorf("expected branch 'release/v1.0', got %v", result["branch"])
+	}
+}
+
+func TestFilterViewJSONFields_StatusNullWhenNotInProject(t *testing.T) {
+	output := ViewJSONOutput{
+		Number:      42,
+		Title:       "Test Issue",
+		State:       "OPEN",
+		URL:         "https://example.com",
+		Author:      "testuser",
+		FieldValues: map[string]string{}, // No project fields
+	}
+
+	result := filterViewJSONFields(output, []string{"status"})
+
+	if result["status"] != nil {
+		t.Errorf("expected status nil when not in project, got %v", result["status"])
+	}
+}
+
+func TestFilterViewJSONFields_PriorityNullWhenNotSet(t *testing.T) {
+	output := ViewJSONOutput{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://example.com",
+		Author: "testuser",
+		FieldValues: map[string]string{
+			"Status": "In Progress",
+			// Priority not set
+		},
+	}
+
+	result := filterViewJSONFields(output, []string{"priority"})
+
+	if result["priority"] != nil {
+		t.Errorf("expected priority nil when not set, got %v", result["priority"])
+	}
+}
+
+func TestFilterViewJSONFields_MultipleProjectFields(t *testing.T) {
+	output := ViewJSONOutput{
+		Number: 42,
+		Title:  "Test Issue",
+		State:  "OPEN",
+		URL:    "https://example.com",
+		Author: "testuser",
+		FieldValues: map[string]string{
+			"Status":   "Done",
+			"Priority": "P0",
+			"Branch":   "patch/v1.1.5",
+		},
+	}
+
+	result := filterViewJSONFields(output, []string{"status", "priority", "branch"})
+
+	if result["status"] != "Done" {
+		t.Errorf("expected status 'Done', got %v", result["status"])
+	}
+	if result["priority"] != "P0" {
+		t.Errorf("expected priority 'P0', got %v", result["priority"])
+	}
+	if result["branch"] != "patch/v1.1.5" {
+		t.Errorf("expected branch 'patch/v1.1.5', got %v", result["branch"])
+	}
+}
+
+func TestFilterViewJSONFields_AllStatusValues(t *testing.T) {
+	// Test that all standard status values work
+	statuses := []string{"Backlog", "In Progress", "In Review", "Done"}
+	for _, status := range statuses {
+		output := ViewJSONOutput{
+			Number: 42,
+			Title:  "Test Issue",
+			State:  "OPEN",
+			URL:    "https://example.com",
+			Author: "testuser",
+			FieldValues: map[string]string{
+				"Status": status,
+			},
+		}
+
+		result := filterViewJSONFields(output, []string{"status"})
+
+		if result["status"] != status {
+			t.Errorf("expected status %q, got %v", status, result["status"])
+		}
+	}
+}
