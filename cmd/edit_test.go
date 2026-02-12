@@ -661,4 +661,3 @@ func TestRunEditWithDeps_CrossRepoEditing(t *testing.T) {
 		t.Errorf("Expected body update call, got: %v", mock.updateBodyCalls)
 	}
 }
-

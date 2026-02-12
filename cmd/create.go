@@ -589,4 +589,3 @@ func decodeBase64Content(encoded string) (string, error) {
 	}
 	return string(decoded), nil
 }
-
