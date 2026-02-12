@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @framework-script 0.33.3
+ * @framework-script 0.42.0
  * @description Poll GitHub Actions workflow status with timeout
  * @checksum sha256:placeholder
  *
@@ -21,57 +21,40 @@ async function main() {
     const startTime = Date.now();
 
     try {
-        // Get latest run
-        const runsJson = execSync('gh run list --limit 1 --json databaseId,status,conclusion,name', {
-            encoding: 'utf8'
-        });
-
-        const runs = JSON.parse(runsJson);
-        if (!runs.length) {
-            console.log(JSON.stringify({
-                success: false,
-                message: 'No workflow runs found'
-            }));
-            process.exit(1);
-        }
-
-        let run = runs[0];
-
-        // If already completed, return immediately
-        if (run.status === 'completed') {
-            outputResult(run);
-            return;
-        }
-
-        // Poll until complete or timeout
         while (Date.now() - startTime < TIMEOUT) {
-            await sleep(POLL_INTERVAL);
-
-            // Check if run is still running
-            const checkJson = execSync(`gh run view ${run.databaseId} --json status,conclusion,jobs`, {
+            const runsJson = execSync('gh run list --limit 5 --json databaseId,status,conclusion', {
                 encoding: 'utf8'
             });
 
-            const check = JSON.parse(checkJson);
+            const runs = JSON.parse(runsJson);
+            const latestRun = runs[0];
 
-            if (check.status === 'completed') {
-                outputResult({ ...run, ...check });
-                return;
+            if (latestRun && latestRun.status === 'completed') {
+                if (latestRun.conclusion === 'success') {
+                    console.log(JSON.stringify({
+                        success: true,
+                        message: 'CI workflow completed successfully',
+                        data: { runId: latestRun.databaseId }
+                    }));
+                    return;
+                }
+                console.log(JSON.stringify({
+                    success: false,
+                    message: `CI workflow failed: ${latestRun.conclusion}`,
+                    data: { runId: latestRun.databaseId, conclusion: latestRun.conclusion }
+                }));
+                process.exit(1);
             }
 
-            // Still running - continue polling
-            console.error(`CI still running... (${Math.round((Date.now() - startTime) / 1000)}s elapsed)`);
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            console.error(`Waiting for CI... (${elapsed}s)`);
+            await sleep(POLL_INTERVAL);
         }
 
-        // Timeout
         console.log(JSON.stringify({
             success: false,
-            message: `CI timed out after ${Math.round(TIMEOUT / 1000)}s`,
-            data: {
-                status: 'timeout',
-                workflow: run.name,
-                runId: run.databaseId
-            }
+            message: 'CI workflow did not complete in time',
+            data: { status: 'timeout', timeoutMs: TIMEOUT }
         }));
         process.exit(1);
 
@@ -82,28 +65,6 @@ async function main() {
         }));
         process.exit(1);
     }
-}
-
-function outputResult(run) {
-    const jobs = (run.jobs || []).map(j => ({
-        name: j.name,
-        status: j.conclusion || j.status
-    }));
-
-    const passed = run.conclusion === 'success';
-
-    console.log(JSON.stringify({
-        success: passed,
-        message: passed ? 'CI passed' : `CI failed: ${run.conclusion}`,
-        data: {
-            status: run.conclusion,
-            workflow: run.name,
-            runId: run.databaseId,
-            jobs
-        }
-    }));
-
-    if (!passed) process.exit(1);
 }
 
 main();

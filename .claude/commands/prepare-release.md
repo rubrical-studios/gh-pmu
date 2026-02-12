@@ -1,5 +1,5 @@
 ---
-version: "v0.33.3"
+version: "v0.42.0"
 description: Prepare release with PR, merge to main, and tag
 argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
 ---
@@ -100,6 +100,8 @@ Record the current branch name as `$BRANCH` for use in subsequent steps.
 ```bash
  gh pmu list --branch current --status backlog,in_progress,in_review
 ```
+
+**Do not add `--json`** — `status` is not a valid JSON field for `gh pmu list`. Use the text output directly.
 
 ---
 
@@ -267,7 +269,7 @@ git push
 ### Wait for CI
 
 ```bash
-node .claude/scripts/framework/wait-for-ci.js
+node .claude/scripts/shared/wait-for-ci.js
 ```
 
 The script polls CI status every 60 seconds (5-minute timeout).
@@ -372,14 +374,6 @@ The script monitors the tag-triggered workflow and verifies all platform binarie
 
 **If assets are missing after timeout, report warning but continue.**
 
-### Update Release Notes
-
-```bash
-node .claude/scripts/framework/update-release-notes.js
-```
-
-Updates GitHub Release with formatted notes from CHANGELOG.
-
 ### Clean Up Old Release Assets
 
 ```bash
@@ -430,6 +424,7 @@ Do NOT auto-close issues just because they shipped.
 ---
 
 <!-- USER-EXTENSION-START: pre-close -->
+<!-- Pre-close validation, notifications -->
 <!-- USER-EXTENSION-END: pre-close -->
 
 ## Phase 5: Close & Cleanup
@@ -465,6 +460,8 @@ gh release create $VERSION \
 ```
 
 <!-- USER-EXTENSION-START: post-close -->
+
+
 <!-- USER-EXTENSION-END: post-close -->
 
 ---

@@ -1,17 +1,13 @@
 ---
-version: "v0.33.3"
+version: "v0.42.0"
 allowed-tools: Bash
-description: Switch branch/sprint context (project)
+description: Switch branch context (project)
 argument-hint: "[branch-name]"
 ---
-
 <!-- MANAGED -->
-Switch between branch and sprint contexts.
-
+Switch between branch contexts.
 Run the switch-branch script:
-
 ```bash
 node .claude/scripts/shared/switch-branch.js "$ARGUMENTS"
 ```
-
 After switching, report the new context to the user.

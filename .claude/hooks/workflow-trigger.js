@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @framework-script 0.33.3
+ * @framework-script 0.42.0
  * workflow-trigger.js
  *
  * UserPromptSubmit hook that:
@@ -8,10 +8,15 @@
  * 2. Responds to 'commands' with available triggers and slash commands
  * 3. Validates branch assignment for 'work #N' commands
  * 4. Detects analysis keywords and injects STOP reminder (#1056)
+ * 5. Auto-moves PRD tracker to in_progress for work commands (#1193)
+ * 6. Detects 'done' trigger and routes to /done command (#1200)
+ * 7. Detects 'review #N' and routes to /review-issue command (#1210)
  *
  * Trigger prefixes: bug:, enhancement:, idea:, proposal:
  * Work command: work #N (validates branch assignment, provides branch context)
- * Analysis keywords: evaluate, analyze, assess, review, investigate, check, verify
+ * Done command: done [#N...] (contextual - only triggers with active issues)
+ * Review command: review #N [#N...] (routes to /review-issue)
+ * Analysis keywords: evaluate, analyze, assess, investigate, check, verify
  *   - When combined with issue reference, injects STOP reminder
  *   - Prevents analysis requests from drifting into implementation
  *
@@ -30,7 +35,7 @@ const CACHE_FILE = path.join(process.cwd(), '.claude', 'hooks', '.command-cache.
 
 // Analysis keywords that trigger STOP-after-report behavior
 // When these appear with an issue reference, inject reminder to report only
-const ANALYSIS_KEYWORDS = ['evaluate', 'analyze', 'assess', 'review', 'investigate', 'check', 'verify'];
+const ANALYSIS_KEYWORDS = ['evaluate', 'analyze', 'assess', 'investigate', 'check', 'verify'];
 
 let input = '';
 
@@ -50,13 +55,20 @@ process.stdin.on('end', () => {
         // Broad "work" trigger - matches any prompt starting with "work "
         // We'll opportunistically extract issue numbers or status later
         const workTrigger = prompt.match(/^work\s/i);
+        // Done trigger - matches standalone "done" or "done #N" at message start
+        // Contextual detection happens later (queries active issues)
+        const doneTrigger = promptLower.match(/^done(\s|$)/i);
+        // Review trigger - "review" with issue reference routes to /review-issue (#1210)
+        // review is a tracked action (not passive analysis like evaluate/assess/etc.)
+        const hasReviewKeyword = promptLower.includes('review');
+        const hasIssueRef = prompt.match(/#\d+|\bissue\s+\d+|\b\d{2,}\b/i);
+        const reviewTrigger = hasReviewKeyword && hasIssueRef && !workTrigger;
         // Analysis trigger - detect analysis keywords with issue references
         // This prevents "evaluate #123" from drifting into implementation
         const hasAnalysisKeyword = ANALYSIS_KEYWORDS.some(kw => promptLower.includes(kw));
-        const hasIssueRef = prompt.match(/#\d+|\bissue\s+\d+|\b\d{2,}\b/i);
-        const analysisMatch = hasAnalysisKeyword && hasIssueRef && !workTrigger;
+        const analysisMatch = hasAnalysisKeyword && hasIssueRef && !workTrigger && !reviewTrigger;
 
-        if (!isCommandRequest && !triggerMatch && !workTrigger && !analysisMatch) {
+        if (!isCommandRequest && !triggerMatch && !workTrigger && !doneTrigger && !reviewTrigger && !analysisMatch) {
             process.exit(0);
         }
 
@@ -100,10 +112,10 @@ process.stdin.on('end', () => {
 
             // Try to extract batch status: "work all in Ready", "work the issues in backlog"
             const statusMatch = prompt.match(/\bin\s+(\w+[-\w]*)/i);
-            const statusOrSprint = statusMatch ? statusMatch[1] : null;
+            const statusFilter = statusMatch ? statusMatch[1] : null;
 
             // If no issue number and no status, exit silently (let Claude handle naturally)
-            if (!issueNumber && !statusOrSprint) {
+            if (!issueNumber && !statusFilter) {
                 process.exit(0);
             }
 
@@ -111,7 +123,7 @@ process.stdin.on('end', () => {
             if (issueNumber) {
 
             try {
-                // Query issue's Branch and Sprint fields via gh pmu view
+                // Query issue's Branch field via gh pmu view
                 const result = execSync(
                     `gh pmu view ${issueNumber} --json`,
                     { encoding: 'utf-8', timeout: 10000 }
@@ -119,8 +131,6 @@ process.stdin.on('end', () => {
 
                 const issueData = JSON.parse(result);
                 const branch = issueData.fieldValues?.Branch;
-                const sprint = issueData.fieldValues?.Microsprint || issueData.fieldValues?.Sprint;
-
                 if (!branch || branch === '' || branch === 'null') {
                     // No branch assigned - block with actionable message
                     const output = {
@@ -134,24 +144,35 @@ process.stdin.on('end', () => {
                     process.exit(0);
                 }
 
-                // Branch assigned - allow and provide branch context
-                // Branch name is in [track]/[name] format
-                // e.g., release/v1.2.0, patch/v1.1.5, idpf/to-praxis, hotfix/auth-bypass
-                const branchName = branch;
+                // Branch assigned - route to /work command
+                let contextMessage = `[INVOKE: /work ${issueNumber}]\n`;
 
-                let contextMessage = `[BRANCH-AWARE WORK]\n`;
-                contextMessage += `Issue #${issueNumber} is assigned to branch: ${branch}\n`;
-                contextMessage += `\nBEFORE working on this issue:\n`;
-                contextMessage += `1. Check current branch: git branch --show-current\n`;
-                contextMessage += `2. If not on '${branchName}', switch to it: git checkout ${branchName}\n`;
-                contextMessage += `3. NEVER commit directly to main branch\n`;
-
-                if (sprint) {
-                    contextMessage += `\nSprint context: ${sprint}\n`;
+                // PRD Tracker Auto-Move (#1193)
+                // Check issue body for **PRD Tracker:** #NNN and move to in_progress if needed
+                const body = issueData.body || '';
+                const prdTrackerMatch = body.match(/\*\*PRD Tracker:\*\*\s*#(\d+)/);
+                if (prdTrackerMatch) {
+                    const prdNumber = prdTrackerMatch[1];
+                    try {
+                        const prdResult = execSync(
+                            `gh pmu view ${prdNumber} --json=status`,
+                            { encoding: 'utf-8', timeout: 10000 }
+                        );
+                        const prdData = JSON.parse(prdResult);
+                        const prdStatus = (prdData.status || '').toLowerCase();
+                        if (prdStatus === 'backlog' || prdStatus === 'ready') {
+                            execSync(
+                                `gh pmu move ${prdNumber} --status in_progress`,
+                                { encoding: 'utf-8', timeout: 10000 }
+                            );
+                            contextMessage += `\nPRD tracker #${prdNumber} moved to In Progress\n`;
+                        }
+                    } catch (_prdError) {
+                        // Fail silently - PRD tracker query is non-blocking
+                    }
                 }
 
                 // Auto-todo: Extract acceptance criteria or sub-issues for todo list
-                const body = issueData.body || '';
                 const labels = issueData.labels || [];
                 const isEpic = labels.some(l => l === 'epic' || l.name === 'epic');
 
@@ -198,12 +219,12 @@ process.stdin.on('end', () => {
                 process.exit(0);
 
             } catch (_error) {
-                // Error checking - allow and let downstream handle (fail-open)
+                // Error checking - route to /work and let command handle (fail-open)
                 const output = {
                     systemMessage: `Success`,
                     hookSpecificOutput: {
                         hookEventName: 'UserPromptSubmit',
-                        additionalContext: `[WORK COMMAND] Could not verify release assignment for #${issueNumber} (fail-open). Proceeding with work.`
+                        additionalContext: `[INVOKE: /work ${issueNumber}]`
                     }
                 };
                 console.log(JSON.stringify(output));
@@ -212,67 +233,129 @@ process.stdin.on('end', () => {
             }
 
             // Batch work (has status but no specific issue number)
-            if (statusOrSprint) {
+            // Route to /work command with the full "all in <status>" argument
+            if (statusFilter) {
+                let contextMessage = `[INVOKE: /work all in ${statusFilter}]\n`;
+
                 try {
-                // Query issues in the specified status
+                // Opportunistically query issues for AUTO-TODO
                 const result = execSync(
-                    `gh pmu list --status ${statusOrSprint} --json`,
+                    `gh pmu list --status ${statusFilter} --json`,
                     { encoding: 'utf-8', timeout: 15000 }
                 );
 
                 const data = JSON.parse(result);
                 const issues = data.items || [];
                 if (issues.length > 0) {
-                    let contextMessage = `[BATCH WORK: ${issues.length} issues in ${statusOrSprint}]\n\n`;
-                    contextMessage += `[AUTO-TODO: BATCH ISSUES]\n`;
+                    contextMessage += `\n[AUTO-TODO: BATCH ISSUES]\n`;
                     contextMessage += `Create a todo list with these issues:\n`;
                     issues.forEach(issue => {
                         contextMessage += `- #${issue.number}: ${issue.title}\n`;
                     });
-                    contextMessage += `\nProcess each issue in order, moving to In Progress before starting.`;
-
-                    const output = {
-                        systemMessage: `Success`,
-                        hookSpecificOutput: {
-                            hookEventName: 'UserPromptSubmit',
-                            additionalContext: contextMessage
-                        }
-                    };
-                    console.log(JSON.stringify(output));
-                } else {
-                    const output = {
-                        systemMessage: `Success`,
-                        hookSpecificOutput: {
-                            hookEventName: 'UserPromptSubmit',
-                            additionalContext: `[BATCH WORK] No issues found in status: ${statusOrSprint}`
-                        }
-                    };
-                    console.log(JSON.stringify(output));
                 }
-                process.exit(0);
 
-            } catch (_error) {
-                // Fail-open: allow and let Claude handle
+                } catch (_error) {
+                    // Fail silently - /work command will query issues itself
+                }
+
                 const output = {
                     systemMessage: `Success`,
                     hookSpecificOutput: {
                         hookEventName: 'UserPromptSubmit',
-                        additionalContext: `[BATCH WORK] Could not query issues in ${statusOrSprint} (fail-open). Query manually with: gh pmu list --status ${statusOrSprint}`
+                        additionalContext: contextMessage
                     }
                 };
                 console.log(JSON.stringify(output));
                 process.exit(0);
             }
-            }
         }
 
-        // Handle workflow triggers
+        // Handle 'done' commands - contextual trigger (#1200, #1218)
+        // Only triggers when issues are in in_review status
+        // /done only handles in_review→done (not in_progress→in_review, which is /work's job)
+        if (doneTrigger) {
+            // Extract optional issue numbers: "done #42 #43" or "done 42"
+            const issueNumbers = prompt.match(/#?(\d+)/g);
+            const args = issueNumbers
+                ? issueNumbers.map(n => n.replace('#', '')).slice(0).join(' ')
+                : '';
+
+            // If explicit issue numbers given, route directly (no context check needed)
+            if (args) {
+                const output = {
+                    systemMessage: 'Success',
+                    hookSpecificOutput: {
+                        hookEventName: 'UserPromptSubmit',
+                        additionalContext: `[INVOKE: /done ${args}]`
+                    }
+                };
+                console.log(JSON.stringify(output));
+                process.exit(0);
+            }
+
+            // No arguments - contextual detection: check for in_review issues only
+            try {
+                const inReviewResult = execSync(
+                    'gh pmu list --status in_review',
+                    { encoding: 'utf-8', timeout: 10000 }
+                );
+
+                const hasReviewIssues =
+                    inReviewResult && inReviewResult.trim().length > 0 && !inReviewResult.includes('no items');
+
+                if (hasReviewIssues) {
+                    const output = {
+                        systemMessage: 'Success',
+                        hookSpecificOutput: {
+                            hookEventName: 'UserPromptSubmit',
+                            additionalContext: '[INVOKE: /done]'
+                        }
+                    };
+                    console.log(JSON.stringify(output));
+                    process.exit(0);
+                }
+                // No in_review issues - fall through (let Claude handle "done" naturally)
+            } catch (_error) {
+                // gh pmu not available or query failed - fall through silently
+            }
+            process.exit(0);
+        }
+
+        // Handle review commands - route to /review-issue (#1210)
+        if (reviewTrigger) {
+            // Extract all issue numbers from the prompt
+            const issueMatches = prompt.match(/#(\d+)/g) || prompt.match(/\b(\d{2,})\b/g) || [];
+            const issueArgs = issueMatches.map(n => n.replace('#', '')).join(' ');
+            const output = {
+                systemMessage: 'Success',
+                hookSpecificOutput: {
+                    hookEventName: 'UserPromptSubmit',
+                    additionalContext: `[INVOKE: /review-issue ${issueArgs}]`
+                }
+            };
+            console.log(JSON.stringify(output));
+            process.exit(0);
+        }
+
+        // Handle workflow triggers - route to specific commands
         if (triggerMatch) {
+            const triggerType = triggerMatch[1].toLowerCase();
+            const title = prompt.slice(triggerMatch[0].length).trim();
+
+            // Map trigger prefixes to slash commands
+            const commandMap = {
+                'bug': '/bug',
+                'enhancement': '/enhancement',
+                'proposal': '/proposal',
+                'idea': '/proposal'  // alias
+            };
+
+            const command = commandMap[triggerType];
             const output = {
                 systemMessage: `Success`,
                 hookSpecificOutput: {
                     hookEventName: "UserPromptSubmit",
-                    additionalContext: "[WORKFLOW TRIGGER: Create GitHub issue first. Wait for 'work' instruction before implementing.]"
+                    additionalContext: `[INVOKE: ${command} ${title}]`
                 }
             };
             console.log(JSON.stringify(output));
@@ -310,7 +393,7 @@ function detectFramework() {
         const configPath = path.join(cwd, 'framework-config.json');
         if (fs.existsSync(configPath)) {
             const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-            const framework = config.projectType?.processFramework || config.framework;
+            const framework = config.processFramework || config.projectType?.processFramework || config.framework;
             if (framework) return normalizeFramework(framework);
         }
     } catch (_e) {
@@ -318,7 +401,7 @@ function detectFramework() {
     }
 
     // Check for IDPF directories (framework dev or direct usage)
-    const frameworks = ['IDPF-Agile', 'IDPF-Vibe', 'IDPF-PRD'];
+    const frameworks = ['IDPF-Agile', 'IDPF-Vibe'];
     for (const fw of frameworks) {
         if (fs.existsSync(path.join(cwd, fw))) {
             return fw;
@@ -335,7 +418,6 @@ function normalizeFramework(name) {
     const lower = name.toLowerCase();
     if (lower === 'agile' || lower === 'idpf-agile') return 'IDPF-Agile';
     if (lower.startsWith('vibe') || lower === 'idpf-vibe') return 'IDPF-Vibe';
-    if (lower === 'prd' || lower === 'idpf-prd') return 'IDPF-PRD';
     return name;
 }
 
@@ -424,10 +506,11 @@ function generateCommandsHelp(forceRefresh = false) {
         }
     }
 
-    // Detect and show IDPF framework commands
+    // Show active framework info
     const framework = detectFramework();
     if (framework) {
-        help += '\n' + getFrameworkDetailedCommands(framework);
+        help += `\n**Active Framework:** ${framework}\n`;
+        help += `Type \`list-commands\` for the detailed command reference.\n`;
     }
 
     // Cache the result
@@ -446,12 +529,42 @@ function getDetailedCommands(forceRefresh = false) {
     if (cached) return cached;
 
     const framework = detectFramework();
-    let result;
+    let result = '';
 
     if (framework) {
         result = getFrameworkDetailedCommands(framework);
     } else {
-        result = getFrameworkSelectionHelp();
+        // No framework detected — show workflow triggers + dynamic slash commands
+        result = `## Available Triggers & Slash Commands
+
+### Workflow Triggers (prefix your message)
+
+| Trigger | Description |
+|---------|-------------|
+| \`bug: <title>\` | Create a bug issue |
+| \`enhancement: <title>\` | Create an enhancement issue |
+| \`proposal: <title>\` | Create a proposal document + tracking issue |
+| \`idea: <title>\` | Alias for proposal: |
+| \`work #N\` | Start working on an issue |
+| \`work all in <status>\` | Batch work on issues by status |
+| \`done [#N]\` | Complete issue (in_review → done) |
+| \`review #N\` | Route to /review-issue |
+| \`commands\` | Show available triggers and slash commands |
+| \`list-commands\` | Show detailed command list |
+
+### Slash Commands
+`;
+        const slashCommands = getSlashCommands();
+        if (slashCommands.length > 0) {
+            result += `\n| Command | Description |\n|---------|-------------|\n`;
+            for (const cmd of slashCommands) {
+                result += `| \`/${cmd.name}\` | ${cmd.description} |\n`;
+            }
+        } else {
+            result += `\nNo slash commands found in .claude/commands/\n`;
+        }
+
+        result += '\n' + getFrameworkSelectionHelp();
     }
 
     // Cache the result
@@ -504,187 +617,46 @@ function getSlashCommands() {
 function getFrameworkDetailedCommands(framework) {
     switch (framework) {
         case 'IDPF-Agile': return getAgileDetailedCommands();
-        case 'IDPF-Vibe': return getVibeDetailedCommands();
-        case 'IDPF-PRD': return getPRDDetailedCommands();
         default: return getFrameworkSelectionHelp();
     }
 }
 
 function getAgileDetailedCommands() {
-    return `## IDPF-Agile Commands - Full List
+    let result = `## IDPF-Agile — Workflow Triggers & Slash Commands
 
-### Backlog Management
-
-| Command | Description |
-|---------|-------------|
-| \`Create-Backlog\` | Create GitHub epics/stories from PRD |
-| \`Add-Story\` | User describes a new story to add to backlog |
-| \`Refine-Story [ID]\` | Update/clarify an existing story |
-| \`Estimate-Story [ID]\` | Set Estimate field (numeric) in project |
-| \`Prioritize-Backlog\` | Update Priority field (P0/P1/P2) for issues |
-| \`Split-Story [ID]\` | Break story into smaller stories (same parent epic) |
-| \`Archive-Story [ID]\` | Move story to "Parking Lot" status with reason |
-
----
-
-### Story Workflow
+### Workflow Triggers (prefix your message)
 
 | Trigger | Description |
 |---------|-------------|
-| \`work #N\` | Begin work on story (In Progress + assign) |
-| \`gh pmu view #N\` | Check story status directly |
-| \`done\` | Mark story as done |
+| \`bug: <title>\` | Create a bug issue |
+| \`enhancement: <title>\` | Create an enhancement issue |
+| \`proposal: <title>\` | Create a proposal document + tracking issue |
+| \`idea: <title>\` | Alias for proposal: |
+| \`work #N\` | Start working on an issue (validates branch, extracts auto-TODO) |
+| \`work all in <status>\` | Batch work on issues by status |
+| \`done [#N]\` | Complete issue (in_review → done) |
+| \`review #N\` | Route to /review-issue |
+| \`commands\` | Show available triggers and slash commands |
+| \`list-commands\` | Show detailed command list |
 
----
+### Slash Commands
+`;
+    const slashCommands = getSlashCommands();
+    if (slashCommands.length > 0) {
+        result += `\n| Command | Description |\n|---------|-------------|\n`;
+        for (const cmd of slashCommands) {
+            result += `| \`/${cmd.name}\` | ${cmd.description} |\n`;
+        }
+    } else {
+        result += `\nNo slash commands found in .claude/commands/\n`;
+    }
 
-### Sprint Commands
+    result += `
+### TDD Methodology
 
-| Command | Slash Command | Description |
-|---------|---------------|-------------|
-| \`Plan-Sprint\` | \`/plan-sprint\` | Select epics for new sprint |
-| \`Sprint-Status\` | \`/sprint-status\` | Show sprint progress |
-| \`Sprint-Retro\` | \`/sprint-retro\` | Run retrospective |
-| \`End-Sprint\` | \`/end-sprint\` | Close sprint with review |
+IDPF-Agile uses TDD RED-GREEN-REFACTOR cycles. Workflow checkpoint is story completion (In Review → Done).`;
 
----
-
-### Development Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Run-Tests\` | Execute full test suite |
-| \`Show-Coverage\` | Display test coverage report |
-
-**TDD Execution:** Phases execute autonomously. Only workflow checkpoint is story completion (In Review -> Done).
-
-**TDD Skills:** \`tdd-red-phase\`, \`tdd-green-phase\`, \`tdd-refactor-phase\`, \`tdd-failure-recovery\`, \`test-writing-patterns\`
-
----
-
-### Release Lifecycle Commands
-
-| Command | Slash Command | Description |
-|---------|---------------|-------------|
-| \`Create-Branch\` | \`/create-branch\` | Create tracked branch with tracker issue |
-| \`Prepare-Release\` | \`/prepare-release\` | Validate, merge to main, tag, close, cleanup |
-| \`Merge-Branch\` | \`/merge-branch\` | Gated merge to main (non-release branches) |
-| \`Destroy-Branch\` | \`/destroy-branch\` | Cancel/abandon branch with cleanup |
-
----
-
-### Special Scenario Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Story-Blocked [ID] [reason]\` | Add \`blocked\` label and reason comment |
-| \`Story-Growing [ID]\` | Add \`scope-creep\` label |
-| \`Emergency-Bug [description]\` | Create P0 issue with \`emergency\` label |
-| \`Pivot [new direction]\` | Review each story (keep/archive/close) |
-
----
-
-### Utility Commands
-
-| Command | Description |
-|---------|-------------|
-| \`List-Commands\` | Show all available commands with descriptions |
-| \`Help [command]\` | Get detailed help for specific command |`;
-}
-
-function getVibeDetailedCommands() {
-    return `## IDPF-Vibe Commands - Full List
-
-### Development Flow
-
-IDPF-Vibe uses conversational development. No strict commands required.
-
-| Action | Description |
-|--------|-------------|
-| Describe what you want | Assistant builds iteratively |
-| "Try this..." | Experiment with approaches |
-| "Change it to..." | Modify current implementation |
-| "That works, next..." | Move to next feature |
-
----
-
-### Transition Commands
-
-| Command | Description |
-|---------|-------------|
-| \`Formalize\` | Ready to transition to Agile |
-| \`Extract-PRD\` | Generate PRD from current implementation |
-| \`Add-Tests\` | Begin adding test coverage |
-
----
-
-### When to Transition
-
-- Code is working and stable
-- Ready to add comprehensive tests
-- Need formal requirements documentation
-- Moving to team development
-
----
-
-### Utility Commands
-
-| Command | Description |
-|---------|-------------|
-| \`List-Commands\` | Show all available commands |
-| \`Help\` | Get guidance on Vibe workflow |`;
-}
-
-function getPRDDetailedCommands() {
-    return `## IDPF-PRD Commands - Full List
-
-### Discovery Phase
-
-| Command | Description |
-|---------|-------------|
-| \`Start-PRD\` | Begin PRD creation process |
-| \`Define-Stakeholders\` | Identify project stakeholders |
-| \`Define-Domain\` | Specify project domain and context |
-
----
-
-### Elicitation Phase
-
-| Command | Description |
-|---------|-------------|
-| \`Add-Requirement\` | Add a new functional requirement |
-| \`Add-NFR\` | Add non-functional requirement |
-| \`Add-Constraint\` | Add project constraint |
-| \`Add-Risk\` | Document project risk |
-
----
-
-### Specification Phase
-
-| Command | Description |
-|---------|-------------|
-| \`Detail-Requirement [REQ-XXX]\` | Add details to requirement |
-| \`Add-Acceptance-Criteria [REQ-XXX]\` | Define acceptance criteria |
-| \`Prioritize-Requirements\` | Order requirements by priority |
-
----
-
-### Generation Phase
-
-| Command | Description |
-|---------|-------------|
-| \`Generate-PRD\` | Generate final PRD document |
-| \`Select-Template\` | Choose PRD template (Comprehensive/Moderate/Lightweight) |
-| \`Export-PRD\` | Export to specified format |
-
----
-
-### Utility Commands
-
-| Command | Description |
-|---------|-------------|
-| \`List-Commands\` | Show all available commands |
-| \`Show-PRD-Progress\` | Display current PRD status |
-| \`Review-Last\` | Review ASSISTANT's most recent reply |`;
+    return result;
 }
 
 function getFrameworkSelectionHelp() {
@@ -698,9 +670,8 @@ To see framework-specific commands, either:
    \`\`\`
 
 2. **Available frameworks:**
-   - \`IDPF-Agile\` - Sprint-based development with user stories
+   - \`IDPF-Agile\` - Story-based development with TDD
    - \`IDPF-Vibe\` - Exploratory development
-   - \`IDPF-PRD\` - Requirements engineering
 
 3. **Quick start:** Type \`commands\` to see workflow triggers and slash commands.`;
 }

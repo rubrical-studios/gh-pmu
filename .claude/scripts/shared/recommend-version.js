@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @framework-script 0.33.3
+ * @framework-script 0.42.0
  * @description Recommend semver bump based on commit types
  * @checksum sha256:placeholder
  *
@@ -24,12 +24,16 @@ function incVersion(v, type) {
 
 async function main() {
     try {
-        // Get latest tag
+        // Get last semantic version tag (v*.*.*), ignoring branch names
         let lastTag;
         try {
-            lastTag = execSync('git describe --tags --abbrev=0', {
+            lastTag = execSync('git tag -l "v*" --sort=-v:refname', {
                 encoding: 'utf8'
-            }).trim();
+            }).trim().split('\n')[0];
+
+            if (!lastTag) {
+                throw new Error('No version tags found');
+            }
         } catch {
             console.log(JSON.stringify({
                 success: true,
@@ -39,7 +43,6 @@ async function main() {
             return;
         }
 
-        // Parse current version
         const current = parseVersion(lastTag);
         if (!current) {
             console.log(JSON.stringify({
@@ -49,22 +52,18 @@ async function main() {
             process.exit(1);
         }
 
-        // Get commits since tag
         const rawLog = execSync(`git log ${lastTag}..HEAD --pretty=format:"%s"`, {
             encoding: 'utf8'
         }).trim();
 
-        // Analyze commit types
         const lines = rawLog ? rawLog.split('\n') : [];
         let hasBreaking = false, hasFeatures = false;
 
         for (const line of lines) {
             if (line.includes('BREAKING CHANGE') || line.match(/^\w+!:/)) hasBreaking = true;
             if (line.match(/^feat[(:]/)) hasFeatures = true;
-            // fix commits are handled by default patch bump
         }
 
-        // Determine bump type
         let bump, reason;
         if (hasBreaking) {
             bump = 'major';

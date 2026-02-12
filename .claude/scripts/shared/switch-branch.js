@@ -1,24 +1,22 @@
 #!/usr/bin/env node
 /**
- * @framework-script 0.33.3
+ * @framework-script 0.42.0
  * switch-branch.js
  *
- * Switch between branch and sprint contexts.
+ * Switch between branch contexts.
  * Used by /switch-branch slash command.
  *
- * Implements: REQ-009 (Sprint-Release Integration)
- * Source: PRD/PRD-Release-and-Sprint-Workflow.md
- *
  * Usage:
- *   node switch-branch.js                    # Interactive mode
+ *   node switch-branch.js                    # Interactive mode (lists branches)
  *   node switch-branch.js release/v1.0       # Direct branch switch
+ *   node switch-branch.js idpf/my-feature    # Any prefix works
  */
 
 const { execSync } = require('child_process');
 
 function exec(cmd) {
     try {
-        return execSync(cmd, { encoding: 'utf-8' }).trim();
+        return execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
     } catch (_e) {
         return null;
     }
@@ -26,25 +24,24 @@ function exec(cmd) {
 
 function getOpenBranches() {
     try {
-        const result = exec('gh pmu branch list --open --json');
+        // Note: gh pmu branch list has no JSON support, parse text output
+        // Format: "VERSION      CODENAME        TRACKER    STATUS"
+        const result = exec('gh pmu branch list');
         if (result) {
-            const data = JSON.parse(result);
-            return data.branches || data.items || data || [];
-        }
-    } catch {
-        // Intentionally ignored
-    }
-    return [];
-}
-
-function getSprints(_release) {
-    try {
-        const result = exec('gh pmu microsprint list --json');
-        if (result) {
-            const data = JSON.parse(result);
-            const sprints = data.sprints || data.items || data || [];
-            // Filter to sprints for this release (if release field exists)
-            return sprints;
+            const lines = result.split('\n').slice(2); // Skip header rows
+            const branches = [];
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 4) {
+                    const name = parts[0];
+                    const status = parts[parts.length - 1];
+                    if (status === 'Active') {
+                        branches.push({ name, status });
+                    }
+                }
+            }
+            return branches;
         }
     } catch {
         // Intentionally ignored
@@ -57,23 +54,23 @@ function getCurrentBranch() {
 }
 
 function branchExists(branch) {
-    const result = exec(`git rev-parse --verify ${branch} 2>/dev/null`);
+    const result = exec(`git rev-parse --verify ${branch}`);
     return result !== null;
 }
 
 function main() {
     const args = process.argv.slice(2);
-    let release = args.find(a => a.startsWith('release/') || a.startsWith('patch/') || a.startsWith('hotfix/'));
+    // Accept any argument as a branch name (generic {prefix}/{name} detection)
+    const targetBranch = args.find(a => a.includes('/')) || args[0] || null;
 
     console.log('=== Switch Branch ===\n');
 
     const currentBranch = getCurrentBranch();
     console.log(`Current branch: ${currentBranch}\n`);
 
-    // Step 1: Get branches
-    const branches = getOpenBranches();
-
-    if (!release) {
+    // Step 1: No argument — list available branches
+    if (!targetBranch) {
+        const branches = getOpenBranches();
         if (branches.length === 0) {
             console.log('No open branches found.');
             console.log('\nCreate one with: gh pmu branch start --name "release/vX.Y.Z"');
@@ -93,53 +90,38 @@ function main() {
         return;
     }
 
-    // Step 2: Switch to release branch
-    const releaseBranch = release.startsWith('release/') || release.startsWith('patch/') || release.startsWith('hotfix/')
-        ? release
-        : `release/${release}`;
-
-    if (!branchExists(releaseBranch)) {
-        console.log(`Branch '${releaseBranch}' does not exist.`);
-        console.log('\nAvailable release branches:');
-        const branches = exec('git branch -a | grep -E "(release|patch|hotfix)"');
-        if (branches) {
-            console.log(branches);
+    // Step 2: Switch to specified branch
+    if (!branchExists(targetBranch)) {
+        console.log(`Branch '${targetBranch}' does not exist.`);
+        console.log('\nAvailable branches:');
+        const allBranches = exec('git branch --format=%(refname:short)');
+        if (allBranches) {
+            const branchList = allBranches.split('\n').filter(b => b && b !== 'main');
+            branchList.forEach(b => console.log(`  ${b}`));
         } else {
             console.log('  (none found)');
         }
         return;
     }
 
-    if (currentBranch === releaseBranch) {
-        console.log(`Already on branch '${releaseBranch}'.`);
+    if (currentBranch === targetBranch) {
+        console.log(`Already on branch '${targetBranch}'.`);
     } else {
-        console.log(`Switching to branch '${releaseBranch}'...`);
-        const switchResult = exec(`git checkout ${releaseBranch}`);
+        console.log(`Switching to branch '${targetBranch}'...`);
+        const switchResult = exec(`git checkout ${targetBranch}`);
         if (switchResult !== null) {
-            console.log(`✓ Switched to ${releaseBranch}`);
+            console.log(`✓ Switched to ${targetBranch}`);
         } else {
             console.log('✗ Failed to switch branch. Check for uncommitted changes.');
             return;
         }
     }
 
-    // Step 3: Show available sprints
-    console.log('\n--- Sprint Context ---');
-    const sprints = getSprints(release);
-
-    if (sprints.length === 0) {
-        console.log('No active sprints for this release.');
-        console.log('\nStart one with: gh pmu microsprint start --name "sprint-name"');
-    } else {
-        console.log('Active sprints:');
-        sprints.forEach((s, i) => {
-            const name = s.name || s;
-            console.log(`  [${i + 1}] ${name}`);
-        });
-        console.log('\nJoin a sprint with: gh pmu microsprint current');
-    }
-
-    console.log('\n✓ Context switched to branch: ' + release);
+    console.log('\n✓ Context switched to branch: ' + targetBranch);
 }
 
-main();
+if (require.main === module) {
+    main();
+}
+
+module.exports = { main, getOpenBranches, getCurrentBranch, branchExists };

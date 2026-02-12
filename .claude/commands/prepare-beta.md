@@ -1,5 +1,5 @@
 ---
-version: "v0.33.3"
+version: "v0.42.0"
 description: Tag beta from feature branch (no merge to main)
 argument-hint: [--skip-coverage] [--dry-run] [--help]
 ---
@@ -97,13 +97,13 @@ Uses the commit analysis to recommend a beta version (e.g., `v1.0.0-beta.1`).
 ### Analyze Commits
 
 ```bash
-node .claude/scripts/framework/analyze-commits.js
+node .claude/scripts/shared/analyze-commits.js
 ```
 
 ### Recommend Version
 
 ```bash
-node .claude/scripts/framework/recommend-version.js
+node .claude/scripts/shared/recommend-version.js
 ```
 
 Recommend beta version (e.g., `v1.0.0-beta.1`).
@@ -181,7 +181,7 @@ Update CHANGELOG.md with beta section.
 ### Wait for CI
 
 ```bash
-node .claude/scripts/framework/wait-for-ci.js
+node .claude/scripts/shared/wait-for-ci.js
 ```
 
 The script polls CI status every 60 seconds (5-minute timeout).
@@ -263,14 +263,6 @@ node .claude/scripts/close-release/monitor-release.js
 ```
 
 Monitor beta build and asset upload.
-
-### Update Release Notes
-
-```bash
-node .claude/scripts/framework/update-release-notes.js
-```
-
-Updates GitHub Release with formatted notes from CHANGELOG.
 
 ### Post-Release Reminder
 

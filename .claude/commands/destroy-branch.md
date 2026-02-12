@@ -1,5 +1,5 @@
 ---
-version: "v0.33.3"
+version: "v0.42.0"
 description: Safely delete branch with confirmation (project)
 argument-hint: [branch-name] [--force]
 ---
@@ -56,6 +56,7 @@ git rev-parse --verify "$BRANCH" 2>/dev/null
 ---
 
 <!-- USER-EXTENSION-START: pre-destroy -->
+<!-- Pre-destruction validation: check for unmerged commits, etc. -->
 <!-- USER-EXTENSION-END: pre-destroy -->
 
 ## Phase 1: Confirmation
@@ -89,6 +90,7 @@ The user must type exactly: `$BRANCH`
 **If input does not match, ABORT.**
 
 <!-- USER-EXTENSION-START: post-confirm -->
+<!-- Post-confirmation: actions after user confirms but before deletion -->
 <!-- USER-EXTENSION-END: post-confirm -->
 
 ---
@@ -167,6 +169,7 @@ git branch -D "$BRANCH"
 Note: Using `-D` (force delete) since we've confirmed the user wants to abandon unmerged work.
 
 <!-- USER-EXTENSION-START: post-destroy -->
+<!-- Post-destruction: notifications, audit logging -->
 <!-- USER-EXTENSION-END: post-destroy -->
 
 ---

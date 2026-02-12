@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-27T23:10:08.899Z",
+  "generatedAt": "2026-02-11T20:47:58.495Z",
   "version": "1.0.0",
   "categories": {
     "ci": {
@@ -16,7 +16,8 @@
           ],
           "template": "### Wait for CI\n\n```bash\nnode .claude/scripts/shared/wait-for-ci.js\n```\n\n**If CI fails, STOP and report the error.**\n\nCommon failures:\n- Build errors: Check compilation output\n- Test failures: Run tests locally to debug\n- Lint errors: Run linter with --fix",
           "prerequisites": [
-            "wait-for-ci.js (included with framework)"
+            "wait-for-ci.js (included with framework)",
+            "\"GitHub Actions workflows configured (run /ci to check status)\""
           ],
           "appliesTo": [
             "prepare-release:post-pr-create",
@@ -35,11 +36,29 @@
           ],
           "template": "### Check CI Status\n\n```bash\ngh run list --limit 1 --json status,conclusion,name\n```\n\nReport status but do not block workflow.",
           "prerequisites": [
-            "gh CLI (GitHub CLI)"
+            "gh CLI (GitHub CLI)",
+            "\"GitHub Actions workflows configured (run /ci to check status)\""
           ],
           "appliesTo": [
             "prepare-release:post-analysis",
             "prepare-beta:post-analysis"
+          ]
+        },
+        {
+          "name": "cross-os-testing",
+          "description": "Run CI tests across Ubuntu, Windows, and macOS using a matrix strategy",
+          "extensionPoints": [
+            "pre-validation",
+            "pre-gate"
+          ],
+          "template": "### Verify Cross-OS CI\n\n```bash\ngh run list --limit 1 --json jobs --jq '.[0].jobs[] | select(.name | test(\"ubuntu|windows|macos\"; \"i\")) | {name, status, conclusion}'\n```\n\nConfirm all OS matrix jobs passed:\n- **Ubuntu:** ✅\n- **Windows:** ✅\n- **macOS:** ✅\n\n**If any OS job failed or is missing, STOP and investigate before continuing.**\n\nCommon cross-OS failures:\n- Path separators: Use `path.join()` instead of string concatenation\n- Case sensitivity: macOS/Windows are case-insensitive, Linux is not\n- Symlinks: Windows requires elevated permissions for symlinks\n- Line endings: Git autocrlf can cause test mismatches on Windows",
+          "prerequisites": [
+            "\"Cross-OS testing enabled in CI: /ci add cross-os-testing\""
+          ],
+          "appliesTo": [
+            "prepare-release:pre-validation",
+            "prepare-beta:pre-validation",
+            "merge-branch:pre-gate"
           ]
         }
       ]
@@ -73,7 +92,8 @@
           "template": "### Coverage Report\n\nGenerate coverage report for review:\n\n```bash\n# Example: Generate HTML report\nnyc report --reporter=html --report-dir=coverage\n\n# Example: Upload to Codecov\nbash <(curl -s https://codecov.io/bash)\n```\n\nReport location: `coverage/index.html`",
           "prerequisites": [
             "Coverage tool configured",
-            "(Optional) Codecov or similar service"
+            "(Optional) Codecov or similar service",
+            "\"CI integration: /ci add coverage-upload\""
           ],
           "appliesTo": [
             "prepare-release:post-validation",
@@ -141,7 +161,8 @@
           ],
           "template": "### Dependency Audit\n\n```bash\n# Node.js\nnpm audit --audit-level=high\n\n# Go\ngo list -m all | nancy sleuth\n\n# Python\npip-audit\n```\n\n**If high/critical vulnerabilities found, STOP and report.**",
           "prerequisites": [
-            "Audit tool for your language (npm audit, nancy, pip-audit, etc.)"
+            "Audit tool for your language (npm audit, nancy, pip-audit, etc.)",
+            "\"CI integration: /ci add dependency-audit\""
           ],
           "appliesTo": [
             "prepare-release:pre-validation",

@@ -1,5 +1,5 @@
 ---
-version: "v0.33.3"
+version: "v0.42.0"
 allowed-tools: Bash, AskUserQuestion
 description: "Assign issues to a branch: [#issue...] [branch/...] [--all] (project)"
 argument-hint: "[#issue...] [branch/name] [--all]"
@@ -14,9 +14,9 @@ Run the assign-branch script:
 node .claude/scripts/shared/assign-branch.js "$ARGUMENTS"
 ```
 
-## Handling "NO_RELEASE_FOUND" Output
+## Handling "NO_BRANCH_FOUND" Output
 
-If the script outputs `NO_RELEASE_FOUND`, it means no open branches exist. The script will also output:
+If the script outputs `NO_BRANCH_FOUND`, it means no open branches exist. The script will also output:
 
 1. **CONTEXT:** - Information about last version, issue labels, user input
 2. **SUGGESTIONS:** - Formatted as `number|branch|description`
@@ -38,7 +38,7 @@ When you see this output:
 
 Script output:
 ```
-NO_RELEASE_FOUND
+NO_BRANCH_FOUND
 SUGGESTIONS:
 1|patch/v0.15.1|Next patch version (bug fixes only) (recommended)
 2|release/v0.16.0|Next minor version (new features)
