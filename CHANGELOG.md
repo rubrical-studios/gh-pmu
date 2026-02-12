@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-02-12
+
+### Added
+- Auto-manage `assigned` label on branch field changes (#682)
+  - `gh pmu move --branch` adds `assigned` label to issues
+  - `gh pmu move --backlog` removes `assigned` label from open issues
+  - `gh pmu branch close` removes `assigned` label from open incomplete issues
+  - `gh pmu branch remove` removes `assigned` label from open issues
+  - Label auto-created if missing (uses standard label from `defaults.yml`)
+  - Bulk move applies label to all specified issues
+
+### Changed
+- Updated IDPF framework commands and config to v0.42.2
+
 ## [0.15.0] - 2026-02-12
 
 ### Added
@@ -1036,7 +1050,8 @@ gh extension install rubrical-studios/gh-pmu
 
 These limitations led to removing Epic 2 (Project Templates) from scope.
 
-[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/rubrical-studios/gh-pmu/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.15.0...v0.15.1
 [0.8.3]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/rubrical-studios/gh-pmu/compare/v0.8.0...v0.8.1

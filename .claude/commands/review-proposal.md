@@ -1,5 +1,5 @@
 ---
-version: "v0.42.1"
+version: "v0.42.2"
 description: Review a proposal with tracked history (project)
 argument-hint: "#issue"
 ---
@@ -107,6 +107,7 @@ Read the proposal file and auto-evaluate structural/factual criteria. Do NOT ask
 | Edge cases and error handling addressed | Check for error handling, edge case, or failure mode sections |
 | Proposal self-contained | Check if external references (URLs, other repos, tools) are explained inline without requiring context |
 | Writing clear and unambiguous | Evaluate prose for vague language ("should work", "might need", "probably"), undefined terms, or ambiguous scope |
+| Technical feasibility | Assess whether the proposed solution is technically achievable. Check for: technical complexity and risk factors (novel tech, unproven approaches, scaling concerns), dependency availability and compatibility (external libraries, APIs, services), scope clarity and implementation feasibility (can the solution be built as described?), resource/effort proportionality (is the effort reasonable for the value?). Present any feasibility concerns with evidence — e.g., "Feasibility concern: proposal references 3 external APIs without fallback strategy" or "Risk: approach requires real-time processing at scale but no performance analysis provided" |
 
 **Present auto-evaluation results:**
 ```
@@ -125,16 +126,6 @@ Ask the user only about criteria requiring human judgment:
 ```javascript
 AskUserQuestion({
   questions: [
-    {
-      question: "Is the proposed solution technically feasible and well-designed?",
-      header: "Feasibility",
-      options: [
-        { label: "Feasible ✅", description: "Technically achievable, approach is sound, edge cases addressed" },
-        { label: "Concerns ⚠️", description: "Generally feasible but some technical uncertainties" },
-        { label: "Not feasible ❌", description: "Significant technical barriers or flawed approach" }
-      ],
-      multiSelect: false
-    },
     {
       question: "Is the scope appropriate — neither too broad nor too narrow?",
       header: "Scope",
