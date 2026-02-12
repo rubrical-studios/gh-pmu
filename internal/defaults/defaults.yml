@@ -51,6 +51,9 @@ labels:
   - name: scope-creep
     description: Issue has grown beyond original scope
     color: "f9a825"
+  - name: tech-debt
+    description: Technical debt requiring future attention
+    color: "e6b800"
   - name: active
     description: Currently active working branch
     color: "7B61FF"
