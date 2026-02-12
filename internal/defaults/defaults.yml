@@ -51,6 +51,9 @@ labels:
   - name: scope-creep
     description: Issue has grown beyond original scope
     color: "f9a825"
+  - name: active
+    description: Currently active working branch
+    color: "7B61FF"
 
 # Project fields configuration
 fields:
