@@ -142,6 +142,10 @@ type branchClient interface {
 	GitTag(tag, message string) error
 	// GitCheckoutNewBranch creates and checks out a new git branch
 	GitCheckoutNewBranch(branch string) error
+	// AddLabelToIssue adds a label to an issue, creating it if needed
+	AddLabelToIssue(owner, repo, issueID, labelName string) error
+	// RemoveLabelFromIssue removes a label from an issue
+	RemoveLabelFromIssue(owner, repo, issueID, labelName string) error
 }
 
 // branchStartOptions holds the options for the branch start command
@@ -672,6 +676,13 @@ func runBranchRemoveWithDeps(cmd *cobra.Command, opts *branchRemoveOptions, cfg 
 		return fmt.Errorf("failed to clear branch field: %w", err)
 	}
 
+	// Remove 'assigned' label if issue is open
+	if issue.State == "OPEN" || issue.State == "open" {
+		if err := client.RemoveLabelFromIssue(owner, repo, issue.ID, "assigned"); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove 'assigned' label from #%d: %v\n", opts.issueNumber, err)
+		}
+	}
+
 	// Output confirmation (AC-039-2)
 	fmt.Fprintf(cmd.OutOrStdout(), "Removed #%d from release %s\n", opts.issueNumber, releaseVersion)
 
@@ -1035,6 +1046,13 @@ func runBranchCloseWithDeps(cmd *cobra.Command, opts *branchCloseOptions, cfg *c
 			return nil
 		}
 		fmt.Fprintln(cmd.OutOrStdout())
+	}
+
+	// Remove 'assigned' label from all open branch issues
+	for _, issue := range incompleteIssues {
+		if err := client.RemoveLabelFromIssue(owner, repo, issue.ID, "assigned"); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to remove 'assigned' label from #%d: %v\n", issue.Number, err)
+		}
 	}
 
 	// Create git tag if requested

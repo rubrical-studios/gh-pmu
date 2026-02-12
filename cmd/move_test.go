@@ -24,6 +24,10 @@ type mockMoveClient struct {
 	// Microsprint support
 	openIssuesByLabel map[string][]api.Issue // label -> issues
 
+	// Label tracking
+	addLabelCalls    []labelCall // track AddLabelToIssue calls
+	removeLabelCalls []labelCall // track RemoveLabelFromIssue calls
+
 	// Call counters for caching verification
 	getProjectFieldsCalls        int
 	getProjectItemsCalls         int
@@ -47,6 +51,15 @@ type mockMoveClient struct {
 	setProjectItemErr          error
 	setProjectItemErrFor       map[string]error // itemID -> error
 	getOpenIssuesByLabelErr    error
+	addLabelErr                error
+	removeLabelErr             error
+}
+
+type labelCall struct {
+	owner     string
+	repo      string
+	issueID   string
+	labelName string
 }
 
 type fieldUpdate struct {
@@ -235,6 +248,26 @@ func (m *mockMoveClient) GetOpenIssuesByLabel(owner, repo, label string) ([]api.
 	return m.openIssuesByLabel[label], nil
 }
 
+func (m *mockMoveClient) AddLabelToIssue(owner, repo, issueID, labelName string) error {
+	m.addLabelCalls = append(m.addLabelCalls, labelCall{
+		owner:     owner,
+		repo:      repo,
+		issueID:   issueID,
+		labelName: labelName,
+	})
+	return m.addLabelErr
+}
+
+func (m *mockMoveClient) RemoveLabelFromIssue(owner, repo, issueID, labelName string) error {
+	m.removeLabelCalls = append(m.removeLabelCalls, labelCall{
+		owner:     owner,
+		repo:      repo,
+		issueID:   issueID,
+		labelName: labelName,
+	})
+	return m.removeLabelErr
+}
+
 // Test helpers
 
 func testMoveConfig() *config.Config {
@@ -276,6 +309,7 @@ func setupMockWithIssue(number int, title string, itemID string) *mockMoveClient
 		ID:     fmt.Sprintf("issue-%d", number),
 		Number: number,
 		Title:  title,
+		State:  "OPEN",
 		Repository: api.Repository{
 			Owner: "testowner",
 			Name:  "testrepo",
@@ -285,7 +319,9 @@ func setupMockWithIssue(number int, title string, itemID string) *mockMoveClient
 		{
 			ID: itemID,
 			Issue: &api.Issue{
+				ID:     fmt.Sprintf("issue-%d", number),
 				Number: number,
+				State:  "OPEN",
 				Repository: api.Repository{
 					Owner: "testowner",
 					Name:  "testrepo",
@@ -2573,5 +2609,249 @@ func TestRunMoveWithDeps_ForceNoUncheckedNoWarning(t *testing.T) {
 	// Also no workflow violation warning since nothing was bypassed
 	if strings.Contains(output, "WARNING: Workflow rules may have been violated") {
 		t.Errorf("Expected no workflow warning when no bypass occurred, got output: %s", output)
+	}
+}
+
+// =============================================================================
+// Assigned Label Tests
+// =============================================================================
+
+func TestRunMoveWithDeps_BranchAddsAssignedLabel(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{branch: "release/v1.0"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify AddLabelToIssue was called with 'assigned'
+	if len(mock.addLabelCalls) != 1 {
+		t.Fatalf("Expected 1 AddLabelToIssue call, got %d", len(mock.addLabelCalls))
+	}
+	call := mock.addLabelCalls[0]
+	if call.labelName != "assigned" {
+		t.Errorf("Expected label 'assigned', got %q", call.labelName)
+	}
+	if call.issueID != "issue-42" {
+		t.Errorf("Expected issueID 'issue-42', got %q", call.issueID)
+	}
+	if call.owner != "testowner" || call.repo != "testrepo" {
+		t.Errorf("Expected owner/repo testowner/testrepo, got %s/%s", call.owner, call.repo)
+	}
+}
+
+func TestRunMoveWithDeps_BranchCurrentAddsAssignedLabel(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	mock.openIssuesByLabel["branch"] = []api.Issue{
+		{
+			ID:     "TRACKER_200",
+			Number: 200,
+			Title:  "Branch: release/v1.3.0",
+			State:  "OPEN",
+		},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{branch: "current"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify AddLabelToIssue was called
+	if len(mock.addLabelCalls) != 1 {
+		t.Fatalf("Expected 1 AddLabelToIssue call, got %d", len(mock.addLabelCalls))
+	}
+	if mock.addLabelCalls[0].labelName != "assigned" {
+		t.Errorf("Expected label 'assigned', got %q", mock.addLabelCalls[0].labelName)
+	}
+}
+
+func TestRunMoveWithDeps_BacklogRemovesAssignedLabel(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{backlog: true}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify RemoveLabelFromIssue was called with 'assigned'
+	if len(mock.removeLabelCalls) != 1 {
+		t.Fatalf("Expected 1 RemoveLabelFromIssue call, got %d", len(mock.removeLabelCalls))
+	}
+	call := mock.removeLabelCalls[0]
+	if call.labelName != "assigned" {
+		t.Errorf("Expected label 'assigned', got %q", call.labelName)
+	}
+	if call.issueID != "issue-42" {
+		t.Errorf("Expected issueID 'issue-42', got %q", call.issueID)
+	}
+}
+
+func TestRunMoveWithDeps_BacklogSkipsClosedIssues(t *testing.T) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{
+		ID:     "proj-1",
+		Number: 1,
+		Title:  "Test Project",
+	}
+	mock.issues["testowner/testrepo#42"] = &api.Issue{
+		ID:     "issue-42",
+		Number: 42,
+		Title:  "Closed Issue",
+		State:  "CLOSED",
+		Repository: api.Repository{
+			Owner: "testowner",
+			Name:  "testrepo",
+		},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID: "item-42",
+			Issue: &api.Issue{
+				ID:     "issue-42",
+				Number: 42,
+				State:  "CLOSED",
+				Repository: api.Repository{
+					Owner: "testowner",
+					Name:  "testrepo",
+				},
+			},
+		},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{backlog: true}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify RemoveLabelFromIssue was NOT called for closed issue
+	if len(mock.removeLabelCalls) != 0 {
+		t.Errorf("Expected 0 RemoveLabelFromIssue calls for closed issue, got %d", len(mock.removeLabelCalls))
+	}
+}
+
+func TestRunMoveWithDeps_BulkBranchAddsAssignedLabelToAll(t *testing.T) {
+	mock := newMockMoveClient()
+	mock.project = &api.Project{
+		ID:     "proj-1",
+		Number: 1,
+		Title:  "Test Project",
+	}
+	// Set up 3 issues
+	for _, num := range []int{1, 2, 3} {
+		key := fmt.Sprintf("testowner/testrepo#%d", num)
+		mock.issues[key] = &api.Issue{
+			ID:     fmt.Sprintf("issue-%d", num),
+			Number: num,
+			Title:  fmt.Sprintf("Issue %d", num),
+			State:  "OPEN",
+			Repository: api.Repository{
+				Owner: "testowner",
+				Name:  "testrepo",
+			},
+		}
+	}
+	mock.projectItems = []api.ProjectItem{
+		{ID: "item-1", Issue: &api.Issue{ID: "issue-1", Number: 1, State: "OPEN", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-2", Issue: &api.Issue{ID: "issue-2", Number: 2, State: "OPEN", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+		{ID: "item-3", Issue: &api.Issue{ID: "issue-3", Number: 3, State: "OPEN", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}}},
+	}
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{branch: "release/v1.0", yes: true}
+
+	err := runMoveWithDeps(cmd, []string{"1", "2", "3"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify AddLabelToIssue was called for each issue
+	if len(mock.addLabelCalls) != 3 {
+		t.Fatalf("Expected 3 AddLabelToIssue calls, got %d", len(mock.addLabelCalls))
+	}
+	for i, call := range mock.addLabelCalls {
+		if call.labelName != "assigned" {
+			t.Errorf("Call %d: expected label 'assigned', got %q", i, call.labelName)
+		}
+	}
+}
+
+func TestRunMoveWithDeps_LabelErrorIsNonBlocking(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	mock.addLabelErr = fmt.Errorf("label API error")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{branch: "release/v1.0"}
+
+	// Should not return error even though label operation failed
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Label error should be non-blocking, got: %v", err)
+	}
+}
+
+func TestRunMoveWithDeps_StatusOnlyDoesNotTouchLabels(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	opts := &moveOptions{status: "in_progress"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify no label calls when only status is changed
+	if len(mock.addLabelCalls) != 0 {
+		t.Errorf("Expected 0 AddLabelToIssue calls for status-only change, got %d", len(mock.addLabelCalls))
+	}
+	if len(mock.removeLabelCalls) != 0 {
+		t.Errorf("Expected 0 RemoveLabelFromIssue calls for status-only change, got %d", len(mock.removeLabelCalls))
 	}
 }

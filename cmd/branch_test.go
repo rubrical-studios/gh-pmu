@@ -75,6 +75,8 @@ type mockBranchClient struct {
 	getProjectItemsCalls         []getProjectItemsCall
 	getProjectItemsMinimalCalls  []getProjectItemsCall
 	getProjectItemsByIssuesCalls []getProjectItemsByIssuesCall
+	addLabelCalls                []branchLabelCall
+	removeLabelCalls             []branchLabelCall
 
 	// Error injection
 	createIssueErr             error
@@ -91,6 +93,15 @@ type mockBranchClient struct {
 	getProjectItemsErr         error
 	getProjectItemsMinimalErr  error
 	getProjectItemsByIssuesErr error
+	addLabelErr                error
+	removeLabelErr             error
+}
+
+type branchLabelCall struct {
+	owner     string
+	repo      string
+	issueID   string
+	labelName string
 }
 
 // Helper types for call tracking
@@ -369,6 +380,26 @@ func (m *mockBranchClient) GitTag(tag, message string) error {
 
 func (m *mockBranchClient) GitCheckoutNewBranch(branch string) error {
 	return nil
+}
+
+func (m *mockBranchClient) AddLabelToIssue(owner, repo, issueID, labelName string) error {
+	m.addLabelCalls = append(m.addLabelCalls, branchLabelCall{
+		owner:     owner,
+		repo:      repo,
+		issueID:   issueID,
+		labelName: labelName,
+	})
+	return m.addLabelErr
+}
+
+func (m *mockBranchClient) RemoveLabelFromIssue(owner, repo, issueID, labelName string) error {
+	m.removeLabelCalls = append(m.removeLabelCalls, branchLabelCall{
+		owner:     owner,
+		repo:      repo,
+		issueID:   issueID,
+		labelName: labelName,
+	})
+	return m.removeLabelErr
 }
 
 // testBranchConfig returns a test configuration for release tests
@@ -3103,4 +3134,217 @@ func BenchmarkBranchClose_Optimized(b *testing.B) {
 	}
 
 	b.ReportMetric(float64(itemCount), "items_processed")
+}
+
+// =============================================================================
+// Assigned Label Tests
+// =============================================================================
+
+func TestBranchRemoveWithDeps_RemovesAssignedLabel(t *testing.T) {
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Branch: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.issueByNumber = &api.Issue{
+		ID:         "ISSUE_42",
+		Number:     42,
+		Title:      "Test Issue",
+		State:      "OPEN",
+		Repository: api.Repository{Owner: "testowner", Name: "testrepo"},
+	}
+	mock.project = &api.Project{ID: "proj-1", Number: 1}
+	mock.projectItemID = "ITEM_42"
+	mock.projectItemFieldValue = "v1.2.0"
+
+	cfg := testBranchConfig()
+	cfg.Fields["branch"] = config.Field{Field: "Branch"}
+	cleanup := setupBranchTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestBranchCmd()
+	opts := &branchRemoveOptions{issueNumber: 42}
+
+	err := runBranchRemoveWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify RemoveLabelFromIssue was called with 'assigned'
+	if len(mock.removeLabelCalls) != 1 {
+		t.Fatalf("Expected 1 RemoveLabelFromIssue call, got %d", len(mock.removeLabelCalls))
+	}
+	call := mock.removeLabelCalls[0]
+	if call.labelName != "assigned" {
+		t.Errorf("Expected label 'assigned', got %q", call.labelName)
+	}
+	if call.issueID != "ISSUE_42" {
+		t.Errorf("Expected issueID 'ISSUE_42', got %q", call.issueID)
+	}
+}
+
+func TestBranchRemoveWithDeps_SkipsLabelRemovalForClosedIssue(t *testing.T) {
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Branch: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.issueByNumber = &api.Issue{
+		ID:         "ISSUE_42",
+		Number:     42,
+		Title:      "Closed Issue",
+		State:      "CLOSED",
+		Repository: api.Repository{Owner: "testowner", Name: "testrepo"},
+	}
+	mock.project = &api.Project{ID: "proj-1", Number: 1}
+	mock.projectItemID = "ITEM_42"
+	mock.projectItemFieldValue = "v1.2.0"
+
+	cfg := testBranchConfig()
+	cfg.Fields["branch"] = config.Field{Field: "Branch"}
+	cleanup := setupBranchTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestBranchCmd()
+	opts := &branchRemoveOptions{issueNumber: 42}
+
+	err := runBranchRemoveWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify RemoveLabelFromIssue was NOT called for closed issue
+	if len(mock.removeLabelCalls) != 0 {
+		t.Errorf("Expected 0 RemoveLabelFromIssue calls for closed issue, got %d", len(mock.removeLabelCalls))
+	}
+}
+
+func TestBranchCloseWithDeps_RemovesAssignedLabelFromOpenIssues(t *testing.T) {
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Branch: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	// 2 open issues + 1 closed issue assigned to the branch
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Open issue 1", State: "OPEN", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_2",
+			Issue: &api.Issue{ID: "ISSUE_2", Number: 42, Title: "Open issue 2", State: "OPEN", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+		{
+			ID:    "ITEM_3",
+			Issue: &api.Issue{ID: "ISSUE_3", Number: 43, Title: "Done issue", State: "CLOSED", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+	}
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+		"ISSUE_2": "ITEM_2",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "In Progress",
+		"ITEM_2": "Ready",
+	}
+
+	cfg := testBranchConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog": "Backlog",
+		},
+	}
+	cleanup := setupBranchTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
+
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify RemoveLabelFromIssue was called for 2 open issues, not the closed one
+	if len(mock.removeLabelCalls) != 2 {
+		t.Fatalf("Expected 2 RemoveLabelFromIssue calls for open issues, got %d", len(mock.removeLabelCalls))
+	}
+	for _, call := range mock.removeLabelCalls {
+		if call.labelName != "assigned" {
+			t.Errorf("Expected label 'assigned', got %q", call.labelName)
+		}
+		if call.issueID == "ISSUE_3" {
+			t.Error("Should NOT remove label from closed issue ISSUE_3")
+		}
+	}
+}
+
+func TestBranchCloseWithDeps_LabelErrorIsNonBlocking(t *testing.T) {
+	mock := setupMockForBranch()
+	mock.openIssues = []api.Issue{
+		{
+			ID:     "TRACKER_123",
+			Number: 100,
+			Title:  "Branch: v1.2.0",
+			State:  "OPEN",
+		},
+	}
+	mock.projectItems = []api.ProjectItem{
+		{
+			ID:    "ITEM_1",
+			Issue: &api.Issue{ID: "ISSUE_1", Number: 41, Title: "Open issue", State: "OPEN", Repository: api.Repository{Owner: "testowner", Name: "testrepo"}},
+			FieldValues: []api.FieldValue{
+				{Field: "Release", Value: "v1.2.0"},
+			},
+		},
+	}
+	mock.projectItemIDs = map[string]string{
+		"ISSUE_1": "ITEM_1",
+	}
+	mock.projectItemFieldValues = map[string]string{
+		"ITEM_1": "In Progress",
+	}
+	mock.removeLabelErr = errors.New("label API error")
+
+	cfg := testBranchConfig()
+	cfg.Fields["status"] = config.Field{
+		Field: "Status",
+		Values: map[string]string{
+			"backlog": "Backlog",
+		},
+	}
+	cleanup := setupBranchTestDir(t, cfg)
+	defer cleanup()
+
+	cmd, _ := newTestBranchCmd()
+	opts := &branchCloseOptions{branchName: "v1.2.0", yes: true}
+
+	// Should succeed even when label removal fails
+	err := runBranchCloseWithDeps(cmd, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Label error should be non-blocking, got: %v", err)
+	}
 }

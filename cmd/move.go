@@ -37,6 +37,8 @@ type moveClient interface {
 	SetProjectItemFieldWithFields(projectID, itemID, fieldName, value string, fields []api.ProjectField) error
 	BatchUpdateProjectItemFields(projectID string, updates []api.FieldUpdate, fields []api.ProjectField) ([]api.BatchUpdateResult, error)
 	GetOpenIssuesByLabel(owner, repo, label string) ([]api.Issue, error)
+	AddLabelToIssue(owner, repo, issueID, labelName string) error
+	RemoveLabelFromIssue(owner, repo, issueID, labelName string) error
 }
 
 func newMoveCommand() *cobra.Command {
@@ -118,6 +120,8 @@ type issueInfo struct {
 	Number      int
 	Title       string
 	Body        string
+	IssueID     string // GitHub node ID for label operations
+	State       string // Issue state (OPEN, CLOSED)
 	ItemID      string
 	Depth       int
 	FieldValues []api.FieldValue
@@ -281,6 +285,8 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			Number:      number,
 			Title:       issueData.Title,
 			Body:        issueData.Body,
+			IssueID:     issueData.ID,
+			State:       issueData.State,
 			ItemID:      rootItemID,
 			Depth:       0,
 			FieldValues: itemFieldsMap[rootKey],
@@ -629,6 +635,21 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 			}
 		}
 
+		// Manage 'assigned' label based on branch field changes
+		if info.IssueID != "" {
+			if releaseValue != "" {
+				// Adding to a branch — add 'assigned' label
+				if err := client.AddLabelToIssue(info.Owner, info.Repo, info.IssueID, "assigned"); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to add 'assigned' label to #%d: %v\n", info.Number, err)
+				}
+			} else if clearRelease && (info.State == "OPEN" || info.State == "open" || info.State == "") {
+				// Returning to backlog — remove 'assigned' label (only for open issues)
+				if err := client.RemoveLabelFromIssue(info.Owner, info.Repo, info.IssueID, "assigned"); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to remove 'assigned' label from #%d: %v\n", info.Number, err)
+				}
+			}
+		}
+
 		updatedCount++
 		if multiIssueMode {
 			fmt.Println("done")
@@ -737,12 +758,16 @@ func collectSubIssuesRecursive(client moveClient, owner, repo string, number int
 					key := fmt.Sprintf("%s/%s#%d", subOwner, subRepo, sub.Number)
 					itemID := itemIDMap[key] // may be empty if not in project
 
-					// Use body from batch-fetched project items if available
-					var body string
+					// Use data from batch-fetched project items if available
+					var body, issueID, state string
 					if issueData, ok := itemDataMap[key]; ok {
 						body = issueData.Body
+						issueID = issueData.ID
+						state = issueData.State
 					} else if issue, gerr := client.GetIssue(subOwner, subRepo, sub.Number); gerr == nil {
 						body = issue.Body
+						issueID = issue.ID
+						state = issue.State
 					}
 
 					info := issueInfo{
@@ -751,6 +776,8 @@ func collectSubIssuesRecursive(client moveClient, owner, repo string, number int
 						Number:      sub.Number,
 						Title:       sub.Title,
 						Body:        body,
+						IssueID:     issueID,
+						State:       state,
 						ItemID:      itemID,
 						FieldValues: itemFieldsMap[key],
 						Depth:       p.depth, // Use parent's depth for indentation
