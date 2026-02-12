@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-02-12
+
+### Added
+- `tech-debt` standard label added to `gh pmu init` (#671)
+- `active` standard label for branch tracker identification (#677)
+- `reviewed` standard label for issues passing review workflow (#679)
+- `assigned` standard label for issues assigned to branches
+
+### Fixed
+- Windows CLI length limit for GraphQL queries (#673)
+  - Refactored all `-f query=` call sites to use `--input -` with stdin
+  - Matches existing `executeBatchMutation()` pattern
+- Removed Claude reminder injection from issue bodies (#676)
+  - `prependClaudeReminder()` function and all call sites removed
+  - Workflow rules enforced via `.claude/rules/` instead
+
+### Changed
+- Migrated to IDPF hub-based installation (v0.42.0 → v0.42.1)
+
 ## [0.14.3] - 2026-01-29
 
 ### Fixed
