@@ -1,35 +1,12 @@
 {
-  "frameworkVersion": "0.33.3",
-  "installedDate": "2026-01-29",
-  "extensibleCommands": [
-    "create-branch",
-    "prepare-release",
-    "prepare-beta",
-    "merge-branch",
-    "destroy-branch",
-    "create-prd"
-  ],
-  "frameworkScripts": {},
-  "userScripts": {
-    "close-release": [
-      "monitor-release.js"
-    ],
-    "e2e": [
-      "analyze-e2e-impact.js",
-      "run-e2e-gate.js"
-    ],
-    "open-release": [
-      "verify-config.js"
-    ],
-    "prepare-release": [
-      "coverage.js",
-      "lint.js"
-    ]
-  },
-  "projectType": {
-    "processFramework": "IDPF-Agile",
-    "language": "go",
-    "domainSpecialist": "Backend-Specialist"
-  },
-  "frameworkPath": "E:\\Projects\\idpf-praxis-dist"
+  "frameworkVersion": "0.42.0",
+  "installedDate": "2026-02-11",
+  "processFramework": "IDPF-Agile",
+  "reviewMode": "solo",
+  "frameworkPath": "../idpf-central-hub",
+  "domainSpecialist": "Backend-Specialist",
+  "projectSkills": [
+    "tdd-failure-recovery", "tdd-green-phase",
+    "tdd-red-phase", "tdd-refactor-phase"
+  ]
 }

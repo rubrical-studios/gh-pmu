@@ -1,10 +1,54 @@
 # Windows Shell Safety for Claude Code
-**Version:** v0.33.3
+**Version:** v0.42.0
+**Source:** Reference/Windows-Shell-Safety.md
 **Source:** Reference/Windows-Shell-Safety.md
 ---
 **MUST READ:** Auto-loaded on Windows at session startup.
 ## Shell Environment
 Claude Code uses Git Bash on Windows. Most Unix commands work, but these patterns fail.
+## Golden Rules
+**Always use Unix-style commands and patterns.**
+### Command Translations
+| Windows CMD | Unix/Bash |
+|-------------|-----------|
+| `date /t` | `date "+%Y-%m-%d"` |
+| `dir` | `ls` |
+| `copy` | `cp` |
+| `move` | `mv` |
+| `del` | `rm` |
+| `type` | `cat` (or Read tool) |
+| `%VARIABLE%` | `$VARIABLE` |
+| `set VAR=value` | `export VAR=value` |
+| `C:\path\to\file` | `C:/path/to/file` |
+| `taskkill /F /IM` | `powershell -Command 'Stop-Process ...'` |
+### Pattern Safety
+| Pattern | Safe? | Use Instead |
+|---------|:-----:|-------------|
+| `$(command)` anywhere | ❌ | Write tool + temp file |
+| `for x in $(cmd)` | ❌ | Glob patterns or temp file |
+| Nested `$(...)` | ❌ | Sequential commands |
+| Heredoc with backticks | ❌ | Write tool + temp file |
+| `--body "..."` inline | ❌ | `-F file.md` or `--body-file` |
+| `--flag value` (strings) | ⚠️ | `--flag=value` |
+| Backslash paths | ❌ | Forward slashes |
+| Absolute paths in args | ❌ | Relative paths (`.tmp-*`) |
+| JSON inline | ❌ | `--input` or temp file |
+| `rm -rf a/ b/ c/` | ❌ | One path at a time |
+| Single quotes | ⚠️ | Prefer double quotes |
+| Pipes `\|` | ✅ | — |
+| Redirects `>` `>>` | ✅ | — |
+| `$VAR` expansion | ✅ | — |
+| `--body-stdout` / `--body-stdin` | ✅ | Use `.tmp-{issue#}.md` for edits |
+### Parallel Tool Failures
+**"Sibling tool call errored" is NOT the real error.**
+When Claude Code runs multiple tools in parallel and one fails, all siblings are aborted. Find the ONE tool with the actual error, fix it, retry.
+```
+● Bash(date /t)                    ← ROOT CAUSE (find this)
+  ⎿  Error: date: invalid date '/t'
+
+● Bash(git branch)                 ← Aborted (ignore)
+  ⎿  Error: Sibling tool call errored
+```
 ## Heredocs with Backticks
 **NEVER use backticks inside heredocs.**
 ```bash
@@ -165,24 +209,5 @@ rm -rf .vite
 rm -rf out
 ```
 **Detection:** "Device or resource busy" errors mean processes are still running.
-## Quick Reference
-| Pattern | Windows Safe? | Alternative |
-|---------|:-------------:|-------------|
-| `$(command)` anywhere | Unreliable | Write tool + temp file |
-| `for x in $(cmd)` loops | No | Glob patterns or temp file |
-| Nested `$(...)` | No | Sequential commands |
-| Heredoc with backticks | No | Write tool + temp file |
-| Single quotes | Mostly | Prefer double quotes |
-| Backslash paths | No | Forward slashes |
-| Absolute paths in Bash args | No | Relative paths (`.tmp-*`) |
-| `--body "..."` multi-line | Unreliable | `--body-file` |
-| `--body-stdout` / `--body-stdin` | Yes | Use `.tmp-{issue#}.md` for edits |
-| `--flag value` (string flags) | Unreliable | `--flag=value` |
-| JSON inline | No | `--input` or temp file |
-| Pipes `\|` | Yes | - |
-| Redirection `>` `>>` | Yes | - |
-| `$VAR` expansion | Yes | - |
-| `rm -rf path1 path2` | No | Delete one path at a time |
-| `taskkill /F /IM` | No | PowerShell `Stop-Process` |
 ---
 **End of Windows Shell Safety**

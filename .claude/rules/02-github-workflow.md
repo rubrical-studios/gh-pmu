@@ -1,8 +1,9 @@
 # GitHub Workflow Integration
-**Version:** v0.33.3
+**Version:** v0.42.0
 **Source:** Reference/GitHub-Workflow.md
 ---
 **MUST READ:** At session startup and after compaction.
+**Source:** Reference/GitHub-Workflow.md
 ## Project Configuration
 **Read from `.gh-pmu.yml`:**
 ```yaml
@@ -78,20 +79,29 @@ gh pmu view 123 --json=number,title,status
 Prefer slash commands over raw `gh pmu` commands:
 | Instead of | Use |
 |------------|-----|
+| `bug:` inline issue creation | `/bug <title>` |
+| `enhancement:` inline issue creation | `/enhancement <title>` |
+| `proposal:` / `idea:` inline creation | `/proposal <title>` |
+| `work #N` inline routing | `/work #N` |
+| `done` / `gh pmu move --status done` (in_review → done) | `/done [#N]` |
 | `gh pmu branch start` | `/create-branch` |
 | `gh pmu branch list` | `/switch-branch` |
 | `gh pmu branch close` (releases) | `/prepare-release` |
 | `gh pmu branch close` (features) | `/merge-branch` |
 | `gh pmu move [#] --branch` | `/assign-branch` |
+| Manual issue review | `/review-issue #N` |
+| Manual proposal review | `/review-proposal #N` |
+| Manual PRD review | `/review-prd #N` |
 **Use raw commands for:** debugging, uncovered operations, user request, complex bulk ops.
 ## Critical Rules
 - **Issues close ONLY when user says "Done"** - Never close automatically, skip STOP checkpoint, or close because code shipped
 - **Acceptance criteria must be checked** - All boxes checked before In Review or Done; evaluate criteria when moving to In Review
 - **No auto-close keywords until Done** - Use `Refs #XXX` (not `Fixes/Closes/Resolves #XXX`) until user approves
 - **All work on working branches** - Never push to main directly; work requires branch tracker; checkout working branch before working (see Branch Semantics)
-- **Work requires explicit trigger** - After "evaluate", "review", or "assess" commands, STOP after analysis. Never implement until user says "work", "fix that", or "implement that". Clarifying questions ≠ work permission.
+- **Work requires explicit trigger** - After "evaluate" or "assess" commands, STOP after analysis. Never implement until user says "work", "fix that", or "implement that". Clarifying questions ≠ work permission.
 ### Analysis vs Work (HARD STOP)
-**Analysis keywords:** evaluate, analyze, assess, review, investigate, check, verify
+**Analysis keywords:** evaluate, analyze, assess, investigate, check, verify
+**Note:** `review` is a **tracked action** that routes to `/review-issue` — NOT an analysis keyword.
 **When these appear with issue reference (#N):**
 1. Report findings only
 2. **STOP** - Do not implement
@@ -117,105 +127,67 @@ Prefer slash commands over raw `gh pmu` commands:
 | Framework | Parent Label | Child Labels |
 |-----------|--------------|--------------|
 | IDPF-Agile | `epic` | `story` |
-**When user says "work #N":** `gh issue view [N] --repo {repository} --json labels --jq '.labels[].name'`
-**IDPF-Agile:** `epic` label? → Yes: EPIC WORKFLOW (Section 4) | No: STANDARD (Section 1)
-**Work Command Auto-Todo:**
-| Trigger | Todo Source |
-|---------|-------------|
-| `work #N` (story/bug) | Acceptance criteria checkboxes |
-| `work #N` (epic) | Sub-issues from `gh pmu sub list` |
-| `work all in [status]` | Issues matching status filter |
-Hook outputs `[AUTO-TODO: ...]` blocks for assistant to create TodoWrite list.
+**When user says "work #N":** The `/work` command handles validation, branch checks, issue type detection, auto-todo extraction, PRD tracker auto-move, and framework dispatch. See `/work` command spec.
 **Trigger Words (Create Issue First):**
-| Trigger | Section |
-|---------|---------|
-| `bug:` | 1 (Standard) |
-| `enhancement:` | 1 (Standard) |
-| `idea:` | 2 (Proposal alias) |
-| `proposal:` | 2 (Proposal) |
-Create issue → Report number → **Wait for "work"**
-## BLOCKING: Status Change Prerequisites
-**Before `--status in_review`:**
-1. `gh pmu view [#] --body-file` (creates tmp/issue-[#].md)
-2. Review checkboxes, change `[ ]` to `[x]` for completed
-3. For UNCHECKED criteria requiring manual verification (QA, security, legal, docs):
-   - ASK USER: "Extract to verification issue? (yes/no)"
-   - If yes: Create linked issue with `*-required` label, mark original `[x]`
-4. `gh pmu edit [#] -F tmp/issue-[#].md`
-5. `rm tmp/issue-[#].md`
-6. Verify: `gh issue view [#] --json body | grep -c "\[x\]"`
-7. Now: `gh pmu move [#] --status in_review`
-**Self-check:** If you find yourself running `gh pmu move --status in_review` without having just run `gh pmu edit -F`, STOP - you skipped steps 1-6.
-**Before `--status done`:**
-1. `gh issue view [#] --json body | grep "\[ \]"`
-2. If ANY unchecked boxes → DO NOT PROCEED
-3. Now: `gh pmu move [#] --status done`
-### Manual Verification Extraction
-**Labels:** `qa-required`, `security-required`, `legal-required`, `docs-required`
-**When criteria require verification outside AI session:**
-1. Identify criteria with keywords: QA, security, legal, docs, manual, verify
-2. ASK USER: "Extract to verification issue?"
-3. If yes: `gh pmu create --title "[Verification] {criterion} (#{parent})" --label {*-required} --status backlog`
-4. Mark original criterion `[x]` after extraction
-**Creates linked issue (peer), not sub-issue.** Matches GitHub's "Convert to issue" behavior.
-**Feedback loop:** Human decides next steps when verification fails.
+| Trigger | Command | Description |
+|---------|---------|-------------|
+| `bug:` | `/bug` | Create bug issue with standard template |
+| `enhancement:` | `/enhancement` | Create enhancement issue with standard template |
+| `idea:` | `/proposal` | Alias for proposal |
+| `proposal:` | `/proposal` | Create proposal document + tracking issue |
+Each command creates the issue, reports the number, and STOPs. Do NOT proceed to implementation until user says "work".
+**Review Command Routing:** `review #N` → `/review-issue N`. `review #42 #43` → `/review-issue 42 43`. Without issue number, no routing.
+**Review Commands:**
+| Command | Target | Criteria |
+|---------|--------|----------|
+| `/review-issue #N` | Issue body | Type-specific: bug, enhancement, story, epic, generic |
+| `/review-proposal #N` | Proposal file from issue | Completeness, consistency, feasibility, quality |
+| `/review-prd #N` | PRD file from issue | Requirements, user stories, AC, NFRs, test plan |
+**Review Metadata:** `**Reviews:** N` field — added on first review, incremented on subsequent.
+**Review Log:** `/review-proposal` and `/review-prd` maintain append-only table:
+```markdown
+## Review Log
+| # | Date | Reviewer | Findings Summary |
+|---|------|----------|------------------|
+| 1 | YYYY-MM-DD | Claude | [Summary] |
+```
+Rows are append-only — never edit or delete existing rows.
 ## Workflows
 ### 1. Standard Issue (Bug/Enhancement)
-**Step 1 (AUTO):**
-```bash
-gh pmu create --repo {repository} --title "[Bug|Enhancement]: ..." --label [bug|enhancement] --body "..." --status backlog --priority p2 --assignee @me
-```
-**Step 2 (WAIT):** Wait for "work issue", "fix that", "implement that"
-**Step 3:** `gh pmu move --status in_progress` → Work → Check criteria → `--status in_review`
-**STOP:** Report and wait for "Done"
-**Step 4:** `gh pmu move --status done` (auto-closes)
+Create via `/bug` or `/enhancement` (or triggers) → STOPs. `/work` handles validation, TDD, AC, in_review. `/done` closes.
+See `/bug`, `/enhancement`, `/work`, `/done` command specs.
 ### 2. Proposal Workflow
-**Step 1 (AUTO):** Create `Proposal/[Name].md` (with implementation criteria) + issue via `gh pmu create --label proposal --assignee @me`
+Create via `/proposal` (or triggers) → STOPs. Work/done follow standard flow.
 **Required Body Format:** Issue body MUST include `**File:** Proposal/[Name].md` for `/create-prd` integration.
-**Criteria Placement:** Issue = lifecycle only (reviewed, ready for PRD); File = implementation details; PRD = user stories
-**Step 2 (WAIT):** Wait for "implement the proposal", "work issue"
-**Step 3:** Implement → `git mv Proposal/[Name].md Proposal/Implemented/` → Check criteria → `--status in_review`
-**STOP:** Report and wait for "Done"
-**Step 4:** `gh pmu move --status done`
+**Criteria Placement:** Issue = lifecycle only; File = implementation details; PRD = user stories
+See `/proposal`, `/work`, `/done` command specs.
 ### 3. Sub-Issue Workflow
 **Option A:** `gh pmu split [parent] --from=body` (from checklist)
 **Option B:** `gh pmu sub create --parent [#] --title "..."`
 Then ask: "Label parent as 'epic'? (yes/no)"
 If yes: `gh issue edit [parent] --add-label "epic"`, add "story" to sub-issues
 ### 4. Epic Workflow
-**CRITICAL:** Takes precedence when issue has "epic" label
-**Detection:** `gh issue view [#] --json labels | grep -q "epic"`
-**Step 0:** `gh pmu move [epic] --status in_progress`
-**Step 1:** `gh pmu sub list [epic] --json` → Sort by number
-**Step 2:** For each sub-issue: `--status in_progress` → Work → Check criteria → `--status in_review`
-**Step 3:** Check epic criteria → `gh pmu move [epic] --status in_review`
-**STOP:** Report and wait for "Done"
-**Step 4:** `gh pmu move [epic] --status done --recursive --yes`
+**CRITICAL:** Takes precedence when issue has "epic" label. Detection mandatory — check labels before routing.
+Epic flow: `/work` detects epic → in_progress → sub-issues sequentially (each: in_progress → work → AC → in_review → **STOP per sub-issue** → "done" → next). All done → epic AC → in_review → **STOP** → "done" → recursive close.
+**Never skip per-sub-issue STOP boundary.**
+See `/work` (Steps 4, 7, 12) and `/done` command specs.
 ### 5. PRD to Issues
-- **Agile:** `Create-Backlog` → Epics + Stories (see IDPF-Agile/Agile-Commands.md)
+`/create-backlog` → Epics + Stories from approved PRD. See command spec.
 ### 6. Reopen Workflow
 `gh issue reopen [#]` → `gh pmu move [#] --status ready`
-### 7. Proposal-to-PRD
-1. Load IDPF-PRD framework + anti-hallucination rules
-2. Run Discovery → Elicitation → Specification → Generation phases
-3. Create `PRD/PRD-[Name].md`, update proposal status
-4. Change label from "proposal" to "prd"
-### 8. PRD Completion
-1. Verify all linked issues are Done
-2. Update PRD status to Complete
-3. `git mv PRD/PRD-[Name].md PRD/Implemented/`
-### 9. Release Workflow
-**Start:** `gh pmu branch start --name "release/v1.2.0"`
-**Add:** `gh pmu move [#] --branch current`
-**Close:** `gh pmu branch close [--tag]`
-**Artifacts:** `Releases/release/vX.Y.Z/release-notes.md`, `changelog.md`
 ### 6.5. Branch Reopen Workflow
 `gh pmu branch reopen [branch-name]` - Reopen closed branch tracker (e.g., `release/v1.2.0`, `patch/v1.1.5`)
+### 7. Proposal-to-PRD
+`/create-prd` runs IDPF-PRD phases → generates `PRD/PRD-[Name].md`, updates proposal status, changes label to `prd`. See command spec.
+### 8. PRD Completion
+`/complete-prd` verifies stories done → updates status → moves to `PRD/Implemented/`. See command spec.
+### 9. Release Workflow
+**Applicable:** IDPF-Agile
+`/create-branch` (e.g., `release/v1.2.0`) → `gh pmu move [#] --branch current` → `/prepare-release` for PR, merge, tag, artifacts.
+See `/create-branch` and `/prepare-release` command specs.
 ### 10. Patch Workflow
-**Start:** `gh pmu branch start --name "patch/v1.1.5"`
-**Add:** `gh pmu move [#] --branch current`
-**Close:** `gh pmu branch close [--tag]`
-**Artifacts:** `Releases/patch/vX.Y.Z/patch-notes.md`, `changelog.md`
+**Applicable:** IDPF-Agile
+Same as Release (Section 9) with `patch/` prefix. `/create-branch` with `patch/vX.Y.Z` → `/prepare-release`.
 ### 11. PR-Only Main Merges
 All work via PRs to main. Never push directly.
 1. `gh pr create --base main --head release/vX.Y.Z`

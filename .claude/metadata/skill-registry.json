@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-01-27T01:40:39.892Z",
+  "generatedAt": "2026-02-11T20:47:57.491Z",
   "version": "1.0.0",
-  "skillCount": 25,
+  "skillCount": 24,
   "skills": [
     {
       "name": "anti-pattern-analysis",
@@ -39,9 +39,18 @@
       "triggers": []
     },
     {
-      "name": "create-prd",
-      "description": "Transform proposals into detailed PRD documents using Inception/ context",
-      "triggers": []
+      "name": "drawio-generation",
+      "description": "Generate valid .drawio.svg diagrams with editable mxGraphModel structure",
+      "triggers": [
+        "drawio",
+        "svg",
+        "diagram",
+        "uml",
+        "mxgraph",
+        "activity",
+        "use-case",
+        "sequence"
+      ]
     },
     {
       "name": "electron-development",
@@ -138,11 +147,6 @@
     {
       "name": "test-writing-patterns",
       "description": "Guide experienced developers on test structure, patterns, assertions, and test doubles for effective test-driven development",
-      "triggers": []
-    },
-    {
-      "name": "uml-generation",
-      "description": "Generate UML diagrams from project source code using PlantUML with online rendering",
       "triggers": []
     }
   ]

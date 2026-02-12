@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 /**
- * @framework-script 0.33.3
+ * @framework-script 0.42.0
  * transfer-issue.js
  *
- * Transfer an issue between releases or sprints.
+ * Transfer an issue between branches.
  * Used by /transfer-issue slash command.
- *
- * Implements: REQ-009 (Sprint-Release Integration)
- * Source: PRD/PRD-Release-and-Sprint-Workflow.md
  *
  * Usage:
  *   node transfer-issue.js #123                       # Show current and options
  *   node transfer-issue.js #123 --branch release/v2.0 # Move to different branch
- *   node transfer-issue.js #123 --sprint auth-work    # Move to different sprint
- *   node transfer-issue.js #123 --remove-sprint       # Remove from sprint
  *   node transfer-issue.js #123 --remove-branch       # Remove from branch
  */
 
@@ -29,7 +24,7 @@ function exec(cmd) {
 
 function getIssueDetails(issueNumber) {
     try {
-        const result = exec(`gh pmu view ${issueNumber} --json`);
+        const result = exec(`gh pmu view ${issueNumber} --json=fieldValues`);
         if (result) {
             return JSON.parse(result);
         }
@@ -41,10 +36,24 @@ function getIssueDetails(issueNumber) {
 
 function getOpenBranches() {
     try {
-        const result = exec('gh pmu branch list --open --json');
+        // Note: gh pmu branch list has no JSON support, parse text output
+        // Format: "VERSION      CODENAME        TRACKER    STATUS"
+        const result = exec('gh pmu branch list');
         if (result) {
-            const data = JSON.parse(result);
-            return data.branches || data.items || data || [];
+            const lines = result.split('\n').slice(2); // Skip header rows
+            const branches = [];
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const parts = line.trim().split(/\s+/);
+                if (parts.length >= 4) {
+                    const name = parts[0];
+                    const status = parts[parts.length - 1];
+                    if (status === 'Active') {
+                        branches.push({ name, status });
+                    }
+                }
+            }
+            return branches;
         }
     } catch {
         // Intentionally ignored
@@ -60,8 +69,6 @@ function main() {
     const issueNumber = issueArg ? parseInt(issueArg.replace('#', ''), 10) : null;
 
     const newBranch = args.find((a, i) => args[i - 1] === '--branch');
-    const newSprint = args.find((a, i) => args[i - 1] === '--sprint');
-    const removeFromSprint = args.includes('--remove-sprint');
     const removeFromBranch = args.includes('--remove-branch');
 
     console.log('=== Transfer Issue ===\n');
@@ -70,8 +77,6 @@ function main() {
         console.log('Usage: /transfer-issue #123 [options]');
         console.log('\nOptions:');
         console.log('  --branch <name>     Transfer to different branch');
-        console.log('  --sprint <name>     Transfer to different sprint');
-        console.log('  --remove-sprint     Remove from current sprint');
         console.log('  --remove-branch     Remove from current branch (back to backlog)');
         return;
     }
@@ -84,11 +89,9 @@ function main() {
     }
 
     const currentBranch = issue.fieldValues?.Branch || '(none)';
-    const currentSprint = issue.fieldValues?.Microsprint || issue.fieldValues?.Sprint || '(none)';
 
     console.log(`Issue #${issueNumber}: ${issue.title}`);
     console.log(`Current branch: ${currentBranch}`);
-    console.log(`Current sprint: ${currentSprint}`);
     console.log('');
 
     // Handle actions
@@ -98,17 +101,6 @@ function main() {
         // This would need to be implemented in gh pmu
         console.log('Note: Use gh pmu move to update branch assignment.');
         console.log('Example: gh pmu move ' + issueNumber + ' --branch ""');
-        return;
-    }
-
-    if (removeFromSprint) {
-        console.log('Removing from sprint...');
-        const result = exec(`gh pmu microsprint remove ${issueNumber}`);
-        if (result !== null) {
-            console.log(`✓ Issue #${issueNumber} removed from sprint`);
-        } else {
-            console.log('Note: Use gh pmu microsprint remove to update sprint assignment.');
-        }
         return;
     }
 
@@ -123,18 +115,6 @@ function main() {
         } else {
             console.log('Note: Branch transfer may require gh pmu --branch support.');
             console.log(`Manual: gh pmu move ${issueNumber} --branch "${branchName}"`);
-        }
-        return;
-    }
-
-    if (newSprint) {
-        console.log(`Transferring to sprint: ${newSprint}...`);
-        const result = exec(`gh pmu microsprint add ${issueNumber}`);
-        if (result !== null) {
-            console.log(`✓ Issue #${issueNumber} added to current sprint`);
-        } else {
-            console.log('Note: Sprint transfer requires active microsprint.');
-            console.log('Use gh pmu microsprint current first, then add the issue.');
         }
         return;
     }
@@ -154,7 +134,6 @@ function main() {
     console.log('\nTo transfer:');
     console.log(`  /transfer-issue #${issueNumber} --branch release/vX.Y.Z`);
     console.log(`  /transfer-issue #${issueNumber} --remove-branch`);
-    console.log(`  /transfer-issue #${issueNumber} --remove-sprint`);
 }
 
 main();

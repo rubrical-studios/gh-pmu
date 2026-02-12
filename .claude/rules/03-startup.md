@@ -1,8 +1,7 @@
-# Session Startup
+# Session Startup (Hub)
 
-**Version:** 0.33.3
-**Framework:** IDPF-Agile
-**Domain Specialist:** Backend-Specialist
+**Version:** 0.42.0
+**Type:** Central Hub
 
 ---
 
@@ -55,9 +54,9 @@ Session Initialized
 - Date: {date}
 - Repository: {repo-name}
 - Branch: {branch} ({clean|dirty})
-- Process Framework: IDPF-Agile
+- Process Framework: {framework}
 - Framework Version: {version}
-- Active Role: Backend-Specialist
+- Active Role: {specialist}
 - Charter Status: {Active|Pending}
 - GitHub Workflow: Active via gh pmu {version}
 ```
@@ -70,8 +69,8 @@ If Charter Status is Pending, display blocking message and run `/charter`.
 
 | When Needed | Load From |
 |-------------|-----------|
-| Framework workflow | `E:\Projects\idpf-praxis-dist/IDPF-Agile/` |
-| Domain specialist | `E:\Projects\idpf-praxis-dist/System-Instructions/Domain/Base/{specialist}.md` |
+| Framework workflow | `E:\Projects\idpf-central-hub/{framework}/` |
+| Domain specialist | `E:\Projects\idpf-central-hub/System-Instructions/Domain/Base/{specialist}.md` |
 | Skill usage | `.claude/skills/{skill-name}/SKILL.md` |
 | Charter management | Run `/charter` command |
 

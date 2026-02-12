@@ -31,3 +31,14 @@ dist/
 # Generated history files
 History/
 tmp/
+# IDPF hub symlinks (machine-specific, do not commit)
+# NOTE: .claude/commands is committed (project-owned, not symlinked)
+.claude/hooks
+.claude/metadata
+.claude/rules
+.claude/scripts/shared
+.claude/skills
+run_claude.cmd
+run_claude.sh
+runp_claude.cmd
+runp_claude.sh

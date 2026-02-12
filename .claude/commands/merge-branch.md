@@ -1,5 +1,5 @@
 ---
-version: "v0.33.3"
+version: "v0.42.0"
 description: Merge branch to main with gated checks (project)
 argument-hint: [--skip-gates] [--dry-run]
 ---
@@ -69,6 +69,7 @@ If a tracker issue exists, it will be closed at the end.
 ---
 
 <!-- USER-EXTENSION-START: pre-gate -->
+<!-- Setup: prepare environment before gate checks -->
 <!-- USER-EXTENSION-END: pre-gate -->
 
 ## Phase 1: Gate Checks
@@ -120,6 +121,7 @@ Report gate results:
 **If any gate fails, STOP and report.**
 
 <!-- USER-EXTENSION-START: post-gate -->
+<!-- Post-gate: actions after all gates pass -->
 <!-- USER-EXTENSION-END: post-gate -->
 
 ---
@@ -168,6 +170,7 @@ git pull origin main
 ```
 
 <!-- USER-EXTENSION-START: post-merge -->
+<!-- Post-merge: actions after PR is merged -->
 <!-- USER-EXTENSION-END: post-merge -->
 
 ---
@@ -197,6 +200,7 @@ git branch -d $BRANCH
 ```
 
 <!-- USER-EXTENSION-START: post-close -->
+<!-- Post-close: notifications, announcements -->
 <!-- USER-EXTENSION-END: post-close -->
 
 ---
