@@ -1,12 +1,14 @@
 {
-  "frameworkVersion": "0.42.0",
-  "installedDate": "2026-02-11",
+  "frameworkVersion": "0.42.1",
+  "installedDate": "2026-02-12",
   "processFramework": "IDPF-Agile",
   "reviewMode": "solo",
-  "frameworkPath": "../idpf-central-hub",
+  "frameworkPath": "..\\idpf-central-hub",
   "domainSpecialist": "Backend-Specialist",
   "projectSkills": [
-    "tdd-failure-recovery", "tdd-green-phase",
-    "tdd-red-phase", "tdd-refactor-phase"
+    "tdd-failure-recovery",
+    "tdd-green-phase",
+    "tdd-red-phase",
+    "tdd-refactor-phase"
   ]
 }

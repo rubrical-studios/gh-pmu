@@ -1,5 +1,5 @@
 ---
-version: "v0.42.0"
+version: "v0.42.1"
 description: Split story into smaller stories (project)
 argument-hint: "<story-number> (e.g., 123)"
 ---
