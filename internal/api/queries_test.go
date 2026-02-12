@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -3117,5 +3118,147 @@ func TestGetClosedIssuesByLabel_Pagination(t *testing.T) {
 	}
 	if issues[2].Title != "Closed Issue 3" {
 		t.Errorf("Expected third issue title 'Closed Issue 3', got '%s'", issues[2].Title)
+	}
+}
+
+// ============================================================================
+// buildGraphQLRequestBody Tests
+// ============================================================================
+
+func TestBuildGraphQLRequestBody_SimpleQuery(t *testing.T) {
+	query := `query { repository(owner: "owner", name: "repo") { issue(number: 1) { id } } }`
+	body, err := buildGraphQLRequestBody(query)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify it's valid JSON
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	// Verify query field is present and matches
+	if parsed["query"] != query {
+		t.Errorf("Expected query field to match input, got %q", parsed["query"])
+	}
+}
+
+func TestBuildGraphQLRequestBody_EmptyQuery(t *testing.T) {
+	body, err := buildGraphQLRequestBody("")
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	if parsed["query"] != "" {
+		t.Errorf("Expected empty query field, got %q", parsed["query"])
+	}
+}
+
+func TestBuildGraphQLRequestBody_SpecialCharacters(t *testing.T) {
+	// Query with special characters that could break CLI argument passing
+	query := `query { repository(owner: "test\"org", name: "my-repo") { issue(number: 1) { body } } }`
+	body, err := buildGraphQLRequestBody(query)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify it's valid JSON (json.Marshal handles escaping)
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	if parsed["query"] != query {
+		t.Errorf("Expected query to preserve special characters")
+	}
+}
+
+func TestBuildGraphQLRequestBody_LargePayload(t *testing.T) {
+	// Build a query that would exceed Windows' ~32KB CLI limit
+	// Each alias is ~600 chars, so 60 aliases exceeds 32KB
+	var queryParts []string
+	for i := 0; i < 60; i++ {
+		queryParts = append(queryParts, fmt.Sprintf(`i%d: issue(number: %d) {
+			id
+			number
+			title
+			body
+			state
+			url
+			repository { nameWithOwner }
+			assignees(first: 10) { nodes { login } }
+			labels(first: 20) { nodes { name } }
+			projectItems(first: 20) {
+				nodes {
+					id
+					project { id }
+					fieldValues(first: 20) {
+						nodes {
+							__typename
+							... on ProjectV2ItemFieldSingleSelectValue {
+								name
+								field { ... on ProjectV2SingleSelectField { name } }
+							}
+							... on ProjectV2ItemFieldTextValue {
+								text
+								field { ... on ProjectV2Field { name } }
+							}
+						}
+					}
+				}
+			}
+		}`, i, i+1))
+	}
+	query := fmt.Sprintf(`query { repository(owner: "test", name: "repo") { %s } }`,
+		strings.Join(queryParts, " "))
+
+	// Verify the query exceeds 32KB (Windows CLI limit)
+	if len(query) < 32000 {
+		t.Fatalf("Test query should exceed 32KB, got %d bytes", len(query))
+	}
+
+	body, err := buildGraphQLRequestBody(query)
+	if err != nil {
+		t.Fatalf("Unexpected error building large request body: %v", err)
+	}
+
+	// Verify it's valid JSON even at large size
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse large body as JSON: %v", err)
+	}
+
+	if parsed["query"] != query {
+		t.Error("Large query was not preserved in JSON body")
+	}
+}
+
+func TestBuildGraphQLRequestBody_WithExtraHeaders(t *testing.T) {
+	// Verify the request body is the same regardless of headers
+	// (headers are passed separately via exec.Command args, not in the body)
+	query := `query { repository(owner: "o", name: "r") { issue(number: 1) { subIssues { totalCount } } } }`
+	body, err := buildGraphQLRequestBody(query)
+
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("Failed to parse body as JSON: %v", err)
+	}
+
+	// Should only have "query" key, no extra fields
+	if len(parsed) != 1 {
+		t.Errorf("Expected exactly 1 key in request body, got %d", len(parsed))
 	}
 }

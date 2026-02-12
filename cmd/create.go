@@ -215,11 +215,6 @@ func runCreateWithDeps(cmd *cobra.Command, opts *createOptions, cfg *config.Conf
 	labels := append([]string{}, cfg.Defaults.Labels...)
 	labels = append(labels, opts.labels...)
 
-	// Add Claude workflow reminder for IDPF projects
-	if cfg.IsIDPF() && body != "" {
-		body = prependClaudeReminder(body)
-	}
-
 	// Create the issue with extended options
 	issue, err := client.CreateIssueWithOptions(owner, repo, title, body, labels, opts.assignees, opts.milestone)
 	if err != nil {
@@ -359,11 +354,6 @@ func runCreateFromFileWithDeps(cmd *cobra.Command, opts *createOptions, cfg *con
 	priority := issueData.Priority
 	if opts.priority != "" {
 		priority = opts.priority
-	}
-
-	// Add Claude workflow reminder for IDPF projects
-	if cfg.IsIDPF() && body != "" {
-		body = prependClaudeReminder(body)
 	}
 
 	// Create the issue
@@ -598,16 +588,4 @@ func decodeBase64Content(encoded string) (string, error) {
 		return "", err
 	}
 	return string(decoded), nil
-}
-
-// claudeReminder is the workflow reminder for Claude Code in IDPF projects
-const claudeReminder = "> **Claude:** Before acting, review `.claude/rules/02-github-workflow.md`. Wait for explicit \"work\" trigger.\n\n"
-
-// prependClaudeReminder adds the Claude workflow reminder to the top of the body
-// if it's not already present. Used for IDPF framework projects.
-func prependClaudeReminder(body string) string {
-	if strings.Contains(body, "Claude:") && strings.Contains(body, "github-workflow") {
-		return body
-	}
-	return claudeReminder + body
 }

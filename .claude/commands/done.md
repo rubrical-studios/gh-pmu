@@ -1,7 +1,7 @@
 ---
-version: "v0.42.0"
+version: "v0.42.1"
 description: Complete issues with criteria verification and status transitions (project)
-argument-hint: "[#issue...] (optional)"
+argument-hint: "[#issue...] [--no-docs] (optional)"
 ---
 
 <!-- EXTENSIBLE -->
@@ -24,6 +24,7 @@ Complete one or more issues. Moves from `in_review` → `done` with a STOP bound
 | `#issue` | No | Single issue number (e.g., `#42` or `42`) |
 | `#issue #issue...` | | Multiple issue numbers (e.g., `#42 #43 #44`) |
 | *(none)* | | Queries `in_review` issues for selection |
+| `--no-docs` | No | Skip the design decisions documentation offer (Step 5) |
 ---
 ## Execution Instructions
 **REQUIRED:** Before executing:
@@ -106,6 +107,7 @@ Report: `Issue #$ISSUE: $TITLE → Done ✓`
 <!-- USER-EXTENSION-END: post-done -->
 
 ### Step 5: Design Decisions Offer
+**If `--no-docs` is specified:** Skip this step entirely.
 **If the ASSISTANT** is aware of decisions required to complete work on this issue, offer to document:
 ```
 Would you like me to document the design decisions/issues encountered in Construction/Design-Decisions/?

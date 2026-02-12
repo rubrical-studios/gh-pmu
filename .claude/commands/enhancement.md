@@ -1,5 +1,5 @@
 ---
-version: "v0.42.0"
+version: "v0.42.1"
 description: Create an enhancement issue with standard template (project)
 argument-hint: "<title>"
 ---
