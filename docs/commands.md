@@ -329,6 +329,10 @@ gh pmu move 42 --status done --repo owner/other-repo
 | `--depth` | Limit recursion depth (default 10) |
 | `--yes` | Skip confirmation for recursive ops |
 
+**Label automation:**
+- `--branch` adds the `assigned` label to issues (auto-created if missing)
+- `--backlog` removes the `assigned` label from open issues
+
 **Output:**
 ```
 ✓ Updated issue #42: Add user authentication
@@ -658,6 +662,7 @@ gh pmu branch list --refresh         # Force API fetch, update cache
 - The `--name` flag is required and specifies the branch name to create
 - Branch name is used for tracker title, Branch field, and artifact directory
 - Supports any branch naming convention: `release/v2.0.0`, `patch/v1.9.1`, `hotfix-auth-bypass`
+- `branch close` and `branch remove` automatically remove the `assigned` label from open issues
 
 ### validation
 
