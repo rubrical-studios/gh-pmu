@@ -1568,10 +1568,11 @@ func (c *Client) AddIssueComment(issueID, body string) (*Comment, error) {
 		AddComment struct {
 			CommentEdge struct {
 				Node struct {
-					ID        string
-					Body      string
-					CreatedAt string
-					Author    struct {
+					ID         string
+					DatabaseId int `graphql:"databaseId"`
+					Body       string
+					CreatedAt  string
+					Author     struct {
 						Login string
 					}
 				}
@@ -1594,10 +1595,11 @@ func (c *Client) AddIssueComment(issueID, body string) (*Comment, error) {
 	}
 
 	return &Comment{
-		ID:        mutation.AddComment.CommentEdge.Node.ID,
-		Body:      mutation.AddComment.CommentEdge.Node.Body,
-		Author:    mutation.AddComment.CommentEdge.Node.Author.Login,
-		CreatedAt: mutation.AddComment.CommentEdge.Node.CreatedAt,
+		ID:         mutation.AddComment.CommentEdge.Node.ID,
+		DatabaseId: mutation.AddComment.CommentEdge.Node.DatabaseId,
+		Body:       mutation.AddComment.CommentEdge.Node.Body,
+		Author:     mutation.AddComment.CommentEdge.Node.Author.Login,
+		CreatedAt:  mutation.AddComment.CommentEdge.Node.CreatedAt,
 	}, nil
 }
 

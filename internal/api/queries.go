@@ -2227,10 +2227,11 @@ func (c *Client) listUserProjects(owner string) ([]Project, error) {
 
 // Comment represents an issue comment
 type Comment struct {
-	ID        string
-	Author    string
-	Body      string
-	CreatedAt string
+	ID         string
+	DatabaseId int
+	Author     string
+	Body       string
+	CreatedAt  string
 }
 
 // GetIssueComments fetches comments for an issue
@@ -2244,10 +2245,11 @@ func (c *Client) GetIssueComments(owner, repo string, number int) ([]Comment, er
 			Issue struct {
 				Comments struct {
 					Nodes []struct {
-						ID        string
-						Body      string
-						CreatedAt string
-						Author    struct {
+						ID         string
+						DatabaseId int `graphql:"databaseId"`
+						Body       string
+						CreatedAt  string
+						Author     struct {
 							Login string
 						}
 					}
@@ -2275,10 +2277,11 @@ func (c *Client) GetIssueComments(owner, repo string, number int) ([]Comment, er
 	var comments []Comment
 	for _, node := range query.Repository.Issue.Comments.Nodes {
 		comments = append(comments, Comment{
-			ID:        node.ID,
-			Author:    node.Author.Login,
-			Body:      node.Body,
-			CreatedAt: node.CreatedAt,
+			ID:         node.ID,
+			DatabaseId: node.DatabaseId,
+			Author:     node.Author.Login,
+			Body:       node.Body,
+			CreatedAt:  node.CreatedAt,
 		})
 	}
 
