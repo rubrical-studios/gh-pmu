@@ -295,21 +295,46 @@ func TestRunCommentWithDeps_BodyFileAndBodyStdinMutuallyExclusive(t *testing.T) 
 }
 
 // ============================================================================
-// extractCommentID Tests
+// Comment URL Output Tests
 // ============================================================================
 
-func TestExtractCommentID_ReturnsNodeID(t *testing.T) {
-	// For now, extractCommentID just returns the node ID
-	nodeID := "IC_kwDOLF2XKM5nQi8x"
-	result := extractCommentID(nodeID)
-	if result != nodeID {
-		t.Errorf("Expected %q, got %q", nodeID, result)
+func TestRunCommentWithDeps_OutputsCorrectCommentURL(t *testing.T) {
+	mock := newMockCommentClient()
+	mock.comment.DatabaseId = 1714163505
+	cmd := newCommentCommand()
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+
+	opts := &commentOptions{issueNumber: 42, body: "Test comment"}
+	err := runCommentWithDeps(cmd, opts, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "#issuecomment-1714163505") {
+		t.Errorf("Expected numeric comment ID in URL, got: %s", output)
 	}
 }
 
-func TestExtractCommentID_EmptyString(t *testing.T) {
-	result := extractCommentID("")
-	if result != "" {
-		t.Errorf("Expected empty string, got %q", result)
+func TestRunCommentWithDeps_ZeroDatabaseId(t *testing.T) {
+	mock := newMockCommentClient()
+	mock.comment.DatabaseId = 0
+	cmd := newCommentCommand()
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+
+	opts := &commentOptions{issueNumber: 42, body: "Test comment"}
+	err := runCommentWithDeps(cmd, opts, mock, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// With databaseId=0 (e.g., API didn't return it), URL still constructed
+	if !strings.Contains(output, "#issuecomment-0") {
+		t.Errorf("Expected issuecomment-0 in URL, got: %s", output)
 	}
 }

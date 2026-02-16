@@ -1,25 +1,17 @@
 # Integration test environment configuration
 # DO NOT USE FOR REAL WORK - This project is for automated testing only
+# Shares environment with E2E tests (test/e2e/) — both use project #41
 
 github:
   # Test repository
-  repo: rubrical-studios/gh-pm-test
+  repo: rubrical-studios/gh-pmu-e2e-test
 
   # Test project
   project:
     owner: rubrical-studios
-    number: 13
-    id: PVT_kwHOAATLPs4BJq7a
-    url: https://github.com/users/rubrical-studios/projects/13
-
-  # Test issues (created for integration tests)
-  issues:
-    - number: 1
-      title: "Test Issue 1"
-    - number: 2
-      title: "Test Issue 2 - Parent"
-    - number: 3
-      title: "Test Issue 3 - Sub-issue"
+    number: 41
+    id: PVT_kwHOAATLPs4BM2I6
+    url: https://github.com/users/rubrical-studios/projects/41
 
   # Custom fields added to test project
   fields:
@@ -31,5 +23,9 @@ github:
       options: [XS, S, M, L, XL]
 
 # Instructions for running integration tests:
-# 1. Ensure GH_TOKEN is set with appropriate permissions
-# 2. Run: go test -tags=integration ./...
+# 1. Set environment variables:
+#    TEST_PROJECT_OWNER=rubrical-studios
+#    TEST_PROJECT_NUMBER=41
+#    TEST_REPO_OWNER=rubrical-studios
+#    TEST_REPO_NAME=gh-pmu-e2e-test
+# 2. Run: go test -tags=integration ./cmd/...

@@ -1,12 +1,13 @@
 # Integration test configuration
 # This file is used by integration tests instead of the repo root .gh-pmu.yml
 # DO NOT modify the repo root config during tests
+# Shares environment with E2E tests (test/e2e/) — both use project #41
 project:
-  name: gh-pm-test-project
-  number: 13
+  name: IDPF-gh-pmu-testing
+  number: 41
   owner: rubrical-studios
 repositories:
-  - rubrical-studios/gh-pm-test
+  - rubrical-studios/gh-pmu-e2e-test
 defaults:
   priority: p2
   status: backlog
@@ -33,7 +34,7 @@ triage:
       estimate: true
 metadata:
   project:
-    id: PVT_kwHOAATLPs4BJq7a
+    id: PVT_kwHOAATLPs4BM2I6
   fields:
     - name: Status
       id: PVTSSF_lAHOAATLPs4BJq7azgVBkxM

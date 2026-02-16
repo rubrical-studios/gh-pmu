@@ -1386,7 +1386,12 @@ func (c *Client) GetSubIssueCounts(owner, repo string, numbers []int) (map[int]i
 		return nil, fmt.Errorf("failed to execute batch sub-issue query: %w", err)
 	}
 
-	// Parse the response
+	return parseSubIssueCountsResponse(output, numbers)
+}
+
+// parseSubIssueCountsResponse parses the JSON response from a batch sub-issue count query.
+// Returns a map of issue number to sub-issue count.
+func parseSubIssueCountsResponse(data []byte, numbers []int) (map[int]int, error) {
 	var response struct {
 		Data struct {
 			Repository map[string]struct {
@@ -1397,11 +1402,10 @@ func (c *Client) GetSubIssueCounts(owner, repo string, numbers []int) (map[int]i
 		} `json:"data"`
 	}
 
-	if err := json.Unmarshal(output, &response); err != nil {
+	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse batch sub-issue response: %w", err)
 	}
 
-	// Build result map
 	result := make(map[int]int)
 	for i, num := range numbers {
 		alias := fmt.Sprintf("i%d", i)
@@ -1470,7 +1474,29 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 		return nil, fmt.Errorf("failed to execute batch sub-issue query: %w", err)
 	}
 
-	// Parse the response using generic map for dynamic aliases
+	result, needsPagination, err := parseSubIssuesBatchResponse(output, numbers)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle pagination fallback for issues with >100 sub-issues
+	for _, num := range needsPagination {
+		fmt.Fprintf(os.Stderr, "Note: Issue #%d has >100 sub-issues, fetching all pages...\n", num)
+		allSubIssues, err := c.GetSubIssues(owner, repo, num)
+		if err != nil {
+			// If fallback fails, keep partial results from batch
+			continue
+		}
+		result[num] = allSubIssues
+	}
+
+	return result, nil
+}
+
+// parseSubIssuesBatchResponse parses the JSON response from a batch sub-issues query.
+// Returns the sub-issues map, a list of issue numbers that need pagination (hasNextPage=true),
+// and any error. Issues needing pagination will have partial results in the map.
+func parseSubIssuesBatchResponse(data []byte, numbers []int) (map[int][]SubIssue, []int, error) {
 	var response struct {
 		Data struct {
 			Repository map[string]json.RawMessage `json:"repository"`
@@ -1480,16 +1506,17 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 		} `json:"errors"`
 	}
 
-	if err := json.Unmarshal(output, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse batch sub-issue response: %w", err)
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse batch sub-issue response: %w", err)
 	}
 
 	if len(response.Errors) > 0 {
-		return nil, fmt.Errorf("GraphQL errors: %s", response.Errors[0].Message)
+		return nil, nil, fmt.Errorf("GraphQL errors: %s", response.Errors[0].Message)
 	}
 
-	// Build result map
 	result := make(map[int][]SubIssue)
+	var needsPagination []int
+
 	for i, num := range numbers {
 		alias := fmt.Sprintf("i%d", i)
 		issueData, ok := response.Data.Repository[alias]
@@ -1524,34 +1551,6 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 			continue
 		}
 
-		// Check if this parent has more sub-issues than we fetched
-		if issueResponse.SubIssues.PageInfo.HasNextPage {
-			// Fall back to paginated GetSubIssues for this parent
-			fmt.Fprintf(os.Stderr, "Note: Issue #%d has >100 sub-issues, fetching all pages...\n", num)
-			allSubIssues, err := c.GetSubIssues(owner, repo, num)
-			if err != nil {
-				// If fallback fails, use what we got from batch
-				var subIssues []SubIssue
-				for _, node := range issueResponse.SubIssues.Nodes {
-					subIssues = append(subIssues, SubIssue{
-						ID:     node.ID,
-						Number: node.Number,
-						Title:  node.Title,
-						State:  node.State,
-						URL:    node.URL,
-						Repository: Repository{
-							Owner: node.Repository.Owner.Login,
-							Name:  node.Repository.Name,
-						},
-					})
-				}
-				result[num] = subIssues
-			} else {
-				result[num] = allSubIssues
-			}
-			continue
-		}
-
 		var subIssues []SubIssue
 		for _, node := range issueResponse.SubIssues.Nodes {
 			subIssues = append(subIssues, SubIssue{
@@ -1567,9 +1566,13 @@ func (c *Client) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][
 			})
 		}
 		result[num] = subIssues
+
+		if issueResponse.SubIssues.PageInfo.HasNextPage {
+			needsPagination = append(needsPagination, num)
+		}
 	}
 
-	return result, nil
+	return result, needsPagination, nil
 }
 
 // GetRepositoryIssues fetches issues from a repository with the given state filter
@@ -2227,10 +2230,11 @@ func (c *Client) listUserProjects(owner string) ([]Project, error) {
 
 // Comment represents an issue comment
 type Comment struct {
-	ID        string
-	Author    string
-	Body      string
-	CreatedAt string
+	ID         string
+	DatabaseId int
+	Author     string
+	Body       string
+	CreatedAt  string
 }
 
 // GetIssueComments fetches comments for an issue
@@ -2244,10 +2248,11 @@ func (c *Client) GetIssueComments(owner, repo string, number int) ([]Comment, er
 			Issue struct {
 				Comments struct {
 					Nodes []struct {
-						ID        string
-						Body      string
-						CreatedAt string
-						Author    struct {
+						ID         string
+						DatabaseId int `graphql:"databaseId"`
+						Body       string
+						CreatedAt  string
+						Author     struct {
 							Login string
 						}
 					}
@@ -2275,10 +2280,11 @@ func (c *Client) GetIssueComments(owner, repo string, number int) ([]Comment, er
 	var comments []Comment
 	for _, node := range query.Repository.Issue.Comments.Nodes {
 		comments = append(comments, Comment{
-			ID:        node.ID,
-			Author:    node.Author.Login,
-			Body:      node.Body,
-			CreatedAt: node.CreatedAt,
+			ID:         node.ID,
+			DatabaseId: node.DatabaseId,
+			Author:     node.Author.Login,
+			Body:       node.Body,
+			CreatedAt:  node.CreatedAt,
 		})
 	}
 

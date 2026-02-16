@@ -1,12 +1,12 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Review issues with type-specific criteria (project)
 argument-hint: "#issue [#issue...]"
 ---
 
 <!-- EXTENSIBLE -->
 # /review-issue
-Reviews one or more GitHub issues with type-specific criteria based on labels (bug, enhancement, story, epic). Tracks review count in issue body and posts structured findings as comment. No linked file — operates directly on the issue.
+Reviews one or more GitHub issues with type-specific criteria based on labels (bug, enhancement, story, epic). Tracks review count in issue body and posts structured findings as comment.
 **Extension Points:** See `.claude/metadata/extension-points.json` or run `/extensions list --command review-issue`
 ---
 ## Prerequisites
@@ -18,28 +18,30 @@ Reviews one or more GitHub issues with type-specific criteria based on labels (b
 |----------|----------|-------------|
 | `#issue` | Yes | One or more issue numbers (e.g., `#42` or `42 43 44`) |
 | `--with` | No | Comma-separated domain extensions (e.g., `--with security,performance`) or `--with all` |
-Accepts multiple issue numbers: `/review-issue #42 #43 #44` — reviews each sequentially.
+| `--mode` | No | Transient review mode override: `solo`, `team`, or `enterprise`. Does not modify `framework-config.json`. |
+Accepts multiple issue numbers: `/review-issue #42 #43 #44` -- reviews each sequentially.
 ---
 ## Execution Instructions
 **REQUIRED:** Before executing:
 1. **Generate Todo List:** Parse workflow steps, use `TodoWrite` to create todos
 2. **Include Extensions:** Add todo item for each non-empty `USER-EXTENSION` block
-3. **Track Progress:** Mark todos `in_progress` → `completed` as you work
+3. **Track Progress:** Mark todos `in_progress` -> `completed` as you work
 4. **Post-Compaction:** Re-read spec and regenerate todos after context compaction
 **Todo Rules:** One todo per numbered step; one todo per active extension; skip commented-out extensions.
 ---
 ## Workflow
-**For multiple issues:** Process each issue sequentially through Steps 1–6.
+**For multiple issues:** Process each issue sequentially through Steps 1-6.
 ### Step 1: Fetch Issue
 ```bash
 gh issue view $ISSUE --json number,title,body,state,labels
 ```
-**If not found:** `"Issue #$ISSUE not found."` → **STOP** (skip to next if batch)
-**If closed:** `"Issue #$ISSUE is closed. Review anyway? (y/n)"` — proceed only if user confirms.
+**If not found:** `"Issue #$ISSUE not found."` -> **STOP** (skip to next if batch)
+**If closed:** `"Issue #$ISSUE is closed. Review anyway? (y/n)"` -- proceed only if user confirms.
 ### Step 2: Determine Issue Type
-Check issue labels to determine type-specific review criteria:
-```bash
-gh issue view $ISSUE --json labels --jq '.labels[].name'
+Use the shared `getIssueType()` utility from `.claude/scripts/shared/lib/issue-type.js` to determine issue type from labels already fetched in Step 1 (no additional API call needed):
+```javascript
+const { getIssueType } = require('./.claude/scripts/shared/lib/issue-type.js');
+const { type, redirect } = getIssueType(issueData); // issueData from Step 1
 ```
 | Label Found | Review Type |
 |-------------|-------------|
@@ -47,21 +49,13 @@ gh issue view $ISSUE --json labels --jq '.labels[].name'
 | `enhancement` | Enhancement review criteria |
 | `story` | Story review criteria |
 | `epic` | Epic review criteria |
-| `test-plan` | **Redirect** → `/review-test-plan #$ISSUE` |
-| `proposal` | **Redirect** → `/review-proposal #$ISSUE` |
-| `prd` | **Redirect** → `/review-prd #$ISSUE` |
+| `test-plan` | **Redirect** -> `/review-test-plan #$ISSUE` |
+| `proposal` | **Redirect** -> `/review-proposal #$ISSUE` |
+| `prd` | **Redirect** -> `/review-prd #$ISSUE` |
 | None recognized | Generic review criteria |
-**If redirect label detected** (`test-plan`, `proposal`, `prd`):
-```
-Issue #$ISSUE has label '$LABEL' — redirecting to the specialized review command.
-```
-Invoke the appropriate command using the Skill tool. → **STOP** (the specialized command handles the review)
-**If multiple recognized labels:** Use first recognized label as primary type. Redirect labels take precedence over review labels.
-**If no recognized labels:**
-```
-Issue #$ISSUE has no recognized label (bug, enhancement, story, epic). Using generic review criteria.
-```
-Continue with generic criteria (non-blocking).
+**If redirect detected:** Invoke appropriate command using Skill tool. -> **STOP**
+**If multiple recognized labels:** Use first recognized. Redirect labels take precedence.
+**If no recognized labels:** Use generic criteria (non-blocking).
 
 <!-- USER-EXTENSION-START: pre-review -->
 <!-- USER-EXTENSION-END: pre-review -->
@@ -69,112 +63,104 @@ Continue with generic criteria (non-blocking).
 ### Step 2b: Extension Loading
 **If `--with` is specified:**
 1. Read `.claude/metadata/review-extensions.json`
-2. Parse the `--with` value:
-   - `--with all` → load all registered extensions
-   - `--with security,performance` → load specified extensions (trim spaces from comma-separated list)
-3. For each requested extension ID:
-   - Look up the `source` path in the registry
-   - Read the criteria file content
-   - Extract the **Issue Review Questions** section
-4. If an extension ID is not found in the registry, warn: `"Unknown extension: {id}. Available: security, accessibility, performance, chaos, contract, qa"`
-5. Store loaded criteria for use in Step 3
-**Error Handling (Extension Loading):**
-- **Registry not found:** `"Review extensions registry not found. Run hub update or check installation."` → fall back to standard review only
-- **Registry malformed:** `"Review extensions registry is malformed. Run hub update or check installation."` → fall back to standard review only
-- **Criteria file not found:** `"Warning: Review criteria file not found for '{domain}'. Skipping domain. Update hub to resolve."` → continue with remaining domains
-- **All criteria files missing:** `"No review criteria files found. Running standard review only."` → fall back to standard review only
-**If `--with` is not specified:** Skip extension loading (standard review only).
+2. Parse `--with` value: `--with all` loads all; `--with security,performance` loads specified (trim spaces)
+3. For each extension ID: look up `source` path, read criteria file, extract **Issue Review Questions** section
+4. Unknown extension: warn with available list
+5. Store loaded criteria for Step 3
+**Error Handling:** Registry not found/malformed -> fall back to standard review. Criteria file not found -> skip domain. All missing -> standard review only.
+**If `--with` is not specified:** Skip extension loading.
 ### Step 3: Perform Review
-Evaluate the issue using a two-phase approach: **auto-evaluate objective criteria** by reading the issue, then **ask the user only about subjective criteria** via `AskUserQuestion`. Filter criteria by `reviewMode` from `framework-config.json`.
+Evaluate using two-phase approach: **auto-evaluate objective criteria**, then **ask user about subjective criteria** via `AskUserQuestion`. Filter by `reviewMode` from `framework-config.json` (or `--mode` override).
 **Step 3a: Load reviewMode Configuration**
+Parse `--mode` from arguments if provided. Invalid values produce a clear error with valid options.
 ```javascript
 const { getReviewMode, shouldEvaluate, isObjective } = require('./.claude/scripts/shared/lib/review-mode.js');
-const mode = getReviewMode(); // 'solo', 'team', or 'enterprise'
+// modeOverride is the --mode argument value (null if not provided)
+const mode = getReviewMode(process.cwd(), modeOverride); // 'solo', 'team', or 'enterprise'
 ```
+**Hint:** Display the active mode and how to override it:
+- Without `--mode`: `Reviewing in {mode} mode (override with --mode solo|team|enterprise)`
+- With `--mode`: `Reviewing in {mode} mode (--mode override)`
 
 <!-- USER-EXTENSION-START: criteria-customize -->
 <!-- USER-EXTENSION-END: criteria-customize -->
 
 **Step 3b: Auto-Evaluate Objective Criteria**
-For each **objective** criterion applicable to the current reviewMode, evaluate autonomously by reading the issue content. Do NOT ask the user.
+For each **objective** criterion applicable to the current reviewMode, evaluate autonomously. Do NOT ask the user.
 **Common Objective Criteria:**
 | Criterion | Auto-Check Method |
 |-----------|-------------------|
-| `title-clear` | Verify title is specific (>3 words), contains actionable context, not generic |
+| `title-clear` | Verify title is specific (>3 words), contains actionable context, not generic like "Fix bug" or "Update code" |
 | `ac-present-testable` | Check for `- [ ]` checkbox items; verify each contains measurable/verifiable statement |
-| `labels-correct` | Verify issue has at least one type label matching its content |
+| `labels-correct` | Verify issue has at least one type label (bug/enhancement/story/epic) matching its content |
 | `priority-set` | Check via `gh pmu view $ISSUE --json=priority` |
 | `dependencies-identified` | Check for `Refs #`, `Depends on #`, `Blocks #`, or `**Refs:**` patterns |
 | `effort-estimate` | Check for estimate/effort section or field in body |
+| `test-coverage-proportionate` | Read issue body and linked resources. Classify change type. Scan ACs for test keywords. Compare scope against test ACs -- report proportionality with evidence. |
 **Type-Specific Objective Checks:**
-**For Bug — auto-check:**
+**For Bug -- auto-check:**
 - Reproduction steps present: look for numbered list or "Steps to Reproduce" section
 - Expected vs actual behavior documented: look for "Expected" and "Actual" sections
 - Environment info present: look for "Environment", browser, OS, version references
-- Severity proportionate to impact: compare severity/priority label to described user impact
-**For Story — auto-check:**
-- User story format: check for "As a ... I want ... So that ..." pattern
-- Acceptance criteria present: check for `- [ ]` items
-- AC structured as testable assertions: verify each `- [ ]` item is measurable/verifiable (TDD-compatible)
-- Scope supports incremental implementation: check if ACs are small, independent, testable units
-- Canonical story body template: compare body structure against expected template. If NOT matching, flag for repair
-**For Epic — auto-check:**
-- Sub-issues exist: run `gh pmu sub list $ISSUE` and verify non-empty result
-- Scope description present: check for description of what the epic covers
-- Success criteria for the epic defined: check for epic-level success criteria or definition of done
-- Dependencies between sub-issues identified: check sub-issue bodies for cross-references
-- **MUST: Iterate over each sub-issue and review** — for each sub-issue, run review criteria recursively
-**For Enhancement — auto-check:**
-- Motivation/rationale present: check for "Motivation", "Why", or rationale section
-- Proposed solution described: check for "Proposed Solution" or solution description
-- Scope boundaries defined: check for in-scope / out-of-scope sections
-- Success criteria measurable: check for quantitative language, thresholds, or verifiable outcomes
-**For Generic — auto-check:**
-- Body is non-empty and contains substantive content
-- Issue is actionable: check for concrete next steps, clear requirements, or defined AC
-Emit ✅ for pass, ⚠️ for partial/uncertain, ❌ for missing/fail. Include brief evidence for each finding.
+- Severity proportionate to impact: compare severity/priority to described user impact
+- Test coverage proportionate: single-path fix -> regression test preferred; multi-path refactor -> ACs MUST require tests
+**For Story -- auto-check:**
+- User story format: "As a ... I want ... So that ..."
+- Acceptance criteria present: `- [ ]` items
+- AC structured as testable assertions (TDD-compatible)
+- Scope supports incremental implementation
+- Canonical story body template: compare body structure, flag for repair if not matching
+- Test coverage proportionate to scope
+**For Epic -- auto-check:**
+- Sub-issues exist: `gh pmu sub list $ISSUE`
+- Scope description present
+- Success criteria defined
+- Dependencies between sub-issues identified
+- **MUST: Iterate over each sub-issue and review** recursively
+**For Enhancement -- auto-check:**
+- Motivation/rationale present
+- Proposed solution described
+- Scope boundaries defined
+- Success criteria measurable
+- Test coverage proportionate: new feature -> unit tests required; behavior change -> updated tests required
+**For Generic -- auto-check:**
+- Body is non-empty and substantive
+- Issue is actionable with concrete next steps
+Emit ✅ for pass, ⚠️ for partial/uncertain, ❌ for missing/fail. Include brief evidence.
 **Step 3c: Ask Subjective Criteria**
-For **subjective** criteria applicable to the current reviewMode, use `AskUserQuestion`:
-- `description-sufficient`: "Does the description provide enough context for someone unfamiliar with this area?"
-- `story-sizing` (team/enterprise): "Is this appropriately sized for a single iteration?"
-- `risk-assessment` (enterprise): "Are technical and business risks adequately identified?"
-If no subjective criteria apply (all filtered by reviewMode), skip the question step entirely.
-**Step 3d: Extension Criteria** (if `--with` specified)
-For each loaded extension domain, evaluate the issue against the extension's Issue Review Questions. Auto-evaluate objective; ask user about subjective.
-**Step 3e: Collect All Findings**
-Merge auto-evaluated and user-evaluated findings using check marks:
-- `✅` — Criterion met
-- `⚠️` — Needs attention
-- `❌` — Missing or incorrect
-Determine a recommendation:
-- **Ready for work** — No blocking concerns
-- **Needs minor revision** — Small issues, can start with awareness
-- **Needs revision** — Should be addressed before starting work
-- **Needs major rework** — Fundamental issues with issue definition
-**If extensions were loaded (Step 2b):**
-For each loaded extension, present findings as a separate section:
-```markdown
-### Security Review (IDPF-Security)
-- [Finding 1]
-- [Finding 2]
+For **subjective** criteria applicable to the current reviewMode, use `AskUserQuestion`.
+**Common Subjective Criteria** (filtered by reviewMode):
+```javascript
+const subjectiveCriteria = [
+  shouldEvaluate('description-sufficient') && { q: "Does the description provide enough context for someone unfamiliar with this area?", h: "Description" },
+  shouldEvaluate('story-sizing') && { q: "Is this appropriately sized for a single iteration?", h: "Sizing" },
+  shouldEvaluate('risk-assessment') && { q: "Are technical and business risks adequately identified?", h: "Risks" }
+].filter(Boolean);
 ```
-Extension findings can **escalate** the overall recommendation but cannot downgrade it.
-**Applicability Filtering:** Omit extension domain sections that produce no applicable findings. Only domains with actual findings appear in the output and in the `**Extensions Applied:**` header. If no domains produce findings, fall back to standard-only review with a warning: `"No domain extensions produced findings. Showing standard review only."` At least one domain section must appear when `--with` is used; otherwise the fallback applies.
+**Solo mode:** `description-sufficient` is excluded. Solo mode has NO subjective criteria -- skip entirely.
+**Team/enterprise mode -- description preview:** Emit 3-5 line summary before `AskUserQuestion`.
+If no subjective criteria apply, skip the question step entirely.
+**Step 3d: Extension Criteria** (if `--with` specified)
+For each loaded extension domain, evaluate against Issue Review Questions. Auto-evaluate objective; ask about subjective.
+**Step 3e: Collect All Findings**
+Merge findings using: ✅ met, ⚠️ needs attention, ❌ missing/incorrect.
+Determine recommendation:
+- **Ready for work** -- No blocking concerns
+- **Needs minor revision** -- Small issues, can start with awareness
+- **Needs revision** -- Should be addressed before starting work
+- **Needs major rework** -- Fundamental issues
+**If extensions loaded:** Present as separate sections. Extensions can **escalate** but not downgrade.
+**Applicability Filtering:** Omit domains with no findings. At least one domain section must appear when `--with` used; otherwise fallback.
 ### Step 4: Update Issue Body Metadata
-Export the current issue body:
 ```bash
 gh pmu view $ISSUE --body-stdout > .tmp-$ISSUE.md
 ```
-**Update `**Reviews:** N` field:**
-- If `**Reviews:**` field exists: increment the number
-- If `**Reviews:**` field does not exist: add `**Reviews:** 1` at the end of the issue body (after acceptance criteria if present)
-Write the updated body:
+**Update `**Reviews:** N` field:** Increment if exists, add `**Reviews:** 1` if not.
 ```bash
 gh pmu edit $ISSUE -F .tmp-$ISSUE.md && rm .tmp-$ISSUE.md
 ```
-**If edit fails:** `"Failed to update issue body: {error}"` → **STOP**
+**If edit fails:** -> **STOP**
 ### Step 5: Post Issue Comment
-Post a structured review comment:
 ```markdown
 ## Issue Review #N — YYYY-MM-DD
 
@@ -196,12 +182,23 @@ Post a structured review comment:
 ### Recommendation
 **[Ready for work | Needs minor revision | Needs revision | Needs major rework]** — [Brief explanation]
 ```
-**Backwards compatibility:** The `### Findings` section header and emoji markers (✅ ⚠️ ❌) remain unchanged for `/resolve-review` parser compatibility. The `#### Auto-Evaluated` and `#### User-Evaluated` subsections are additive.
+**Backwards compatibility:** `### Findings` header and emoji markers unchanged for `/resolve-review` parser. `#### Auto-Evaluated` and `#### User-Evaluated` are additive.
 ```bash
 gh issue comment $ISSUE -F .tmp-review-comment.md
 rm .tmp-review-comment.md
 ```
-**If comment post fails:** Warn and continue (non-blocking — body metadata already updated).
+**If comment post fails:** Warn and continue (non-blocking).
+### Step 5.5: Assign Reviewed Label (Conditional)
+If recommendation starts with "Ready for":
+```bash
+gh issue edit $ISSUE --add-label=reviewed
+```
+**Epic sub-issue label propagation:** If issue type is `epic`, also apply `reviewed` label to all sub-issues:
+1. Retrieve sub-issues: `gh pmu sub list $ISSUE`
+2. For each sub-issue: `gh issue edit $SUB_ISSUE --add-label=reviewed`
+3. Track count for Step 6 reporting
+If not an epic, only the issue itself is labeled.
+If not "Ready for": skip.
 
 <!-- USER-EXTENSION-START: post-review -->
 <!-- USER-EXTENSION-END: post-review -->
@@ -214,8 +211,12 @@ Review #N complete for Issue #$ISSUE: $TITLE
   Reviews: N (updated)
   Issue comment: [posted | failed]
 ```
+**For epic issues with "Ready for" recommendation:** Include sub-issue reviewed label count:
+```
+  Sub-issues labeled 'reviewed': M
+```
 **For multiple issues:** Report summary for each, then batch summary at end.
-**If `--with` is not specified**, append a discoverability tip after the summary:
+**If `--with` is not specified**, append a discoverability tip:
 ```
 Tip: Use --with security,performance to add domain-specific review criteria.
 Available: security, accessibility, performance, chaos, contract, qa (or --with all)
@@ -224,11 +225,11 @@ Available: security, accessibility, performance, chaos, contract, qa (or --with 
 ## Error Handling
 | Situation | Response |
 |-----------|----------|
-| Issue not found | "Issue #N not found." → STOP (skip to next if batch) |
-| Issue closed | "Issue #N is closed. Review anyway? (y/n)" → ask user |
-| Unknown issue type | "Using generic review criteria." → warn, continue |
+| Issue not found | "Issue #N not found." -> STOP (skip to next if batch) |
+| Issue closed | "Issue #N is closed. Review anyway? (y/n)" -> ask user |
+| Unknown issue type | "Using generic review criteria." -> warn, continue |
 | Issue body is empty | Flag as critical finding in review |
-| `gh pmu edit` fails | "Failed to update issue body: {error}" → STOP |
+| `gh pmu edit` fails | "Failed to update issue body: {error}" -> STOP |
 | Comment post fails | Warn, continue (body already updated) |
 | Multiple recognized labels | Use first recognized label as primary type |
 ---

@@ -616,6 +616,9 @@ func (c *Client) DeleteProjectField(fieldID string) error {
 	if c.gql == nil {
 		return fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
 	}
+	if fieldID == "" {
+		return fmt.Errorf("field ID is required")
+	}
 
 	var mutation struct {
 		DeleteProjectV2Field struct {
@@ -1384,34 +1387,6 @@ func (c *Client) GetProjectItemFieldValue(projectID, itemID, fieldName string) (
 	return "", nil
 }
 
-// GetIssuesByRelease returns issues that have a specific release field value
-func (c *Client) GetIssuesByRelease(owner, repo, releaseVersion string) ([]Issue, error) {
-	if c.gql == nil {
-		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
-	}
-
-	issues, err := c.GetRepositoryIssues(owner, repo, "OPEN")
-	if err != nil {
-		return nil, err
-	}
-
-	return issues, nil
-}
-
-// GetIssuesByPatch returns issues that have a specific patch field value
-func (c *Client) GetIssuesByPatch(owner, repo, patchVersion string) ([]Issue, error) {
-	if c.gql == nil {
-		return nil, fmt.Errorf("GraphQL client not initialized - are you authenticated with gh?")
-	}
-
-	issues, err := c.GetRepositoryIssues(owner, repo, "OPEN")
-	if err != nil {
-		return nil, err
-	}
-
-	return issues, nil
-}
-
 // WriteFile writes content to a file path
 func (c *Client) WriteFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
@@ -1568,10 +1543,11 @@ func (c *Client) AddIssueComment(issueID, body string) (*Comment, error) {
 		AddComment struct {
 			CommentEdge struct {
 				Node struct {
-					ID        string
-					Body      string
-					CreatedAt string
-					Author    struct {
+					ID         string
+					DatabaseId int `graphql:"databaseId"`
+					Body       string
+					CreatedAt  string
+					Author     struct {
 						Login string
 					}
 				}
@@ -1594,10 +1570,11 @@ func (c *Client) AddIssueComment(issueID, body string) (*Comment, error) {
 	}
 
 	return &Comment{
-		ID:        mutation.AddComment.CommentEdge.Node.ID,
-		Body:      mutation.AddComment.CommentEdge.Node.Body,
-		Author:    mutation.AddComment.CommentEdge.Node.Author.Login,
-		CreatedAt: mutation.AddComment.CommentEdge.Node.CreatedAt,
+		ID:         mutation.AddComment.CommentEdge.Node.ID,
+		DatabaseId: mutation.AddComment.CommentEdge.Node.DatabaseId,
+		Body:       mutation.AddComment.CommentEdge.Node.Body,
+		Author:     mutation.AddComment.CommentEdge.Node.Author.Login,
+		CreatedAt:  mutation.AddComment.CommentEdge.Node.CreatedAt,
 	}, nil
 }
 

@@ -173,16 +173,7 @@ func runCommentWithDeps(cmd *cobra.Command, opts *commentOptions, client comment
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Added comment to issue #%d\n", opts.issueNumber)
-	fmt.Fprintf(cmd.OutOrStdout(), "%s#issuecomment-%s\n", issue.URL, extractCommentID(comment.ID))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s#issuecomment-%d\n", issue.URL, comment.DatabaseId)
 
 	return nil
-}
-
-// extractCommentID extracts the numeric comment ID from the GraphQL node ID
-// The format is typically something like "IC_kwDOLF2XKM5nQi8x" but we need the URL fragment
-// GitHub comment URLs use the numeric ID, which we can construct from the response
-func extractCommentID(nodeID string) string {
-	// For now, return the node ID - GitHub will redirect to the correct comment
-	// A full implementation would decode the node ID or use a different approach
-	return nodeID
 }

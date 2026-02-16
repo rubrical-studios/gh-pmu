@@ -1,7 +1,9 @@
 package api
 
 import (
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -46,19 +48,38 @@ func TestNewClientWithOptions_CustomHost(t *testing.T) {
 }
 
 func TestClient_FeatureHeaders_Included(t *testing.T) {
-	// This test verifies that sub_issues feature header is configured
-	// We can't easily test the actual header without making a request,
-	// but we can verify the client was created with the right options
+	transport := &headerCapturingTransport{}
+	opts := ClientOptions{
+		EnableSubIssues:  true,
+		EnableIssueTypes: true,
+		Transport:        transport,
+		AuthToken:        "test-token",
+	}
 
-	client := NewClient()
-
-	// ASSERT: Client exists and has feature flags set
+	client := NewClientWithOptions(opts)
 	if client == nil {
 		t.Fatal("Expected client to be non-nil")
 	}
 
-	// The feature headers are set during client creation
-	// Actual header verification would require integration tests
+	// Make a GraphQL request to trigger the transport
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	if !transport.called {
+		t.Fatal("Expected transport to be called")
+	}
+
+	// Verify X-Github-Next header contains both feature flags
+	ghNext := transport.capturedHeaders.Get("X-Github-Next")
+	if ghNext == "" {
+		t.Fatal("Expected X-Github-Next header to be set")
+	}
+	if !strings.Contains(ghNext, FeatureSubIssues) {
+		t.Errorf("Expected X-Github-Next to contain %q, got %q", FeatureSubIssues, ghNext)
+	}
+	if !strings.Contains(ghNext, FeatureIssueTypes) {
+		t.Errorf("Expected X-Github-Next to contain %q, got %q", FeatureIssueTypes, ghNext)
+	}
 }
 
 func TestJoinFeatures_Empty(t *testing.T) {
@@ -83,34 +104,49 @@ func TestJoinFeatures_Multiple(t *testing.T) {
 }
 
 func TestSetTestTransport(t *testing.T) {
-	// Ensure test transport is nil initially (or clear it)
+	// Clear any existing transport
 	SetTestTransport(nil)
+	if testTransport != nil {
+		t.Fatal("Expected testTransport to be nil after clearing")
+	}
 
 	// Set a test transport
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	SetTestTransport(transport)
-
-	// Verify testTransport is set (indirectly through NewClient behavior)
-	// The actual verification is that NewClient uses it
+	if testTransport != transport {
+		t.Fatal("Expected testTransport to be the set transport")
+	}
 
 	// Clear the transport
 	SetTestTransport(nil)
+	if testTransport != nil {
+		t.Fatal("Expected testTransport to be nil after clearing")
+	}
 }
 
 func TestSetTestAuthToken(t *testing.T) {
 	// Clear any existing token
 	SetTestAuthToken("")
+	if testAuthToken != "" {
+		t.Fatal("Expected testAuthToken to be empty after clearing")
+	}
 
 	// Set a token
 	SetTestAuthToken("test-token-123")
+	if testAuthToken != "test-token-123" {
+		t.Errorf("Expected testAuthToken to be 'test-token-123', got %q", testAuthToken)
+	}
 
 	// Clear the token
 	SetTestAuthToken("")
+	if testAuthToken != "" {
+		t.Fatal("Expected testAuthToken to be empty after clearing")
+	}
 }
 
 func TestNewClient_UsesTestTransport(t *testing.T) {
 	// Set up test transport
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	SetTestTransport(transport)
 	SetTestAuthToken("test-token")
 	defer func() {
@@ -118,19 +154,23 @@ func TestNewClient_UsesTestTransport(t *testing.T) {
 		SetTestAuthToken("")
 	}()
 
-	// Create client - should use test transport
+	// Create client via NewClient() — should pick up test transport
 	client := NewClient()
 	if client == nil {
 		t.Fatal("Expected client to be created")
 	}
 
-	// The client should be created with the test transport
-	// We can't easily verify the transport is set, but we can verify
-	// the client was created without error
+	// Make a request to verify the test transport is actually used
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	if !transport.called {
+		t.Fatal("Expected test transport to be used by NewClient()")
+	}
 }
 
 func TestNewClientWithOptions_Transport(t *testing.T) {
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	opts := ClientOptions{
 		Transport: transport,
 		AuthToken: "test-token",
@@ -140,10 +180,18 @@ func TestNewClientWithOptions_Transport(t *testing.T) {
 	if client == nil {
 		t.Fatal("Expected client to be non-nil")
 	}
+
+	// Verify the transport is used for requests
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	if !transport.called {
+		t.Fatal("Expected provided transport to be used for requests")
+	}
 }
 
 func TestNewClientWithOptions_AllOptions(t *testing.T) {
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	opts := ClientOptions{
 		Host:             "github.example.com",
 		EnableSubIssues:  true,
@@ -156,13 +204,43 @@ func TestNewClientWithOptions_AllOptions(t *testing.T) {
 	if client == nil {
 		t.Fatal("Expected client to be non-nil")
 	}
+
+	// Verify all options were stored
+	if client.opts.Host != "github.example.com" {
+		t.Errorf("Expected Host 'github.example.com', got %q", client.opts.Host)
+	}
+	if !client.opts.EnableSubIssues {
+		t.Error("Expected EnableSubIssues to be true")
+	}
+	if !client.opts.EnableIssueTypes {
+		t.Error("Expected EnableIssueTypes to be true")
+	}
+
+	// Verify feature headers are set via actual request
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	ghNext := transport.capturedHeaders.Get("X-Github-Next")
+	if !strings.Contains(ghNext, FeatureSubIssues) || !strings.Contains(ghNext, FeatureIssueTypes) {
+		t.Errorf("Expected X-Github-Next to contain both features, got %q", ghNext)
+	}
 }
 
-// mockRoundTripper implements http.RoundTripper for testing
-type mockRoundTripper struct{}
+// headerCapturingTransport captures HTTP request headers for verification.
+// Returns a minimal valid JSON response so GraphQL client doesn't error on parse.
+type headerCapturingTransport struct {
+	capturedHeaders http.Header
+	called          bool
+}
 
-func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	return nil, nil
+func (t *headerCapturingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	t.capturedHeaders = req.Header.Clone()
+	t.called = true
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(`{"data":{}}`)),
+		Header:     make(http.Header),
+	}, nil
 }
 
 func TestNewClientWithGraphQL(t *testing.T) {
@@ -184,7 +262,7 @@ func TestNewClientWithGraphQL(t *testing.T) {
 }
 
 func TestNewClientWithOptions_DisabledFeatures(t *testing.T) {
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	opts := ClientOptions{
 		EnableSubIssues:  false,
 		EnableIssueTypes: false,
@@ -196,10 +274,19 @@ func TestNewClientWithOptions_DisabledFeatures(t *testing.T) {
 	if client == nil {
 		t.Fatal("Expected client to be non-nil")
 	}
+
+	// Make a request and verify NO feature header is set
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	ghNext := transport.capturedHeaders.Get("X-Github-Next")
+	if ghNext != "" {
+		t.Errorf("Expected no X-Github-Next header when features disabled, got %q", ghNext)
+	}
 }
 
 func TestNewClientWithOptions_OnlySubIssues(t *testing.T) {
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	opts := ClientOptions{
 		EnableSubIssues:  true,
 		EnableIssueTypes: false,
@@ -211,10 +298,19 @@ func TestNewClientWithOptions_OnlySubIssues(t *testing.T) {
 	if client == nil {
 		t.Fatal("Expected client to be non-nil")
 	}
+
+	// Make a request and verify only sub_issues is in the header
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	ghNext := transport.capturedHeaders.Get("X-Github-Next")
+	if ghNext != FeatureSubIssues {
+		t.Errorf("Expected X-Github-Next to be %q, got %q", FeatureSubIssues, ghNext)
+	}
 }
 
 func TestNewClientWithOptions_OnlyIssueTypes(t *testing.T) {
-	transport := &mockRoundTripper{}
+	transport := &headerCapturingTransport{}
 	opts := ClientOptions{
 		EnableSubIssues:  false,
 		EnableIssueTypes: true,
@@ -225,6 +321,15 @@ func TestNewClientWithOptions_OnlyIssueTypes(t *testing.T) {
 	client := NewClientWithOptions(opts)
 	if client == nil {
 		t.Fatal("Expected client to be non-nil")
+	}
+
+	// Make a request and verify only issue_types is in the header
+	var query struct{}
+	_ = client.gql.Query("Test", &query, nil)
+
+	ghNext := transport.capturedHeaders.Get("X-Github-Next")
+	if ghNext != FeatureIssueTypes {
+		t.Errorf("Expected X-Github-Next to be %q, got %q", FeatureIssueTypes, ghNext)
 	}
 }
 

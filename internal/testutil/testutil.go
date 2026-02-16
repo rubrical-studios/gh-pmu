@@ -67,6 +67,7 @@ type TestEnv struct {
 	RepoOwner     string
 	RepoName      string
 	Token         string
+	WorkDir       string
 }
 
 // RequireTestEnv skips the test if required environment variables are not set.
@@ -108,6 +109,7 @@ func RequireTestEnv(t *testing.T) *TestEnv {
 		RepoOwner:     repoOwner,
 		RepoName:      repoName,
 		Token:         token,
+		WorkDir:       getTestConfigDir(),
 	}
 }
 

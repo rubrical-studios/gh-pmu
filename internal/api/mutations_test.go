@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -582,19 +583,26 @@ func TestSetProjectItemField_MutationError(t *testing.T) {
 func TestAddIssueToProject_Success(t *testing.T) {
 	mock := &mockGraphQLClient{
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
-			// Verify the mutation name
 			if name != "AddProjectV2ItemById" {
 				t.Errorf("Expected mutation name 'AddProjectV2ItemById', got '%s'", name)
 			}
+			// Populate the response via reflection
+			v := reflect.ValueOf(mutation).Elem()
+			addItem := v.FieldByName("AddProjectV2ItemById")
+			item := addItem.FieldByName("Item")
+			item.FieldByName("ID").SetString("PVTI_test-item-123")
 			return nil
 		},
 	}
 
 	client := NewClientWithGraphQL(mock)
-	_, err := client.AddIssueToProject("proj-id", "issue-id")
+	itemID, err := client.AddIssueToProject("proj-id", "issue-id")
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+	if itemID != "PVTI_test-item-123" {
+		t.Errorf("Expected item ID 'PVTI_test-item-123', got '%s'", itemID)
 	}
 }
 
@@ -745,12 +753,27 @@ func TestCreateIssue_MutationError(t *testing.T) {
 func TestCreateIssue_Success(t *testing.T) {
 	mock := &mockGraphQLClient{
 		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-id-456")
+			}
 			return nil
 		},
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
 			if name != "CreateIssue" {
 				t.Errorf("Expected mutation name 'CreateIssue', got '%s'", name)
 			}
+			// Populate mutation response via reflection
+			v := reflect.ValueOf(mutation).Elem()
+			ci := v.FieldByName("CreateIssue")
+			issue := ci.FieldByName("Issue")
+			issue.FieldByName("ID").SetString("I_test-issue-789")
+			issue.FieldByName("Number").SetInt(99)
+			issue.FieldByName("Title").SetString("title")
+			issue.FieldByName("Body").SetString("body")
+			issue.FieldByName("State").SetString("OPEN")
+			issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/99")
 			return nil
 		},
 	}
@@ -764,7 +787,19 @@ func TestCreateIssue_Success(t *testing.T) {
 	if issue == nil {
 		t.Fatal("Expected issue to be returned")
 	}
-	// The issue will have empty fields since our mock doesn't populate them
+	// Validate fields from mutation response (not just input pass-through)
+	if issue.ID != "I_test-issue-789" {
+		t.Errorf("Expected ID 'I_test-issue-789', got '%s'", issue.ID)
+	}
+	if issue.Number != 99 {
+		t.Errorf("Expected Number 99, got %d", issue.Number)
+	}
+	if issue.Title != "title" {
+		t.Errorf("Expected Title 'title', got '%s'", issue.Title)
+	}
+	if issue.URL != "https://github.com/owner/repo/issues/99" {
+		t.Errorf("Expected URL 'https://github.com/owner/repo/issues/99', got '%s'", issue.URL)
+	}
 	if issue.Repository.Owner != "owner" {
 		t.Errorf("Expected owner 'owner', got '%s'", issue.Repository.Owner)
 	}
@@ -928,149 +963,68 @@ func TestGetLabelID_LabelNotFound(t *testing.T) {
 }
 
 // ============================================================================
-// Input Type Tests - Verify structs have correct fields
-// ============================================================================
-
-func TestCreateIssueInput_HasRequiredFields(t *testing.T) {
-	// Verify the struct can be created with expected fields
-	input := CreateIssueInput{
-		RepositoryID: "repo-id",
-		Title:        "Test Issue",
-		Body:         "Test body",
-	}
-
-	if input.RepositoryID != "repo-id" {
-		t.Errorf("Expected RepositoryID 'repo-id', got '%s'", input.RepositoryID)
-	}
-	if input.Title != "Test Issue" {
-		t.Errorf("Expected Title 'Test Issue', got '%s'", input.Title)
-	}
-}
-
-func TestAddProjectV2ItemByIdInput_HasRequiredFields(t *testing.T) {
-	input := AddProjectV2ItemByIdInput{
-		ProjectID: "proj-id",
-		ContentID: "content-id",
-	}
-
-	if input.ProjectID != "proj-id" {
-		t.Errorf("Expected ProjectID 'proj-id', got '%s'", input.ProjectID)
-	}
-	if input.ContentID != "content-id" {
-		t.Errorf("Expected ContentID 'content-id', got '%s'", input.ContentID)
-	}
-}
-
-func TestUpdateProjectV2ItemFieldValueInput_HasRequiredFields(t *testing.T) {
-	input := UpdateProjectV2ItemFieldValueInput{
-		ProjectID: "proj-id",
-		ItemID:    "item-id",
-		FieldID:   "field-id",
-		Value: ProjectV2FieldValue{
-			Text: "test value",
-		},
-	}
-
-	if input.ProjectID != "proj-id" {
-		t.Errorf("Expected ProjectID 'proj-id', got '%s'", input.ProjectID)
-	}
-	if input.ItemID != "item-id" {
-		t.Errorf("Expected ItemID 'item-id', got '%s'", input.ItemID)
-	}
-	if input.FieldID != "field-id" {
-		t.Errorf("Expected FieldID 'field-id', got '%s'", input.FieldID)
-	}
-	if input.Value.Text != "test value" {
-		t.Errorf("Expected Value.Text 'test value', got '%s'", input.Value.Text)
-	}
-}
-
-func TestProjectV2FieldValue_AllFieldTypes(t *testing.T) {
-	// Test that all field types can be set
-	textValue := ProjectV2FieldValue{Text: "text"}
-	if textValue.Text != "text" {
-		t.Errorf("Expected Text 'text', got '%s'", textValue.Text)
-	}
-
-	numberValue := ProjectV2FieldValue{Number: 42.5}
-	if numberValue.Number != 42.5 {
-		t.Errorf("Expected Number 42.5, got %f", numberValue.Number)
-	}
-
-	dateValue := ProjectV2FieldValue{Date: "2024-01-15"}
-	if dateValue.Date != "2024-01-15" {
-		t.Errorf("Expected Date '2024-01-15', got '%s'", dateValue.Date)
-	}
-
-	selectValue := ProjectV2FieldValue{SingleSelectOptionId: "option-id"}
-	if selectValue.SingleSelectOptionId != "option-id" {
-		t.Errorf("Expected SingleSelectOptionId 'option-id', got '%s'", selectValue.SingleSelectOptionId)
-	}
-
-	iterValue := ProjectV2FieldValue{IterationId: "iter-id"}
-	if iterValue.IterationId != "iter-id" {
-		t.Errorf("Expected IterationId 'iter-id', got '%s'", iterValue.IterationId)
-	}
-}
-
-func TestAddSubIssueInput_HasRequiredFields(t *testing.T) {
-	input := AddSubIssueInput{
-		IssueID:    "parent-id",
-		SubIssueID: "child-id",
-	}
-
-	if input.IssueID != "parent-id" {
-		t.Errorf("Expected IssueID 'parent-id', got '%s'", input.IssueID)
-	}
-	if input.SubIssueID != "child-id" {
-		t.Errorf("Expected SubIssueID 'child-id', got '%s'", input.SubIssueID)
-	}
-}
-
-func TestRemoveSubIssueInput_HasRequiredFields(t *testing.T) {
-	input := RemoveSubIssueInput{
-		IssueID:    "parent-id",
-		SubIssueID: "child-id",
-	}
-
-	if input.IssueID != "parent-id" {
-		t.Errorf("Expected IssueID 'parent-id', got '%s'", input.IssueID)
-	}
-	if input.SubIssueID != "child-id" {
-		t.Errorf("Expected SubIssueID 'child-id', got '%s'", input.SubIssueID)
-	}
-}
-
-// ============================================================================
 // CreateIssueInput Optional Fields Tests
 // ============================================================================
 
-func TestCreateIssueInput_OptionalFields(t *testing.T) {
-	// Test with optional fields set
-	labelIDs := []interface{}{"label-1", "label-2"}
-	milestoneID := interface{}("milestone-id")
-
-	input := CreateIssueInput{
-		RepositoryID: "repo-id",
-		Title:        "Test Issue",
-		Body:         "Test body",
+func TestCreateIssueInput_LabelsIncludedInMutation(t *testing.T) {
+	// Verify that when CreateIssue is called with labels, the mutation input
+	// includes label IDs (not just struct zero-value checks)
+	var capturedInput CreateIssueInput
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-123")
+			}
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-bug-id")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "CreateIssue" {
+				capturedInput = variables["input"].(CreateIssueInput)
+				v := reflect.ValueOf(mutation).Elem()
+				ci := v.FieldByName("CreateIssue")
+				issue := ci.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("issue-456")
+				issue.FieldByName("Number").SetInt(42)
+				issue.FieldByName("Title").SetString("Test Issue")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/42")
+			}
+			return nil
+		},
 	}
 
-	// Labels are optional
-	if input.LabelIDs != nil {
-		t.Error("Expected LabelIDs to be nil by default")
+	client := NewClientWithGraphQL(mock)
+	issue, err := client.CreateIssue("owner", "repo", "Test Issue", "body", []string{"bug"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if issue == nil {
+		t.Fatal("Expected issue to be returned")
 	}
 
-	// Test setting labels
-	labels := make([]interface{}, len(labelIDs))
-	copy(labels, labelIDs)
-	// Note: The actual type is *[]graphql.ID, this is just struct verification
-
-	// Milestone is optional
-	if input.MilestoneID != nil {
-		t.Error("Expected MilestoneID to be nil by default")
+	// Verify label IDs were included in the mutation input
+	if capturedInput.LabelIDs == nil {
+		t.Fatal("Expected LabelIDs to be set in mutation input")
 	}
-	_ = milestoneID // Verify it can be assigned
+	if len(*capturedInput.LabelIDs) != 1 {
+		t.Fatalf("Expected 1 label ID, got %d", len(*capturedInput.LabelIDs))
+	}
+	labelID := fmt.Sprintf("%v", (*capturedInput.LabelIDs)[0])
+	if labelID != "label-bug-id" {
+		t.Errorf("Expected label ID 'label-bug-id', got '%s'", labelID)
+	}
+
+	// Verify no body is omitted when provided
+	if string(capturedInput.Body) != "body" {
+		t.Errorf("Expected body 'body', got '%s'", capturedInput.Body)
+	}
 }
 
 // ============================================================================
@@ -1213,42 +1167,6 @@ func TestCreateProjectField_MutationError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to create project field") {
 		t.Errorf("Expected 'failed to create project field' error, got: %v", err)
-	}
-}
-
-func TestCreateProjectV2FieldInput_HasRequiredFields(t *testing.T) {
-	input := CreateProjectV2FieldInput{
-		ProjectID: "proj-id",
-		DataType:  "TEXT",
-		Name:      "TestField",
-	}
-
-	if input.ProjectID != "proj-id" {
-		t.Errorf("Expected ProjectID 'proj-id', got '%s'", input.ProjectID)
-	}
-	if input.DataType != "TEXT" {
-		t.Errorf("Expected DataType 'TEXT', got '%s'", input.DataType)
-	}
-	if input.Name != "TestField" {
-		t.Errorf("Expected Name 'TestField', got '%s'", input.Name)
-	}
-}
-
-func TestProjectV2SingleSelectFieldOptionInput_HasRequiredFields(t *testing.T) {
-	input := ProjectV2SingleSelectFieldOptionInput{
-		Name:        "Option1",
-		Color:       "blue",
-		Description: "First option",
-	}
-
-	if input.Name != "Option1" {
-		t.Errorf("Expected Name 'Option1', got '%s'", input.Name)
-	}
-	if input.Color != "blue" {
-		t.Errorf("Expected Color 'blue', got '%s'", input.Color)
-	}
-	if input.Description != "First option" {
-		t.Errorf("Expected Description 'First option', got '%s'", input.Description)
 	}
 }
 
@@ -1491,44 +1409,6 @@ func TestUpdateIssueBody_MutationError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to update issue body") {
 		t.Errorf("Expected 'failed to update issue body' error, got: %v", err)
-	}
-}
-
-// ============================================================================
-// Issue Mutation Input Type Tests
-// ============================================================================
-
-func TestCloseIssueInput_HasRequiredFields(t *testing.T) {
-	input := CloseIssueInput{
-		IssueID: "issue-id",
-	}
-
-	if input.IssueID != "issue-id" {
-		t.Errorf("Expected IssueID 'issue-id', got '%s'", input.IssueID)
-	}
-}
-
-func TestReopenIssueInput_HasRequiredFields(t *testing.T) {
-	input := ReopenIssueInput{
-		IssueID: "issue-id",
-	}
-
-	if input.IssueID != "issue-id" {
-		t.Errorf("Expected IssueID 'issue-id', got '%s'", input.IssueID)
-	}
-}
-
-func TestUpdateIssueInput_HasRequiredFields(t *testing.T) {
-	input := UpdateIssueInput{
-		ID:   "issue-id",
-		Body: "new body",
-	}
-
-	if input.ID != "issue-id" {
-		t.Errorf("Expected ID 'issue-id', got '%s'", input.ID)
-	}
-	if input.Body != "new body" {
-		t.Errorf("Expected Body 'new body', got '%s'", input.Body)
 	}
 }
 
@@ -1911,58 +1791,6 @@ func TestBatchUpdateProjectItemFields_UnsupportedFieldType(t *testing.T) {
 	// which will return "unsupported field type" error
 	if results[0].Success {
 		t.Error("Expected result to be failure for unsupported field type")
-	}
-}
-
-func TestFieldUpdate_HasRequiredFields(t *testing.T) {
-	update := FieldUpdate{
-		ItemID:    "item-123",
-		FieldName: "Status",
-		Value:     "Done",
-	}
-
-	if update.ItemID != "item-123" {
-		t.Errorf("Expected ItemID 'item-123', got '%s'", update.ItemID)
-	}
-	if update.FieldName != "Status" {
-		t.Errorf("Expected FieldName 'Status', got '%s'", update.FieldName)
-	}
-	if update.Value != "Done" {
-		t.Errorf("Expected Value 'Done', got '%s'", update.Value)
-	}
-}
-
-func TestBatchUpdateResult_HasRequiredFields(t *testing.T) {
-	result := BatchUpdateResult{
-		ItemID:    "item-123",
-		FieldName: "Status",
-		Success:   true,
-		Error:     "",
-	}
-
-	if result.ItemID != "item-123" {
-		t.Errorf("Expected ItemID 'item-123', got '%s'", result.ItemID)
-	}
-	if result.FieldName != "Status" {
-		t.Errorf("Expected FieldName 'Status', got '%s'", result.FieldName)
-	}
-	if !result.Success {
-		t.Error("Expected Success to be true")
-	}
-
-	// Test with error
-	resultWithError := BatchUpdateResult{
-		ItemID:    "item-456",
-		FieldName: "Priority",
-		Success:   false,
-		Error:     "some error",
-	}
-
-	if resultWithError.Success {
-		t.Error("Expected Success to be false")
-	}
-	if resultWithError.Error != "some error" {
-		t.Errorf("Expected Error 'some error', got '%s'", resultWithError.Error)
 	}
 }
 
@@ -2358,28 +2186,6 @@ func TestCreateLabel_MutationError(t *testing.T) {
 	}
 }
 
-func TestCreateLabelInput_HasRequiredFields(t *testing.T) {
-	input := CreateLabelInput{
-		RepositoryID: "repo-id",
-		Name:         "bug",
-		Color:        "d73a4a",
-		Description:  "Something isn't working",
-	}
-
-	if input.RepositoryID != "repo-id" {
-		t.Errorf("Expected RepositoryID 'repo-id', got '%s'", input.RepositoryID)
-	}
-	if input.Name != "bug" {
-		t.Errorf("Expected Name 'bug', got '%s'", input.Name)
-	}
-	if input.Color != "d73a4a" {
-		t.Errorf("Expected Color 'd73a4a', got '%s'", input.Color)
-	}
-	if input.Description != "Something isn't working" {
-		t.Errorf("Expected Description, got '%s'", input.Description)
-	}
-}
-
 // ============================================================================
 // LabelExists Tests
 // ============================================================================
@@ -2687,16 +2493,6 @@ func TestDeleteLabel_MutationError(t *testing.T) {
 	}
 }
 
-func TestDeleteLabelInput_HasRequiredFields(t *testing.T) {
-	input := DeleteLabelInput{
-		ID: "label-123",
-	}
-
-	if input.ID != "label-123" {
-		t.Errorf("Expected ID 'label-123', got '%s'", input.ID)
-	}
-}
-
 // ============================================================================
 // UpdateLabel Tests
 // ============================================================================
@@ -2797,28 +2593,6 @@ func TestUpdateLabel_MutationError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to update label") {
 		t.Errorf("Expected 'failed to update label' error, got: %v", err)
-	}
-}
-
-func TestUpdateLabelInput_HasRequiredFields(t *testing.T) {
-	input := UpdateLabelInput{
-		ID:          "label-123",
-		Name:        "new-name",
-		Color:       "ff0000",
-		Description: "New description",
-	}
-
-	if input.ID != "label-123" {
-		t.Errorf("Expected ID 'label-123', got '%s'", input.ID)
-	}
-	if input.Name != "new-name" {
-		t.Errorf("Expected Name 'new-name', got '%s'", input.Name)
-	}
-	if input.Color != "ff0000" {
-		t.Errorf("Expected Color 'ff0000', got '%s'", input.Color)
-	}
-	if input.Description != "New description" {
-		t.Errorf("Expected Description 'New description', got '%s'", input.Description)
 	}
 }
 
@@ -3226,15 +3000,6 @@ func TestDeleteProjectField_NilClient(t *testing.T) {
 	}
 }
 
-func TestDeleteProjectV2FieldInput_HasRequiredFields(t *testing.T) {
-	input := DeleteProjectV2FieldInput{
-		FieldID: "field-123",
-	}
-	if input.FieldID != "field-123" {
-		t.Errorf("Expected FieldID 'field-123', got '%s'", input.FieldID)
-	}
-}
-
 func TestDeleteProjectField_InputVariables(t *testing.T) {
 	mock := &mockGraphQLClient{
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
@@ -3255,13 +3020,16 @@ func TestDeleteProjectField_InputVariables(t *testing.T) {
 func TestDeleteProjectField_EmptyFieldID(t *testing.T) {
 	mock := &mockGraphQLClient{
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			t.Error("Mutation should not be called with empty field ID")
 			return nil
 		},
 	}
 	client := NewClientWithGraphQL(mock)
 	err := client.DeleteProjectField("")
-	// Documents current behavior - passes empty ID to API
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+	if err == nil {
+		t.Error("Expected error for empty field ID")
+	}
+	if err != nil && !strings.Contains(err.Error(), "field ID is required") {
+		t.Errorf("Expected 'field ID is required' error, got: %v", err)
 	}
 }

@@ -1,14 +1,17 @@
 {
-  "frameworkVersion": "0.42.2",
-  "installedDate": "2026-02-12",
+  "frameworkVersion": "0.44.0",
+  "installedDate": "2026-02-16",
   "processFramework": "IDPF-Agile",
   "reviewMode": "solo",
   "frameworkPath": "..\\idpf-central-hub",
   "domainSpecialist": "Backend-Specialist",
   "projectSkills": [
+    "anti-pattern-analysis",
+    "mutation-testing",
     "tdd-failure-recovery",
     "tdd-green-phase",
     "tdd-red-phase",
-    "tdd-refactor-phase"
+    "tdd-refactor-phase",
+    "test-writing-patterns"
   ]
 }

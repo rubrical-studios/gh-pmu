@@ -1,5 +1,5 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Transform proposal into Agile PRD
 argument-hint: "<issue-number> | extract [<directory>]"
 ---
@@ -73,8 +73,7 @@ Pattern: `/Proposal\/[A-Za-z0-9_-]+\.md/`
 **Load Anti-Hallucination Rules:**
 | Context | Rules Path |
 |---------|------------|
-| Framework (selfHosted) | `.min-mirror/Assistant/Anti-Hallucination-Rules-for-PRD-Work.md` |
-| User projects | `{frameworkPath}/Assistant/Anti-Hallucination-Rules-for-PRD-Work.md` |
+| All projects | `{frameworkPath}/Assistant/Anti-Hallucination-Rules-for-PRD-Work.md` |
 
 <!-- USER-EXTENSION-START: pre-analysis -->
 <!-- USER-EXTENSION-END: pre-analysis -->

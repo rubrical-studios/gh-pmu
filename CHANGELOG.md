@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-02-16
+
+### Fixed
+- Replace hollow tests in `mutations_test.go` with behavioral validations (#692)
+  - `TestCreateIssueInput_OptionalFields` replaced with label ID pass-through test
+  - `TestAddIssueToProject_Success` now validates returned item ID
+  - `TestCreateIssue_Success` now validates all mutation response fields
+  - `TestDeleteProjectField_EmptyFieldID` converted to input validation test
+- Remove dead `GetIssuesByRelease`/`GetIssuesByPatch` functions (#692)
+  - Zero callers, ignored version parameters, removed from interface and mock
+- Rewrite hollow `client_test.go` tests with behavioral assertions (#685)
+- Remove 17 compiler-tautology struct tests from `mutations_test.go` (#686)
+- Extract and test batch sub-issue parsing logic (#686)
+- Rewrite hollow `BodyStdinSetsBodyFile` test to invoke function (#687)
+- Replace `extractCommentID` no-op with GraphQL `databaseId` (#687)
+
+### Added
+- Integration tests for edit labels and move batch/branch/backlog (#690)
+
+### Changed
+- Updated IDPF framework commands and config to v0.44.0
+
 ## [0.15.1] - 2026-02-12
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Create a proposal document and tracking issue (project)
 argument-hint: "<title>"
 ---
@@ -41,13 +41,43 @@ Extract `<title>` from command arguments.
 ### Step 2: Check for Existing Proposal
 Check if `Proposal/[Name].md` already exists.
 **If file exists:** Ask `Proposal/[Name].md already exists. Overwrite? (yes/no)`. If no → STOP.
-### Step 3: Gather Description
-Ask the user:
+### Step 3: Gather Description (Mode Selection)
+Determine creation mode from arguments:
+| Input | Title | Mode |
+|-------|-------|------|
+| Bare `/proposal` (no title, no description) | Ask in Step 1 | **Default to Guided** (no mode prompt) |
+| Title only `/proposal Dark Mode` | Provided | **Ask Quick/Guided** via `AskUserQuestion` |
+| Title + description `/proposal Dark Mode - adds theme switching` | Provided | **Auto-select Quick** (no mode prompt) |
+**Detection:** Descriptive phrase beyond title (dash-separated, sentence, multi-word detail) = "title + description". Short title (1-4 words, no separator) = "title only".
+#### Quick Mode
+Preserves single-prompt behavior:
 ```
 Briefly describe the proposal (problem and proposed solution):
 ```
-**If user provides description:** Use it to populate the proposal template.
-**If user declines or says "skip":** Create with placeholder sections.
+**If user provides description:** Populate template. **If "skip":** Use "To be documented" placeholders.
+#### Guided Mode
+Walk through each section:
+1. **Problem Statement:** "What problem does this solve?"
+2. **Proposed Solution:** "How would you solve it?" (follow-up: "Any specific files/components affected?")
+3. **Implementation Criteria:** "What defines 'done'? List the acceptance criteria."
+4. **Alternatives Considered:** "What alternatives did you consider and why reject them?" (skippable)
+5. **Impact Assessment:** "Scope, risk level (low/med/high), effort estimate?" (skippable)
+Populated answers replace "To be documented" placeholders in the template.
+#### Title-Only Mode Prompt
+Use `AskUserQuestion`:
+```javascript
+AskUserQuestion({
+  questions: [{
+    question: "How would you like to create this proposal?",
+    header: "Mode",
+    options: [
+      { label: "Quick", description: "Single prompt — describe in one go" },
+      { label: "Guided", description: "Step-by-step — prompted for each section" }
+    ],
+    multiSelect: false
+  }]
+});
+```
 
 <!-- USER-EXTENSION-START: pre-create -->
 <!-- USER-EXTENSION-END: pre-create -->
@@ -61,6 +91,7 @@ Create `Proposal/[Name].md` with standard template:
 **Created:** [YYYY-MM-DD]
 **Author:** AI Assistant
 **Tracking Issue:** (will be updated after issue creation)
+**Diagrams:** None
 ---
 ## Problem Statement
 [Problem description or "To be documented"]
@@ -76,6 +107,7 @@ Create `Proposal/[Name].md` with standard template:
 - **Risk:** [Low/Medium/High]
 - **Effort:** [Estimate]
 ```
+**Diagrams:** When a diagram path is specified, update `**Diagrams:**` from "None" to the path(s). Create `Proposal/Diagrams/` lazily (only when needed). Naming convention: `Proposal/Diagrams/[Name]-*.drawio.svg`.
 ### Step 5: Create Tracking Issue
 Build the issue body:
 ```markdown
