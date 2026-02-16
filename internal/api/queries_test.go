@@ -658,6 +658,208 @@ func TestGetSubIssuesBatch_EmptyInput(t *testing.T) {
 }
 
 // ============================================================================
+// parseSubIssueCountsResponse Tests
+// ============================================================================
+
+func TestParseSubIssueCountsResponse_MultipleIssues(t *testing.T) {
+	jsonData := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {"subIssues": {"totalCount": 3}},
+				"i1": {"subIssues": {"totalCount": 0}},
+				"i2": {"subIssues": {"totalCount": 7}}
+			}
+		}
+	}`)
+	numbers := []int{10, 20, 30}
+
+	result, err := parseSubIssueCountsResponse(jsonData, numbers)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(result) != 3 {
+		t.Fatalf("Expected 3 entries, got %d", len(result))
+	}
+	if result[10] != 3 {
+		t.Errorf("Expected issue 10 count=3, got %d", result[10])
+	}
+	if result[20] != 0 {
+		t.Errorf("Expected issue 20 count=0, got %d", result[20])
+	}
+	if result[30] != 7 {
+		t.Errorf("Expected issue 30 count=7, got %d", result[30])
+	}
+}
+
+func TestParseSubIssueCountsResponse_MissingAlias(t *testing.T) {
+	// If an alias is missing from the response, count should default to 0
+	jsonData := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {"subIssues": {"totalCount": 5}}
+			}
+		}
+	}`)
+	numbers := []int{10, 20}
+
+	result, err := parseSubIssueCountsResponse(jsonData, numbers)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if result[10] != 5 {
+		t.Errorf("Expected issue 10 count=5, got %d", result[10])
+	}
+	if result[20] != 0 {
+		t.Errorf("Expected issue 20 count=0 (missing alias), got %d", result[20])
+	}
+}
+
+func TestParseSubIssueCountsResponse_InvalidJSON(t *testing.T) {
+	jsonData := []byte(`not valid json`)
+	numbers := []int{10}
+
+	_, err := parseSubIssueCountsResponse(jsonData, numbers)
+	if err == nil {
+		t.Fatal("Expected error for invalid JSON")
+	}
+}
+
+// ============================================================================
+// parseSubIssuesBatchResponse Tests
+// ============================================================================
+
+func TestParseSubIssuesBatchResponse_MultipleIssues(t *testing.T) {
+	jsonData := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"subIssues": {
+						"nodes": [
+							{"id": "id1", "number": 101, "title": "Sub A", "state": "OPEN", "url": "https://github.com/o/r/issues/101", "repository": {"name": "r", "owner": {"login": "o"}}},
+							{"id": "id2", "number": 102, "title": "Sub B", "state": "CLOSED", "url": "https://github.com/o/r/issues/102", "repository": {"name": "r", "owner": {"login": "o"}}}
+						],
+						"pageInfo": {"hasNextPage": false}
+					}
+				},
+				"i1": {
+					"subIssues": {
+						"nodes": [],
+						"pageInfo": {"hasNextPage": false}
+					}
+				}
+			}
+		}
+	}`)
+	numbers := []int{10, 20}
+
+	result, needsPagination, err := parseSubIssuesBatchResponse(jsonData, numbers)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(needsPagination) != 0 {
+		t.Errorf("Expected no pagination needed, got %v", needsPagination)
+	}
+	if len(result[10]) != 2 {
+		t.Fatalf("Expected 2 sub-issues for issue 10, got %d", len(result[10]))
+	}
+	if result[10][0].Number != 101 || result[10][0].Title != "Sub A" {
+		t.Errorf("Expected sub-issue 101 'Sub A', got %d %q", result[10][0].Number, result[10][0].Title)
+	}
+	if result[10][1].State != "CLOSED" {
+		t.Errorf("Expected sub-issue 102 CLOSED, got %q", result[10][1].State)
+	}
+	if len(result[20]) != 0 {
+		t.Errorf("Expected 0 sub-issues for issue 20, got %d", len(result[20]))
+	}
+}
+
+func TestParseSubIssuesBatchResponse_PaginationDetection(t *testing.T) {
+	jsonData := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"subIssues": {
+						"nodes": [
+							{"id": "id1", "number": 101, "title": "Sub A", "state": "OPEN", "url": "u", "repository": {"name": "r", "owner": {"login": "o"}}}
+						],
+						"pageInfo": {"hasNextPage": true}
+					}
+				},
+				"i1": {
+					"subIssues": {
+						"nodes": [],
+						"pageInfo": {"hasNextPage": false}
+					}
+				}
+			}
+		}
+	}`)
+	numbers := []int{10, 20}
+
+	result, needsPagination, err := parseSubIssuesBatchResponse(jsonData, numbers)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(needsPagination) != 1 || needsPagination[0] != 10 {
+		t.Errorf("Expected pagination needed for issue 10, got %v", needsPagination)
+	}
+	// Issue 10 should still have partial results from the batch
+	if len(result[10]) != 1 {
+		t.Errorf("Expected 1 partial sub-issue for issue 10, got %d", len(result[10]))
+	}
+	if len(result[20]) != 0 {
+		t.Errorf("Expected 0 sub-issues for issue 20, got %d", len(result[20]))
+	}
+}
+
+func TestParseSubIssuesBatchResponse_MissingAlias(t *testing.T) {
+	jsonData := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"subIssues": {
+						"nodes": [{"id": "id1", "number": 101, "title": "Sub", "state": "OPEN", "url": "u", "repository": {"name": "r", "owner": {"login": "o"}}}],
+						"pageInfo": {"hasNextPage": false}
+					}
+				}
+			}
+		}
+	}`)
+	numbers := []int{10, 20}
+
+	result, _, err := parseSubIssuesBatchResponse(jsonData, numbers)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(result[20]) != 0 {
+		t.Errorf("Expected empty sub-issues for missing alias, got %d", len(result[20]))
+	}
+}
+
+func TestParseSubIssuesBatchResponse_GraphQLErrors(t *testing.T) {
+	jsonData := []byte(`{
+		"data": {"repository": {}},
+		"errors": [{"message": "Something went wrong"}]
+	}`)
+	numbers := []int{10}
+
+	_, _, err := parseSubIssuesBatchResponse(jsonData, numbers)
+	if err == nil {
+		t.Fatal("Expected error for GraphQL errors in response")
+	}
+}
+
+func TestParseSubIssuesBatchResponse_InvalidJSON(t *testing.T) {
+	jsonData := []byte(`not valid json`)
+	numbers := []int{10}
+
+	_, _, err := parseSubIssuesBatchResponse(jsonData, numbers)
+	if err == nil {
+		t.Fatal("Expected error for invalid JSON")
+	}
+}
+
+// ============================================================================
 // GetProjectItemIDForIssue Tests
 // ============================================================================
 
