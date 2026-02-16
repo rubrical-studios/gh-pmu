@@ -58,7 +58,6 @@ type mockBranchClient struct {
 	projectItemIDs         map[string]string // issueID -> itemID mapping for per-issue returns
 	projectItemFieldValue  string
 	projectItemFieldValues map[string]string // itemID -> fieldValue mapping for per-issue status
-	releaseIssues          []api.Issue
 	projectItems           []api.ProjectItem
 	minimalProjectItems    []api.MinimalProjectItem // For GetProjectItemsMinimal
 	projectItemsByIssues   []api.ProjectItem        // For GetProjectItemsByIssues
@@ -88,7 +87,6 @@ type mockBranchClient struct {
 	getIssueErr                error
 	getProjectItemErr          error
 	getProjectItemFieldErr     error
-	getReleaseIssuesErr        error
 	reopenIssueErr             error
 	getProjectItemsErr         error
 	getProjectItemsMinimalErr  error
@@ -247,13 +245,6 @@ func (m *mockBranchClient) GetProjectItemFieldValue(projectID, itemID, fieldID s
 		}
 	}
 	return m.projectItemFieldValue, nil
-}
-
-func (m *mockBranchClient) GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error) {
-	if m.getReleaseIssuesErr != nil {
-		return nil, m.getReleaseIssuesErr
-	}
-	return m.releaseIssues, nil
 }
 
 func (m *mockBranchClient) GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error) {
@@ -1289,8 +1280,6 @@ func TestRunBranchCloseWithDeps_ClosesTrackerIssue(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{}
-
 	cfg := testBranchConfig()
 	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
@@ -1453,8 +1442,6 @@ func TestRunBranchCloseWithDeps_WithTag_CreatesGitTag(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{}
-
 	cfg := testBranchConfig()
 	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
@@ -1503,8 +1490,6 @@ func TestRunBranchCloseWithDeps_NoTag_NoGitTagCreated(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{}
-
 	cfg := testBranchConfig()
 	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()
@@ -2855,10 +2840,6 @@ func TestRunBranchCloseWithDeps_DryRun_ShowsPreview(t *testing.T) {
 			State:  "OPEN",
 		},
 	}
-	mock.releaseIssues = []api.Issue{
-		{Number: 50, Title: "Incomplete Issue", State: "OPEN"},
-	}
-
 	cfg := testBranchConfig()
 	cleanup := setupBranchTestDir(t, cfg)
 	defer cleanup()

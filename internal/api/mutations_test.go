@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -582,19 +583,26 @@ func TestSetProjectItemField_MutationError(t *testing.T) {
 func TestAddIssueToProject_Success(t *testing.T) {
 	mock := &mockGraphQLClient{
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
-			// Verify the mutation name
 			if name != "AddProjectV2ItemById" {
 				t.Errorf("Expected mutation name 'AddProjectV2ItemById', got '%s'", name)
 			}
+			// Populate the response via reflection
+			v := reflect.ValueOf(mutation).Elem()
+			addItem := v.FieldByName("AddProjectV2ItemById")
+			item := addItem.FieldByName("Item")
+			item.FieldByName("ID").SetString("PVTI_test-item-123")
 			return nil
 		},
 	}
 
 	client := NewClientWithGraphQL(mock)
-	_, err := client.AddIssueToProject("proj-id", "issue-id")
+	itemID, err := client.AddIssueToProject("proj-id", "issue-id")
 
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+	if itemID != "PVTI_test-item-123" {
+		t.Errorf("Expected item ID 'PVTI_test-item-123', got '%s'", itemID)
 	}
 }
 
@@ -745,12 +753,27 @@ func TestCreateIssue_MutationError(t *testing.T) {
 func TestCreateIssue_Success(t *testing.T) {
 	mock := &mockGraphQLClient{
 		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-id-456")
+			}
 			return nil
 		},
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
 			if name != "CreateIssue" {
 				t.Errorf("Expected mutation name 'CreateIssue', got '%s'", name)
 			}
+			// Populate mutation response via reflection
+			v := reflect.ValueOf(mutation).Elem()
+			ci := v.FieldByName("CreateIssue")
+			issue := ci.FieldByName("Issue")
+			issue.FieldByName("ID").SetString("I_test-issue-789")
+			issue.FieldByName("Number").SetInt(99)
+			issue.FieldByName("Title").SetString("title")
+			issue.FieldByName("Body").SetString("body")
+			issue.FieldByName("State").SetString("OPEN")
+			issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/99")
 			return nil
 		},
 	}
@@ -764,7 +787,19 @@ func TestCreateIssue_Success(t *testing.T) {
 	if issue == nil {
 		t.Fatal("Expected issue to be returned")
 	}
-	// The issue will have empty fields since our mock doesn't populate them
+	// Validate fields from mutation response (not just input pass-through)
+	if issue.ID != "I_test-issue-789" {
+		t.Errorf("Expected ID 'I_test-issue-789', got '%s'", issue.ID)
+	}
+	if issue.Number != 99 {
+		t.Errorf("Expected Number 99, got %d", issue.Number)
+	}
+	if issue.Title != "title" {
+		t.Errorf("Expected Title 'title', got '%s'", issue.Title)
+	}
+	if issue.URL != "https://github.com/owner/repo/issues/99" {
+		t.Errorf("Expected URL 'https://github.com/owner/repo/issues/99', got '%s'", issue.URL)
+	}
 	if issue.Repository.Owner != "owner" {
 		t.Errorf("Expected owner 'owner', got '%s'", issue.Repository.Owner)
 	}
@@ -931,32 +966,68 @@ func TestGetLabelID_LabelNotFound(t *testing.T) {
 // CreateIssueInput Optional Fields Tests
 // ============================================================================
 
-func TestCreateIssueInput_OptionalFields(t *testing.T) {
-	// Test with optional fields set
-	labelIDs := []interface{}{"label-1", "label-2"}
-	milestoneID := interface{}("milestone-id")
-
-	input := CreateIssueInput{
-		RepositoryID: "repo-id",
-		Title:        "Test Issue",
-		Body:         "Test body",
+func TestCreateIssueInput_LabelsIncludedInMutation(t *testing.T) {
+	// Verify that when CreateIssue is called with labels, the mutation input
+	// includes label IDs (not just struct zero-value checks)
+	var capturedInput CreateIssueInput
+	mock := &mockGraphQLClient{
+		queryFunc: func(name string, query interface{}, variables map[string]interface{}) error {
+			if name == "GetRepositoryID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				repo.FieldByName("ID").SetString("repo-123")
+			}
+			if name == "GetLabelID" {
+				v := reflect.ValueOf(query).Elem()
+				repo := v.FieldByName("Repository")
+				label := repo.FieldByName("Label")
+				label.FieldByName("ID").SetString("label-bug-id")
+			}
+			return nil
+		},
+		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			if name == "CreateIssue" {
+				capturedInput = variables["input"].(CreateIssueInput)
+				v := reflect.ValueOf(mutation).Elem()
+				ci := v.FieldByName("CreateIssue")
+				issue := ci.FieldByName("Issue")
+				issue.FieldByName("ID").SetString("issue-456")
+				issue.FieldByName("Number").SetInt(42)
+				issue.FieldByName("Title").SetString("Test Issue")
+				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/42")
+			}
+			if name == "CreateLabel" {
+				// Allow auto-creation to succeed
+			}
+			return nil
+		},
 	}
 
-	// Labels are optional
-	if input.LabelIDs != nil {
-		t.Error("Expected LabelIDs to be nil by default")
+	client := NewClientWithGraphQL(mock)
+	issue, err := client.CreateIssue("owner", "repo", "Test Issue", "body", []string{"bug"})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if issue == nil {
+		t.Fatal("Expected issue to be returned")
 	}
 
-	// Test setting labels
-	labels := make([]interface{}, len(labelIDs))
-	copy(labels, labelIDs)
-	// Note: The actual type is *[]graphql.ID, this is just struct verification
-
-	// Milestone is optional
-	if input.MilestoneID != nil {
-		t.Error("Expected MilestoneID to be nil by default")
+	// Verify label IDs were included in the mutation input
+	if capturedInput.LabelIDs == nil {
+		t.Fatal("Expected LabelIDs to be set in mutation input")
 	}
-	_ = milestoneID // Verify it can be assigned
+	if len(*capturedInput.LabelIDs) != 1 {
+		t.Fatalf("Expected 1 label ID, got %d", len(*capturedInput.LabelIDs))
+	}
+	labelID := fmt.Sprintf("%v", (*capturedInput.LabelIDs)[0])
+	if labelID != "label-bug-id" {
+		t.Errorf("Expected label ID 'label-bug-id', got '%s'", labelID)
+	}
+
+	// Verify no body is omitted when provided
+	if string(capturedInput.Body) != "body" {
+		t.Errorf("Expected body 'body', got '%s'", capturedInput.Body)
+	}
 }
 
 // ============================================================================
@@ -2952,13 +3023,16 @@ func TestDeleteProjectField_InputVariables(t *testing.T) {
 func TestDeleteProjectField_EmptyFieldID(t *testing.T) {
 	mock := &mockGraphQLClient{
 		mutateFunc: func(name string, mutation interface{}, variables map[string]interface{}) error {
+			t.Error("Mutation should not be called with empty field ID")
 			return nil
 		},
 	}
 	client := NewClientWithGraphQL(mock)
 	err := client.DeleteProjectField("")
-	// Documents current behavior - passes empty ID to API
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+	if err == nil {
+		t.Error("Expected error for empty field ID")
+	}
+	if err != nil && !strings.Contains(err.Error(), "field ID is required") {
+		t.Errorf("Expected 'field ID is required' error, got: %v", err)
 	}
 }

@@ -118,8 +118,6 @@ type branchClient interface {
 	GetProjectItemID(projectID, issueID string) (string, error)
 	// GetProjectItemFieldValue returns the current value of a field on a project item
 	GetProjectItemFieldValue(projectID, itemID, fieldID string) (string, error)
-	// GetIssuesByRelease returns issues assigned to a specific release
-	GetIssuesByRelease(owner, repo, releaseVersion string) ([]api.Issue, error)
 	// GetProjectItems returns all items in a project with their field values
 	GetProjectItems(projectID string, filter *api.ProjectItemsFilter) ([]api.ProjectItem, error)
 	// GetProjectItemsMinimal returns project items with minimal issue data for filtering
