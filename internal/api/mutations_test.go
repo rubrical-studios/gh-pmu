@@ -996,9 +996,6 @@ func TestCreateIssueInput_LabelsIncludedInMutation(t *testing.T) {
 				issue.FieldByName("Title").SetString("Test Issue")
 				issue.FieldByName("URL").SetString("https://github.com/owner/repo/issues/42")
 			}
-			if name == "CreateLabel" {
-				// Allow auto-creation to succeed
-			}
 			return nil
 		},
 	}
