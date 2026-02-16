@@ -1387,7 +1387,6 @@ func (c *Client) GetProjectItemFieldValue(projectID, itemID, fieldName string) (
 	return "", nil
 }
 
-
 // WriteFile writes content to a file path
 func (c *Client) WriteFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)

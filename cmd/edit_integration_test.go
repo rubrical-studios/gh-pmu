@@ -242,4 +242,3 @@ func TestRunEdit_Integration_CrossRepo(t *testing.T) {
 	testutil.AssertExitCode(t, viewResult, 0)
 	testutil.AssertContains(t, viewResult.Stdout, newTitle)
 }
-
