@@ -168,9 +168,28 @@ func TestRunMove_Integration_DryRun(t *testing.T) {
 func TestRunMove_Integration_Recursive(t *testing.T) {
 	testutil.RequireTestEnv(t)
 
-	// Use seed issue #4 which has sub-issue #5
-	// Move with dry-run to avoid modifying seed data
-	result := testutil.RunCommand(t, "move", "4",
+	// Create a parent issue
+	parentTitle := fmt.Sprintf("Test Parent - Recursive - %d", testUniqueID())
+	parentResult := testutil.RunCommand(t, "create", "--title", parentTitle, "--status", "backlog")
+	testutil.AssertExitCode(t, parentResult, 0)
+	parentNum := testutil.ExtractIssueNumber(t, parentResult.Stdout)
+	defer testutil.DeleteTestIssue(t, parentNum)
+
+	// Create a sub-issue
+	childTitle := fmt.Sprintf("Test Child - Recursive - %d", testUniqueID())
+	childResult := testutil.RunCommand(t, "sub", "create",
+		"--parent", fmt.Sprintf("%d", parentNum),
+		"--title", childTitle,
+	)
+	testutil.AssertExitCode(t, childResult, 0)
+	childNum := testutil.ExtractIssueNumber(t, childResult.Stdout)
+
+	// Add sub-issue to project
+	testutil.RunCommand(t, "move", fmt.Sprintf("%d", childNum), "--status", "backlog")
+	defer testutil.DeleteTestIssue(t, childNum)
+
+	// Move with dry-run to verify recursive detection
+	result := testutil.RunCommand(t, "move", fmt.Sprintf("%d", parentNum),
 		"--status", "done",
 		"--recursive",
 		"--dry-run",
@@ -179,19 +198,98 @@ func TestRunMove_Integration_Recursive(t *testing.T) {
 	testutil.AssertExitCode(t, result, 0)
 	testutil.AssertContains(t, result.Stdout, "Dry run")
 	testutil.AssertContains(t, result.Stdout, "Issues to update")
-	testutil.AssertContains(t, result.Stdout, "#4")
-	testutil.AssertContains(t, result.Stdout, "#5")
+	testutil.AssertContains(t, result.Stdout, fmt.Sprintf("#%d", parentNum))
+	testutil.AssertContains(t, result.Stdout, fmt.Sprintf("#%d", childNum))
 }
 
-// TestRunMove_Integration_SeedIssue tests moving a seed issue (read-only test)
-func TestRunMove_Integration_SeedIssue(t *testing.T) {
+// TestRunMove_Integration_BatchMove tests moving multiple issues at once
+func TestRunMove_Integration_BatchMove(t *testing.T) {
 	testutil.RequireTestEnv(t)
 
-	// Use dry-run on seed issue to verify command works
-	result := testutil.RunCommand(t, "move", "1", "--status", "done", "--dry-run")
+	// Create two test issues
+	title1 := fmt.Sprintf("Test Issue - Batch1 - %d", testUniqueID())
+	create1 := testutil.RunCommand(t, "create", "--title", title1, "--status", "backlog")
+	testutil.AssertExitCode(t, create1, 0)
+	num1 := testutil.ExtractIssueNumber(t, create1.Stdout)
+	defer testutil.DeleteTestIssue(t, num1)
 
-	testutil.AssertExitCode(t, result, 0)
-	testutil.AssertContains(t, result.Stdout, "Dry run")
-	testutil.AssertContains(t, result.Stdout, "#1")
-	testutil.AssertContains(t, result.Stdout, "Done")
+	title2 := fmt.Sprintf("Test Issue - Batch2 - %d", testUniqueID())
+	create2 := testutil.RunCommand(t, "create", "--title", title2, "--status", "backlog")
+	testutil.AssertExitCode(t, create2, 0)
+	num2 := testutil.ExtractIssueNumber(t, create2.Stdout)
+	defer testutil.DeleteTestIssue(t, num2)
+
+	// Move both issues at once (--yes skips confirmation prompt)
+	moveResult := testutil.RunCommand(t, "move",
+		fmt.Sprintf("%d", num1), fmt.Sprintf("%d", num2),
+		"--status", "in_progress", "--yes",
+	)
+	testutil.AssertExitCode(t, moveResult, 0)
+	testutil.AssertContains(t, moveResult.Stdout, fmt.Sprintf("#%d", num1))
+	testutil.AssertContains(t, moveResult.Stdout, fmt.Sprintf("#%d", num2))
+
+	// Verify both issues moved
+	view1 := testutil.RunCommand(t, "view", fmt.Sprintf("%d", num1), "--json=status")
+	testutil.AssertExitCode(t, view1, 0)
+	testutil.AssertContains(t, view1.Stdout, "In progress")
+
+	view2 := testutil.RunCommand(t, "view", fmt.Sprintf("%d", num2), "--json=status")
+	testutil.AssertExitCode(t, view2, 0)
+	testutil.AssertContains(t, view2.Stdout, "In progress")
+}
+
+// TestRunMove_Integration_BacklogFlag tests --backlog flag clears branch field
+func TestRunMove_Integration_BacklogFlag(t *testing.T) {
+	testutil.RequireTestEnv(t)
+
+	// Create issue and set a branch field
+	title := fmt.Sprintf("Test Issue - Backlog - %d", testUniqueID())
+	createResult := testutil.RunCommand(t, "create", "--title", title, "--status", "backlog")
+	testutil.AssertExitCode(t, createResult, 0)
+
+	issueNum := testutil.ExtractIssueNumber(t, createResult.Stdout)
+	defer testutil.DeleteTestIssue(t, issueNum)
+
+	// Set a branch field first
+	branchResult := testutil.RunCommand(t, "move", fmt.Sprintf("%d", issueNum),
+		"--branch", "release/v99.0.0-test")
+	testutil.AssertExitCode(t, branchResult, 0)
+
+	// Verify branch was set
+	viewBefore := testutil.RunCommand(t, "view", fmt.Sprintf("%d", issueNum), "--json=branch")
+	testutil.AssertExitCode(t, viewBefore, 0)
+	testutil.AssertContains(t, viewBefore.Stdout, "release/v99.0.0-test")
+
+	// Clear branch using --backlog flag
+	moveResult := testutil.RunCommand(t, "move", fmt.Sprintf("%d", issueNum), "--backlog")
+	testutil.AssertExitCode(t, moveResult, 0)
+	testutil.AssertContains(t, moveResult.Stdout, "Branch -> (cleared)")
+
+	// Verify branch is cleared
+	viewAfter := testutil.RunCommand(t, "view", fmt.Sprintf("%d", issueNum), "--json=branch")
+	testutil.AssertExitCode(t, viewAfter, 0)
+	testutil.AssertNotContains(t, viewAfter.Stdout, "release/v99.0.0-test")
+}
+
+// TestRunMove_Integration_BranchFlag tests --branch flag sets branch field
+func TestRunMove_Integration_BranchFlag(t *testing.T) {
+	testutil.RequireTestEnv(t)
+
+	title := fmt.Sprintf("Test Issue - Branch - %d", testUniqueID())
+	createResult := testutil.RunCommand(t, "create", "--title", title, "--status", "backlog")
+	testutil.AssertExitCode(t, createResult, 0)
+
+	issueNum := testutil.ExtractIssueNumber(t, createResult.Stdout)
+	defer testutil.DeleteTestIssue(t, issueNum)
+
+	// Set branch field
+	moveResult := testutil.RunCommand(t, "move", fmt.Sprintf("%d", issueNum),
+		"--branch", "release/v99.0.0-test")
+	testutil.AssertExitCode(t, moveResult, 0)
+	testutil.AssertContains(t, moveResult.Stdout, "Branch")
+
+	// Verify branch was set
+	viewResult := testutil.RunCommand(t, "view", fmt.Sprintf("%d", issueNum), "--json=branch")
+	testutil.AssertExitCode(t, viewResult, 0)
+	testutil.AssertContains(t, viewResult.Stdout, "release/v99.0.0-test")
 }
