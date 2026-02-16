@@ -516,8 +516,12 @@ func TestEditCommand_HasBodyStdinFlag(t *testing.T) {
 }
 
 func TestRunEditWithDeps_BodyStdinSetsBodyFile(t *testing.T) {
-	// When bodyStdin is true, it should be converted to bodyFile="-"
-	// We test this by verifying that opts.bodyFile is set to "-" after the conversion
+	// When bodyStdin is true, runEditWithDeps converts it to bodyFile="-"
+	// which reads from os.Stdin via readBodyFile. Verify the conversion
+	// happens by checking opts.bodyFile after the call.
+	mock := setupMockForEdit()
+	cfg := testEditConfig()
+	cmd, _ := newTestEditCmd()
 	opts := &editOptions{
 		issueNumber: 123,
 		bodyStdin:   true,
@@ -528,9 +532,13 @@ func TestRunEditWithDeps_BodyStdinSetsBodyFile(t *testing.T) {
 		t.Fatalf("Expected bodyFile to be empty initially, got %q", opts.bodyFile)
 	}
 
-	// The conversion happens in runEditWithDeps, but we can verify the flag exists
-	// and the mutual exclusion validation works (tested in other tests)
-	// For stdin reading, integration tests cover the full flow
+	// Call runEditWithDeps — will fail reading stdin (EOF) but conversion happens first
+	_ = runEditWithDeps(cmd, opts, cfg, mock, "testowner", "testrepo")
+
+	// Verify bodyStdin was converted to bodyFile="-"
+	if opts.bodyFile != "-" {
+		t.Errorf("Expected bodyFile to be converted to \"-\" from bodyStdin, got %q", opts.bodyFile)
+	}
 }
 
 func TestRunEditWithDeps_CannotUseBodyStdinWithBody(t *testing.T) {
