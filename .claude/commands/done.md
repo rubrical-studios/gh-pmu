@@ -1,5 +1,5 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Complete issues with criteria verification and status transitions (project)
 argument-hint: "[#issue...] [--no-docs] (optional)"
 ---
@@ -56,6 +56,10 @@ gh issue view $ISSUE --json number,title,labels,body,state
 ```
 **If not found:** "Error: Issue #$ISSUE not found." → **STOP** (skip this issue, continue to next if batch)
 **If already closed:** "Issue #$ISSUE is already closed. Skipping." → Skip to next issue or **STOP**
+### Step 2b: PRD Label Redirect
+Check labels from Step 2 for the `prd` label.
+**If `prd` label found:** "Issue #$ISSUE has the `prd` label. Use `/complete-prd #$ISSUE` to close PRD trackers (verifies all linked epics/stories are complete)." → **STOP** (skip to next if batch). Do NOT proceed with normal `/done` closure.
+**If no `prd` label:** Continue to Step 3.
 ### Step 3: Detect Current Status
 ```bash
 gh pmu view $ISSUE --json=status
@@ -136,7 +140,9 @@ Would you like me to document the design decisions/issues encountered in Constru
 4. Reference the issue number in the document
 **If declined:** Proceed without documenting (optional).
 ### Step 6. Git add, commit and push
-Perform the steps to commit and push changes associated with this issue.
+**Conditional:** Only commit if there are staged or unstaged changes (e.g., design decisions doc from Step 5). Check `git status --porcelain` first.
+**If empty:** No changes to commit. Push any unpushed commits from `/work` Step 9: `git push`. Report: `No new changes to commit (work committed during /work Step 9). Pushed.`
+**If non-empty:** Stage, commit (`docs: add design decision for #$ISSUE`), and push.
 ### Step 6b. Background CI Monitoring
 After push completes, spawn a background CI monitor:
 1. Get commit SHA: `sha=$(git rev-parse HEAD)`

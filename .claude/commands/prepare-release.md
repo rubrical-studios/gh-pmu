@@ -1,136 +1,74 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Prepare release with PR, merge to main, and tag
-argument-hint: [version] [--skip-coverage] [--dry-run] [--help]
+argument-hint: "[version] [--skip-coverage] [--dry-run] [--help]"
 ---
 
 <!-- EXTENSIBLE -->
 # /prepare-release
-
 Validate, create PR to main, merge, and tag for deployment.
-
-## Available Extension Points
-
-| Point | Location | Purpose |
-|-------|----------|---------|
-| `post-analysis` | After Phase 1 | Commit analysis, version recommendation |
-| `pre-validation` | Before Phase 2 | Setup, fixtures, containers |
-| `post-validation` | After Phase 2 | Coverage gates, build verification |
-| `pre-commit` | Before Phase 3 commit | Generate release artifacts |
-| `post-prepare` | After Phase 3 | Documentation updates |
-| `post-pr-create` | After PR creation | CI wait, PR validation |
-| `pre-tag` | Before Phase 4 tagging | Final gate, sign-off |
-| `post-tag` | After Phase 4 | Release monitoring, asset verification |
-| `checklist-before-tag` | Summary Checklist | Pre-tag verification items |
-| `checklist-after-tag` | Summary Checklist | Post-tag verification items |
-| `pre-close` | Before Phase 5 | Pre-close validation, notifications |
-| `post-close` | After Phase 5 | Post-release actions, announcements |
-| `checklist-close` | Summary Checklist | Close verification items |
-
+**Extension Points:** See `.claude/metadata/extension-points.json` or run `/extensions list --command prepare-release`
 ---
-
 ## Arguments
-
 | Argument | Description |
 |----------|-------------|
 | `[version]` | Version to release (e.g., v1.2.0) |
 | `--skip-coverage` | Skip coverage gate |
 | `--dry-run` | Preview without changes |
 | `--help` | Show extension points |
-
 ---
-
 ## Execution Instructions
-
-**REQUIRED:** Before executing this command:
-
-1. **Generate Todo List:** Parse the phases and extension points in this spec, then use `TodoWrite` to create todos
-2. **Include Extensions:** For each non-empty `USER-EXTENSION` block, add a todo item
-3. **Track Progress:** Mark todos `in_progress` → `completed` as you work
-4. **Post-Compaction:** If resuming after context compaction, re-read this spec and regenerate todos
-
-**Todo Generation Rules:**
-- One todo per numbered phase/step
-- One todo per active extension point (non-empty `USER-EXTENSION` blocks)
-- Skip commented-out extensions
-- Use the phase/step name as the todo content
-
+**REQUIRED:** Before executing:
+1. **Generate Todo List:** Parse phases and extension points, use `TodoWrite` to create todos
+2. **Include Extensions:** Add todo item for each non-empty `USER-EXTENSION` block
+3. **Track Progress:** Mark todos `in_progress` -> `completed` as you work
+4. **Post-Compaction:** Re-read spec and regenerate todos after context compaction
+**Todo Rules:** One todo per numbered phase/step; one todo per active extension; skip commented-out extensions.
 ---
-
 ## Pre-Checks
-
 ### Verify Current Branch
-
 ```bash
 git branch --show-current
 ```
-
-Record the current branch name as `$BRANCH` for use in subsequent steps.
-
+Record as `$BRANCH`.
 ### Auto-Create Release Branch (if on main)
-
 **If `$BRANCH` is `main`:**
-
-1. **Analyze commits to recommend version:**
+1. Analyze commits to recommend version:
    ```bash
    git log $(git describe --tags --abbrev=0)..HEAD --oneline
    ```
-
-2. **Recommend version** based on commit analysis (same as Phase 1.1)
-
+2. Recommend version based on commit analysis
 3. **ASK USER:** Confirm version (e.g., `v0.26.0`)
-
 4. **If `--dry-run`:** Report "Would create branch: release/v0.26.0" and stop.
-
-5. **Create release branch:**
+5. Create release branch:
    ```bash
    gh pmu branch start --name "release/$VERSION"
    git checkout "release/$VERSION"
    git push -u origin "release/$VERSION"
    ```
-
-6. **Update `$BRANCH`** to `release/$VERSION`
-
-7. **Report:** "Created release branch: release/$VERSION. Continuing with release preparation..."
-
-**If `$BRANCH` is NOT `main`:** Continue with normal flow (existing working branch).
-
+6. Update `$BRANCH` to `release/$VERSION`
+7. Report: "Created release branch: release/$VERSION. Continuing..."
+**If NOT `main`:** Continue with existing working branch.
 ### Check for Incomplete Issues
-
 ```bash
  gh pmu list --branch current --status backlog,in_progress,in_review
 ```
-
-**Do not add `--json`** — `status` is not a valid JSON field for `gh pmu list`. Use the text output directly.
-
+**Do not add `--json`** -- `status` is not a valid JSON field for `gh pmu list`.
 ---
-
 ## Phase 1: Analysis
-
 ### Step 1.1: Analyze Changes
-
 ```bash
 git log $(git describe --tags --abbrev=0)..HEAD --oneline
 ```
-
 ### Analyze Commits
-
 ```bash
 node .claude/scripts/shared/analyze-commits.js
 ```
-
-The script outputs JSON with commit analysis:
-- `lastTag`: Previous version
-- `commits`: Array of parsed commits
-- `summary`: Counts by type (features, fixes, etc.)
-
+Outputs JSON: `lastTag`, `commits`, `summary` (counts by type).
 ### Recommend Version
-
 ```bash
 node .claude/scripts/shared/recommend-version.js
 ```
-
-Uses the commit analysis to recommend a version bump.
 
 <!-- USER-EXTENSION-START: post-analysis -->
 
@@ -160,9 +98,7 @@ The script analyzes which E2E tests may be impacted by changes:
 <!-- USER-EXTENSION-END: post-analysis -->
 
 **ASK USER:** Confirm version before proceeding.
-
 ---
-
 ## Phase 2: Validation
 
 <!-- USER-EXTENSION-START: pre-validation -->
@@ -236,15 +172,9 @@ E2E tests validate complete workflows against the test project.
 <!-- USER-EXTENSION-END: post-validation -->
 
 **ASK USER:** Confirm validation passed.
-
-
 ---
-
 ## Phase 3: Prepare
-
 ### Step 3.1: Update Version Files
-
-
 | File | Action |
 |------|--------|
 | `CHANGELOG.md` | Add new section following Keep a Changelog format |
@@ -252,13 +182,11 @@ E2E tests validate complete workflows against the test project.
 | `README-DIST.md` | Verify skill/specialist counts match actuals, license populated |
 | `framework-config.json` | (Self-hosted only) Update `frameworkVersion` and `installedDate` |
 
-
 <!-- USER-EXTENSION-START: pre-commit -->
 <!-- Pre-commit: generate release artifacts -->
 <!-- USER-EXTENSION-END: pre-commit -->
 
 ### Step 3.2: Commit Preparation
-
 ```bash
 git add CHANGELOG.md README.md README-DIST.md docs/
 git commit -m "chore: prepare release $VERSION"
@@ -278,13 +206,9 @@ The script polls CI status every 60 seconds (5-minute timeout).
 <!-- USER-EXTENSION-END: post-prepare -->
 
 **CRITICAL:** Do not proceed until CI passes.
-
 ---
-
 ## Phase 4: Git Operations
-
 ### Step 4.1: Create PR to Main
-
 ```bash
 gh pr create --base main --head $(git branch --show-current) \
   --title "Release $VERSION"
@@ -301,23 +225,15 @@ node .claude/scripts/shared/wait-for-ci.js
 <!-- USER-EXTENSION-END: post-pr-create -->
 
 ### Step 4.2: Merge PR
-
 **ASK USER:** Approve and merge.
-
 ```bash
 gh pr merge --merge
 ```
-
 ### Step 4.3: Close Branch Tracker
-
-Close the branch tracker while still on the working branch:
-
 ```bash
 gh pmu branch close
 ```
-
 ### Step 4.4: Switch to Main
-
 ```bash
 git checkout main
 git pull origin main
@@ -334,30 +250,25 @@ git pull origin main
 6. **ALWAYS verify release assets exist** - Run `gh release view` to confirm
 <!-- USER-EXTENSION-END: pre-tag -->
 
-### Step 4.5: Tag and Push
-
+### Step 4.5: Remove Active Label
+```bash
+node .claude/scripts/shared/lib/active-label.js remove [TRACKER_NUMBER]
+```
+### Step 4.6: Tag and Push
 **ASK USER:** Confirm ready to tag.
-
 ```bash
 git tag -a $VERSION -m "Release $VERSION"
 git push origin $VERSION
 ```
-
-### Step 4.6: Wait for CI Workflow
-
+### Step 4.7: Wait for CI Workflow
 ```bash
 node .claude/scripts/shared/wait-for-ci.js
 ```
-
 **If CI fails, STOP and report.**
-
-### Step 4.7: Update Release Notes
-
+### Step 4.8: Update Release Notes
 ```bash
 node .claude/scripts/shared/update-release-notes.js
 ```
-
-Updates GitHub Release with formatted notes from CHANGELOG.
 
 <!-- USER-EXTENSION-START: post-tag -->
 ### Monitor Release Workflow
@@ -395,9 +306,7 @@ Do NOT auto-close issues just because they shipped.
 <!-- USER-EXTENSION-END: post-tag -->
 
 ---
-
 ## Summary Checklist
-
 **Core (Before tagging):**
 - [ ] Commits analyzed
 - [ ] Version confirmed
@@ -410,7 +319,6 @@ Do NOT auto-close issues just because they shipped.
 <!-- USER-EXTENSION-END: checklist-before-tag -->
 
 **Core (After tagging):**
-
 - [ ] Tag pushed
 - [ ] CI workflow completed
 - [ ] Release notes updated
@@ -428,31 +336,17 @@ Do NOT auto-close issues just because they shipped.
 <!-- USER-EXTENSION-END: pre-close -->
 
 ## Phase 5: Close & Cleanup
-
 **ASK USER:** Confirm deployment verified and ready to close release.
-
 ### Step 5.1: Add Deployment Comment
-
-Add deployment success comment to the tracker issue (already closed by Phase 4.3):
-
 ```bash
 gh issue comment [TRACKER_NUMBER] --body "Release $VERSION deployed successfully"
 ```
-
 ### Step 5.2: Delete Working Branch
-
-After successful merge and tag, clean up the working branch:
-
 ```bash
-# Delete remote branch (already on main from Step 4.4)
 git push origin --delete $BRANCH
 git branch -d $BRANCH
 ```
-
 ### Step 5.3: Create GitHub Release
-
-Create an official GitHub Release with release notes:
-
 ```bash
 gh release create $VERSION \
   --title "Release $VERSION" \
@@ -461,11 +355,9 @@ gh release create $VERSION \
 
 <!-- USER-EXTENSION-START: post-close -->
 
-
 <!-- USER-EXTENSION-END: post-close -->
 
 ---
-
 ## Summary Checklist (Close)
 
 <!-- USER-EXTENSION-START: checklist-close -->
@@ -476,17 +368,13 @@ gh release create $VERSION \
 <!-- USER-EXTENSION-END: checklist-close -->
 
 ---
-
 ## Completion
-
 Release $VERSION is complete:
-- ✅ Code merged to main
-- ✅ Tag created and pushed
-- ✅ Deployment verified
-- ✅ Tracker issue closed
-- ✅ Working branch deleted
-- ✅ GitHub Release created
-
+- Code merged to main
+- Tag created and pushed
+- Deployment verified
+- Tracker issue closed
+- Working branch deleted
+- GitHub Release created
 ---
-
 **End of Prepare Release**

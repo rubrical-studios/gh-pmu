@@ -1,48 +1,68 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Create GitHub epics/stories from PRD (project)
 argument-hint: "<issue-number> (e.g., 151)"
 ---
+
 <!-- MANAGED -->
 # /create-backlog
 Create GitHub epics and stories from an approved PRD with embedded TDD test cases.
+---
 ## Arguments
 | Argument | Description |
 |----------|-------------|
 | `<prd-issue-number>` | PRD tracking issue number (e.g., `151` or `#151`) |
+---
 ## Execution Instructions
 **REQUIRED:** Before executing:
 1. **Create Todo List:** Use `TodoWrite` from steps below
 2. **Track Progress:** Mark todos `in_progress` -> `completed`
 3. **Resume Point:** Todos show where to continue if interrupted
+---
 ## Prerequisites
 - PRD tracking issue exists with `prd` label
 - PRD issue body contains link to `PRD/PRD-[Name].md`
 - Test plan exists: `PRD/[Name]/Test-Plan-[Name].md`
 - Test plan approval issue is **closed** (approved)
+---
 ## Phase 1: Fetch and Validate PRD Issue
 **Step 1: Parse issue number** - Accept `151` or `#151` format
 **Step 2: Fetch and validate issue**
 ```bash
 gh issue view $issue_num --json labels,body --jq '.labels[].name' | grep -q "prd"
 ```
-If not PRD issue: Error with message about missing 'prd' label
+If not PRD issue: Error with message about missing 'prd' label.
 **Step 3: Extract PRD document path**
 Pattern: `/PRD\/[A-Za-z0-9_-]+\/PRD-[A-Za-z0-9_-]+\.md/`
+---
+## Phase 1b: Branch Validation
+**BLOCKING:** Backlog creation requires an active branch.
+**Step 1:** Check for branch tracker: `gh pmu branch current`
+**Step 2:** Enumerate open branches: `gh pmu branch list`
+**Step 3: Branch resolution**
+| Branches Found | Action |
+|----------------|--------|
+| **None** | STOP with error — create branch first |
+| **Exactly one** | Auto-assign PRD issue to that branch |
+| **Multiple** | Prompt user to select |
+If exactly one: `gh pmu move $issue_num --branch current`
+If multiple: Use `AskUserQuestion` to let user select, then assign.
+---
 ## Phase 2: Test Plan Approval Gate
 **BLOCKING:** Backlog creation blocked until test plan approved.
-**Step 1: Find test plan approval issue**
+**Step 1:** Find test plan approval issue:
 ```bash
 gh issue list --label "test-plan" --label "approval-required" --state open --json number,title
 ```
-**Step 2: Check approval status**
+**Step 2:** Check approval status
 | State | Action |
 |-------|--------|
 | Open | BLOCK - Show message and exit |
 | Closed | PROCEED |
 | Not found | WARN - Proceed but note missing test plan |
+---
 ## Phase 3: Parse PRD for Epics and Stories
-**Step 1: Load PRD document** - Read `PRD/{name}/PRD-{name}.md`
+**Step 1:** Load PRD document — Read `PRD/{name}/PRD-{name}.md`
 **Step 2: Structure extraction**
 | PRD Section | Maps To |
 |-------------|---------|
@@ -50,12 +70,13 @@ gh issue list --label "test-plan" --label "approval-required" --state open --jso
 | User stories under epic | GitHub issues with `story` label |
 | Acceptance criteria | Story body checkboxes |
 | Priority (P0/P1/P2) | Priority field |
+---
 ## Phase 4: Load Test Cases from Test Plan
 **Step 1:** Read `PRD/{name}/Test-Plan-{name}.md`
 **Step 2:** Match test cases to stories by title or acceptance criteria text
 **Step 3:** Load test configuration
-**From `Inception/Test-Strategy.md`:** Test framework (e.g., Vitest, Jest, pytest)
-**From `Inception/Tech-Stack.md`:** Language (for test syntax style)
+**From `Inception/Test-Strategy.md`:** Test framework
+**From `Inception/Tech-Stack.md`:** Language (for test syntax)
 | Language | Framework | Syntax |
 |----------|-----------|--------|
 | TypeScript/JavaScript | Vitest/Jest | `test('...', () => { })` |
@@ -64,6 +85,7 @@ gh issue list --label "test-plan" --label "approval-required" --state open --jso
 | Rust | cargo test | `#[test] fn test_*()` |
 | Unknown | Unknown | Generic pseudocode |
 **Fallback:** If Test-Strategy.md missing, check `IDPF-Agile/Agile-Core.md` for defaults and warn user.
+---
 ## Phase 5: Create Epic Issues
 ```bash
 gh pmu create \
@@ -74,6 +96,7 @@ gh pmu create \
 ```
 **Epic body template:** Include PRD link, PRD tracker, test plan, description, success criteria.
 Clean up: `rm .tmp-epic-body.md`
+---
 ## Phase 6: Create Story Issues with Test Cases
 ```bash
 gh pmu create \
@@ -124,6 +147,7 @@ test('{criterion} rejects invalid input', () => {
 - [ ] Edge cases handled
 - [ ] Acceptance criteria verified
 ```
+---
 ## Phase 7: Update PRD Status
 **Step 1:** Change PRD document status to "Backlog Created"
 **Step 2:** Prepend banner to PRD tracker issue:
@@ -132,12 +156,14 @@ test('{criterion} rejects invalid input', () => {
 ## Backlog Summary
 Epics: {count} | Stories: {count} | Test cases embedded
 ```
+Use `gh pmu edit` with temp file to update the body.
 **Step 3:** Add summary comment
 **Step 4:** `gh pmu move $issue_num --status in_progress`
+---
 ## Phase 8: Skill Suggestions (Optional)
 **Step 1:** Check `framework-config.json` for `skillSuggestions: false` (skip if false)
 **Step 2:** Load `.claude/metadata/skill-keywords.json`
-**Step 3:** Match keywords in story content (case-insensitive)
+**Step 3:** Collect story content, match keywords (case-insensitive)
 **Step 4:** Filter already-installed skills from `projectSkills`
 **Step 5:** Display matches table if found
 **ASK USER:** Install suggested skills? (y/n/select)
@@ -147,6 +173,7 @@ Epics: {count} | Stories: {count} | Test cases embedded
 | `n` | Skip |
 | `select` | Present numbered list |
 **Step 6:** Install via `node .claude/scripts/shared/install-skill.js {skill-names...}`
+---
 ## Output Summary
 ```
 Backlog created from PRD: PRD/{name}/PRD-{name}.md
@@ -156,6 +183,7 @@ Skills suggested: {count} (installed: {installed_count})
 PRD status: Backlog Created
 Next: gh pmu move #{story} --branch current | work #{story}
 ```
+---
 ## Error Handling
 | Situation | Response |
 |-----------|----------|
@@ -166,4 +194,5 @@ Next: gh pmu move #{story} --branch current | work #{story}
 | Test plan not found | Warning: Stories created without test cases |
 | Test plan not approved | BLOCK with approval instructions |
 | No epics in PRD | "PRD contains no epics" |
+---
 **End of /create-backlog Command**

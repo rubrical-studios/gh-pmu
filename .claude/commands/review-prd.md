@@ -1,5 +1,5 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Review a PRD with tracked history (project)
 argument-hint: "#issue"
 ---
@@ -19,52 +19,34 @@ Reviews a PRD document linked from a GitHub issue, tracking review history with 
 |----------|----------|-------------|
 | `#issue` | Yes | Issue number linked to the PRD (e.g., `#42` or `42`) |
 | `--with` | No | Comma-separated domain extensions (e.g., `--with security,performance`) or `--with all` |
+| `--mode` | No | Transient review mode override: `solo`, `team`, or `enterprise`. Does not modify `framework-config.json`. |
 ---
 ## Execution Instructions
 **REQUIRED:** Before executing:
 1. **Generate Todo List:** Parse workflow steps, use `TodoWrite` to create todos
 2. **Include Extensions:** Add todo item for each non-empty `USER-EXTENSION` block
-3. **Track Progress:** Mark todos `in_progress` → `completed` as you work
+3. **Track Progress:** Mark todos `in_progress` -> `completed` as you work
 4. **Post-Compaction:** Re-read spec and regenerate todos after context compaction
 **Todo Rules:** One todo per numbered step; one todo per active extension; skip commented-out extensions.
 ---
 ## Workflow
 ### Step 1: Resolve Issue and PRD File
-Look up the issue:
 ```bash
 gh issue view $ISSUE --json number,title,body,state,labels
 ```
-**If not found:** `"Issue #$ISSUE not found."` → **STOP**
-**If closed:** `"Issue #$ISSUE is closed. Review anyway? (y/n)"` — proceed only if user confirms.
-Extract the PRD file path from the issue body. Look for patterns:
+**If not found:** `"Issue #$ISSUE not found."` -> **STOP**
+**If closed:** `"Issue #$ISSUE is closed. Review anyway? (y/n)"` -- proceed only if user confirms.
+Extract PRD file path from issue body. Look for:
 - `**File:** PRD/[Name]/PRD-[Name].md`
 - `**PRD:** PRD/[Name]/PRD-[Name].md`
 - Direct path reference to a `PRD/` file
-**If no PRD file reference found:**
-```
-Issue #$ISSUE does not link to a PRD file.
-Expected a PRD file path (e.g., `PRD/[Name]/PRD-[Name].md`) in the issue body.
-```
-→ **STOP**
-Read the PRD file at the extracted path.
-**If file not found:**
-```
-PRD file not found: `{path}`. Check the path in issue #$ISSUE?
-```
-→ **STOP**
+**If no PRD file reference found:** -> **STOP**
+Read the PRD file. **If file not found:** -> **STOP**
 ### Step 2: Locate Test Plan
-Check for a test plan file alongside the PRD:
-```
-PRD/{Name}/Test-Plan-{Name}.md
-```
-Look for files matching `Test-Plan-*.md` in the same directory as the PRD file.
-**If test plan exists:** Read it for inclusion in the review.
-**If no test plan found:**
-```
-Warning: No test plan found alongside PRD. Review will proceed without test plan alignment check.
-```
-Continue with PRD-only review (non-blocking).
-**If test plan exists but is empty:** Note incomplete test plan in review findings.
+Check for `PRD/{Name}/Test-Plan-{Name}.md` in same directory.
+**If exists:** Read for inclusion in review.
+**If not found:** Warning, continue with PRD-only review (non-blocking).
+**If exists but empty:** Note in findings.
 
 <!-- USER-EXTENSION-START: pre-review -->
 <!-- USER-EXTENSION-END: pre-review -->
@@ -72,77 +54,51 @@ Continue with PRD-only review (non-blocking).
 ### Step 2b: Extension Loading
 **If `--with` is specified:**
 1. Read `.claude/metadata/review-extensions.json`
-2. Parse the `--with` value:
-   - `--with all` → load all registered extensions
-   - `--with security,performance` → load specified extensions (trim spaces)
-3. For each requested extension ID:
-   - Look up the `source` path in the registry
-   - Read the criteria file content
-   - Extract the **PRD Review Questions** section
-4. If extension ID not found: `"Unknown extension: {id}. Available: security, accessibility, performance, chaos, contract, qa"`
-5. Store loaded criteria for use in Step 3
-**Error Handling (Extension Loading):**
-- **Registry not found:** `"Review extensions registry not found. Run hub update or check installation."` → fall back to standard review only
-- **Registry malformed:** `"Review extensions registry is malformed. Run hub update or check installation."` → fall back to standard review only
-- **Criteria file not found:** `"Warning: Review criteria file not found for '{domain}'. Skipping domain. Update hub to resolve."` → continue with remaining
-- **All criteria files missing:** `"No review criteria files found. Running standard review only."` → fall back to standard review only
-**If `--with` is not specified:** Skip extension loading (standard review only).
+2. Parse `--with` value: `--with all` loads all; `--with security,performance` loads specified (trim spaces)
+3. For each extension ID: look up `source` path, read criteria file, extract **PRD Review Questions** section
+4. Unknown extension: warn with available list
+5. Store loaded criteria for Step 3
+**Error Handling:** Registry not found/malformed -> fall back to standard review. Criteria file not found -> skip domain. All missing -> standard review only.
+**If `--with` is not specified:** Skip extension loading.
 ### Step 3: Perform Review
-
-Evaluate the PRD using a two-phase approach: **auto-evaluate objective criteria** by reading the PRD and test plan files, then **ask the user only about subjective criteria** via `AskUserQuestion`.
-
+Evaluate using two-phase approach: **auto-evaluate objective criteria**, then **ask user about subjective criteria** via `AskUserQuestion`.
 **Step 3a: Load reviewMode**
-
+Parse `--mode` from arguments if provided. Invalid values produce clear error.
 ```javascript
 const { getReviewMode } = require('./.claude/scripts/shared/lib/review-mode.js');
-const mode = getReviewMode();
+// modeOverride is the --mode argument value (null if not provided)
+const mode = getReviewMode(process.cwd(), modeOverride);
 ```
+**Hint:** Display mode and override instructions.
 
 <!-- USER-EXTENSION-START: criteria-customize -->
 <!-- USER-EXTENSION-END: criteria-customize -->
 
 **Step 3b: Auto-Evaluate Objective Criteria**
-
-Read the PRD file (and test plan if present) and auto-evaluate structural/factual criteria. Do NOT ask the user about these.
-
+Read PRD (and test plan if present) and auto-evaluate. Do NOT ask the user.
 | Criterion | Auto-Check Method |
 |-----------|-------------------|
 | Required sections present | Check for: Summary, Problem Statement, Proposed Solution, User Stories, Acceptance Criteria, Out of Scope, NFRs |
-| Scope boundaries defined | Check for explicit in-scope / out-of-scope sections with specific boundary statements |
-| Success criteria measurable | Check for quantitative language, verifiable outcomes, or measurable thresholds |
-| Story format compliance | Verify each user story follows "As a ... I want ... So that ..." pattern |
-| All stories have ACs | Check each story/epic has `- [ ]` checkbox items |
-| Story numbering consistent | Verify epic/story numbering is sequential and cross-referenced correctly |
-| Story priorities assigned | Check if stories have priority indicators (P0/P1/P2) or priority ordering |
-| Stories sized appropriately | Check AC count and scope per story — flag stories with >8 ACs or overly broad scope |
-| AC cover happy paths and error cases | For each story, verify ACs include success scenarios and error/failure handling |
-| Edge cases identified | Check for edge case mentions (boundary conditions, empty inputs, concurrent access, etc.) |
-| Cross-references valid | Verify file paths, issue numbers, and proposal references exist |
-| Performance requirements specified | Check NFR section for performance targets (response time, throughput, resource limits) |
-| Security considerations documented | Check NFR section for security requirements (authentication, authorization, data handling) |
-| Scalability or availability requirements | Check NFR section for scalability limits, availability targets, or capacity planning |
-| Test plan presence | Check if test plan file exists alongside PRD (from Step 2) |
-| AC coverage (if test plan) | Cross-reference each `- [ ]` AC against test plan test cases — report coverage % |
-| Integration test scenarios (if test plan) | Check test plan for integration test cases covering component interactions |
-| E2E test scenarios (if test plan) | Check test plan for end-to-end scenarios covering critical user journeys |
-| Test coverage approach documented | Check test plan for coverage targets and testing strategy section |
-
-**Present auto-evaluation results:**
-```
-Auto-evaluated (objective criteria):
-  ✅ Required sections present — all 7 sections found
-  ✅ Story format compliance — 10/10 stories follow "As a..." format
-  ✅ All stories have ACs — 38 total ACs across 10 stories
-  ⚠️ Story numbering — Epic 2, Story 2.4 referenced but not defined
-  ✅ Cross-references valid — proposal #1187, 3 file paths verified
-  ✅ Test plan present — Test-Plan-DrawIO-Generation-Skill.md found
-  ⚠️ AC coverage — 35/38 ACs mapped to test cases (92% coverage)
-```
-
+| Scope boundaries defined | Check for explicit in-scope / out-of-scope sections |
+| Success criteria measurable | Check for quantitative language, verifiable outcomes |
+| Story format compliance | Verify "As a ... I want ... So that ..." pattern |
+| All stories have ACs | Check each story/epic has `- [ ]` items |
+| Story numbering consistent | Verify sequential numbering and cross-references |
+| Story priorities assigned | Check for P0/P1/P2 indicators |
+| Stories sized appropriately | Flag stories with >8 ACs or overly broad scope |
+| AC cover happy paths and error cases | Verify both success and error/failure handling |
+| Edge cases identified | Check for boundary conditions, empty inputs, concurrent access |
+| Cross-references valid | Verify file paths, issue numbers, proposal references exist |
+| Performance requirements specified | Check NFR section for performance targets |
+| Security considerations documented | Check NFR section for security requirements |
+| Scalability or availability requirements | Check NFR section for scalability/availability targets |
+| Test plan presence | Check if test plan file exists (from Step 2) |
+| AC coverage (if test plan) | Cross-reference `- [ ]` ACs against test cases -- report coverage % |
+| Integration test scenarios (if test plan) | Check for integration test cases |
+| E2E test scenarios (if test plan) | Check for E2E scenarios covering critical journeys |
+| Test coverage approach documented | Check for coverage targets and strategy section |
+| Test coverage proportionate | Verify test requirements proportionate to story scope. Flag stories with complex scope lacking test requirements. |
 **Step 3c: Ask Subjective Criteria**
-
-Ask the user only about criteria requiring human judgment:
-
 ```javascript
 AskUserQuestion({
   questions: [
@@ -169,43 +125,23 @@ AskUserQuestion({
   ]
 });
 ```
-
-**Note:** NFR adequacy is now auto-evaluated (performance, security, scalability checked individually). The subjective question shifted from "are NFRs adequate?" to "is the decomposition right?" — a judgment requiring human context.
-
-**Conditional follow-up:** If user selects warning or fail for any subjective criterion, ask conversationally for specifics.
-
+**Conditional follow-up:** If user selects ⚠️ or ❌, ask conversationally for specifics.
 **Step 3d: Extension Criteria** (if `--with` specified)
-
-For each loaded extension domain, evaluate the PRD against the extension's PRD Review Questions. Auto-evaluate objective extension criteria; ask the user about subjective ones.
-
+For each loaded extension, evaluate PRD against PRD Review Questions. Auto-evaluate objective; ask about subjective.
 **Step 3e: Collect All Findings**
-
-Merge auto-evaluated and user-evaluated findings into structured categories: **Strengths**, **Concerns**, **Recommendations**.
-Determine a recommendation:
-- **Ready for backlog creation** — No blocking concerns
-- **Ready with minor revisions** — Small issues that don't block
-- **Needs revision** — Significant concerns that should be addressed first
-- **Needs major rework** — Fundamental issues with requirements or scope
-**If extensions were loaded (Step 2b):**
-For each loaded extension, present findings as a separate section:
-```markdown
-### Security Review (IDPF-Security)
-- [Finding 1]
-- [Finding 2]
-```
-Extension findings can **escalate** the overall recommendation but cannot downgrade it.
-**Applicability Filtering:** Omit extension domain sections with no applicable findings. Only domains with actual findings appear in the output and in the `**Extensions Applied:**` header. If no domains produce findings, fall back to standard-only review: `"No domain extensions produced findings. Showing standard review only."` At least one domain section must appear when `--with` is used; otherwise the fallback applies.
+Merge into: **Strengths**, **Concerns**, **Recommendations**.
+Determine recommendation:
+- **Ready for backlog creation** -- No blocking concerns
+- **Ready with minor revisions** -- Small issues that don't block
+- **Needs revision** -- Significant concerns
+- **Needs major rework** -- Fundamental issues
+**If extensions loaded:** Present as separate sections. Extensions can **escalate** but not downgrade.
+**Applicability Filtering:** Omit domains with no findings. At least one domain section must appear when `--with` used; otherwise fallback.
 ### Step 4: Update PRD Metadata
-Read the current PRD file content.
-**Update `**Reviews:** N` field:**
-- If `**Reviews:**` field exists: increment the number (e.g., `**Reviews:** 1` → `**Reviews:** 2`)
-- If not present: add `**Reviews:** 1` after existing metadata fields, before the first `---` separator
+**Update `**Reviews:** N` field:** Increment if exists, add `**Reviews:** 1` before first `---` if not.
 ### Step 5: Update Review Log
-**If `## Review Log` section exists:** Append a new row to the existing table.
-**If `## Review Log` section does not exist:**
-- If `**End of PRD**` marker exists: insert the Review Log section before it
-- If no `**End of PRD**` marker (DD14 fallback): append at the very end of the file
-**Review Log format:**
+**If `## Review Log` exists:** Append new row.
+**If not:** Insert before `**End of PRD**` marker, or append at end (DD14 fallback).
 ```markdown
 ---
 
@@ -215,11 +151,9 @@ Read the current PRD file content.
 |---|------|----------|------------------|
 | 1 | YYYY-MM-DD | Claude | [Brief one-line summary of findings] |
 ```
-Each review appends a new row. **Never edit or delete existing rows** — the log is append-only.
-Write the updated PRD file.
-**If file write fails:** `"Failed to update PRD file: {error}"` → **STOP**
+Append-only -- **never edit or delete existing rows**.
+Write updated PRD file. **If file write fails:** -> **STOP**
 ### Step 6: Post Issue Comment
-Post a structured review comment to the GitHub issue:
 ```markdown
 ## PRD Review #N — YYYY-MM-DD
 
@@ -251,13 +185,27 @@ Post a structured review comment to the GitHub issue:
 
 [Ready for backlog creation | Ready with minor revisions | Needs revision | Needs major rework]
 ```
-
-**Backwards compatibility:** The `### Findings` section header and emoji markers remain unchanged for `/resolve-review` parser compatibility. The `#### Auto-Evaluated` and `#### User-Evaluated` subsections are additive.
+**Backwards compatibility:** `### Findings` header and emoji markers unchanged for `/resolve-review` parser. `#### Auto-Evaluated` and `#### User-Evaluated` are additive.
 ```bash
 gh issue comment $ISSUE -F .tmp-review-comment.md
 rm .tmp-review-comment.md
 ```
-**If comment post fails:** Warn and continue (non-blocking — the PRD file is already updated).
+**If comment post fails:** Warn and continue (non-blocking).
+### Step 6.5: Assign Reviewed Label (Conditional)
+If recommendation starts with "Ready for":
+```bash
+gh issue edit $ISSUE --add-label=reviewed
+```
+If not "Ready for": skip.
+### Step 6.6: AC Check-Off (Conditional)
+**Only when recommendation is "Ready for backlog creation":**
+Automatically checks off acceptance criteria on the PRD issue that passed review.
+1. Export: `gh pmu view $ISSUE --body-stdout > .tmp-$ISSUE.md`
+2. For each `- [ ]` checkbox: if criterion **passed** (✅): replace with `- [x]`. If **failed or flagged** (❌ or ⚠️): leave unchecked.
+3. Update: `gh pmu edit $ISSUE -F .tmp-$ISSUE.md && rm .tmp-$ISSUE.md`
+4. Report: `AC check-off: X/Y criteria checked off on issue #$ISSUE.`
+**No status transition** -- `/create-backlog` owns the `in_progress` transition.
+**If not "Ready for backlog creation":** Skip entirely.
 
 <!-- USER-EXTENSION-START: post-review -->
 <!-- USER-EXTENSION-END: post-review -->
@@ -272,7 +220,7 @@ Review #N complete for PRD: [Title]
   Review Log: [appended | created]
   Issue comment: [posted | failed]
 ```
-**If `--with` is not specified**, append a discoverability tip after the summary:
+**If `--with` is not specified**, append:
 ```
 Tip: Use --with security,performance to add domain-specific review criteria.
 Available: security, accessibility, performance, chaos, contract, qa (or --with all)
@@ -281,14 +229,14 @@ Available: security, accessibility, performance, chaos, contract, qa (or --with 
 ## Error Handling
 | Situation | Response |
 |-----------|----------|
-| Issue not found | "Issue #N not found." → STOP |
-| Issue missing PRD file reference | "Issue #N does not link to a PRD file." → STOP |
-| PRD file not found | "PRD file not found: `{path}`." → STOP |
-| Issue closed | "Issue #N is closed. Review anyway? (y/n)" → ask user |
+| Issue not found | "Issue #N not found." -> STOP |
+| Issue missing PRD file reference | "Issue #N does not link to a PRD file." -> STOP |
+| PRD file not found | "PRD file not found: `{path}`." -> STOP |
+| Issue closed | "Issue #N is closed. Review anyway? (y/n)" -> ask user |
 | Test plan not found | Warning, continue with PRD-only review |
 | Test plan empty | Note in findings, continue |
-| File write fails | "Failed to update PRD file: {error}" → STOP |
+| File write fails | "Failed to update PRD file: {error}" -> STOP |
 | Comment post fails | Warn, continue (file already updated) |
-| No metadata section in file | Create metadata field before first `---` separator |
+| No metadata section | Create metadata field before first `---` separator |
 ---
 **End of /review-prd Command**

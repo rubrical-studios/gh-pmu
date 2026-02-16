@@ -1,17 +1,13 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Create a branch with tracker issue (project)
-argument-hint: <branch-name> (e.g., release/v0.16.0, my-feature, bugfix-123)
+argument-hint: "<branch-name> (e.g., release/v0.16.0, my-feature, bugfix-123)"
 ---
 
 <!-- EXTENSIBLE -->
 # /create-branch
 Creates a new branch and associated tracker issue for any branch type.
-## Available Extension Points
-| Point | Location | Purpose |
-|-------|----------|---------|
-| `pre-create` | Before branch creation | Custom validation, environment checks |
-| `post-create` | After branch created | Notifications, setup scripts, CI triggers |
+**Extension Points:** See `.claude/metadata/extension-points.json` or run `/extensions list --command create-branch`
 ---
 ## Prerequisites
 - `gh pmu` extension installed
@@ -56,6 +52,10 @@ git checkout "$BRANCH"
 ```bash
 git push -u origin "$BRANCH"
 ```
+### Step 5.5: Set Active Label
+```bash
+node .claude/scripts/shared/lib/active-label.js ensure [TRACKER_NUMBER]
+```
 
 <!-- USER-EXTENSION-START: post-create -->
 <!-- USER-EXTENSION-END: post-create -->
@@ -68,15 +68,9 @@ Branch: $BRANCH
 Tracker: #[tracker-issue-number]
 ```
 **If uncommitted changes detected in Step 2:**
-Report carried-over files:
-```
-Uncommitted changes carried over:
- M path/to/modified-file.md
- A path/to/staged-file.js
-?? path/to/untracked-file.txt
-```
+Report carried-over files from saved `git status --porcelain` output.
 **Conditional Commit Prompt:**
-If any changes exist (staged, unstaged, or untracked — i.e., `git status --porcelain` output is non-empty):
+If any changes exist (staged, unstaged, or untracked):
 **ASK USER:** "Stage and commit all changes to new branch? (y/n)"
 - **Yes:** Request commit message, run `git add -A && git commit -m "<message>"`, report success
 - **No:** Continue without modifying working tree

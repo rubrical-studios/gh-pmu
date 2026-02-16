@@ -1,0 +1,394 @@
+{
+  "version": 1,
+  "lastRun": "2026-02-16",
+  "charter": {
+    "contentHash": "sha256:12401cb5182110e057d3531f8d5eeb8cfbeb2131cf2702fcd749b888d019ba2f"
+  },
+  "tests": {
+    "cmd/board_test.go": {
+      "contentHash": "sha256:d8210bec650dcd1a1c26a4a273a623d3ce2e27c44bb42c9eaeb1cbbf3726af6e",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/branch_test.go": {
+      "contentHash": "sha256:920016a827c8404a6e0aa127187521a760024eed34e2219bcd65fc4e764901a2",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/close_test.go": {
+      "contentHash": "sha256:9a1480f8eed589f9de4ff8c8a91756d3184d3f7cbb5bced8fc09b67a4ade405a",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/comment_test.go": {
+      "contentHash": "sha256:c593f9cb711a817ca39760efdb98790bada172f6e38562bb05d56d7a00aa4105",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 1,
+      "issueRefs": ["#686"]
+    },
+    "cmd/create_test.go": {
+      "contentHash": "sha256:33afa01e8d27e55bd0f35eed06cc5de99886390f58ffeb9329c863e0562df6d5",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/edit_test.go": {
+      "contentHash": "sha256:58bec0be0abdf9087cbae4802cbf0d7a3c85f2951aea25206800efb0a443ea51",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 1,
+      "issueRefs": ["#687"]
+    },
+    "cmd/field_test.go": {
+      "contentHash": "sha256:3580ba547e1ceb50f44872b376911bf649d13be94e75cc19604d0cf9daf83508",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/filter_test.go": {
+      "contentHash": "sha256:c7b71936d6773e8eec6f74e9224736a1cfa338a0b4021eb7af7204278c3afd48",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/history_test.go": {
+      "contentHash": "sha256:9869db6fae8dd7d4542ed8056dd4e2f14e300b1b82971a47af3e50a1124e7f16",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/init_test.go": {
+      "contentHash": "sha256:f5b87114f0f9407d051983afb27b915752df6a3746dac3b7839036fb04a99c3d",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/intake_test.go": {
+      "contentHash": "sha256:607f9367c75735506ab1bc22b654db0c8d389e443338bc098fdeab339563de34",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/list_test.go": {
+      "contentHash": "sha256:99daa5b267e49556c4b02a1e1f9bec2cbe8ae135a48eb8a0c59e93a92144c5fc",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/move_test.go": {
+      "contentHash": "sha256:609a1d7a709f78dff50c0d0d61efd2b6b9ca792007ebae4b75136599e5130380",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/root_test.go": {
+      "contentHash": "sha256:2ea260432f024d9b76f496009fc1f59ea0c8506e679547a4c5150a58615f9715",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/split_test.go": {
+      "contentHash": "sha256:6565e5d5b465d72e6acfa46cf060c985c265a88f0c998e32fea199e5827acb8e",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/sub_test.go": {
+      "contentHash": "sha256:e4bf6dc71eddf973bbdd86024fb5946aec820ec765841b2734991409ac6db5b2",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/triage_test.go": {
+      "contentHash": "sha256:7e7811bdb435abbb54de066a6b8b850ca77672a51d98677be6b3c408d5a89e1f",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/validation_test.go": {
+      "contentHash": "sha256:3b37c8a0d17841a93f550c3ecc891d0f2cb3db024e9baee9a060a7edfe4261c0",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/view_test.go": {
+      "contentHash": "sha256:9b6615df868ce3dd58d1b51f4c7f30dc63ac0397efa17e93990f7b0af192415f",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/wrapper_test.go": {
+      "contentHash": "sha256:80049b0d5df845e25163b1883bef061bac783db41118bcc4e5aea2272c661341",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/create_integration_test.go": {
+      "contentHash": "sha256:748434994ae1df94ca79a183325e44cbe18eec8e639433c25d6f4247ac4b0f57",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/edit_integration_test.go": {
+      "contentHash": "sha256:3ce23f70eafec80e10e13b2bd3406b114847ff2322fad0842369a82965d3dfa3",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 1,
+      "issueRefs": ["#690"]
+    },
+    "cmd/init_integration_test.go": {
+      "contentHash": "sha256:e7bf62e360b02d8c5f583847f9914ced326375f59ea6b4c20f3a0f000f151c7f",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/intake_integration_test.go": {
+      "contentHash": "sha256:0495071b693fdb817fa9d8dbc7a72d788f2304fae98ca9bdb49002351cd84529",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/list_integration_test.go": {
+      "contentHash": "sha256:c6529606da0f3ec0528574ecfb8d4e2329388cac51a6786e7f6813f8af50ea21",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/move_integration_test.go": {
+      "contentHash": "sha256:ca181dbee3a6cad6fe91e397bf22419964b96e3342f384c634061560efaf5e87",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 2,
+      "issueRefs": ["#690"]
+    },
+    "cmd/split_integration_test.go": {
+      "contentHash": "sha256:cae2ccf740ee0112251b2ef6ec42a45372808f50bf26e99dadcf0f5e92d8c909",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/sub_add_integration_test.go": {
+      "contentHash": "sha256:73a8911554175a514debaa41f322206ec716996419d2467a0ea79cd79a6f3115",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/sub_create_integration_test.go": {
+      "contentHash": "sha256:d7820a6506e4f4841b139df78dcf96179c306a873883dc3b2b8629df635bdf5b",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/sub_list_integration_test.go": {
+      "contentHash": "sha256:b653d2bcaf7a8bf23caea2611f01fcceb01f582e914d5541714d8624e8b0e6d6",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/sub_remove_integration_test.go": {
+      "contentHash": "sha256:aad74cc7dfa006c8081693e3103235b14596504cb354f0c4ad680f6a36d43f27",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/triage_integration_test.go": {
+      "contentHash": "sha256:8fe19762501eaf3aa14e8506403de3fafd0cbb956b3ac357b634d6cbe73efea5",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/view_integration_test.go": {
+      "contentHash": "sha256:df6b2263c95fdfdfa080502130a5eef2757d92392fa3f648f408d00ce9550b54",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/uat_epic1_test.go": {
+      "contentHash": "sha256:6b42171876db6c66729a4c42c0bd908517f94eda5c43803d0bfe9f0f819f6c39",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "cmd/uat_epic3_test.go": {
+      "contentHash": "sha256:b6b5ce102d1b5086c0b607767625326b831978372dc8629c011533c17863e55a",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/api/client_test.go": {
+      "contentHash": "sha256:6a11b546ed2d35f2248d42f11f3c9c6d69976d2ec9c3fa8e8f3c9123b111a25c",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 5,
+      "issueRefs": ["#685"]
+    },
+    "internal/api/errors_test.go": {
+      "contentHash": "sha256:2b4320277bc63f4cacb486c3156fe7526194e827b75fd29b0be14e3fa0872a65",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/api/integration_test.go": {
+      "contentHash": "sha256:eff75a21cf20fbb2ce63afd3ce4e0e730658d07bba173d3c82db4fc02d4dd57d",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/api/mutations_test.go": {
+      "contentHash": "sha256:20861a22508ef900cb7899d5bbc5b80eea37796afeeeb01f512585e5b0ba0dad",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 3,
+      "issueRefs": ["#688"]
+    },
+    "internal/api/queries_test.go": {
+      "contentHash": "sha256:fbf27c6138f2eef55df6a2ddf89f71134e51cd65af50e00820cf471669d18412",
+      "status": "flagged",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 1,
+      "issueRefs": ["#689"]
+    },
+    "internal/api/retry_test.go": {
+      "contentHash": "sha256:bc5b976c48db9fc4d8559307d3b15e366559053e32c52f1f1827470eca96b2f4",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/config/config_test.go": {
+      "contentHash": "sha256:126c955db0b8dca1af450b998d4dd34a1c39a0b49fd954614a4bb645545dc1e5",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/defaults/embed_test.go": {
+      "contentHash": "sha256:c87b913fc98405c802ed1b65b4e958d108ce17b03eadf47adcb2e15be70ba852",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/framework/detect_test.go": {
+      "contentHash": "sha256:d167ffaefd8d719dda18ef0a260ab4c02a52654c77b7e1da6e93e71855d12ef1",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "internal/ui/ui_test.go": {
+      "contentHash": "sha256:04f8e8817137c7aa4eb1326b34dbc44e572b8647aa1af4604be4df589e6f35c2",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/board_test.go": {
+      "contentHash": "sha256:208399184df36ec918996c4629b99607ab02f2fbe31a5b6e25402ce919345c67",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/branch_test.go": {
+      "contentHash": "sha256:0eb520503f222ee7b380b93cd5f6a94a1d6650bde1932674e285a83033099cb1",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/cleanup_test.go": {
+      "contentHash": "sha256:496c64e77ba7330f00bee7f3e96c9e07aaa63e07e2f6dc71f92d4c2707ebc39f",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/config_test.go": {
+      "contentHash": "sha256:fbecc6d4f6c9003debbada3ebb396246d1400bb8eed4e2390b3c3cafc948d57c",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/e2e_test.go": {
+      "contentHash": "sha256:3e9f65eb6df86f10e7b4656ceab2a34ddad1f7f849a3f5acf7a94e5863e9d7c6",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/filter_test.go": {
+      "contentHash": "sha256:4dd6d66b2c2e46f2da5254d3495a18ad861f858cf97d7a8e667cf2a321903aec",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/helpers_test.go": {
+      "contentHash": "sha256:02a3b4b03de2e7f453d38d45f85d9622d699f2e6c0d37fcd60de1e02657c117c",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/init_test.go": {
+      "contentHash": "sha256:2243fe30ff410de2474260736cc99110c5b7f4b7152fef994190b827259e2702",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/view_test.go": {
+      "contentHash": "sha256:250864f7741bd31a8cf7d0baa30f025c57fcef0371b5cd9d21345c697bd86c65",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    },
+    "test/e2e/workflow_test.go": {
+      "contentHash": "sha256:368fcd86261cd133f1b62b13c5e9e2dc5c68c23bbe7148419de58a6aafb0772e",
+      "status": "approved",
+      "reviewedAt": "2026-02-16",
+      "findingCount": 0,
+      "issueRefs": []
+    }
+  }
+}

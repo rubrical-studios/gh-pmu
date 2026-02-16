@@ -1,5 +1,5 @@
 ---
-version: "v0.42.2"
+version: "v0.44.0"
 description: Start working on issues with validation and auto-TODO (project)
 argument-hint: "#issue [#issue...] | all in <status>"
 ---
@@ -119,20 +119,48 @@ Create a todo list with these issues:
 ```
 No acceptance criteria found in issue body. Create todos manually as needed.
 ```
+### Step 7b: QA Extraction — Manual Test AC Detection
+Scan AC for manual test indicators. If found, offer to extract into tracked QA sub-issues.
+**Detection keywords** (case-insensitive): `manually verify`, `visually confirm`, `visual verification`, `QA:`, `qa-required`, `exploratory test`, `manual test`, `manual check`, `UX walkthrough`
+**If manual test AC detected:**
+1. **Present candidates** — Use `AskUserQuestion` with multiSelect. Include "Skip all" option.
+2. **Create QA sub-issues** — For each confirmed AC:
+   ```bash
+   gh pmu sub create --parent $ISSUE --title "QA: [AC description]" --label qa-required -F .tmp-qa-body.md
+   ```
+   QA sub-issue body contains: test description, parent issue context (`Parent: #$ISSUE — $TITLE`), steps to perform, expected result.
+3. **Annotate parent AC** — Update parent issue body with QA sub-issue reference. AC remains **unchecked**:
+   `- [ ] Manually verify the login flow → QA: #NNN`
+4. **Report** extraction count and sub-issue numbers.
+**Closure path:** Parent stays `in_review` until all QA sub-issues are closed and AC checked off. Only then can `/done` complete the parent.
+**If no manual test AC detected:** Continue silently.
+**If user selects "Skip all":** Continue without extraction.
 
 <!-- USER-EXTENSION-START: pre-framework-dispatch -->
 <!-- USER-EXTENSION-END: pre-framework-dispatch -->
 
 ### Step 8: Framework Methodology Dispatch
-Read `framework-config.json` for `processFramework` field:
+Read `framework-config.json` for `processFramework` and `frameworkPath` fields:
 | Framework | Action |
 |-----------|--------|
-| `IDPF-Agile` | Load `.min-mirror/IDPF-Agile/Agile-Core.md` — follow TDD RED-GREEN-REFACTOR cycle |
-| `IDPF-Vibe` | Load `.min-mirror/IDPF-Vibe/Vibe-Core.md` — follow rapid iteration methodology |
+| `IDPF-Agile` | Load `{frameworkPath}/IDPF-Agile/Agile-Core.md` — follow TDD RED-GREEN-REFACTOR cycle |
+| `IDPF-Vibe` | Load `{frameworkPath}/IDPF-Vibe/Vibe-Core.md` — follow rapid iteration methodology |
 | Not set / missing | Skip methodology dispatch — no framework enforced |
 **If framework file not found:** "Warning: Framework {name} not found. Proceeding without methodology." Continue (non-blocking).
 ### Step 9: Work the Issue
-Perform implementation work according to framework methodology.
+Iterate through the auto-TODO from Step 7. For each acceptance criterion:
+1. **Mark TODO `in_progress`**
+2. **Execute TDD cycle** (RED → GREEN → REFACTOR) per framework methodology
+   - **RED:** Write failing test, verify it fails
+   - **GREEN:** Write minimal implementation to pass, verify it passes
+   - **REFACTOR:** Analyze for duplication, naming, complexity, structure. Report decision (refactor or skip with reason). If refactoring, keep tests passing.
+   - If no framework loaded, implement directly with appropriate testing
+3. **Run full test suite** — confirm no regressions
+4. **Mark TODO `completed`**
+5. **Commit** with `Refs #$ISSUE — <brief description>`
+**Commit granularity:** One commit per AC is the default. Closely related ACs may share a commit if separating them would create broken intermediate states. Never combine unrelated ACs.
+**If no auto-TODO was generated:** Work as a single unit and commit with `Refs #$ISSUE`.
+**Post-compaction recovery:** Re-read this spec and check TODO list to determine completed vs pending ACs. Resume from first incomplete AC.
 ### Step 10: Verify Acceptance Criteria
 **IMPORTANT — Ground in file state:** Before evaluating each AC, re-read the actual file content using the Read tool. Do NOT evaluate from memory — re-read to confirm the criterion is met in current code. This prevents batch fatigue hallucination.
 After work, verify each AC:
