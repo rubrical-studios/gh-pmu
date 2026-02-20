@@ -43,7 +43,7 @@ func chdirTemp(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
 }
 
 // setTestVersion sets the package version for gate testing and restores it on cleanup.
