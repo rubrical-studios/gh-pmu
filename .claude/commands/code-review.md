@@ -1,5 +1,5 @@
 ---
-version: "v0.46.1"
+version: "v0.46.2"
 description: Comprehensive code review with manifest-driven incremental tracking (project)
 argument-hint: "[--full] [--status] [--scope <globs>] [--batch <N>]"
 ---
