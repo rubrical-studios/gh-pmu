@@ -37,6 +37,7 @@ Utilities:
 Workflow Commands:
   branch      Manage branches for development workflows
   validation  Manage status transition validation rules
+  accept      Accept terms and conditions
 
 Flags:
   -h, --help      help for gh-pmu
@@ -693,6 +694,44 @@ ready → in_progress, backlog
 in_progress → in_review, ready, backlog
 in_review → done, in_progress
 done → (no transitions allowed by default)
+```
+
+### accept
+
+Accept terms and conditions. Required before using any other command (except `init` and `--help`/`--version`).
+
+```bash
+# Interactive acceptance (displays terms, prompts for confirmation)
+gh pmu accept
+
+# Non-interactive acceptance (for CI/automation)
+gh pmu accept --yes
+
+# Accept in a specific directory
+gh pmu accept --dir /path/to/repo
+```
+
+**Flags:**
+| Flag | Purpose |
+|------|---------|
+| `--yes` | Accept terms without interactive prompt |
+| `--dir` | Directory to search for config (default: current directory) |
+
+**Notes:**
+- Acceptance is stored in `.gh-pmu.yml` and shared across collaborators
+- Re-acceptance is required when the major or minor version changes (patch updates do not require re-acceptance)
+- The `init`, `accept`, `--help`, and `--version` commands are exempt from the acceptance gate
+
+**Output:**
+```
+Terms and Conditions
+────────────────────
+[terms text displayed]
+
+✓ Terms accepted
+  Accepted by: your-name
+  Accepted on: 2026-02-20
+  Version: 0.16.0
 ```
 
 ---

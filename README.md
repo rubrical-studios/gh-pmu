@@ -106,7 +106,7 @@ fields:
 Project:    init, list, view, create, edit, comment, move, close, board, field
 Sub-Issues: sub add, sub create, sub list, sub remove
 Batch:      intake, triage, split
-Workflows:  branch
+Workflows:  branch, accept
 Utilities:  filter, history
 ```
 
