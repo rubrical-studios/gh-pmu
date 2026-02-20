@@ -1,4 +1,4 @@
-# Project Charter: gh-pmu
+# Project Charter: GitHub Project Management Unified
 
 **Status:** Active
 **Last Updated:** 2026-01-21
