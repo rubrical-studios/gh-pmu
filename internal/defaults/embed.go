@@ -10,6 +10,9 @@ import (
 //go:embed defaults.yml
 var defaultsYAML []byte
 
+//go:embed terms.txt
+var termsText string
+
 // Defaults holds the parsed default configuration.
 type Defaults struct {
 	Labels []LabelDef `yaml:"labels"`
@@ -76,4 +79,9 @@ func (d *Defaults) GetLabelNames() []string {
 // IsStandardLabel returns true if the given label name is a standard label.
 func (d *Defaults) IsStandardLabel(name string) bool {
 	return d.GetLabel(name) != nil
+}
+
+// Terms returns the embedded terms and conditions text.
+func Terms() string {
+	return termsText
 }
