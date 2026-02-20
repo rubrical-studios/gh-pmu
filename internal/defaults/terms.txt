@@ -1,0 +1,30 @@
+gh-pmu — Terms and Conditions
+
+By using gh-pmu, you agree to the following:
+
+What this tool does:
+gh-pmu manages GitHub Projects on your behalf. It creates, edits, moves,
+and closes issues, manages sub-issues, tracks branches, and automates
+project workflows using your GitHub credentials.
+
+Your responsibility:
+- You are responsible for all actions gh-pmu performs on your GitHub
+  account and repositories
+- You should review changes before they affect shared repositories
+- You are responsible for any data created, modified, or deleted
+  through this tool
+
+No warranty:
+gh-pmu is provided as-is, without any warranty. There is no guarantee
+that it will work correctly, completely, or without interruption. It may
+contain bugs that could result in unintended changes to your GitHub data.
+
+Liability:
+You accept all liability for your use of gh-pmu. The authors and
+contributors are not liable for any damages, data loss, or unintended
+consequences arising from its use.
+
+Shared acceptance:
+By accepting these terms, you are accepting on behalf of all users of
+this repository's gh-pmu configuration. Ensure you have authority to
+do so.

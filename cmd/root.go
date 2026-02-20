@@ -1,10 +1,21 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/spf13/cobra"
 )
 
 var version = "dev"
+
+// exemptCommands are commands that do not require terms acceptance.
+var exemptCommands = map[string]bool{
+	"init":   true,
+	"accept": true,
+	"help":   true,
+}
 
 func NewRootCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -22,6 +33,9 @@ This extension combines and replaces:
 
 Use 'gh pmu <command> --help' for more information about a command.`,
 		Version: version,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return checkAcceptance(cmd)
+		},
 	}
 
 	cmd.AddCommand(newInitCommand())
@@ -41,10 +55,55 @@ Use 'gh pmu <command> --help' for more information about a command.`,
 	cmd.AddCommand(newHistoryCommand())
 	cmd.AddCommand(newFilterCommand())
 	cmd.AddCommand(newBranchCommand())
+	cmd.AddCommand(newAcceptCommand())
 
 	return cmd
 }
 
 func Execute() error {
 	return NewRootCommand().Execute()
+}
+
+// checkAcceptance verifies terms have been accepted before running commands.
+func checkAcceptance(cmd *cobra.Command) error {
+	// Dev builds skip acceptance gate — only production builds enforce it
+	if version == "dev" {
+		return nil
+	}
+
+	// Check if this is an exempt command
+	name := cmd.Name()
+	if exemptCommands[name] {
+		return nil
+	}
+
+	// --help flag on any command is always allowed
+	if help, _ := cmd.Flags().GetBool("help"); help {
+		return nil
+	}
+
+	// Try to load config — if no config exists, skip gate (init not run yet)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+
+	cfg, err := config.LoadFromDirectory(cwd)
+	if err != nil {
+		// No config file — not initialized yet, skip acceptance check
+		return nil
+	}
+
+	// Check acceptance state
+	if cfg.Acceptance == nil || !cfg.Acceptance.Accepted {
+		return fmt.Errorf("terms not accepted — run 'gh pmu accept' first")
+	}
+
+	// Check version — re-acceptance needed on major/minor bump
+	if config.RequiresReAcceptance(cfg.Acceptance.Version, version) {
+		return fmt.Errorf("terms acceptance outdated (accepted v%s, current v%s) — run 'gh pmu accept' to re-accept",
+			cfg.Acceptance.Version, version)
+	}
+
+	return nil
 }

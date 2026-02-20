@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -218,6 +219,40 @@ func TestGetLabelNames(t *testing.T) {
 	for _, expected := range expectedLabels {
 		if !nameSet[expected] {
 			t.Errorf("GetLabelNames() missing expected label %q", expected)
+		}
+	}
+}
+
+func TestTerms_ReturnsNonEmptyText(t *testing.T) {
+	// ACT
+	text := Terms()
+
+	// ASSERT: Text is not empty and contains key sections
+	if text == "" {
+		t.Fatal("Terms() returned empty string")
+	}
+
+	if len(text) < 100 {
+		t.Errorf("Terms() text seems too short: %d chars", len(text))
+	}
+}
+
+func TestTerms_ContainsRequiredSections(t *testing.T) {
+	text := Terms()
+
+	requiredPhrases := []string{
+		"Terms and Conditions",
+		"What this tool does",
+		"Your responsibility",
+		"No warranty",
+		"Liability",
+		"Shared acceptance",
+		"as-is",
+	}
+
+	for _, phrase := range requiredPhrases {
+		if !strings.Contains(text, phrase) {
+			t.Errorf("Terms() missing required phrase: %q", phrase)
 		}
 	}
 }

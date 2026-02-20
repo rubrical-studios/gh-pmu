@@ -1,0 +1,161 @@
+package cmd
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"gopkg.in/yaml.v3"
+)
+
+func TestAcceptCommand_WritesAcceptanceToConfig(t *testing.T) {
+	// ARRANGE: Create temp dir with minimal config
+	tmpDir := t.TempDir()
+	cfg := config.Config{
+		Project: config.Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+	data, _ := yaml.Marshal(&cfg)
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// ACT: Run accept command with --yes flag
+	cmd := NewRootCommand()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"accept", "--yes", "--dir", tmpDir})
+	err := cmd.Execute()
+
+	// ASSERT: No error and acceptance recorded
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Read back config
+	updatedCfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to reload config: %v", err)
+	}
+
+	if updatedCfg.Acceptance == nil {
+		t.Fatal("Expected acceptance to be set")
+	}
+
+	if !updatedCfg.Acceptance.Accepted {
+		t.Error("Expected accepted to be true")
+	}
+
+	if updatedCfg.Acceptance.Version == "" {
+		t.Error("Expected version to be set")
+	}
+
+	if updatedCfg.Acceptance.Date == "" {
+		t.Error("Expected date to be set")
+	}
+
+	if updatedCfg.Acceptance.User == "" {
+		t.Error("Expected user to be set")
+	}
+}
+
+func TestAcceptCommand_ShowsTermsText(t *testing.T) {
+	// ARRANGE: Create temp dir with minimal config
+	tmpDir := t.TempDir()
+	cfg := config.Config{
+		Project: config.Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+	data, _ := yaml.Marshal(&cfg)
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// ACT: Run accept command with --yes flag
+	cmd := NewRootCommand()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"accept", "--yes", "--dir", tmpDir})
+	_ = cmd.Execute()
+
+	// ASSERT: Output contains terms text
+	output := buf.String()
+	if !strings.Contains(output, "Terms and Conditions") {
+		t.Error("Expected output to contain terms text")
+	}
+}
+
+func TestAcceptCommand_ShowsSharedAcceptanceNotice(t *testing.T) {
+	// ARRANGE: Create temp dir with minimal config
+	tmpDir := t.TempDir()
+	cfg := config.Config{
+		Project: config.Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+	data, _ := yaml.Marshal(&cfg)
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// ACT: Run accept with --yes
+	cmd := NewRootCommand()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"accept", "--yes", "--dir", tmpDir})
+	_ = cmd.Execute()
+
+	// ASSERT: Output contains shared acceptance notice
+	output := buf.String()
+	if !strings.Contains(output, "all users") || !strings.Contains(output, "collaborator") {
+		t.Error("Expected shared acceptance notice mentioning all users/collaborators")
+	}
+}
+
+func TestAcceptCommand_RecordsVersion(t *testing.T) {
+	// ARRANGE: Create temp dir with minimal config
+	tmpDir := t.TempDir()
+	cfg := config.Config{
+		Project: config.Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+	data, _ := yaml.Marshal(&cfg)
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	// ACT
+	cmd := NewRootCommand()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"accept", "--yes", "--dir", tmpDir})
+	_ = cmd.Execute()
+
+	// ASSERT: Version matches binary version
+	updatedCfg, _ := config.Load(configPath)
+	if updatedCfg.Acceptance.Version != version {
+		t.Errorf("Expected version %q, got %q", version, updatedCfg.Acceptance.Version)
+	}
+}

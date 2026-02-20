@@ -1,5 +1,5 @@
 ---
-version: "v0.44.0"
+version: "v0.46.1"
 description: Complete issues with criteria verification and status transitions (project)
 argument-hint: "[#issue...] [--no-docs] (optional)"
 ---
@@ -16,7 +16,7 @@ Complete one or more issues. Moves from `in_review` → `done` with a STOP bound
 ## Prerequisites
 - `gh pmu` extension installed
 - `.gh-pmu.yml` configured in repository root
-- Issue in `in_review` status (use `/work` to move issues through `in_progress` → `in_review` first)
+- Issue in `in_review` status (use `/work` first)
 ---
 ## Arguments
 | Argument | Required | Description |
@@ -24,22 +24,18 @@ Complete one or more issues. Moves from `in_review` → `done` with a STOP bound
 | `#issue` | No | Single issue number (e.g., `#42` or `42`) |
 | `#issue #issue...` | | Multiple issue numbers (e.g., `#42 #43 #44`) |
 | *(none)* | | Queries `in_review` issues for selection |
-| `--no-docs` | No | Skip the design decisions documentation offer (Step 5) |
+| `--no-docs` | No | Skip design decisions documentation offer (Step 5) |
 ---
 ## Execution Instructions
 **REQUIRED:** Before executing:
-1. **ALWAYS Generate Todo List:** Parse workflow steps, use `TodoWrite` to create todos
-2. **Include Extensions:** Add todo item for each non-empty `USER-EXTENSION` block
+1. **Generate Todo List:** Parse workflow steps, use `TodoWrite` to create todos
+2. **Include Extensions:** Add todo for each non-empty `USER-EXTENSION` block
 3. **Track Progress:** Mark todos `in_progress` → `completed` as you work
 4. **Post-Compaction:** Re-read spec and regenerate todos after context compaction
-**Todo Rules:** One todo per numbered step; one todo per active extension; skip commented-out extensions.
 ---
 ## Workflow
 ### Step 1: Parse Arguments
-Accept these formats:
-- `#42` or `42` — single issue
-- `#42 #43 #44` — multiple issues
-- *(no arguments)* — query for in_review issues
+Formats: `#42` (single), `#42 #43 #44` (multiple), *(none)* (query)
 **For no arguments:**
 ```bash
 gh pmu list --status in_review
@@ -49,17 +45,17 @@ gh pmu list --status in_review
 | No issues found | "No issues in review. Specify issue number or complete work first." → **STOP** |
 | Single issue | Confirm: `Issue #N: $TITLE is in review. Complete it? (yes/no)` |
 | Multiple issues | Present numbered list for user selection |
-**For multiple issues:** Process each sequentially using Steps 2–5.
+**Multiple issues:** Process each sequentially using Steps 2-5.
 ### Step 2: Validate Issue
 ```bash
 gh issue view $ISSUE --json number,title,labels,body,state
 ```
-**If not found:** "Error: Issue #$ISSUE not found." → **STOP** (skip this issue, continue to next if batch)
-**If already closed:** "Issue #$ISSUE is already closed. Skipping." → Skip to next issue or **STOP**
+**Not found:** "Error: Issue #$ISSUE not found." → **STOP** (continue to next if batch)
+**Already closed:** "Issue #$ISSUE is already closed. Skipping." → skip or **STOP**
 ### Step 2b: PRD Label Redirect
-Check labels from Step 2 for the `prd` label.
-**If `prd` label found:** "Issue #$ISSUE has the `prd` label. Use `/complete-prd #$ISSUE` to close PRD trackers (verifies all linked epics/stories are complete)." → **STOP** (skip to next if batch). Do NOT proceed with normal `/done` closure.
-**If no `prd` label:** Continue to Step 3.
+Check labels from Step 2 for `prd` label.
+**If `prd` label:** "Use `/complete-prd #$ISSUE` to close PRD trackers." → **STOP** (skip to next if batch)
+**No `prd` label:** Continue to Step 3.
 ### Step 3: Detect Current Status
 ```bash
 gh pmu view $ISSUE --json=status
@@ -67,59 +63,41 @@ gh pmu view $ISSUE --json=status
 | Status | Path |
 |--------|------|
 | `in_review` | Proceed to Step 3b |
-| `in_progress` | Report: `Issue #$ISSUE is still in progress. Complete work first via /work.` → **STOP** |
+| `in_progress` | "Issue #$ISSUE is still in progress. Complete work first via /work." → **STOP** |
 | `done` | Already done — report and skip |
 | Other | "Issue #$ISSUE is in $STATUS. Move to in_progress first via /work." → **STOP** |
-**Note:** `/done` only handles the `in_review → done` transition. The `in_progress → in_review` transition is owned by `/work` (which verifies acceptance criteria and moves to in_review as part of its workflow).
 
 <!-- USER-EXTENSION-START: pre-done -->
 <!-- USER-EXTENSION-END: pre-done -->
 
 ### Step 3b: Diff Verification
-Run the verification helper to detect hallucinated completions:
 ```bash
 node .claude/scripts/shared/done-verify.js --issue $ISSUE
 ```
-**If no commits found** (warnings contains "No commits found"):
-```
-Warning: No commits reference #$ISSUE. Was work committed with the issue reference?
-```
-→ **STOP.** Wait for user.
-**If warnings present** (comment-only files, EOF-only appends):
-```
-Diff verification found concerns:
-  [list each warning]
-Review these before closing. Continue? (yes/no)
-```
-→ **STOP.** Wait for user confirmation.
-**If new files detected** (newFiles array non-empty):
-Report informational (not blocking): `New files: [list files]`
-New files are expected to be all-insertions — NOT warnings.
-**If clean** (no warnings, all substantive):
-```
-Diff verified: N commits, M files changed (all substantive) ✓
-```
-Include new file count if any: `(N new files, M modified)`
-→ Proceed to Step 4.
+Parse JSON output:
+- **No commits found:** "Warning: No commits reference #$ISSUE." → **STOP.** Wait for user.
+- **Warnings present:** List concerns, ask "Continue? (yes/no)" → **STOP.** Wait for user.
+- **New files detected:** Report informational (not blocking): `New files: [list]`
+- **Clean:** `Diff verified: N commits, M files changed (all substantive)` → Proceed to Step 4.
 ### Step 4: Move to Done
 ```bash
 gh pmu move $ISSUE --status done
 ```
-Report: `Issue #$ISSUE: $TITLE → Done ✓`
+Report: `Issue #$ISSUE: $TITLE → Done`
 
 <!-- USER-EXTENSION-START: post-done -->
 <!-- USER-EXTENSION-END: post-done -->
 
 ### Step 5: Design Decisions Offer
-**If `--no-docs` is specified:** Skip this step entirely.
-**If the ASSISTANT** is aware of decisions required to complete work on this issue, offer to document:
+**If `--no-docs`:** Skip this step.
+**If the ASSISTANT** is aware of decisions required to complete work, offer:
 ```
 Would you like me to document the design decisions/issues encountered in Construction/Design-Decisions/?
 ```
 **If accepted:**
-1. Check if `Construction/Design-Decisions/` exists; create if missing with warning
-2. Derive `{topic}` from issue title (kebab-case, truncate to 50 chars). If file exists, append `-2`, `-3`, etc.
-3. Create `Construction/Design-Decisions/YYYY-MM-DD-{topic}.md` using template:
+1. Check/create `Construction/Design-Decisions/`
+2. Derive `{topic}` from issue title (kebab-case, max 50 chars). If exists, append `-2`, `-3`, etc.
+3. Create `Construction/Design-Decisions/YYYY-MM-DD-{topic}.md`:
 ```markdown
 # Design Decision: [Title]
 **Date:** [YYYY-MM-DD]
@@ -138,37 +116,41 @@ Would you like me to document the design decisions/issues encountered in Constru
 [Any blockers, surprises, or lessons learned]
 ```
 4. Reference the issue number in the document
-**If declined:** Proceed without documenting (optional).
-### Step 6. Git add, commit and push
-**Conditional:** Only commit if there are staged or unstaged changes (e.g., design decisions doc from Step 5). Check `git status --porcelain` first.
-**If empty:** No changes to commit. Push any unpushed commits from `/work` Step 9: `git push`. Report: `No new changes to commit (work committed during /work Step 9). Pushed.`
-**If non-empty:** Stage, commit (`docs: add design decision for #$ISSUE`), and push.
-### Step 6b. Background CI Monitoring
-After push completes, spawn a background CI monitor:
-1. Get commit SHA: `sha=$(git rev-parse HEAD)`
-2. **Pre-check paths-ignore:** Inspect changed files via `git diff --name-only HEAD~1` against workflow `paths-ignore` patterns from `.github/workflows/test.yml`. Use `ci-watch.js`'s `shouldSkipMonitoring()` function. If all changed files match paths-ignore → skip monitoring, report: `"CI skipped (paths-ignore — only ignored files changed)"`
-3. **Spawn background agent:** Use Bash tool with `run_in_background: true`:
+**If declined:** Proceed without documenting.
+### Step 6: Git Add, Commit and Push
+**Conditional:** Only commit if changes exist. Check `git status --porcelain`.
+**If output is empty:** Push unpushed commits: `git push`. Report: `No new changes to commit. Pushed.`
+**If output is non-empty:** Stage, `git commit -m "docs: add design decision for #$ISSUE"`, and push.
+### Step 6b: Background CI Monitoring
+After push:
+1. Get SHA: `sha=$(git rev-parse HEAD)`
+2. **Pre-check paths-ignore:** Use `ci-watch.js`'s `shouldSkipMonitoring()`. If all files match → skip, report: `"CI skipped (paths-ignore)"`
+3. **Spawn background:** Bash with `run_in_background: true`:
    ```bash
    node .claude/scripts/shared/ci-watch.js --sha $SHA --timeout 300
    ```
-4. Report: `"CI monitoring started in background. You'll be notified when complete."`
-**When background agent returns**, report based on exit code:
-- **Exit 0 (pass):** `"CI passed for #$ISSUE (duration) ✓"`
-- **Exit 1 (fail):** `"CI FAILED for #$ISSUE. Failed step: \"step-name\". Run: gh run view <id> --log-failed"`
-- **Exit 2 (timeout):** `"CI still running after 5m. Check manually: gh run list --commit $SHA"`
-- **Exit 3 (no run):** `"No CI run triggered for $SHA (paths-ignore likely applies)"`
-- **Exit 4 (cancelled):** `"CI cancelled for #$ISSUE (superseded by newer push)"`
-**Multiple workflows:** If the JSON output contains a `workflows` array, report per-workflow results.
+4. Report: `"CI monitoring started in background."`
+**Exit codes:**
+| Code | Report |
+|------|--------|
+| 0 | `"CI passed for #$ISSUE (duration)"` |
+| 1 | `"CI FAILED. Failed step: \"step-name\". Run: gh run view <id> --log-failed"` |
+| 2 | `"CI still running after 5m. Check: gh run list --commit $SHA"` |
+| 3 | `"No CI run triggered (paths-ignore likely)"` |
+| 4 | `"CI cancelled (superseded by newer push)"` |
+**Multiple workflows:** Report per-workflow from `workflows` array.
+### Step 7: Cleanup
+**MUST DO:** Clear todo list.
 ---
 ## Error Handling
 | Situation | Response |
 |-----------|----------|
 | Issue not found | "Issue #N not found." → STOP |
-| Issue already closed | "Issue #N is already closed. Skipping." → skip |
-| Issue still in_progress | "Issue #N is still in progress. Complete work first via /work." → STOP |
-| Issue in other status | "Issue #N is in $STATUS. Move to in_progress first via /work." → STOP |
-| No issues in review (no-arg) | "No issues in review. Specify issue number." → STOP |
-| `gh pmu` command fails | "Failed to update issue: {error}" → STOP |
+| Issue already closed | "Issue #N is already closed." → skip |
+| Issue still in_progress | "Complete work first via /work." → STOP |
+| Issue in other status | "Move to in_progress first via /work." → STOP |
+| No issues in review | "No issues in review." → STOP |
+| `gh pmu` fails | "Failed to update issue: {error}" → STOP |
 | Construction/ missing | Warn and create |
 ---
 **End of /done Command**

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-02-20
+
+### Added
+- Terms and conditions acceptance gate (#694)
+  - `gh pmu accept` command with `--yes` flag for non-interactive acceptance
+  - All commands (except `init`, `accept`, `--help`, `--version`) require acceptance
+  - Acceptance stored in `.gh-pmu.yml` with user, date, and version fields
+  - Re-acceptance triggered on major/minor version bumps (not patches)
+  - Terms text embedded in binary via `go:embed`
+  - Shared acceptance: one user's acceptance covers all repository collaborators
+  - Dev builds skip the acceptance gate
+
+### Changed
+- Updated IDPF framework commands and config to v0.46.1
+
 ## [0.15.2] - 2026-02-16
 
 ### Fixed

@@ -20,6 +20,7 @@ type Config struct {
 	Fields       map[string]Field  `yaml:"fields,omitempty"`
 	Triage       map[string]Triage `yaml:"triage,omitempty"`
 	Release      Release           `yaml:"release,omitempty"`
+	Acceptance   *Acceptance       `yaml:"acceptance,omitempty"`
 	Metadata     *Metadata         `yaml:"metadata,omitempty"`
 }
 
