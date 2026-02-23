@@ -16,6 +16,16 @@ This creates `.gh-pmu.yml` with your project settings and fetches field metadata
 
 ## Configuration Reference
 
+### Version
+
+The top-level `version` field records the gh-pmu version that generated the config. Written automatically by `gh pmu init`.
+
+```yaml
+version: "1.0.0"
+```
+
+Used for upgrade detection — when the installed version differs from the config version, `init` should be re-run to apply any new defaults.
+
 ### Project Settings
 
 ```yaml
