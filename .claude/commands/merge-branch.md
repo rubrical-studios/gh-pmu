@@ -1,18 +1,18 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Merge branch to main with gated checks (project)
 argument-hint: "[--skip-gates] [--dry-run]"
 ---
 
 <!-- EXTENSIBLE -->
 # /merge-branch
-Merge the current branch to main with gated validation checks. For non-versioned merges (feature branches, refactoring). For versioned releases with tagging, use `/prepare-release`.
+Merge current branch to main with gated validation. For non-versioned merges (features, fixes). For versioned releases with tags, use `/prepare-release`.
 **Extension Points:** See `.claude/metadata/extension-points.json` or run `/extensions list --command merge-branch`
 ---
 ## Arguments
 | Argument | Description |
 |----------|-------------|
-| `--skip-gates` | Emergency bypass - skip all gates (use with caution) |
+| `--skip-gates` | Emergency bypass - skip all gates |
 | `--dry-run` | Preview actions without executing |
 ---
 ## Execution Instructions
@@ -116,6 +116,14 @@ git pull origin main
 <!-- Post-merge: actions after PR is merged -->
 <!-- USER-EXTENSION-END: post-merge -->
 
+### Step 2.6: Workstream Detection (Post-Merge)
+After merging to main, check if the merged branch is part of a workstream plan:
+1. `loadWorkstreamsMetadata('.workstreams.json')` — if not found: skip
+2. `postMergeWorkstreamCheck(metadata, mergedBranch)` — if not workstream: skip
+3. Write `updatedMetadata` back (status → `"merged"`)
+4. Commit: `git add .workstreams.json && git commit -m "Update workstream metadata: $BRANCH merged"`
+5. If `activeSiblings` non-empty: `formatSiblingWarning()` and display
+6. If `allMerged: true`: display cleanup note
 ---
 ## Phase 3: Cleanup
 ### Step 3.1: Close Tracker Issue (if exists)
@@ -146,7 +154,7 @@ Branch merge complete:
 - Tracker issue closed (if applicable)
 - Branch deleted
 ---
-## Comparison: /merge-branch vs /prepare-release
+## /merge-branch vs /prepare-release
 | Feature | /merge-branch | /prepare-release |
 |---------|---------------|------------------|
 | Version bump | No | Yes |
@@ -155,8 +163,6 @@ Branch merge complete:
 | GitHub Release | No | Yes |
 | Gates | Yes | Yes (via validation) |
 | PR to main | Yes | Yes |
-| Close tracker | Yes | Yes |
-| Delete branch | Yes | Yes |
 **Use `/merge-branch` for:** Feature branches, fix branches, non-versioned work.
 **Use `/prepare-release` for:** Versioned releases with CHANGELOG and tags.
 ---

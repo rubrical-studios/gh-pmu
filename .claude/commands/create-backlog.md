@@ -1,5 +1,5 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Create GitHub epics/stories from PRD (project)
 argument-hint: "<issue-number> (e.g., 151)"
 ---
@@ -47,6 +47,23 @@ Pattern: `/PRD\/[A-Za-z0-9_-]+\/PRD-[A-Za-z0-9_-]+\.md/`
 | **Multiple** | Prompt user to select |
 If exactly one: `gh pmu move $issue_num --branch current`
 If multiple: Use `AskUserQuestion` to let user select, then assign.
+---
+## Phase 1c: PRD Review Gate
+**BLOCKING:** Decomposing an unreviewed PRD risks propagating issues into the epic/story structure.
+**Step 1:** Parse PRD tracker body for checkbox: `- [([ x])].*PRD reviewed`
+**Step 2: Gate decision**
+| Checkbox State | Action |
+|----------------|--------|
+| Checked (`- [x]`) | Proceed normally — no gate |
+| Unchecked (`- [ ]`) or not found | Warn and present options |
+**Step 3: Warn and present options (unchecked)**
+Use `AskUserQuestion` with two options:
+| Option | Description |
+|--------|-------------|
+| **Run /review-prd first** (Recommended) | Invoke `/review-prd #$issue_num`, then continue |
+| **Continue without review** | Proceed, mark checkbox as bypassed |
+If "Run /review-prd first": Invoke `/review-prd #$issue_num`, then continue to Phase 2.
+If "Continue without review": Update checkbox to `- [x] PRD reviewed (User bypassed PRD review)`, report bypass, continue to Phase 2.
 ---
 ## Phase 2: Test Plan Approval Gate
 **BLOCKING:** Backlog creation blocked until test plan approved.

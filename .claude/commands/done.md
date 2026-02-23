@@ -1,7 +1,7 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Complete issues with criteria verification and status transitions (project)
-argument-hint: "[#issue...] [--no-docs] (optional)"
+argument-hint: "[#issue...] (optional)"
 ---
 
 <!-- EXTENSIBLE -->
@@ -24,7 +24,6 @@ Complete one or more issues. Moves from `in_review` → `done` with a STOP bound
 | `#issue` | No | Single issue number (e.g., `#42` or `42`) |
 | `#issue #issue...` | | Multiple issue numbers (e.g., `#42 #43 #44`) |
 | *(none)* | | Queries `in_review` issues for selection |
-| `--no-docs` | No | Skip design decisions documentation offer (Step 5) |
 ---
 ## Execution Instructions
 **REQUIRED:** Before executing:
@@ -84,52 +83,52 @@ Parse JSON output:
 gh pmu move $ISSUE --status done
 ```
 Report: `Issue #$ISSUE: $TITLE → Done`
+### Step 4a: Branch Tracker Linking
+Link completed issue as sub-issue of the current branch tracker.
+```bash
+node -e "const t = require('./.claude/scripts/shared/lib/active-label.js').getTrackerForBranch(); console.log(t || 'none')"
+```
+**If tracker found (not `none`):**
+```bash
+gh pmu sub add $TRACKER $ISSUE
+```
+Report: `Linked #$ISSUE to branch tracker #$TRACKER`
+**If no tracker (main branch or untracked):** Skip silently — no error.
+### Step 4b: Next Steps Guidance (Approval Gate)
+Check labels from Step 2 for `test-plan` AND `approval-required`.
+**If both labels present:**
+1. Parse issue body for PRD reference: `**PRD:** #NNN` or `**PRD Tracker:** #NNN`
+2. **If PRD reference found:**
+   ```
+   Next steps:
+     1. /review-prd #NNN — review the PRD before decomposition
+     2. /create-backlog #NNN — decompose into epics/stories (after review)
+   ```
+3. **If no PRD reference found:**
+   ```
+   Next steps:
+     Review the linked PRD before running /create-backlog.
+   ```
+**If labels not present:** Skip — no action needed. Continue to Step 5.
 
 <!-- USER-EXTENSION-START: post-done -->
 <!-- USER-EXTENSION-END: post-done -->
 
-### Step 5: Design Decisions Offer
-**If `--no-docs`:** Skip this step.
-**If the ASSISTANT** is aware of decisions required to complete work, offer:
+### Step 5: Push
+```bash
+git push
 ```
-Would you like me to document the design decisions/issues encountered in Construction/Design-Decisions/?
-```
-**If accepted:**
-1. Check/create `Construction/Design-Decisions/`
-2. Derive `{topic}` from issue title (kebab-case, max 50 chars). If exists, append `-2`, `-3`, etc.
-3. Create `Construction/Design-Decisions/YYYY-MM-DD-{topic}.md`:
-```markdown
-# Design Decision: [Title]
-**Date:** [YYYY-MM-DD]
-**Status:** Accepted
-**Context:** Issue #[N] — [Issue Title]
-## Decision
-[What was decided]
-## Rationale
-[Why this choice was made]
-## Alternatives Considered
-- [Alternative 1]: [Why rejected]
-## Consequences
-- [Positive consequence]
-- [Negative consequence or trade-off]
-## Issues Encountered
-[Any blockers, surprises, or lessons learned]
-```
-4. Reference the issue number in the document
-**If declined:** Proceed without documenting.
-### Step 6: Git Add, Commit and Push
-**Conditional:** Only commit if changes exist. Check `git status --porcelain`.
-**If output is empty:** Push unpushed commits: `git push`. Report: `No new changes to commit. Pushed.`
-**If output is non-empty:** Stage, `git commit -m "docs: add design decision for #$ISSUE"`, and push.
-### Step 6b: Background CI Monitoring
+Report: `Pushed.`
+### Step 5b: Background CI Monitoring
 After push:
 1. Get SHA: `sha=$(git rev-parse HEAD)`
-2. **Pre-check paths-ignore:** Use `ci-watch.js`'s `shouldSkipMonitoring()`. If all files match → skip, report: `"CI skipped (paths-ignore)"`
-3. **Spawn background:** Bash with `run_in_background: true`:
+2. **Pre-check push workflows:** Use `ci-watch.js`'s `hasPushWorkflows()`. If no push-triggered workflows exist → skip, report: `"CI skipped (no push-triggered workflows)"`
+3. **Pre-check paths-ignore:** Use `ci-watch.js`'s `shouldSkipMonitoring()`. If all files match → skip, report: `"CI skipped (paths-ignore)"`
+4. **Spawn background:** Bash with `run_in_background: true`:
    ```bash
    node .claude/scripts/shared/ci-watch.js --sha $SHA --timeout 300
    ```
-4. Report: `"CI monitoring started in background."`
+5. Report: `"CI monitoring started in background."`
 **Exit codes:**
 | Code | Report |
 |------|--------|
@@ -139,7 +138,7 @@ After push:
 | 3 | `"No CI run triggered (paths-ignore likely)"` |
 | 4 | `"CI cancelled (superseded by newer push)"` |
 **Multiple workflows:** Report per-workflow from `workflows` array.
-### Step 7: Cleanup
+### Step 6: Cleanup
 **MUST DO:** Clear todo list.
 ---
 ## Error Handling
@@ -151,6 +150,5 @@ After push:
 | Issue in other status | "Move to in_progress first via /work." → STOP |
 | No issues in review | "No issues in review." → STOP |
 | `gh pmu` fails | "Failed to update issue: {error}" → STOP |
-| Construction/ missing | Warn and create |
 ---
 **End of /done Command**

@@ -1,5 +1,5 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Tag beta from feature branch (no merge to main)
 argument-hint: "[--skip-coverage] [--dry-run] [--help]"
 ---
@@ -183,6 +183,20 @@ git push origin $VERSION
 ```
 **Note:** Beta tags feature branch. No merge to main.
 ### Step 4.3: Wait for CI Workflow
+
+**Conditional:** Check if CI workflows exist before waiting.
+
+```bash
+# Check for .github/workflows/*.yml or *.yaml files
+ls .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null
+```
+
+**If no workflow files found:** Skip CI wait with message:
+```
+No CI workflows detected — skipping CI wait.
+```
+
+**If workflow files exist:** Proceed normally:
 ```bash
 node .claude/scripts/shared/wait-for-ci.js
 ```

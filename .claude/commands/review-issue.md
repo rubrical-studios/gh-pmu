@@ -1,5 +1,5 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Review issues with type-specific criteria (project)
 argument-hint: "#issue [#issue...]"
 ---
@@ -24,10 +24,9 @@ Accepts multiple issue numbers: `/review-issue #42 #43 #44` -- reviews each sequ
 ## Execution Instructions
 **REQUIRED:** Before executing:
 1. **Generate Todo List:** Parse workflow steps, use `TodoWrite` to create todos
-2. **Include Extensions:** Add todo item for each non-empty `USER-EXTENSION` block
+2. **Include Extensions:** Add todo for each non-empty `USER-EXTENSION` block
 3. **Track Progress:** Mark todos `in_progress` -> `completed` as you work
 4. **Post-Compaction:** Re-read spec and regenerate todos after context compaction
-**Todo Rules:** One todo per numbered step; one todo per active extension; skip commented-out extensions.
 ---
 ## Workflow
 **For multiple issues:** Process each issue sequentially through Steps 1-6.
@@ -63,11 +62,10 @@ const { type, redirect } = getIssueType(issueData); // issueData from Step 1
 ### Step 2b: Extension Loading
 **If `--with` is specified:**
 1. Read `.claude/metadata/review-extensions.json`
-2. Parse `--with` value: `--with all` loads all; `--with security,performance` loads specified (trim spaces)
-3. For each extension ID: look up `source` path, read criteria file, extract **Issue Review Questions** section
-4. Unknown extension: warn with available list
-5. Store loaded criteria for Step 3
-**Error Handling:** Registry not found/malformed -> fall back to standard review. Criteria file not found -> skip domain. All missing -> standard review only.
+2. Parse `--with`: `all` loads all extensions, comma-separated loads specific ones
+3. For each ID: look up `source` path, read criteria, extract **Issue Review Questions**
+4. Unknown IDs produce warning with available list
+**Error handling:** See `.claude/scripts/shared/lib/load-review-extensions.js` for error messages and fallback behavior. All errors fall back to standard review only (non-blocking).
 **If `--with` is not specified:** Skip extension loading.
 ### Step 3: Perform Review
 Evaluate using two-phase approach: **auto-evaluate objective criteria**, then **ask user about subjective criteria** via `AskUserQuestion`. Filter by `reviewMode` from `framework-config.json` (or `--mode` override).
@@ -75,7 +73,6 @@ Evaluate using two-phase approach: **auto-evaluate objective criteria**, then **
 Parse `--mode` from arguments if provided. Invalid values produce a clear error with valid options.
 ```javascript
 const { getReviewMode, shouldEvaluate, isObjective } = require('./.claude/scripts/shared/lib/review-mode.js');
-// modeOverride is the --mode argument value (null if not provided)
 const mode = getReviewMode(process.cwd(), modeOverride); // 'solo', 'team', or 'enterprise'
 ```
 **Hint:** Display the active mode and how to override it:
@@ -87,57 +84,26 @@ const mode = getReviewMode(process.cwd(), modeOverride); // 'solo', 'team', or '
 
 **Step 3b: Auto-Evaluate Objective Criteria**
 For each **objective** criterion applicable to the current reviewMode, evaluate autonomously. Do NOT ask the user.
-**Common Objective Criteria:**
-| Criterion | Auto-Check Method |
-|-----------|-------------------|
-| `title-clear` | Verify title is specific (>3 words), contains actionable context, not generic like "Fix bug" or "Update code" |
-| `ac-present-testable` | Check for `- [ ]` checkbox items; verify each contains measurable/verifiable statement |
-| `labels-correct` | Verify issue has at least one type label (bug/enhancement/story/epic) matching its content |
-| `priority-set` | Check via `gh pmu view $ISSUE --json=priority` |
-| `dependencies-identified` | Check for `Refs #`, `Depends on #`, `Blocks #`, or `**Refs:**` patterns |
-| `effort-estimate` | Check for estimate/effort section or field in body |
-| `test-coverage-proportionate` | Read issue body and linked resources. Classify change type. Scan ACs for test keywords. Compare scope against test ACs -- report proportionality with evidence. |
-**Type-Specific Objective Checks:**
-**For Bug -- auto-check:**
-- Reproduction steps present: look for numbered list or "Steps to Reproduce" section
-- Expected vs actual behavior documented: look for "Expected" and "Actual" sections
-- Environment info present: look for "Environment", browser, OS, version references
-- Severity proportionate to impact: compare severity/priority to described user impact
-- Test coverage proportionate: single-path fix -> regression test preferred; multi-path refactor -> ACs MUST require tests
-**For Story -- auto-check:**
-- User story format: "As a ... I want ... So that ..."
-- Acceptance criteria present: `- [ ]` items
-- AC structured as testable assertions (TDD-compatible)
-- Scope supports incremental implementation
-- Canonical story body template: compare body structure, flag for repair if not matching
-- Test coverage proportionate to scope
-**For Epic -- auto-check:**
-- Sub-issues exist: `gh pmu sub list $ISSUE`
-- Scope description present
-- Success criteria defined
-- Dependencies between sub-issues identified
-- **MUST: Iterate over each sub-issue and review** recursively
-**For Enhancement -- auto-check:**
-- Motivation/rationale present
-- Proposed solution described
-- Scope boundaries defined
-- Success criteria measurable
-- Test coverage proportionate: new feature -> unit tests required; behavior change -> updated tests required
-**For Generic -- auto-check:**
-- Body is non-empty and substantive
-- Issue is actionable with concrete next steps
+**Common Objective Criteria:** Evaluate each criterion from `.claude/metadata/review-mode-criteria.json` where `type: "objective"` and `shouldEvaluate()` returns true for the current reviewMode. Use the `autoCheck` field for evaluation guidance.
+**Type-Specific Objective Checks:** Load criteria from `.claude/metadata/review-criteria.json` for the detected issue type. Each entry has `name` and `autoCheck` fields describing what to check. For epic type, the `sub-issue-review` criterion requires recursive review of each sub-issue through Steps 3b-3c, including 3b-ii (auto-generate proposed solution/fix) with per-sub-issue body updates.
 Emit ✅ for pass, ⚠️ for partial/uncertain, ❌ for missing/fail. Include brief evidence.
+**Step 3b-ii: Auto-Generate Proposed Solution/Fix (Enhancement, Bug, and Story)**
+**Trigger:** (Enhancement or Story type AND `proposed-solution` check is ❌/⚠️) OR (Bug type AND `proposed-fix-described` check is ❌/⚠️). Does NOT apply to epic types.
+**Placeholder detection:** Treat as missing if section body is under 20 characters or matches: "To be documented", "TBD", "...", or empty section.
+**When triggered:**
+1. Read the issue Description, Motivation (enhancement/story) or Repro/Expected/Actual (bug) sections
+2. Use Glob/Grep/Read tools to identify relevant codebase files based on keywords from the issue
+3. Generate a structured section:
+   - **Approach:** 1-2 sentence summary
+   - **Files to modify:** table with file path, change description, rationale
+   - **Implementation steps:** numbered list of concrete steps
+   - **Testing considerations:** regression tests (bugs) or feature tests (enhancements/stories)
+4. Present in review output: Enhancement/Story: `#### Proposed Solution (Auto-Generated)`, Bug: `#### Proposed Fix (Auto-Generated)`
+5. Append to issue body automatically during Step 4 — add or replace the Proposed Solution/Fix section alongside `**Reviews:** N` update
+**When NOT triggered:** Issue already has substantive section (>20 chars, no placeholders). Continue normally.
 **Step 3c: Ask Subjective Criteria**
-For **subjective** criteria applicable to the current reviewMode, use `AskUserQuestion`.
-**Common Subjective Criteria** (filtered by reviewMode):
-```javascript
-const subjectiveCriteria = [
-  shouldEvaluate('description-sufficient') && { q: "Does the description provide enough context for someone unfamiliar with this area?", h: "Description" },
-  shouldEvaluate('story-sizing') && { q: "Is this appropriately sized for a single iteration?", h: "Sizing" },
-  shouldEvaluate('risk-assessment') && { q: "Are technical and business risks adequately identified?", h: "Risks" }
-].filter(Boolean);
-```
-**Solo mode:** `description-sufficient` is excluded. Solo mode has NO subjective criteria -- skip entirely.
+For **subjective** criteria applicable to the current reviewMode, use `AskUserQuestion`. Load criteria from `.claude/metadata/review-mode-criteria.json` where `type: "subjective"` — each entry has `question`, `header`, and `options` fields.
+**Solo mode:** No subjective criteria -- skip entirely.
 **Team/enterprise mode -- description preview:** Emit 3-5 line summary before `AskUserQuestion`.
 If no subjective criteria apply, skip the question step entirely.
 **Step 3d: Extension Criteria** (if `--with` specified)

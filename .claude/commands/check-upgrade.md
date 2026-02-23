@@ -1,0 +1,95 @@
+---
+version: "v0.49.1"
+description: Verify hub upgrade integrity for project commands and scripts
+argument-hint: ""
+---
+<!-- MANAGED -->
+# /check-upgrade
+Verifies hub upgrade integrity for a user project. After updating the hub via `install-hub.js`, confirms extension blocks preserved, custom scripts survived, commands are current, and symlinks healthy.
+**Backing script:** `.claude/scripts/shared/check-upgrade.js`
+---
+## Prerequisites
+- Project installed via `install-project-existing.js` or `install-project-new.js`
+- Hub updated via `install-hub.js`
+---
+## Arguments
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--hub` | No | Path to hub directory (auto-detected from symlinks if omitted) |
+| `--commit` | No | Auto-commit upgraded files if all checks pass |
+| `--no-commit` | No | Do not commit |
+---
+## Workflow
+### Step 1: Detect Hub Path
+If `--hub` not provided, detect from symlink targets:
+```bash
+readlink .claude/rules
+```
+Extract hub root from symlink target. If detection fails: STOP.
+### Step 2: Extension Integrity Check
+Call `checkExtensionIntegrity(projectDir)`:
+1. List all `.claude/commands/*.md` files
+2. For extensible commands: extract `USER-EXTENSION-START/END` blocks
+3. Check for non-empty content, compare against git state
+| Result | Meaning |
+|--------|---------|
+| PASS | All extension blocks intact |
+| WARN | Blocks exist but empty |
+| FAIL | Blocks missing or content lost |
+### Step 3: Custom Script Check
+Call `checkCustomScripts(projectDir)`:
+1. List files in `.claude/scripts/` recursively
+2. Non-symlink files = user-created — verify they exist
+| Result | Meaning |
+|--------|---------|
+| PASS | All custom scripts present |
+| WARN | No custom scripts found |
+| FAIL | Custom script(s) missing |
+### Step 4: Command Version Drift Check
+Call `checkCommandVersionDrift(projectDir, hubDir)`:
+1. Parse version from EXTENSIBLE/MANAGED marker headers
+2. Compare project vs hub source versions
+| Result | Meaning |
+|--------|---------|
+| PASS | All commands current |
+| WARN | Version headers not present |
+| FAIL | Command(s) stale |
+### Step 5: Symlink Health Check
+Call `checkSymlinkHealth(projectDir)`:
+Check: `.claude/rules/`, `.claude/hooks/`, `.claude/scripts/shared/`, `.claude/metadata/`, `.claude/skills/`
+For each: verify symlink exists, target valid, target has files.
+| Result | Meaning |
+|--------|---------|
+| PASS | All symlinks valid |
+| WARN | Some symlinks missing |
+| FAIL | Target invalid or empty |
+### Step 6: Produce Report
+```
+/check-upgrade Report
+  ✅ Extension Integrity  — N commands checked, blocks intact
+  ✅ Custom Scripts        — M scripts verified
+  ⚠️ Version Drift        — 2 commands have no version header
+  ✅ Symlink Health        — 5/5 valid
+Overall: PASS (1 warning)
+```
+**Remediation for failures:**
+- Extension FAIL: Re-run `install-hub.js` or restore from git
+- Custom script FAIL: Restore from git
+- Version drift FAIL: Re-run `install-hub.js`
+- Symlink FAIL: Re-run project installer
+### Step 7: Optional Commit
+If all checks PASS:
+1. Check `--commit` / `--no-commit` flags
+2. If neither: ask user
+3. If committing: `git add .claude/commands/ .claude/rules/ .claude/hooks/ && git commit -m "Upgrade IDPF hub — all checks passed"`
+If any FAIL: skip commit, report issues first.
+---
+## Error Handling
+| Situation | Response |
+|-----------|----------|
+| Hub path not found | "Cannot detect hub path. Use `--hub <path>`." -> STOP |
+| No .claude/ directory | "Not an IDPF project." -> STOP |
+| Git not initialized | WARN, continue |
+| Script require fails | Report error, continue with remaining checks |
+---
+**End of /check-upgrade Command**
