@@ -153,9 +153,10 @@ func TestAcceptCommand_RecordsVersion(t *testing.T) {
 	cmd.SetArgs([]string{"accept", "--yes", "--dir", tmpDir})
 	_ = cmd.Execute()
 
-	// ASSERT: Version matches binary version
+	// ASSERT: Version matches effective version (getVersion uses source constant when ldflags empty)
 	updatedCfg, _ := config.Load(configPath)
-	if updatedCfg.Acceptance.Version != version {
-		t.Errorf("Expected version %q, got %q", version, updatedCfg.Acceptance.Version)
+	expected := getVersion()
+	if updatedCfg.Acceptance.Version != expected {
+		t.Errorf("Expected version %q, got %q", expected, updatedCfg.Acceptance.Version)
 	}
 }

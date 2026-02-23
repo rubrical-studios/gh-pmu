@@ -13,6 +13,7 @@ import (
 
 // Config represents the .gh-pmu.yml configuration file
 type Config struct {
+	Version      string            `yaml:"version,omitempty"`
 	Project      Project           `yaml:"project"`
 	Repositories []string          `yaml:"repositories"`
 	Framework    string            `yaml:"framework,omitempty"`

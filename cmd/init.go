@@ -837,6 +837,7 @@ type InitConfig struct {
 
 // ConfigFile represents the .gh-pmu.yml file structure.
 type ConfigFile struct {
+	Version      string                  `yaml:"version,omitempty"`
 	Project      ProjectConfig           `yaml:"project"`
 	Repositories []string                `yaml:"repositories"`
 	Defaults     DefaultsConfig          `yaml:"defaults"`
@@ -924,6 +925,7 @@ type TriageApply struct {
 
 // ConfigFileWithMetadata extends ConfigFile with metadata section.
 type ConfigFileWithMetadata struct {
+	Version      string                  `yaml:"version,omitempty"`
 	Project      ProjectConfig           `yaml:"project"`
 	Repositories []string                `yaml:"repositories"`
 	Framework    string                  `yaml:"framework,omitempty"`
@@ -952,6 +954,7 @@ func writeConfig(dir string, cfg *InitConfig) error {
 	}
 
 	configFile := &ConfigFile{
+		Version: getVersion(),
 		Project: ProjectConfig{
 			Name:   cfg.ProjectName,
 			Owner:  cfg.ProjectOwner,
@@ -1034,6 +1037,7 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 	fieldMappings := buildFieldMappingsFromMetadata(metadata)
 
 	configFile := &ConfigFileWithMetadata{
+		Version: getVersion(),
 		Project: ProjectConfig{
 			Name:   cfg.ProjectName,
 			Owner:  cfg.ProjectOwner,

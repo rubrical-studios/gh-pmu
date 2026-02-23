@@ -90,14 +90,14 @@ func runAccept(cmd *cobra.Command, opts *acceptOptions) error {
 		Accepted: true,
 		User:     user,
 		Date:     time.Now().Format("2006-01-02"),
-		Version:  version,
+		Version:  getVersion(),
 	}
 
 	if err := cfg.Save(configPath); err != nil {
 		return fmt.Errorf("failed to save acceptance: %w", err)
 	}
 
-	fmt.Fprintf(out, "Terms accepted by %s (v%s).\n", user, version)
+	fmt.Fprintf(out, "Terms accepted by %s (v%s).\n", user, getVersion())
 	return nil
 }
 

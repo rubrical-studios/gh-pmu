@@ -76,8 +76,8 @@ func Execute() error {
 
 // checkAcceptance verifies terms have been accepted before running commands.
 func checkAcceptance(cmd *cobra.Command) error {
-	// Dev builds skip acceptance gate — only production builds enforce it
-	if getVersion() == "dev" {
+	// Dev/source builds skip acceptance gate — only ldflags-injected builds enforce it
+	if version == "" {
 		return nil
 	}
 
