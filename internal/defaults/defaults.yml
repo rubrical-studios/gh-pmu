@@ -60,6 +60,9 @@ labels:
   - name: reviewed
     description: Issue has been reviewed and findings resolved
     color: "2EA44F"
+  - name: pending
+    description: Review findings not yet resolved
+    color: "D93F0B"
   - name: assigned
     description: Issue is assigned to a branch
     color: "FBCA04"
