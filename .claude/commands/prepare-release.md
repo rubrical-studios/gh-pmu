@@ -177,14 +177,15 @@ E2E tests validate complete workflows against the test project.
 ### Step 3.1: Update Version Files
 | File | Action |
 |------|--------|
-| `internal/version/version.go` | Update `Version` constant to new version (e.g., `const Version = "1.2.0"`) |
 | `CHANGELOG.md` | Add new section following Keep a Changelog format |
 | `README.md` | Update version badge or header |
 | `README-DIST.md` | Verify skill/specialist counts match actuals, license populated |
 | `framework-config.json` | (Self-hosted only) Update `frameworkVersion` and `installedDate` |
 
 <!-- USER-EXTENSION-START: pre-commit -->
-<!-- Pre-commit: generate release artifacts -->
+### Update Version Constant
+
+Update `internal/version/version.go` — set `Version` constant to new version (e.g., `const Version = "1.2.0"`).
 <!-- USER-EXTENSION-END: pre-commit -->
 
 ### Step 3.2: Commit Preparation
