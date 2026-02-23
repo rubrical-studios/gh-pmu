@@ -5,10 +5,20 @@ import (
 	"os"
 
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	pkgversion "github.com/rubrical-studios/gh-pmu/internal/version"
 	"github.com/spf13/cobra"
 )
 
-var version = "dev"
+// version is set by ldflags during goreleaser builds.
+// When empty (default), falls back to the source constant in internal/version.
+var version = ""
+
+func getVersion() string {
+	if version != "" {
+		return version
+	}
+	return pkgversion.Version
+}
 
 // exemptCommands are commands that do not require terms acceptance.
 var exemptCommands = map[string]bool{
@@ -32,7 +42,7 @@ This extension combines and replaces:
   - gh-sub-issue (https://github.com/yahsan2/gh-sub-issue) - Sub-issue hierarchy
 
 Use 'gh pmu <command> --help' for more information about a command.`,
-		Version: version,
+		Version: getVersion(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return checkAcceptance(cmd)
 		},
@@ -67,7 +77,7 @@ func Execute() error {
 // checkAcceptance verifies terms have been accepted before running commands.
 func checkAcceptance(cmd *cobra.Command) error {
 	// Dev builds skip acceptance gate — only production builds enforce it
-	if version == "dev" {
+	if getVersion() == "dev" {
 		return nil
 	}
 
@@ -100,9 +110,9 @@ func checkAcceptance(cmd *cobra.Command) error {
 	}
 
 	// Check version — re-acceptance needed on major/minor bump
-	if config.RequiresReAcceptance(cfg.Acceptance.Version, version) {
+	if config.RequiresReAcceptance(cfg.Acceptance.Version, getVersion()) {
 		return fmt.Errorf("terms acceptance outdated (accepted v%s, current v%s) — run 'gh pmu accept' to re-accept",
-			cfg.Acceptance.Version, version)
+			cfg.Acceptance.Version, getVersion())
 	}
 
 	return nil
