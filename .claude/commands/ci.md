@@ -1,5 +1,5 @@
 ---
-version: "v0.46.1"
+version: "v0.46.2"
 description: Manage GitHub Actions CI workflows interactively (project)
 argument-hint: "[list|validate|add|recommend|watch] (no args shows status)"
 ---
@@ -92,7 +92,20 @@ node .claude/scripts/shared/ci-watch.js --sha $SHA [--timeout $TIMEOUT] [--poll 
 ```bash
 SUBCOMMAND="${1:-status}"
 ```
-### Step 2: Route to Handler
+### Step 2: Verify CI Scripts Installed
+Before routing, check if CI scripts exist:
+```bash
+ls .claude/scripts/shared/ci-status.js 2>/dev/null
+```
+**If script does not exist:**
+```
+CI scripts not installed. The /ci command requires the ci-cd-pipeline-design skill.
+
+To install: /install-skill ci-cd-pipeline-design
+To set up CI manually: create .github/workflows/ and add workflow YAML files.
+```
+→ **STOP** (do not attempt to run missing scripts)
+### Step 3: Route to Handler
 | Subcommand | Action |
 |------------|--------|
 | *(none)* or `status` | Execute `ci-status.js` |

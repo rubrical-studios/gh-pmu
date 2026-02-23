@@ -1,5 +1,5 @@
 ---
-version: "v0.46.1"
+version: "v0.46.2"
 description: Review a PRD with tracked history (project)
 argument-hint: "#issue"
 ---
@@ -99,6 +99,16 @@ Read PRD (and test plan if present) and auto-evaluate. Do NOT ask the user.
 | Test coverage approach documented | Check for coverage targets and strategy section |
 | Test coverage proportionate | Verify test requirements proportionate to story scope. Flag stories with complex scope lacking test requirements. |
 **Step 3c: Ask Subjective Criteria**
+Ask the user only about criteria requiring human judgment.
+**Decomposition context preview:** Before presenting the `AskUserQuestion`, emit a concise summary of the PRD's epic/story structure so the user has context for the Decomposition question:
+```
+Decomposition summary:
+  Epic 1: [Epic title] ([N] stories)
+    1.1 [Story title], 1.2 [Story title], ...
+  Epic 2: [Epic title] ([N] stories)
+    2.1 [Story title], 2.2 [Story title], ...
+```
+Parse epic and story titles from the PRD content already loaded in Step 3b. Each epic should show its story count and a comma-separated list of story titles/numbers.
 ```javascript
 AskUserQuestion({
   questions: [

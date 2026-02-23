@@ -694,6 +694,90 @@ func TestConfig_Save_WithMetadata(t *testing.T) {
 	}
 }
 
+func TestConfig_Save_WithVersion_RoundTrip(t *testing.T) {
+	// ARRANGE: Config with version field
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+
+	cfg := &Config{
+		Version: "0.16.0",
+		Project: Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+
+	// ACT: Save and reload
+	err := cfg.Save(configPath)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	loadedCfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Failed to load saved config: %v", err)
+	}
+
+	// ASSERT: Version preserved through round-trip
+	if loadedCfg.Version != "0.16.0" {
+		t.Errorf("Expected version '0.16.0', got '%s'", loadedCfg.Version)
+	}
+}
+
+func TestConfig_Load_WithoutVersion_BackwardCompatible(t *testing.T) {
+	// ARRANGE: Config YAML without version field (existing configs)
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	configContent := `project:
+  owner: test-owner
+  number: 1
+repositories:
+  - test-owner/test-repo
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// ACT: Load config without version field
+	cfg, err := Load(configPath)
+
+	// ASSERT: Loads without error, version is empty string
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if cfg.Version != "" {
+		t.Errorf("Expected empty version for config without version field, got '%s'", cfg.Version)
+	}
+}
+
+func TestConfig_Load_WithVersion_ReadsCorrectly(t *testing.T) {
+	// ARRANGE: Config YAML with version field
+	testDir := t.TempDir()
+	configPath := filepath.Join(testDir, ConfigFileName)
+	configContent := `version: "1.0.0"
+project:
+  owner: test-owner
+  number: 1
+repositories:
+  - test-owner/test-repo
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	// ACT: Load config with version field
+	cfg, err := Load(configPath)
+
+	// ASSERT: Version read correctly
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if cfg.Version != "1.0.0" {
+		t.Errorf("Expected version '1.0.0', got '%s'", cfg.Version)
+	}
+}
+
 func TestConfig_Save_InvalidPath(t *testing.T) {
 	// ARRANGE: Config with invalid path
 	cfg := &Config{

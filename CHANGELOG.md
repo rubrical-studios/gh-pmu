@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-02-23
+
+### Added
+- Source-level version constant in `internal/version/version.go` (#700)
+  - `/prepare-release` updates the constant during release workflow
+  - `gh pmu --version` reads from source constant with ldflags fallback
+- Version field in `.gh-pmu.yml` config (#700)
+  - `gh pmu init` writes the current version to config
+  - Enables upgrade detection (compare config version vs installed version)
+  - Backward compatible: existing configs without version load without error
+- `pending` label added to standard labels collection (#701)
+  - Color: `#D93F0B` (orange)
+  - Indicates at least one `/review-issue` pass was made but not yet resolved
+
+### Changed
+- Updated IDPF framework to v0.46.2
+
 ## [0.16.0] - 2026-02-20
 
 ### Added

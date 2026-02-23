@@ -1,5 +1,5 @@
 ---
-version: "v0.46.1"
+version: "v0.46.2"
 description: Prepare release with PR, merge to main, and tag
 argument-hint: "[version] [--skip-coverage] [--dry-run] [--help]"
 ---
@@ -183,7 +183,9 @@ E2E tests validate complete workflows against the test project.
 | `framework-config.json` | (Self-hosted only) Update `frameworkVersion` and `installedDate` |
 
 <!-- USER-EXTENSION-START: pre-commit -->
-<!-- Pre-commit: generate release artifacts -->
+### Update Version Constant
+
+Update `internal/version/version.go` — set `Version` constant to new version (e.g., `const Version = "1.2.0"`).
 <!-- USER-EXTENSION-END: pre-commit -->
 
 ### Step 3.2: Commit Preparation
@@ -346,7 +348,13 @@ gh issue comment [TRACKER_NUMBER] --body "Release $VERSION deployed successfully
 git push origin --delete $BRANCH
 git branch -d $BRANCH
 ```
-### Step 5.3: Create GitHub Release
+### Step 5.3: Verify GitHub Release
+Check if the GitHub release already exists (Step 4.8 may have created it):
+```bash
+gh release view $VERSION
+```
+- **If release exists:** Report `"GitHub release $VERSION already exists (created by Step 4.8). Skipping creation."` — no action needed.
+- **If release does not exist:** Create it:
 ```bash
 gh release create $VERSION \
   --title "Release $VERSION" \

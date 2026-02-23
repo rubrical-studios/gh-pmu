@@ -591,6 +591,55 @@ func TestWriteConfig_OverwriteExisting(t *testing.T) {
 	}
 }
 
+func TestWriteConfig_IncludesVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+
+	err := writeConfig(tmpDir, cfg)
+	if err != nil {
+		t.Fatalf("writeConfig failed: %v", err)
+	}
+
+	content, _ := readFile(tmpDir + "/.gh-pmu.yml")
+
+	// Version field should be present and match the source constant
+	expected := getVersion()
+	if !bytes.Contains(content, []byte("version: "+expected)) {
+		t.Errorf("Config should contain version: %s, got:\n%s", expected, string(content))
+	}
+}
+
+func TestWriteConfigWithMetadata_IncludesVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+	meta := &ProjectMetadata{
+		ProjectID: "test-project-id",
+		Fields:    []FieldMetadata{},
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, meta)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	content, _ := readFile(tmpDir + "/.gh-pmu.yml")
+
+	expected := getVersion()
+	if !bytes.Contains(content, []byte("version: "+expected)) {
+		t.Errorf("Config should contain version: %s, got:\n%s", expected, string(content))
+	}
+}
+
 func TestWriteConfigWithMetadata_NilMetadataPanics(t *testing.T) {
 	// Document that nil metadata causes a panic
 	// This test verifies the current behavior - the function does not handle nil metadata
