@@ -214,3 +214,82 @@ func TestAcceptanceGate_DeclinedExitsNonZero(t *testing.T) {
 func containsAcceptanceError(errMsg string) bool {
 	return strings.Contains(errMsg, "terms") || strings.Contains(errMsg, "acceptance") || strings.Contains(errMsg, "accept")
 }
+
+func TestAcceptanceGate_NotAccepted_DisplaysTermsText(t *testing.T) {
+	// ARRANGE: Config without acceptance, real version to enable gate
+	tmpDir := t.TempDir()
+	writeTestConfig(t, tmpDir, baseConfig())
+	chdirTemp(t, tmpDir)
+	setTestVersion(t, "0.15.0")
+
+	// ACT: Run a command that requires acceptance
+	cmd := NewRootCommand()
+	outBuf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(outBuf)
+	cmd.SetErr(errBuf)
+	cmd.SetArgs([]string{"board"})
+	_ = cmd.Execute()
+
+	// ASSERT: Stderr should contain the full terms text
+	stderr := errBuf.String()
+	if !strings.Contains(stderr, "gh-pmu — Terms and Conditions") {
+		t.Errorf("Expected stderr to contain terms text, got: %s", stderr)
+	}
+}
+
+func TestAcceptanceGate_NotAccepted_DisplaysYesHint(t *testing.T) {
+	// ARRANGE: Config without acceptance, real version to enable gate
+	tmpDir := t.TempDir()
+	writeTestConfig(t, tmpDir, baseConfig())
+	chdirTemp(t, tmpDir)
+	setTestVersion(t, "0.15.0")
+
+	// ACT: Run a command that requires acceptance
+	cmd := NewRootCommand()
+	outBuf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(outBuf)
+	cmd.SetErr(errBuf)
+	cmd.SetArgs([]string{"board"})
+	_ = cmd.Execute()
+
+	// ASSERT: Stderr should contain --yes flag hint
+	stderr := errBuf.String()
+	if !strings.Contains(stderr, "--yes") {
+		t.Errorf("Expected stderr to contain --yes hint, got: %s", stderr)
+	}
+}
+
+func TestAcceptanceGate_Outdated_DisplaysTermsAndYesHint(t *testing.T) {
+	// ARRANGE: Config with old acceptance version, real version to enable gate
+	tmpDir := t.TempDir()
+	setTestVersion(t, "0.16.0")
+	cfg := baseConfig()
+	cfg.Acceptance = &config.Acceptance{
+		Accepted: true,
+		User:     "test-user",
+		Date:     "2026-02-20",
+		Version:  "0.15.0",
+	}
+	writeTestConfig(t, tmpDir, cfg)
+	chdirTemp(t, tmpDir)
+
+	// ACT: Run a command (acceptance outdated due to minor version bump)
+	cmd := NewRootCommand()
+	outBuf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(outBuf)
+	cmd.SetErr(errBuf)
+	cmd.SetArgs([]string{"board"})
+	_ = cmd.Execute()
+
+	// ASSERT: Stderr should contain terms text and --yes hint
+	stderr := errBuf.String()
+	if !strings.Contains(stderr, "gh-pmu — Terms and Conditions") {
+		t.Errorf("Expected stderr to contain terms text for outdated acceptance, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "--yes") {
+		t.Errorf("Expected stderr to contain --yes hint for outdated acceptance, got: %s", stderr)
+	}
+}
