@@ -1,4 +1,5 @@
-gh-pmu — Terms and Conditions
+GitHub Praxis Management Utility (gh-pmu) — Terms and Conditions
+Copyright (c) 2026 Rubrical Studios
 
 By using gh-pmu, you agree to the following:
 

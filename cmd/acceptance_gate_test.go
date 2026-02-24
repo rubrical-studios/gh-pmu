@@ -233,7 +233,7 @@ func TestAcceptanceGate_NotAccepted_DisplaysTermsText(t *testing.T) {
 
 	// ASSERT: Stderr should contain the full terms text
 	stderr := errBuf.String()
-	if !strings.Contains(stderr, "gh-pmu — Terms and Conditions") {
+	if !strings.Contains(stderr, "Terms and Conditions") {
 		t.Errorf("Expected stderr to contain terms text, got: %s", stderr)
 	}
 }
@@ -286,7 +286,7 @@ func TestAcceptanceGate_Outdated_DisplaysTermsAndYesHint(t *testing.T) {
 
 	// ASSERT: Stderr should contain terms text and --yes hint
 	stderr := errBuf.String()
-	if !strings.Contains(stderr, "gh-pmu — Terms and Conditions") {
+	if !strings.Contains(stderr, "Terms and Conditions") {
 		t.Errorf("Expected stderr to contain terms text for outdated acceptance, got: %s", stderr)
 	}
 	if !strings.Contains(stderr, "--yes") {

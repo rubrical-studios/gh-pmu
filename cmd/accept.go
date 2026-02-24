@@ -24,7 +24,7 @@ func newAcceptCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "accept",
 		Short: "Accept terms and conditions",
-		Long: `Accept the gh-pmu terms and conditions for this repository.
+		Long: `Accept the Praxis Management Utility (gh-pmu) terms and conditions for this repository.
 
 Terms must be accepted before using gh-pmu commands. Acceptance is
 recorded in .gh-pmu.yml and covers all repository collaborators.

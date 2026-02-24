@@ -257,6 +257,22 @@ func TestTerms_ContainsRequiredSections(t *testing.T) {
 	}
 }
 
+func TestTerms_ContainsPraxisName(t *testing.T) {
+	text := Terms()
+
+	if !strings.Contains(text, "Praxis Management Utility") {
+		t.Error("Terms() should reference 'Praxis Management Utility'")
+	}
+}
+
+func TestTerms_ContainsCopyright(t *testing.T) {
+	text := Terms()
+
+	if !strings.Contains(text, "Rubrical Studios") {
+		t.Error("Terms() should contain Rubrical Studios copyright")
+	}
+}
+
 func TestIsStandardLabel(t *testing.T) {
 	defs := MustLoad()
 

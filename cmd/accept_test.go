@@ -129,6 +129,19 @@ func TestAcceptCommand_ShowsSharedAcceptanceNotice(t *testing.T) {
 	}
 }
 
+func TestAcceptCommand_LongDescriptionReferencesPraxis(t *testing.T) {
+	cmd := NewRootCommand()
+	acceptCmd, _, _ := cmd.Find([]string{"accept"})
+	if acceptCmd == nil {
+		t.Fatal("Expected to find accept subcommand")
+	}
+
+	long := acceptCmd.Long
+	if !strings.Contains(long, "Praxis Management Utility") {
+		t.Errorf("Expected accept Long description to reference 'Praxis Management Utility', got: %s", long)
+	}
+}
+
 func TestAcceptCommand_RecordsVersion(t *testing.T) {
 	// ARRANGE: Create temp dir with minimal config
 	tmpDir := t.TempDir()
