@@ -1827,3 +1827,112 @@ func TestRealConfigFileNotCorrupted(t *testing.T) {
 		t.Error("Real .gh-pmu.yml does not contain 'rubrical-studios' - the config may be corrupted")
 	}
 }
+
+func TestSave_WritesBothYAMLAndJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+
+	cfg := &Config{
+		Project: Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+
+	// ACT: Save config
+	err := cfg.Save(yamlPath)
+	if err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// ASSERT: Both files exist
+	jsonPath := filepath.Join(tmpDir, ".gh-pmu.json")
+	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
+		t.Error("Expected .gh-pmu.yml to exist")
+	}
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		t.Error("Expected .gh-pmu.json to exist")
+	}
+}
+
+func TestSave_JSONContentsEquivalent(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	jsonPath := filepath.Join(tmpDir, ".gh-pmu.json")
+
+	cfg := &Config{
+		Project: Project{
+			Owner:  "test-owner",
+			Number: 42,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+		Framework:    "IDPF-Agile",
+	}
+
+	// ACT: Save config
+	if err := cfg.Save(yamlPath); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// ASSERT: Load JSON and verify fields match
+	jsonData, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read JSON file: %v", err)
+	}
+
+	jsonStr := string(jsonData)
+	if !strings.Contains(jsonStr, "test-owner") {
+		t.Error("JSON file should contain project owner")
+	}
+	if !strings.Contains(jsonStr, "42") {
+		t.Error("JSON file should contain project number")
+	}
+	if !strings.Contains(jsonStr, "IDPF-Agile") {
+		t.Error("JSON file should contain framework")
+	}
+}
+
+func TestFindConfigFile_FallsBackToJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Only create JSON file, no YAML
+	jsonPath := filepath.Join(tmpDir, ".gh-pmu.json")
+	if err := os.WriteFile(jsonPath, []byte(`{"project":{"owner":"test","number":1}}`), 0644); err != nil {
+		t.Fatalf("Failed to write JSON config: %v", err)
+	}
+
+	// ACT: FindConfigFile should find JSON
+	found, err := FindConfigFile(tmpDir)
+	if err != nil {
+		t.Fatalf("Expected FindConfigFile to find JSON fallback, got error: %v", err)
+	}
+
+	if !strings.HasSuffix(found, ".gh-pmu.json") {
+		t.Errorf("Expected JSON path, got: %s", found)
+	}
+}
+
+func TestFindConfigFile_YAMLTakesPrecedence(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create both files
+	yamlPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	jsonPath := filepath.Join(tmpDir, ".gh-pmu.json")
+	if err := os.WriteFile(yamlPath, []byte("project:\n  owner: yaml-owner\n  number: 1\n"), 0644); err != nil {
+		t.Fatalf("Failed to write YAML: %v", err)
+	}
+	if err := os.WriteFile(jsonPath, []byte(`{"project":{"owner":"json-owner","number":1}}`), 0644); err != nil {
+		t.Fatalf("Failed to write JSON: %v", err)
+	}
+
+	// ACT: FindConfigFile should find YAML
+	found, err := FindConfigFile(tmpDir)
+	if err != nil {
+		t.Fatalf("FindConfigFile failed: %v", err)
+	}
+
+	if !strings.HasSuffix(found, ".gh-pmu.yml") {
+		t.Errorf("Expected YAML to take precedence, got: %s", found)
+	}
+}

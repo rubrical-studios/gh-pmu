@@ -173,3 +173,44 @@ func TestAcceptCommand_RecordsVersion(t *testing.T) {
 		t.Errorf("Expected version %q, got %q", expected, updatedCfg.Acceptance.Version)
 	}
 }
+
+func TestAcceptCommand_ProducesJSONCompanion(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := config.Config{
+		Project: config.Project{
+			Owner:  "test-owner",
+			Number: 1,
+		},
+		Repositories: []string{"test-owner/test-repo"},
+	}
+	data, _ := yaml.Marshal(&cfg)
+	configPath := filepath.Join(tmpDir, ".gh-pmu.yml")
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"accept", "--yes", "--dir", tmpDir})
+	err := cmd.Execute()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify JSON companion was created
+	jsonPath := filepath.Join(tmpDir, config.ConfigFileNameJSON)
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		t.Fatal("Expected JSON companion to be created by accept command")
+	}
+
+	// Verify JSON contains acceptance
+	jsonCfg, err := config.Load(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to load JSON companion: %v", err)
+	}
+	if jsonCfg.Acceptance == nil || !jsonCfg.Acceptance.Accepted {
+		t.Error("Expected JSON companion to contain acceptance")
+	}
+}
