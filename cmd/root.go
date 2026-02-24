@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/rubrical-studios/gh-pmu/internal/config"
+	"github.com/rubrical-studios/gh-pmu/internal/defaults"
 	pkgversion "github.com/rubrical-studios/gh-pmu/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -106,14 +107,26 @@ func checkAcceptance(cmd *cobra.Command) error {
 
 	// Check acceptance state
 	if cfg.Acceptance == nil || !cfg.Acceptance.Accepted {
+		printTermsAndHint(cmd)
 		return fmt.Errorf("terms not accepted — run 'gh pmu accept' first")
 	}
 
 	// Check version — re-acceptance needed on major/minor bump
 	if config.RequiresReAcceptance(cfg.Acceptance.Version, getVersion()) {
+		printTermsAndHint(cmd)
 		return fmt.Errorf("terms acceptance outdated (accepted v%s, current v%s) — run 'gh pmu accept' to re-accept",
 			cfg.Acceptance.Version, getVersion())
 	}
 
 	return nil
+}
+
+// printTermsAndHint writes the full terms text and acceptance hints to stderr.
+func printTermsAndHint(cmd *cobra.Command) {
+	w := cmd.ErrOrStderr()
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, defaults.Terms())
+	fmt.Fprintln(w, "Run 'gh pmu accept --yes' for non-interactive acceptance.")
+	fmt.Fprintln(w, "Acceptance persists in .gh-pmu.yml (one-time per repo).")
+	fmt.Fprintln(w)
 }

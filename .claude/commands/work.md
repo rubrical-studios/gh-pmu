@@ -1,5 +1,5 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Start working on issues with validation and auto-TODO (project)
 argument-hint: "#issue [#issue...] | all in <status>"
 ---
@@ -161,6 +161,20 @@ Iterate through the auto-TODO from Step 7. For each acceptance criterion:
 **Commit granularity:** One commit per AC is the default. Closely related ACs may share a commit if separating them would create broken intermediate states. Never combine unrelated ACs.
 **If no auto-TODO was generated:** Work as a single unit and commit with `Refs #$ISSUE`.
 **Post-compaction recovery:** Re-read this spec and check TODO list to determine completed vs pending ACs. Resume from first incomplete AC.
+### Step 9b: Documentation Judgment
+After implementation, evaluate whether documentation is warranted before verifying acceptance criteria.
+**Assess each category:**
+| Category | Warranted When | Target Path |
+|----------|---------------|-------------|
+| Design Decision | Chose between alternatives, non-obvious approach, or architectural trade-off | `Construction/Design-Decisions/YYYY-MM-DD-{topic}.md` |
+| Tech Debt | Took a shortcut, deferred work, or introduced known limitations | `Construction/Tech-Debt/YYYY-MM-DD-{topic}.md` |
+**If warranted:**
+1. Check/create target directory
+2. Derive `{topic}` from issue title (kebab-case, max 50 chars). If exists, append `-2`, `-3`, etc.
+3. Create document using Design Decision or Tech Debt template
+4. Commit: `Refs #$ISSUE — add {design decision|tech debt} documentation`
+5. Check documentation AC checkbox with inline note: `[x] Design decisions documented — {topic}`
+**If not warranted:** Check AC checkbox with note: `[x] No design decisions warranted — implementation was straightforward`
 ### Step 10: Verify Acceptance Criteria
 **IMPORTANT — Ground in file state:** Before evaluating each AC, re-read the actual file content using the Read tool. Do NOT evaluate from memory — re-read to confirm the criterion is met in current code. This prevents batch fatigue hallucination.
 After work, verify each AC:

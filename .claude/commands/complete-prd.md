@@ -1,5 +1,5 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Verify and close PRD tracker (project)
 argument-hint: "<issue-number> (e.g., 151)"
 ---
@@ -151,6 +151,71 @@ Complete the above items before running /complete-prd again.
 ```
 
 **Do NOT close** if any items are incomplete.
+
+### Step 6: Move Proposal to Implemented (After Closure)
+
+**Only runs when Step 5 successfully closes the PRD tracker.**
+
+Locate and move the original proposal file to `Proposal/Implemented/`.
+
+**Step 6a: Find the source proposal**
+
+Extract the proposal issue reference from the PRD tracker issue body:
+
+```
+Pattern: **Source Proposal:** #NNN
+```
+
+If found, read the proposal issue to get the file path:
+
+```bash
+gh issue view $proposal_issue --json body --jq '.body'
+```
+
+Extract the proposal file path from:
+
+```
+Pattern: **File:** Proposal/[Name].md
+```
+
+**Step 6b: Move proposal file**
+
+If the proposal file exists at the extracted path:
+
+```bash
+# Ensure Proposal/Implemented/ exists
+mkdir -p Proposal/Implemented
+
+# Check if file is tracked by git
+git ls-files --error-unmatch Proposal/{Name}.md 2>/dev/null
+
+# If untracked: git add first so git mv can work
+git add Proposal/{Name}.md
+
+# Move to Implemented
+git mv Proposal/{Name}.md Proposal/Implemented/{Name}.md
+```
+
+**Step 6c: Handle edge cases**
+
+| Situation | Response |
+|-----------|----------|
+| Proposal already in `Proposal/Implemented/` | Skip — already moved (by `/create-prd` Phase 7). Non-blocking. |
+| Proposal file not found at path | Warn: `"Proposal file not found: {path}. Skipping proposal move."` Continue — non-blocking. |
+| No `**Source Proposal:**` in PRD tracker body | Warn: `"No source proposal reference found in PRD tracker."` Continue — non-blocking. |
+| Proposal issue not found or closed | Use the issue body from the closed proposal issue (works with `gh issue view` for closed issues). |
+| `git mv` fails | Warn and continue — PRD completion is not blocked by proposal move failure. |
+
+**Step 6d: Include in commit**
+
+If the proposal was moved, stage and commit:
+
+```bash
+git add Proposal/Implemented/{Name}.md
+git commit -m "Refs #$issue_num — move proposal to Implemented after PRD completion"
+```
+
+If no proposal was moved (already in Implemented or not found), skip the commit.
 
 ---
 

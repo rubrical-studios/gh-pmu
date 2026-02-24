@@ -8,10 +8,10 @@ import (
 
 // Acceptance holds the terms acceptance state for a repository.
 type Acceptance struct {
-	Accepted bool   `yaml:"accepted"`
-	User     string `yaml:"user,omitempty"`
-	Date     string `yaml:"date,omitempty"`
-	Version  string `yaml:"version,omitempty"`
+	Accepted bool   `yaml:"accepted" json:"accepted"`
+	User     string `yaml:"user,omitempty" json:"user,omitempty"`
+	Date     string `yaml:"date,omitempty" json:"date,omitempty"`
+	Version  string `yaml:"version,omitempty" json:"version,omitempty"`
 }
 
 // RequiresReAcceptance returns true if the user needs to (re-)accept terms.

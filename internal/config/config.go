@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,86 +14,90 @@ import (
 
 // Config represents the .gh-pmu.yml configuration file
 type Config struct {
-	Version      string            `yaml:"version,omitempty"`
-	Project      Project           `yaml:"project"`
-	Repositories []string          `yaml:"repositories"`
-	Framework    string            `yaml:"framework,omitempty"`
-	Defaults     Defaults          `yaml:"defaults,omitempty"`
-	Fields       map[string]Field  `yaml:"fields,omitempty"`
-	Triage       map[string]Triage `yaml:"triage,omitempty"`
-	Release      Release           `yaml:"release,omitempty"`
-	Acceptance   *Acceptance       `yaml:"acceptance,omitempty"`
-	Metadata     *Metadata         `yaml:"metadata,omitempty"`
+	Version      string            `yaml:"version,omitempty" json:"version,omitempty"`
+	Project      Project           `yaml:"project" json:"project"`
+	Repositories []string          `yaml:"repositories" json:"repositories"`
+	Framework    string            `yaml:"framework,omitempty" json:"framework,omitempty"`
+	Defaults     Defaults          `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	Fields       map[string]Field  `yaml:"fields,omitempty" json:"fields,omitempty"`
+	Triage       map[string]Triage `yaml:"triage,omitempty" json:"triage,omitempty"`
+	Release      Release           `yaml:"release,omitempty" json:"release,omitempty"`
+	Acceptance   *Acceptance       `yaml:"acceptance,omitempty" json:"acceptance,omitempty"`
+	Metadata     *Metadata         `yaml:"metadata,omitempty" json:"metadata,omitempty"`
 }
 
 // Project contains GitHub project configuration
 type Project struct {
-	Name   string `yaml:"name,omitempty"`
-	Number int    `yaml:"number"`
-	Owner  string `yaml:"owner"`
+	Name   string `yaml:"name,omitempty" json:"name,omitempty"`
+	Number int    `yaml:"number" json:"number"`
+	Owner  string `yaml:"owner" json:"owner"`
 }
 
 // Defaults contains default values for new issues
 type Defaults struct {
-	Priority string   `yaml:"priority,omitempty"`
-	Status   string   `yaml:"status,omitempty"`
-	Labels   []string `yaml:"labels,omitempty"`
+	Priority string   `yaml:"priority,omitempty" json:"priority,omitempty"`
+	Status   string   `yaml:"status,omitempty" json:"status,omitempty"`
+	Labels   []string `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // Field maps field aliases to GitHub project field names and values
 type Field struct {
-	Field  string            `yaml:"field"`
-	Values map[string]string `yaml:"values,omitempty"`
+	Field  string            `yaml:"field" json:"field"`
+	Values map[string]string `yaml:"values,omitempty" json:"values,omitempty"`
 }
 
 // Triage contains configuration for triage rules
 type Triage struct {
-	Query       string            `yaml:"query"`
-	Apply       TriageApply       `yaml:"apply,omitempty"`
-	Interactive TriageInteractive `yaml:"interactive,omitempty"`
+	Query       string            `yaml:"query" json:"query"`
+	Apply       TriageApply       `yaml:"apply,omitempty" json:"apply,omitempty"`
+	Interactive TriageInteractive `yaml:"interactive,omitempty" json:"interactive,omitempty"`
 }
 
 // TriageApply contains fields to apply during triage
 type TriageApply struct {
-	Labels []string          `yaml:"labels,omitempty"`
-	Fields map[string]string `yaml:"fields,omitempty"`
+	Labels []string          `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Fields map[string]string `yaml:"fields,omitempty" json:"fields,omitempty"`
 }
 
 // TriageInteractive contains interactive prompts for triage
 type TriageInteractive struct {
-	Status   bool `yaml:"status,omitempty"`
-	Estimate bool `yaml:"estimate,omitempty"`
+	Status   bool `yaml:"status,omitempty" json:"status,omitempty"`
+	Estimate bool `yaml:"estimate,omitempty" json:"estimate,omitempty"`
 }
 
 // Metadata contains cached project metadata from GitHub API
 type Metadata struct {
-	Project ProjectMetadata `yaml:"project,omitempty"`
-	Fields  []FieldMetadata `yaml:"fields,omitempty"`
+	Project ProjectMetadata `yaml:"project,omitempty" json:"project,omitempty"`
+	Fields  []FieldMetadata `yaml:"fields,omitempty" json:"fields,omitempty"`
 }
 
 // ProjectMetadata contains cached project info
 type ProjectMetadata struct {
-	ID string `yaml:"id,omitempty"`
+	ID string `yaml:"id,omitempty" json:"id,omitempty"`
 }
 
 // FieldMetadata contains cached field info
 type FieldMetadata struct {
-	Name     string           `yaml:"name"`
-	ID       string           `yaml:"id"`
-	DataType string           `yaml:"data_type"`
-	Options  []OptionMetadata `yaml:"options,omitempty"`
+	Name     string           `yaml:"name" json:"name"`
+	ID       string           `yaml:"id" json:"id"`
+	DataType string           `yaml:"data_type" json:"data_type"`
+	Options  []OptionMetadata `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
 // OptionMetadata contains cached field option info
 type OptionMetadata struct {
-	Name string `yaml:"name"`
-	ID   string `yaml:"id"`
+	Name string `yaml:"name" json:"name"`
+	ID   string `yaml:"id" json:"id"`
 }
 
 // ConfigFileName is the default configuration file name
 const ConfigFileName = ".gh-pmu.yml"
 
-// Load reads and parses a configuration file from the given path
+// ConfigFileNameJSON is the JSON companion configuration file name
+const ConfigFileNameJSON = ".gh-pmu.json"
+
+// Load reads and parses a configuration file from the given path.
+// Detects format (YAML or JSON) based on file extension.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -100,8 +105,14 @@ func Load(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	if strings.HasSuffix(path, ".json") {
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse JSON config file: %w", err)
+		}
+	} else {
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse config file: %w", err)
+		}
 	}
 
 	return &cfg, nil
@@ -147,25 +158,44 @@ func LoadFromDirectoryAndNormalize(dir string) (*Config, error) {
 
 // FindConfigFile searches for .gh-pmu.yml starting from dir and walking up
 // the directory tree until found or filesystem root is reached.
+// Falls back to .gh-pmu.json if no YAML file is found.
 func FindConfigFile(startDir string) (string, error) {
 	dir, err := filepath.Abs(startDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
+	// First pass: look for YAML
+	searchDir := dir
 	for {
-		configPath := filepath.Join(dir, ConfigFileName)
+		configPath := filepath.Join(searchDir, ConfigFileName)
 		if _, err := os.Stat(configPath); err == nil {
 			return configPath, nil
 		}
 
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached filesystem root
-			return "", fmt.Errorf("no %s found in %s or any parent directory", ConfigFileName, startDir)
+		parent := filepath.Dir(searchDir)
+		if parent == searchDir {
+			break
 		}
-		dir = parent
+		searchDir = parent
 	}
+
+	// Second pass: look for JSON fallback
+	searchDir = dir
+	for {
+		configPath := filepath.Join(searchDir, ConfigFileNameJSON)
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, nil
+		}
+
+		parent := filepath.Dir(searchDir)
+		if parent == searchDir {
+			break
+		}
+		searchDir = parent
+	}
+
+	return "", fmt.Errorf("no %s found in %s or any parent directory", ConfigFileName, startDir)
 }
 
 // Validate checks that required configuration fields are present
@@ -263,7 +293,8 @@ func (c *Config) ApplyEnvOverrides() {
 	}
 }
 
-// Save writes the configuration back to the given path
+// Save writes the configuration back to the given path and its JSON companion.
+// The JSON companion file is derived by replacing the extension with .json.
 func (c *Config) Save(path string) error {
 	data, err := yaml.Marshal(c)
 	if err != nil {
@@ -274,7 +305,25 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
+	// Write JSON companion
+	jsonData, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON config: %w", err)
+	}
+	jsonData = append(jsonData, '\n')
+
+	jsonPath := jsonCompanionPath(path)
+	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write JSON config file: %w", err)
+	}
+
 	return nil
+}
+
+// jsonCompanionPath returns the JSON companion path for a YAML config path.
+func jsonCompanionPath(yamlPath string) string {
+	dir := filepath.Dir(yamlPath)
+	return filepath.Join(dir, ConfigFileNameJSON)
 }
 
 // IsIDPF returns true if the config uses IDPF framework validation.
@@ -305,42 +354,42 @@ func (c *Config) AddFieldMetadata(field FieldMetadata) {
 
 // Release contains release management configuration
 type Release struct {
-	Tracks    map[string]TrackConfig `yaml:"tracks,omitempty"`
-	Artifacts *ArtifactConfig        `yaml:"artifacts,omitempty"`
-	Coverage  *CoverageConfig        `yaml:"coverage,omitempty"`
+	Tracks    map[string]TrackConfig `yaml:"tracks,omitempty" json:"tracks,omitempty"`
+	Artifacts *ArtifactConfig        `yaml:"artifacts,omitempty" json:"artifacts,omitempty"`
+	Coverage  *CoverageConfig        `yaml:"coverage,omitempty" json:"coverage,omitempty"`
 }
 
 // CoverageConfig contains configuration for release coverage gates
 type CoverageConfig struct {
-	Enabled      *bool    `yaml:"enabled,omitempty"`       // Enable coverage gate (default: true)
-	Threshold    int      `yaml:"threshold,omitempty"`     // Minimum patch coverage % (default: 80)
-	SkipPatterns []string `yaml:"skip_patterns,omitempty"` // Patterns to exclude from analysis
+	Enabled      *bool    `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Threshold    int      `yaml:"threshold,omitempty" json:"threshold,omitempty"`
+	SkipPatterns []string `yaml:"skip_patterns,omitempty" json:"skip_patterns,omitempty"`
 }
 
 // ArtifactConfig contains configuration for release artifacts
 type ArtifactConfig struct {
-	Directory    string `yaml:"directory,omitempty"`     // Base directory (default: "Releases")
-	ReleaseNotes bool   `yaml:"release_notes,omitempty"` // Generate release-notes.md (default: true)
-	Changelog    bool   `yaml:"changelog,omitempty"`     // Generate changelog.md (default: true)
+	Directory    string `yaml:"directory,omitempty" json:"directory,omitempty"`
+	ReleaseNotes bool   `yaml:"release_notes,omitempty" json:"release_notes,omitempty"`
+	Changelog    bool   `yaml:"changelog,omitempty" json:"changelog,omitempty"`
 }
 
 // TrackConfig contains configuration for a release track
 type TrackConfig struct {
-	Prefix      string            `yaml:"prefix"`
-	Default     bool              `yaml:"default,omitempty"`
-	Constraints *TrackConstraints `yaml:"constraints,omitempty"`
+	Prefix      string            `yaml:"prefix" json:"prefix"`
+	Default     bool              `yaml:"default,omitempty" json:"default,omitempty"`
+	Constraints *TrackConstraints `yaml:"constraints,omitempty" json:"constraints,omitempty"`
 }
 
 // TrackConstraints contains constraints for a release track
 type TrackConstraints struct {
-	Version string            `yaml:"version,omitempty"` // e.g., "patch_only"
-	Labels  *LabelConstraints `yaml:"labels,omitempty"`
+	Version string            `yaml:"version,omitempty" json:"version,omitempty"`
+	Labels  *LabelConstraints `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // LabelConstraints contains label requirements for a track
 type LabelConstraints struct {
-	Required  []string `yaml:"required,omitempty"`
-	Forbidden []string `yaml:"forbidden,omitempty"`
+	Required  []string `yaml:"required,omitempty" json:"required,omitempty"`
+	Forbidden []string `yaml:"forbidden,omitempty" json:"forbidden,omitempty"`
 }
 
 // GetTrackPrefix returns the prefix for a given track name

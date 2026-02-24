@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 	"github.com/rubrical-studios/gh-pmu/internal/defaults"
 	"github.com/rubrical-studios/gh-pmu/internal/ui"
 	"github.com/spf13/cobra"
@@ -837,32 +839,32 @@ type InitConfig struct {
 
 // ConfigFile represents the .gh-pmu.yml file structure.
 type ConfigFile struct {
-	Version      string                  `yaml:"version,omitempty"`
-	Project      ProjectConfig           `yaml:"project"`
-	Repositories []string                `yaml:"repositories"`
-	Defaults     DefaultsConfig          `yaml:"defaults"`
-	Fields       map[string]FieldMapping `yaml:"fields"`
-	Triage       map[string]TriageRule   `yaml:"triage,omitempty"`
+	Version      string                  `yaml:"version,omitempty" json:"version,omitempty"`
+	Project      ProjectConfig           `yaml:"project" json:"project"`
+	Repositories []string                `yaml:"repositories" json:"repositories"`
+	Defaults     DefaultsConfig          `yaml:"defaults" json:"defaults"`
+	Fields       map[string]FieldMapping `yaml:"fields" json:"fields"`
+	Triage       map[string]TriageRule   `yaml:"triage,omitempty" json:"triage,omitempty"`
 }
 
 // ProjectConfig represents the project section of config.
 type ProjectConfig struct {
-	Name   string `yaml:"name,omitempty"`
-	Number int    `yaml:"number"`
-	Owner  string `yaml:"owner"`
+	Name   string `yaml:"name,omitempty" json:"name,omitempty"`
+	Number int    `yaml:"number" json:"number"`
+	Owner  string `yaml:"owner" json:"owner"`
 }
 
 // DefaultsConfig represents default values for new items.
 type DefaultsConfig struct {
-	Priority string   `yaml:"priority"`
-	Status   string   `yaml:"status"`
-	Labels   []string `yaml:"labels,omitempty"`
+	Priority string   `yaml:"priority" json:"priority"`
+	Status   string   `yaml:"status" json:"status"`
+	Labels   []string `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // FieldMapping represents a field alias mapping.
 type FieldMapping struct {
-	Field  string            `yaml:"field"`
-	Values map[string]string `yaml:"values"`
+	Field  string            `yaml:"field" json:"field"`
+	Values map[string]string `yaml:"values" json:"values"`
 }
 
 // ProjectMetadata holds cached project information from GitHub API.
@@ -887,52 +889,52 @@ type OptionMetadata struct {
 
 // MetadataSection represents the metadata section in config file.
 type MetadataSection struct {
-	Project MetadataProject `yaml:"project"`
-	Fields  []MetadataField `yaml:"fields"`
+	Project MetadataProject `yaml:"project" json:"project"`
+	Fields  []MetadataField `yaml:"fields" json:"fields"`
 }
 
 // MetadataProject holds the project ID.
 type MetadataProject struct {
-	ID string `yaml:"id"`
+	ID string `yaml:"id" json:"id"`
 }
 
 // MetadataField represents a field in the metadata section.
 type MetadataField struct {
-	Name     string                `yaml:"name"`
-	ID       string                `yaml:"id"`
-	DataType string                `yaml:"data_type"`
-	Options  []MetadataFieldOption `yaml:"options,omitempty"`
+	Name     string                `yaml:"name" json:"name"`
+	ID       string                `yaml:"id" json:"id"`
+	DataType string                `yaml:"data_type" json:"data_type"`
+	Options  []MetadataFieldOption `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
 // MetadataFieldOption represents a field option.
 type MetadataFieldOption struct {
-	Name string `yaml:"name"`
-	ID   string `yaml:"id"`
+	Name string `yaml:"name" json:"name"`
+	ID   string `yaml:"id" json:"id"`
 }
 
 // TriageRule represents a single triage rule configuration.
 type TriageRule struct {
-	Query       string          `yaml:"query"`
-	Apply       TriageApply     `yaml:"apply"`
-	Interactive map[string]bool `yaml:"interactive,omitempty"`
+	Query       string          `yaml:"query" json:"query"`
+	Apply       TriageApply     `yaml:"apply" json:"apply"`
+	Interactive map[string]bool `yaml:"interactive,omitempty" json:"interactive,omitempty"`
 }
 
 // TriageApply represents what to apply when a triage rule matches.
 type TriageApply struct {
-	Labels []string          `yaml:"labels,omitempty"`
-	Fields map[string]string `yaml:"fields,omitempty"`
+	Labels []string          `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Fields map[string]string `yaml:"fields,omitempty" json:"fields,omitempty"`
 }
 
 // ConfigFileWithMetadata extends ConfigFile with metadata section.
 type ConfigFileWithMetadata struct {
-	Version      string                  `yaml:"version,omitempty"`
-	Project      ProjectConfig           `yaml:"project"`
-	Repositories []string                `yaml:"repositories"`
-	Framework    string                  `yaml:"framework,omitempty"`
-	Defaults     DefaultsConfig          `yaml:"defaults"`
-	Fields       map[string]FieldMapping `yaml:"fields"`
-	Triage       map[string]TriageRule   `yaml:"triage,omitempty"`
-	Metadata     MetadataSection         `yaml:"metadata"`
+	Version      string                  `yaml:"version,omitempty" json:"version,omitempty"`
+	Project      ProjectConfig           `yaml:"project" json:"project"`
+	Repositories []string                `yaml:"repositories" json:"repositories"`
+	Framework    string                  `yaml:"framework,omitempty" json:"framework,omitempty"`
+	Defaults     DefaultsConfig          `yaml:"defaults" json:"defaults"`
+	Fields       map[string]FieldMapping `yaml:"fields" json:"fields"`
+	Triage       map[string]TriageRule   `yaml:"triage,omitempty" json:"triage,omitempty"`
+	Metadata     MetadataSection         `yaml:"metadata" json:"metadata"`
 }
 
 // ProjectValidator is the interface for validating projects.
@@ -1006,6 +1008,17 @@ func writeConfig(dir string, cfg *InitConfig) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
+	// Write JSON companion
+	jsonData, err := json.MarshalIndent(configFile, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON config: %w", err)
+	}
+	jsonData = append(jsonData, '\n')
+	jsonPath := filepath.Join(dir, config.ConfigFileNameJSON)
+	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write JSON config file: %w", err)
+	}
+
 	return nil
 }
 
@@ -1075,6 +1088,17 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 	configPath := filepath.Join(dir, ".gh-pmu.yml")
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	// Write JSON companion
+	jsonData, err := json.MarshalIndent(configFile, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON config: %w", err)
+	}
+	jsonData = append(jsonData, '\n')
+	jsonPath := filepath.Join(dir, config.ConfigFileNameJSON)
+	if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write JSON config file: %w", err)
 	}
 
 	return nil

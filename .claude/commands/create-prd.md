@@ -1,5 +1,5 @@
 ---
-version: "v0.46.2"
+version: "v0.49.1"
 description: Transform proposal into Agile PRD
 argument-hint: "<issue-number> | extract [<directory>]"
 ---
@@ -282,9 +282,16 @@ A TDD test plan has been generated for **{Name}**.
 ### Phase 7: Proposal Lifecycle Completion
 **Only for Issue-Driven Mode**
 **Step 1: Move proposal**
+Check if the proposal file is tracked by git. If untracked (just created by `/proposal`, not yet committed), `git add` it first so `git mv` can work.
 ```bash
+# Check if file is tracked
+git ls-files --error-unmatch Proposal/{Name}.md 2>/dev/null
+# If untracked: git add first so git mv can work
+git add Proposal/{Name}.md
+# Then move
 git mv Proposal/{Name}.md Proposal/Implemented/{Name}.md
 ```
+If `git ls-files --error-unmatch` succeeds → file is tracked, skip `git add`. If it fails → file is untracked, run `git add` before `git mv`.
 **Step 2: Close proposal issue**
 ```bash
 gh issue close $issue_num --comment "Transformed to PRD: PRD/{name}/PRD-{name}.md"

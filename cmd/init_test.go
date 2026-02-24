@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/rubrical-studios/gh-pmu/internal/api"
+	"github.com/rubrical-studios/gh-pmu/internal/config"
 )
 
 func TestInitCommand_Exists(t *testing.T) {
@@ -1526,5 +1528,41 @@ func TestInitNonInteractive_ExistingConfigWithoutYes(t *testing.T) {
 	errOutput := errBuf.String()
 	if !strings.Contains(errOutput, "--yes") && !strings.Contains(errOutput, "already exists") {
 		t.Errorf("Expected error to mention --yes or already exists, got: %s", errOutput)
+	}
+}
+
+func TestWriteConfig_CreatesJSONCompanion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &InitConfig{
+		ProjectOwner:  "test-owner",
+		ProjectNumber: 5,
+		Repositories:  []string{"test-owner/test-repo"},
+	}
+
+	err := writeConfig(tmpDir, cfg)
+	if err != nil {
+		t.Fatalf("writeConfig failed: %v", err)
+	}
+
+	// Verify JSON companion exists
+	jsonPath := filepath.Join(tmpDir, config.ConfigFileNameJSON)
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Expected JSON companion to exist: %v", err)
+	}
+
+	// Verify it's valid JSON with expected content
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("JSON companion is not valid JSON: %v", err)
+	}
+
+	project, ok := parsed["project"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected JSON to contain project object")
+	}
+	if project["owner"] != "test-owner" {
+		t.Errorf("Expected owner 'test-owner', got %v", project["owner"])
 	}
 }

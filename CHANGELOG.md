@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-02-24
+
+### Added
+- `.gh-pmu.json` companion config file with dual-file sync (#706)
+  - `config.Save()` writes both `.gh-pmu.yml` and `.gh-pmu.json` on every save
+  - `gh pmu init` creates both files
+  - `FindConfigFile()` falls back to `.gh-pmu.json` if YAML is missing
+  - YAML remains authoritative when both files exist
+  - All Config structs carry `json` tags alongside `yaml` tags
+
+### Changed
+- Acceptance gate now displays full terms text and `--yes` hint on stderr (#705)
+- Accept command Long description references "Praxis Management Utility" (#704)
+- Terms text updated: title includes "GitHub Praxis Management Utility" (#704)
+- Added Rubrical Studios copyright to terms text (#704)
+- Updated IDPF framework to v0.49.1
+
 ## [1.0.0] - 2026-02-23
 
 ### Added
