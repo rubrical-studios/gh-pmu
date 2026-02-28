@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.54.0"
 description: Review a test plan against its PRD (project)
 argument-hint: "#issue"
 ---
@@ -11,7 +11,7 @@ Unlike `/review-issue`, reads two linked documents (test plan and PRD) and perfo
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 - Issue body must contain `**Test Plan:**` linking to the test plan file
 - Issue body must contain `**PRD:**` linking to the source PRD file
 ---
@@ -171,12 +171,15 @@ gh issue comment $ISSUE -F .tmp-review-comment.md
 rm .tmp-review-comment.md
 ```
 **If comment post fails:** Warn and continue (non-blocking).
-### Step 5.5: Assign Reviewed Label (Conditional)
+### Step 5.5: Assign Review Outcome Label (Conditional)
 If recommendation starts with "Ready for":
 ```bash
-gh issue edit $ISSUE --add-label=reviewed
+gh issue edit $ISSUE --add-label=reviewed --remove-label=pending
 ```
-If not "Ready for": skip.
+If NOT "Ready for" (Needs minor revision, Needs revision, Needs major rework):
+```bash
+gh issue edit $ISSUE --add-label=pending --remove-label=reviewed
+```
 ### Step 5.6: Approval Gate AC Check-Off (Conditional)
 **Only when recommendation is "Ready for approval":**
 Automatically checks off acceptance criteria on the approval issue that passed review.

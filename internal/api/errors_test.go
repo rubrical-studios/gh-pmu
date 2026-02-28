@@ -2,7 +2,9 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 )
 
 func TestIsNotFound_WithNotFoundError(t *testing.T) {
@@ -123,4 +125,74 @@ func TestAPIError_Unwrap(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Error("Expected errors.Is to find ErrNotFound")
 	}
+}
+
+func TestIsRateLimited_With403RateLimitHTTPError(t *testing.T) {
+	err := &ghHTTPError{statusCode: 403, message: "API rate limit exceeded"}
+	if !IsRateLimited(err) {
+		t.Error("Expected IsRateLimited to return true for 403 with rate limit message")
+	}
+}
+
+func TestIsRateLimited_With429HTTPError(t *testing.T) {
+	err := &ghHTTPError{statusCode: 429, message: "Too Many Requests"}
+	if !IsRateLimited(err) {
+		t.Error("Expected IsRateLimited to return true for 429")
+	}
+}
+
+func TestIsRateLimited_With403PermissionDenied(t *testing.T) {
+	err := &ghHTTPError{statusCode: 403, message: "Resource not accessible by integration"}
+	if IsRateLimited(err) {
+		t.Error("Expected IsRateLimited to return false for 403 permission denied")
+	}
+}
+
+func TestGetRetryAfter_FromHTTPError(t *testing.T) {
+	err := &ghHTTPError{
+		statusCode: 429,
+		message:    "Too Many Requests",
+		retryAfter: "5",
+	}
+	d := GetRetryAfter(err)
+	if d != 5*time.Second {
+		t.Errorf("Expected 5s retry-after, got %v", d)
+	}
+}
+
+func TestGetRetryAfter_NoHeader(t *testing.T) {
+	err := &ghHTTPError{statusCode: 429, message: "Too Many Requests"}
+	d := GetRetryAfter(err)
+	if d != 0 {
+		t.Errorf("Expected 0 (no Retry-After), got %v", d)
+	}
+}
+
+func TestGetRetryAfter_NonHTTPError(t *testing.T) {
+	err := errors.New("some error")
+	d := GetRetryAfter(err)
+	if d != 0 {
+		t.Errorf("Expected 0 for non-HTTP error, got %v", d)
+	}
+}
+
+// ghHTTPError simulates go-gh's api.HTTPError for testing within this package.
+// We can't import github.com/cli/go-gh/v2/pkg/api here (same package name),
+// so we use a local type and test that IsRateLimited handles the StatusCode interface.
+type ghHTTPError struct {
+	statusCode int
+	message    string
+	retryAfter string
+}
+
+func (e *ghHTTPError) Error() string {
+	return fmt.Sprintf("HTTP %d: %s", e.statusCode, e.message)
+}
+
+func (e *ghHTTPError) HTTPStatusCode() int {
+	return e.statusCode
+}
+
+func (e *ghHTTPError) RetryAfterSeconds() string {
+	return e.retryAfter
 }

@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.54.0"
 description: Review a proposal with tracked history (project)
 argument-hint: "#issue"
 ---
@@ -11,7 +11,7 @@ Reviews a proposal document linked from a GitHub issue, tracking review history 
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 - Issue body must contain `**File:** Proposal/[Name].md` linking to the proposal
 ---
 ## Arguments
@@ -46,6 +46,19 @@ Read the proposal file. **If file not found:** -> **STOP**
 <!-- USER-EXTENSION-START: pre-review -->
 <!-- USER-EXTENSION-END: pre-review -->
 
+### Step 1c: Construction Context Discovery
+Search Construction artifact directories for files related to the proposal:
+1. Extract keywords from the proposal title and file name
+2. Grep `Construction/Design-Decisions/` and `Construction/Tech-Debt/` for those keywords (case-insensitive)
+3. Also check for issue number references (`Issue #$ISSUE`)
+4. For each match, extract: file path, title, date
+Output as `### Construction Context` section in review comment:
+```
+### Construction Context
+Design Decisions: N found | Tech Debt: M found
+- 📄 `Construction/Design-Decisions/YYYY-MM-DD-topic.md` — "Title" (YYYY-MM-DD)
+```
+**No-match path:** Report `No Construction context found for this proposal.`
 ### Step 1b: Extension Loading
 **If `--with` is specified:**
 1. Read `.claude/metadata/review-extensions.json`
@@ -182,12 +195,15 @@ gh issue comment $ISSUE -F .tmp-review-comment.md
 rm .tmp-review-comment.md
 ```
 **If comment post fails:** Warn and continue (non-blocking).
-### Step 5.5: Assign Reviewed Label (Conditional)
+### Step 5.5: Assign Review Outcome Label (Conditional)
 If recommendation starts with "Ready for":
 ```bash
-gh issue edit $ISSUE --add-label=reviewed
+gh issue edit $ISSUE --add-label=reviewed --remove-label=pending
 ```
-If not "Ready for": skip.
+If NOT "Ready for" (Needs minor revision, Needs revision, Needs major rework):
+```bash
+gh issue edit $ISSUE --add-label=pending --remove-label=reviewed
+```
 
 <!-- USER-EXTENSION-START: post-review -->
 <!-- USER-EXTENSION-END: post-review -->

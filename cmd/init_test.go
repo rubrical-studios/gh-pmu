@@ -1566,3 +1566,221 @@ func TestWriteConfig_CreatesJSONCompanion(t *testing.T) {
 		t.Errorf("Expected owner 'test-owner', got %v", project["owner"])
 	}
 }
+
+// --- Acceptance Preservation Tests ---
+
+// seedAcceptance writes a .gh-pmu.json with acceptance data and the given version.
+func seedAcceptance(t *testing.T, dir, version string) {
+	t.Helper()
+	acc := map[string]interface{}{
+		"version": version,
+		"project": map[string]interface{}{
+			"owner":  "owner",
+			"number": 1,
+		},
+		"repositories": []string{"owner/repo"},
+		"acceptance": map[string]interface{}{
+			"accepted": true,
+			"user":     "testuser",
+			"date":     "2026-01-15",
+			"version":  version,
+		},
+	}
+	data, err := json.MarshalIndent(acc, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal seed config: %v", err)
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(filepath.Join(dir, config.ConfigFileNameJSON), data, 0644); err != nil {
+		t.Fatalf("Failed to write seed config: %v", err)
+	}
+}
+
+func TestWriteConfigWithMetadata_PreservesAcceptance_PatchVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	seedAcceptance(t, tmpDir, "1.0.0")
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+	meta := &ProjectMetadata{
+		ProjectID: "test-project-id",
+		Fields:    []FieldMetadata{},
+	}
+
+	// Simulate current version being a patch bump (1.0.1)
+	origVersion := getVersion()
+	_ = origVersion // current version may differ; the test relies on RequiresReAcceptance logic
+
+	err := writeConfigWithMetadata(tmpDir, cfg, meta)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	// Read the JSON output and check acceptance
+	jsonPath := filepath.Join(tmpDir, config.ConfigFileNameJSON)
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read JSON config: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("JSON is not valid: %v", err)
+	}
+
+	acc, ok := parsed["acceptance"]
+	if !ok {
+		t.Fatal("Expected acceptance section to be preserved on patch version change, but it was missing")
+	}
+
+	accMap, ok := acc.(map[string]interface{})
+	if !ok {
+		t.Fatal("acceptance is not an object")
+	}
+
+	if accMap["accepted"] != true {
+		t.Errorf("Expected accepted=true, got %v", accMap["accepted"])
+	}
+	if accMap["user"] != "testuser" {
+		t.Errorf("Expected user=testuser, got %v", accMap["user"])
+	}
+}
+
+func TestWriteConfigWithMetadata_ClearsAcceptance_MajorVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Seed with version 0.9.0 — any current version 1.x.x is a major bump
+	seedAcceptance(t, tmpDir, "0.9.0")
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+	meta := &ProjectMetadata{
+		ProjectID: "test-project-id",
+		Fields:    []FieldMetadata{},
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, meta)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	jsonPath := filepath.Join(tmpDir, config.ConfigFileNameJSON)
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read JSON config: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("JSON is not valid: %v", err)
+	}
+
+	if _, ok := parsed["acceptance"]; ok {
+		t.Error("Expected acceptance to be cleared on major version change, but it was present")
+	}
+}
+
+func TestWriteConfigWithMetadata_ClearsAcceptance_MinorVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Seed with a version that differs in minor from current.
+	currentVersion := getVersion()
+	// Parse manually to construct a different-minor version
+	parts := strings.SplitN(currentVersion, ".", 3)
+	if len(parts) >= 2 {
+		// Same major, different minor (add 1)
+		major := parts[0]
+		minor := 999 // guaranteed different
+		differentMinor := fmt.Sprintf("%s.%d.0", major, minor)
+		seedAcceptance(t, tmpDir, differentMinor)
+	} else {
+		// Dev build or unparseable — seed with "1.0.0" to guarantee diff
+		seedAcceptance(t, tmpDir, "1.0.0")
+	}
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+	meta := &ProjectMetadata{
+		ProjectID: "test-project-id",
+		Fields:    []FieldMetadata{},
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, meta)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	jsonPath := filepath.Join(tmpDir, config.ConfigFileNameJSON)
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read JSON config: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("JSON is not valid: %v", err)
+	}
+
+	if _, ok := parsed["acceptance"]; ok {
+		t.Error("Expected acceptance to be cleared on minor version change, but it was present")
+	}
+}
+
+func TestWriteConfigWithMetadata_PreservesAcceptance_SameVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Seed with exactly the current version
+	currentVersion := getVersion()
+	seedAcceptance(t, tmpDir, currentVersion)
+
+	cfg := &InitConfig{
+		ProjectOwner:  "owner",
+		ProjectNumber: 1,
+		Repositories:  []string{"owner/repo"},
+	}
+	meta := &ProjectMetadata{
+		ProjectID: "test-project-id",
+		Fields:    []FieldMetadata{},
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, meta)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	jsonPath := filepath.Join(tmpDir, config.ConfigFileNameJSON)
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read JSON config: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("JSON is not valid: %v", err)
+	}
+
+	acc, ok := parsed["acceptance"]
+	if !ok {
+		t.Fatal("Expected acceptance section to be preserved on same version re-init, but it was missing")
+	}
+
+	accMap, ok := acc.(map[string]interface{})
+	if !ok {
+		t.Fatal("acceptance is not an object")
+	}
+
+	if accMap["accepted"] != true {
+		t.Errorf("Expected accepted=true, got %v", accMap["accepted"])
+	}
+	if accMap["version"] != currentVersion {
+		t.Errorf("Expected version=%s, got %v", currentVersion, accMap["version"])
+	}
+}

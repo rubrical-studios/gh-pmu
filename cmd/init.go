@@ -934,6 +934,7 @@ type ConfigFileWithMetadata struct {
 	Defaults     DefaultsConfig          `yaml:"defaults" json:"defaults"`
 	Fields       map[string]FieldMapping `yaml:"fields" json:"fields"`
 	Triage       map[string]TriageRule   `yaml:"triage,omitempty" json:"triage,omitempty"`
+	Acceptance   *config.Acceptance      `yaml:"acceptance,omitempty" json:"acceptance,omitempty"`
 	Metadata     MetadataSection         `yaml:"metadata" json:"metadata"`
 }
 
@@ -1049,6 +1050,15 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 	// Build field mappings dynamically from metadata
 	fieldMappings := buildFieldMappingsFromMetadata(metadata)
 
+	// Read existing acceptance from config before writing
+	var existingAcceptance *config.Acceptance
+	existingJSONPath := filepath.Join(dir, config.ConfigFileNameJSON)
+	if existingCfg, err := config.Load(existingJSONPath); err == nil && existingCfg.Acceptance != nil {
+		if !config.RequiresReAcceptance(existingCfg.Acceptance.Version, getVersion()) {
+			existingAcceptance = existingCfg.Acceptance
+		}
+	}
+
 	configFile := &ConfigFileWithMetadata{
 		Version: getVersion(),
 		Project: ProjectConfig{
@@ -1072,6 +1082,7 @@ func writeConfigWithMetadata(dir string, cfg *InitConfig, metadata *ProjectMetad
 				},
 			},
 		},
+		Acceptance: existingAcceptance,
 		Metadata: MetadataSection{
 			Project: MetadataProject{
 				ID: metadata.ProjectID,

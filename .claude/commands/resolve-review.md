@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.54.0"
 description: Resolve review findings for an issue (project)
 argument-hint: "#issue"
 ---
@@ -10,7 +10,7 @@ Parse the latest review findings on an issue and systematically resolve each one
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 - Issue has at least one review comment
 ---
 ## Arguments
@@ -185,6 +185,11 @@ After all findings resolved, re-run the appropriate review:
 | PRD | `/review-prd #$ISSUE` |
 | Test Plan | `/review-test-plan #$ISSUE` |
 **Invoke the command** using the Skill tool. The re-review verifies all findings are resolved and posts an updated review comment.
+**Pending label cleanup:** The re-invoked review command handles label swap via its Step 5.5/6.5. If re-review passes ("Ready for"), it applies `reviewed` and removes `pending`. If still not passing, `pending` remains:
+```bash
+gh issue edit $ISSUE --add-label=reviewed --remove-label=pending   # if Ready for
+gh issue edit $ISSUE --add-label=pending --remove-label=reviewed   # if not Ready for
+```
 Report final status:
 ```
 /resolve-review #$ISSUE complete.

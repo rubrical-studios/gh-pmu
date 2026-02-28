@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.54.0"
 description: Add story to epic with charter compliance (project)
 argument-hint: "[epic-number] (e.g., 42 or #42)"
 ---
@@ -130,7 +130,7 @@ Load skill: `read Skills/{skill-name}/SKILL.md`
 ```
 **Step 3: Link to parent epic**
 ```bash
-gh pmu sub add {epic_num} {story_num}
+gh pmu sub add {epic_num} {story_num} || true
 ```
 ---
 ## Phase 4: Update Test Plan

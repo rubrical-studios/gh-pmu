@@ -23,6 +23,7 @@ func WithRetry(fn func() error, maxRetries int) error {
 
 // WithRetryDelays executes a function with automatic retry using custom delays.
 // This variant is primarily for testing to allow faster tests.
+// If the error carries a Retry-After header, that value overrides the default delay.
 func WithRetryDelays(fn func() error, maxRetries int, delays []time.Duration) error {
 	var err error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -32,6 +33,10 @@ func WithRetryDelays(fn func() error, maxRetries int, delays []time.Duration) er
 		}
 		if attempt < maxRetries {
 			delay := delays[min(attempt, len(delays)-1)]
+			// Retry-After header overrides default delay
+			if retryAfter := GetRetryAfter(err); retryAfter > 0 {
+				delay = retryAfter
+			}
 			fmt.Fprintf(os.Stderr, "Warning: rate limited, retrying in %v...\n", delay)
 			time.Sleep(delay)
 		}

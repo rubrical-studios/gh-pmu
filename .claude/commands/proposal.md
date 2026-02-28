@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.54.0"
 description: Create a proposal document and tracking issue (project)
 argument-hint: "<title>"
 ---
@@ -15,7 +15,7 @@ Creates a proposal document (`Proposal/[Name].md`) and a tracking issue with the
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 ---
 ## Arguments
 | Argument | Required | Description |
