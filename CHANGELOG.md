@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-02-27
+
+### Added
+- 403/429 HTTP rate limit detection with automatic retry and exponential backoff (#710)
+  - Interface-based duck typing for go-gh's `HTTPError` (avoids package name collision)
+  - `IsRateLimited()` detects HTTP 429, 403 with rate-limit messaging, and sentinel errors
+  - `GetRetryAfter()` extracts Retry-After header value from errors
+  - `WithRetry()`/`WithRetryDelays()` with configurable exponential backoff (1s, 2s, 4s, 8s)
+  - Non-rate-limit 403 errors (permission denied) are not retried
+- Copyright line in `--version` output (#712)
+  - `gh pmu --version` now shows `Rubrical Studios (c) 2026` below version string
+- Design decision documentation for interface-based HTTP error detection (#710)
+
+### Fixed
+- Acceptance section preserved during `gh pmu init` unless major/minor version change (#709)
+  - Previously, acceptance was cleared on every init regardless of version change type
+  - Now uses `RequiresReAcceptance()` to only clear on major/minor bumps
+
+### Changed
+- Updated IDPF framework to v0.54.0
+
 ## [1.0.1] - 2026-02-24
 
 ### Added
