@@ -1,7 +1,7 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Discover, view, and manage extension points in release commands
-argument-hint: "list|view|edit|validate|matrix|recipes [args]"
+argument-hint: "list|view|edit|validate|summary|recipes [args]"
 ---
 <!-- MANAGED -->
 # /extensions
@@ -11,15 +11,18 @@ Unified management of extension points across release commands.
 |------------|-------------|
 | `list` | Show all extension points |
 | `list --command X` | Show extension points for specific command |
+| `list --status` | Show extension points with X/. filled/empty markers |
+| `list --status --command X` | Show one command's points with filled/empty markers |
 | `view X:Y` | Show content of extension point Y in command X |
 | `edit X:Y` | Edit extension point Y in command X |
 | `validate` | Check all extension blocks are properly formatted |
-| `matrix` | Show cross-command extension point comparison |
+| `summary` | Per-command filled/empty/total counts |
+| `matrix` | Alias for `summary` |
 | `recipes` | Show common patterns for extension points |
-| `recipes <category>` | Show recipes for specific category |
+| `recipes <category>` | Show recipes for specific category (ci, coverage, etc.) |
 ---
 ## Target Commands
-Target commands are listed in `.claude/metadata/extension-points.json` (the extension registry).
+Listed in `.claude/metadata/extension-points.json` (the extension registry).
 **Registry path:** `.claude/metadata/extension-points.json`
 **Command files:** `.claude/commands/*.md` (for `edit` subcommand)
 ### Fallback: Registry Missing
@@ -28,15 +31,16 @@ If `extension-points.json` does not exist or cannot be parsed:
 2. **Fallback:** Scan `.claude/commands/*.md` for EXTENSIBLE markers and USER-EXTENSION-START/END blocks
 ---
 ## Script Delegation
-Read-only subcommands (`list`, `view`, `validate`, `matrix`, `recipes`, `help`) are handled by the extensions-cli.js script. Run the script and display its stdout output directly.
+Read-only subcommands (`list`, `view`, `validate`, `summary`, `matrix`, `recipes`, `help`) are handled by extensions-cli.js. Run the script and display stdout directly.
 **Script path:** `node .claude/scripts/shared/extensions-cli.js`
 ### Delegated Subcommands
 | Subcommand | Script Command |
 |------------|---------------|
-| `list [--command X]` | `node .claude/scripts/shared/extensions-cli.js list [--command X]` |
+| `list [--command X] [--status]` | `node .claude/scripts/shared/extensions-cli.js list [--command X] [--status]` |
 | `view X:Y` | `node .claude/scripts/shared/extensions-cli.js view X:Y` |
 | `validate` | `node .claude/scripts/shared/extensions-cli.js validate` |
-| `matrix` | `node .claude/scripts/shared/extensions-cli.js matrix` |
+| `summary` | `node .claude/scripts/shared/extensions-cli.js summary` |
+| `matrix` | `node .claude/scripts/shared/extensions-cli.js matrix` (alias for summary) |
 | `recipes [category]` | `node .claude/scripts/shared/extensions-cli.js recipes [category]` |
 | `help` | `node .claude/scripts/shared/extensions-cli.js help` |
 ### How to Dispatch
@@ -61,9 +65,9 @@ Show the current content between the START and END markers.
 **Do NOT ask the user to provide raw replacement text.** Instead, ask what they want:
 - If empty: `"What would you like to add to this extension point?"`
 - If has content: `"What changes would you like to make?"`
-The user describes their intent in natural language (e.g., "add a line that says X", "remove the git status check").
+The user describes their intent in natural language.
 ### Step 4: Implement the Edit Directly
-The assistant implements the change using the **Edit tool** on the command file. This preserves surrounding formatting exactly.
+Use the **Edit tool** on the command file. This preserves surrounding formatting exactly.
 **Rules:**
 - Only modify content between the START and END markers
 - Preserve the START and END comment markers exactly
@@ -73,7 +77,7 @@ The assistant implements the change using the **Edit tool** on the command file.
 - For "replace" intents: replace the specified content between markers
 ### Step 5: Confirm Change
 Report the updated extension block content. Show a before/after summary.
-**Do NOT rebuild the extension registry.** The registry is a static framework build artifact. The `hasContent` state is computed at runtime by scanning command files.
+**Do NOT rebuild the extension registry.** The `hasContent` state is computed at runtime by scanning command files.
 ---
 ## Extension Point Naming Convention
 | Pattern | Purpose |

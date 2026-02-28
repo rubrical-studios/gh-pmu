@@ -1,5 +1,5 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Verify hub upgrade integrity for project commands and scripts
 argument-hint: ""
 ---
@@ -77,6 +77,7 @@ For each: verify symlink exists, target valid, target has files.
 | WARN | Some symlinks missing |
 | FAIL | Target invalid or empty |
 ### Step 6: Produce Report
+Use PASS/WARN/FAIL indicators per check:
 ```
 /check-upgrade Report
   ✅ Extension Integrity     — N commands checked, blocks intact
@@ -93,16 +94,26 @@ Overall: PASS
 - Stale config refs WARN: Replace `.gh-pmu.yml` with `.gh-pmu.json` or re-run project installer
 - Symlink FAIL: Re-run project installer
 ### Step 7: Optional Commit
-If all checks PASS:
-1. Check `--commit` / `--no-commit` flags
-2. If neither: ask user
-3. If committing (stage only copied, non-symlinked files):
-   ```bash
-   git add .claude/commands/ framework-config.json
-   git commit -m "Upgrade IDPF hub — all checks passed"
-   ```
-   **Note:** Symlinked directories (`.claude/rules/`, `.claude/hooks/`, `.claude/scripts/shared/`, `.claude/metadata/`, `.claude/skills/`) are excluded — they point to the hub and are not project-owned.
-If any FAIL: skip commit, report issues first.
+Parse the `---JSON---` structured output block from the script. Extract:
+- `commitReady` — `true` when all checks passed and `--no-commit` was not set
+- `changedFiles` — array of non-symlinked paths from `getCommitableFiles()`
+- `hubVersion` — version string from `framework-config.json`
+- `commitFlag` / `noCommitFlag` — which flag was passed (if any)
+**If `commitReady` is `false`:** Skip commit. Report and end.
+**If `commitFlag` is `true`:** The script auto-committed. Report the result and end.
+**If neither flag was provided and `commitReady` is `true`:**
+Use `AskUserQuestion` to prompt:
+```
+All checks passed. Commit upgraded files?
+Changed files: [changedFiles list from JSON]
+```
+If user commits (stage only non-symlinked files from `changedFiles`):
+```bash
+git add .claude/commands/ framework-config.json
+git commit -m "chore: upgrade hub to v{hubVersion}"
+```
+If `hubVersion` is null, use: `git commit -m "chore: upgrade hub"`
+**Note:** Symlinked directories (`.claude/rules/`, `.claude/hooks/`, `.claude/scripts/shared/`, `.claude/metadata/`, `.claude/skills/`) are excluded — they point to the hub and are not project-owned.
 ---
 ## Error Handling
 | Situation | Response |

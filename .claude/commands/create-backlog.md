@@ -1,5 +1,5 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Create GitHub epics/stories from PRD (project)
 argument-hint: "<issue-number> (e.g., 151)"
 ---

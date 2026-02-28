@@ -1,7 +1,7 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Start working on issues with validation and auto-TODO (project)
-argument-hint: "#issue [#issue...] | all in <status>"
+argument-hint: "#issue [#issue...] [--assign] | all in <status>"
 ---
 
 <!-- EXTENSIBLE -->
@@ -12,7 +12,7 @@ Start working on one or more issues. Validates issue existence, branch assignmen
 ## Prerequisites
 - `gh pmu` extension installed
 - `.gh-pmu.json` configured in repository root
-- Issue assigned to a branch (use `/assign-branch` first)
+- Issue assigned to a branch (use `/assign-branch` first, or pass `--assign` to auto-assign)
 ---
 ## Arguments
 | Argument | Required | Description |
@@ -20,6 +20,7 @@ Start working on one or more issues. Validates issue existence, branch assignmen
 | `#issue` | Yes (one of) | Single issue number (e.g., `#42` or `42`) |
 | `#issue #issue...` | | Multiple issue numbers (e.g., `#42 #43 #44`) |
 | `all in <status>` | | All issues in given status (e.g., `all in backlog`) |
+| `--assign` | No | Assign issue(s) to current branch before starting work |
 ---
 ## Execution Instructions
 **REQUIRED:** Before executing:
@@ -31,13 +32,13 @@ Start working on one or more issues. Validates issue existence, branch assignmen
 ---
 ## Workflow
 ### Step 0: Conditional - Clear Todo List
-If not working on an epic, clear todo list.
+If not working on an epic or branch tracker, clear todo list.
 
 <!-- USER-EXTENSION-START: pre-work -->
 <!-- USER-EXTENSION-END: pre-work -->
 
 ### Step 1: Context Gathering (Preamble Script)
-Run the preamble script to consolidate all deterministic setup work into a single invocation:
+Run the preamble script to consolidate all deterministic setup work:
 **Single issue:**
 ```bash
 node .claude/scripts/shared/work-preamble.js --issue $ISSUE
@@ -50,23 +51,36 @@ node .claude/scripts/shared/work-preamble.js --issues "$ISSUE1,$ISSUE2,$ISSUE3"
 ```bash
 node .claude/scripts/shared/work-preamble.js --status $STATUS
 ```
+**With --assign flag** (append to any mode above):
+```bash
+node .claude/scripts/shared/work-preamble.js --issue $ISSUE --assign
+```
+When `--assign` is present, the preamble will:
+1. Detect the current branch via `git branch --show-current`
+2. Assign the issue to the current branch (delegates to `assign-branch.js`)
+3. Proceed with normal validation and setup
+**--assign error cases:**
+- `ALREADY_ASSIGNED` — Issue already assigned to a different branch. Cannot reassign.
+- `WORKSTREAM_CONFLICT` — Issue allocated to a different branch by `/plan-workstreams`. Use `/assign-branch` directly to override.
 Parse the JSON output and check `ok`:
 - **If `ok: false`:** Report errors from `errors[]` array (each has `code` and `message`). If error has `suggestion`, include it. → **STOP**
 - **If `ok: true`:** Extract `context`, `gates`, `autoTodo`, and `warnings` from the envelope.
 **Report gate results from `gates`:**
+- `assigned: true` → Issue was assigned to current branch (only with `--assign`)
 - `movedToInProgress: true` → Issue moved to in_progress
 - `prdTrackerMoved: true` → PRD tracker moved to in_progress
 **Report any warnings** from `warnings[]` array (non-blocking).
 **Extract context for subsequent steps:**
 - `context.issue` — issue data (number, title, labels, body, state)
 - `context.branch` — branch/status data
-- `context.type` — `"epic"` or `"standard"`
+- `context.type` — `"branch"`, `"epic"`, or `"standard"`
 - `context.tracker` — branch tracker number
 - `context.framework` / `context.frameworkPath` — framework config
-- `context.subIssues`, `context.skipped`, `context.processingOrder` — epic-only fields
+- `context.subIssues`, `context.skipped`, `context.processingOrder` — epic and branch tracker fields
 **Extract autoTodo for Step 4:**
 - Standard: `{ source: "acceptance_criteria", items: [{ text, checked }] }`
-- Epic: `{ source: "sub_issues", items: [{ number, title }] }` — sub-issues sorted in ascending numeric order by default, or custom `**Processing Order:**` from epic body. Sub-issues already in `in_review` or `done` are skipped (listed in `context.skipped`).
+- Epic: `{ source: "sub_issues", items: [{ number, title }] }` — ascending numeric order by default, or custom `**Processing Order:**` from epic body. Already `in_review`/`done` skipped (`context.skipped`).
+- Branch: `{ source: "sub_issues", items: [{ number, title }] }` — same as epic but always ascending order (no custom Processing Order). Includes `NO_SUB_ISSUES` or `ALL_SUB_ISSUES_COMPLETE` warnings if applicable.
 
 <!-- USER-EXTENSION-START: post-work-start -->
 <!-- USER-EXTENSION-END: post-work-start -->
@@ -160,8 +174,8 @@ Issue #$ISSUE: $TITLE — In Review
 Say "done" or run /done #$ISSUE to close this issue.
 ```
 **STOP.** Wait for user to say "done". Do NOT close the issue.
-**CRITICAL — Autonomous Epic Sub-Issue Processing:**
-When working an epic, process sub-issues autonomously in the order determined by Step 1 (`context.processingOrder` from preamble output). Sub-issues already in `in_review` or `done` are skipped (`context.skipped`).
+**CRITICAL — Autonomous Epic/Branch Sub-Issue Processing:**
+When working an epic or branch tracker (`context.type` is `"epic"` or `"branch"`), process sub-issues autonomously in the order determined by Step 1 (`context.processingOrder` from preamble output). Sub-issues already in `in_review` or `done` are skipped (`context.skipped`).
 For each sub-issue in processing order:
 1. Move sub-issue to `in_progress`
 2. Work through TDD cycles (Steps 4–5)
@@ -173,9 +187,8 @@ For each sub-issue in processing order:
 <!-- USER-EXTENSION-END: post-sub-issue-done -->
 
 **After all sub-issues reach `in_review` or `done`:**
-1. Evaluate the epic's own acceptance criteria (Step 5)
-2. Move epic to `in_review`
-3. **STOP** — report epic status and wait for user to say "done"
+- **Epic:** Evaluate the epic's own acceptance criteria (Step 5), move epic to `in_review`, **STOP** — report and wait for user to say "done"
+- **Branch tracker:** Report completion and suggest next step: `/merge-branch` or `/prepare-release`. Do NOT close the branch tracker — it remains open until the branch is merged.
 **Never batch-close sub-issues or skip the per-sub-issue STOP boundary.** Sequential means work order, not bypassing STOP boundaries.
 ---
 ## Error Handling
@@ -183,6 +196,8 @@ For each sub-issue in processing order:
 |-----------|----------|
 | Issue not found | "Issue #N not found. Check the issue number?" → STOP |
 | No branch assignment | "Issue #N is not assigned to a branch. Run `/assign-branch #N` first." → STOP |
+| `--assign`: already assigned to different branch | "Issue #N is already assigned to branch X. Cannot reassign with --assign." → STOP |
+| `--assign`: workstream conflict | "Issue #N is allocated to branch X by /plan-workstreams. Use /assign-branch directly to override." → STOP |
 | `gh pmu` command fails | "Failed to update issue status: {error}" → STOP |
 | PRD tracker not found | Continue silently (non-blocking) |
 | Framework file missing | Warn and continue without methodology |

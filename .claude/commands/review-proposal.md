@@ -1,5 +1,5 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Review a proposal with tracked history (project)
 argument-hint: "#issue"
 ---

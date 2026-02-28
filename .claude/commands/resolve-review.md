@@ -1,5 +1,5 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Resolve review findings for an issue (project)
 argument-hint: "#issue"
 ---

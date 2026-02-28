@@ -1,5 +1,5 @@
 ---
-version: "v0.53.1"
+version: "v0.54.0"
 description: Create a branch with tracker issue (project)
 argument-hint: "<branch-name> (e.g., release/v0.16.0, my-feature, bugfix-123)"
 ---
@@ -44,6 +44,27 @@ git status --porcelain .gh-pmu.yml
 gh pmu branch start --name "$BRANCH"
 ```
 Creates git branch `$BRANCH` and tracker issue with `branch` label.
+### Step 3.5: Populate Tracker Body with Guidance
+Write a temp file with workflow guidance, then update the tracker issue body:
+```markdown
+## Branch: $BRANCH
+
+Tracker issue for branch `$BRANCH`.
+
+### Workflow
+
+- **Assign issues:** `/assign-branch #N #N ...`
+- **Work all issues:** `/work #[tracker-number]` (processes sub-issues sequentially)
+- **Work single issue:** `/work #N`
+- **When ready:** `/merge-branch` or `/prepare-release`
+
+### Sub-Issues
+
+Issues assigned to this branch appear as sub-issues below.
+```
+```bash
+gh pmu edit [TRACKER_NUMBER] -F .tmp-body.md && rm .tmp-body.md
+```
 ### Step 4: Switch to Branch
 ```bash
 git checkout "$BRANCH"
