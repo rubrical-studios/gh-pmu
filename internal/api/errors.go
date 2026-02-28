@@ -3,7 +3,9 @@ package api
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Common errors
@@ -42,7 +44,25 @@ func IsNotFound(err error) bool {
 		strings.Contains(msg, "NOT_FOUND")
 }
 
-// IsRateLimited checks if an error indicates rate limiting
+// httpStatusCoder is implemented by errors that carry an HTTP status code.
+// go-gh's api.HTTPError satisfies this interface.
+type httpStatusCoder interface {
+	HTTPStatusCode() int
+}
+
+// retryAfterProvider is implemented by errors that carry a Retry-After value.
+type retryAfterProvider interface {
+	RetryAfterSeconds() string
+}
+
+// IsRateLimited checks if an error indicates rate limiting.
+// Detects rate limits via:
+//   - Sentinel ErrRateLimited
+//   - HTTP 429 status code (any 429 is a rate limit)
+//   - HTTP 403 with rate-limit messaging (GitHub secondary rate limits)
+//   - Error message containing "rate limit" or "RATE_LIMITED"
+//
+// Non-rate-limit 403 errors (e.g., permission denied) are NOT retried.
 func IsRateLimited(err error) bool {
 	if errors.Is(err, ErrRateLimited) {
 		return true
@@ -50,9 +70,38 @@ func IsRateLimited(err error) bool {
 	if err == nil {
 		return false
 	}
+
+	// Check HTTP status code via interface
+	var sc httpStatusCoder
+	if errors.As(err, &sc) {
+		code := sc.HTTPStatusCode()
+		if code == 429 {
+			return true
+		}
+		if code == 403 {
+			msg := strings.ToLower(err.Error())
+			return strings.Contains(msg, "rate limit") || strings.Contains(msg, "rate_limited")
+		}
+	}
+
+	// Fallback: string-based detection for non-HTTP errors
 	msg := err.Error()
 	return strings.Contains(msg, "rate limit") ||
 		strings.Contains(msg, "RATE_LIMITED")
+}
+
+// GetRetryAfter extracts a Retry-After duration from an error, if available.
+// Returns 0 if no Retry-After information is present.
+func GetRetryAfter(err error) time.Duration {
+	var rap retryAfterProvider
+	if errors.As(err, &rap) {
+		if s := rap.RetryAfterSeconds(); s != "" {
+			if seconds, parseErr := strconv.Atoi(s); parseErr == nil && seconds > 0 {
+				return time.Duration(seconds) * time.Second
+			}
+		}
+	}
+	return 0
 }
 
 // IsAuthError checks if an error indicates authentication issues

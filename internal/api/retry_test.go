@@ -125,3 +125,115 @@ func TestWithRetry_CallsWithRetryDelays(t *testing.T) {
 		t.Errorf("Expected 1 call, got %d", callCount)
 	}
 }
+
+func TestWithRetryDelays_403RateLimitTriggersRetry(t *testing.T) {
+	callCount := 0
+	rateLimitErr := &httpStatusError{code: 403, msg: "API rate limit exceeded"}
+	err := WithRetryDelays(func() error {
+		callCount++
+		if callCount < 3 {
+			return rateLimitErr
+		}
+		return nil
+	}, 3, []time.Duration{1 * time.Millisecond})
+
+	if err != nil {
+		t.Errorf("Expected nil error after retry, got: %v", err)
+	}
+	if callCount != 3 {
+		t.Errorf("Expected 3 calls, got %d", callCount)
+	}
+}
+
+func TestWithRetryDelays_429WithRetryAfterUsesHeaderValue(t *testing.T) {
+	callCount := 0
+	retryAfterErr := &httpStatusRetryAfterError{code: 429, msg: "Too Many Requests", retryAfter: "1"}
+	start := time.Now()
+	err := WithRetryDelays(func() error {
+		callCount++
+		if callCount < 2 {
+			return retryAfterErr
+		}
+		return nil
+	}, 3, []time.Duration{100 * time.Millisecond})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Errorf("Expected nil error after retry, got: %v", err)
+	}
+	if callCount != 2 {
+		t.Errorf("Expected 2 calls, got %d", callCount)
+	}
+	// Retry-After says 1s, which should override the 100ms default delay
+	if elapsed < 900*time.Millisecond {
+		t.Errorf("Expected at least ~1s delay from Retry-After, got %v", elapsed)
+	}
+}
+
+func TestWithRetryDelays_NonRateLimitedPermissionDeniedNoRetry(t *testing.T) {
+	callCount := 0
+	permErr := &httpStatusError{code: 403, msg: "Resource not accessible by integration"}
+	err := WithRetryDelays(func() error {
+		callCount++
+		return permErr
+	}, 3, []time.Duration{1 * time.Millisecond})
+
+	if err != permErr {
+		t.Errorf("Expected original permission error, got: %v", err)
+	}
+	if callCount != 1 {
+		t.Errorf("Expected 1 call (no retry for permission denied), got %d", callCount)
+	}
+}
+
+func TestWithRetryDelays_MaxRetriesExhaustedClearMessage(t *testing.T) {
+	rateLimitErr := &httpStatusError{code: 429, msg: "Too Many Requests"}
+	callCount := 0
+	err := WithRetryDelays(func() error {
+		callCount++
+		return rateLimitErr
+	}, 3, []time.Duration{1 * time.Millisecond})
+
+	if err == nil {
+		t.Fatal("Expected error after max retries, got nil")
+	}
+	if !IsRateLimited(err) {
+		t.Errorf("Expected rate-limited error, got: %v", err)
+	}
+	if callCount != 4 {
+		t.Errorf("Expected 4 calls (1 initial + 3 retries), got %d", callCount)
+	}
+}
+
+// httpStatusError simulates an HTTP error with a status code for testing.
+type httpStatusError struct {
+	code int
+	msg  string
+}
+
+func (e *httpStatusError) Error() string {
+	return e.msg
+}
+
+func (e *httpStatusError) HTTPStatusCode() int {
+	return e.code
+}
+
+// httpStatusRetryAfterError adds Retry-After header support for testing.
+type httpStatusRetryAfterError struct {
+	code       int
+	msg        string
+	retryAfter string
+}
+
+func (e *httpStatusRetryAfterError) Error() string {
+	return e.msg
+}
+
+func (e *httpStatusRetryAfterError) HTTPStatusCode() int {
+	return e.code
+}
+
+func (e *httpStatusRetryAfterError) RetryAfterSeconds() string {
+	return e.retryAfter
+}
