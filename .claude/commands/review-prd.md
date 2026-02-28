@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.53.1"
 description: Review a PRD with tracked history (project)
 argument-hint: "#issue"
 ---
@@ -11,7 +11,7 @@ Reviews a PRD document linked from a GitHub issue, tracking review history with 
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 - Issue body must reference the PRD file path
 ---
 ## Arguments
@@ -201,12 +201,15 @@ gh issue comment $ISSUE -F .tmp-review-comment.md
 rm .tmp-review-comment.md
 ```
 **If comment post fails:** Warn and continue (non-blocking).
-### Step 6.5: Assign Reviewed Label (Conditional)
+### Step 6.5: Assign Review Outcome Label (Conditional)
 If recommendation starts with "Ready for":
 ```bash
-gh issue edit $ISSUE --add-label=reviewed
+gh issue edit $ISSUE --add-label=reviewed --remove-label=pending
 ```
-If not "Ready for": skip.
+If NOT "Ready for" (Needs minor revision, Needs revision, Needs major rework):
+```bash
+gh issue edit $ISSUE --add-label=pending --remove-label=reviewed
+```
 ### Step 6.6: AC Check-Off (Conditional)
 **Only when recommendation is "Ready for backlog creation":**
 Automatically checks off acceptance criteria on the PRD issue that passed review.

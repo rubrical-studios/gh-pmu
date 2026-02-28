@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.53.1"
 description: Create an enhancement issue with standard template (project)
 argument-hint: "<title>"
 ---
@@ -15,7 +15,7 @@ Creates a properly labeled enhancement issue with a standard template and adds i
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 ---
 ## Arguments
 | Argument | Required | Description |

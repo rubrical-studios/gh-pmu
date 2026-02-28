@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.53.1"
 description: Review issues with type-specific criteria (project)
 argument-hint: "#issue [#issue...]"
 ---
@@ -11,7 +11,7 @@ Reviews one or more GitHub issues with type-specific criteria based on labels (b
 ---
 ## Prerequisites
 - `gh pmu` extension installed
-- `.gh-pmu.yml` configured in repository root
+- `.gh-pmu.json` configured in repository root
 ---
 ## Arguments
 | Argument | Required | Description |
@@ -101,6 +101,19 @@ Emit ✅ for pass, ⚠️ for partial/uncertain, ❌ for missing/fail. Include b
 4. Present in review output: Enhancement/Story: `#### Proposed Solution (Auto-Generated)`, Bug: `#### Proposed Fix (Auto-Generated)`
 5. Append to issue body automatically during Step 4 — add or replace the Proposed Solution/Fix section alongside `**Reviews:** N` update
 **When NOT triggered:** Issue already has substantive section (>20 chars, no placeholders). Continue normally.
+**Step 3b-iii: Construction Context Discovery (Epic Only)**
+**Trigger:** Issue type is `epic`. Skipped for all other types.
+Scan Construction artifact directories for files linked to this epic's sub-issues:
+1. Collect sub-issue numbers from `gh pmu sub list $ISSUE`
+2. Grep `Construction/Design-Decisions/` and `Construction/Tech-Debt/` for `Issue #N` patterns matching any sub-issue number
+3. For each match, extract: file path, title, date, linked issue number
+Output as `### Construction Context` section in the review comment:
+```
+### Construction Context
+Design Decisions: N found | Tech Debt: M found
+- 📄 `Construction/Design-Decisions/YYYY-MM-DD-topic.md` — "Title" (Issue #42, YYYY-MM-DD)
+```
+**No-match path:** Report `No Construction context found for this epic's sub-issues.`
 **Step 3c: Ask Subjective Criteria**
 For **subjective** criteria applicable to the current reviewMode, use `AskUserQuestion`. Load criteria from `.claude/metadata/review-mode-criteria.json` where `type: "subjective"` — each entry has `question`, `header`, and `options` fields.
 **Solo mode:** No subjective criteria -- skip entirely.
@@ -154,17 +167,20 @@ gh issue comment $ISSUE -F .tmp-review-comment.md
 rm .tmp-review-comment.md
 ```
 **If comment post fails:** Warn and continue (non-blocking).
-### Step 5.5: Assign Reviewed Label (Conditional)
+### Step 5.5: Assign Review Outcome Label (Conditional)
 If recommendation starts with "Ready for":
 ```bash
-gh issue edit $ISSUE --add-label=reviewed
+gh issue edit $ISSUE --add-label=reviewed --remove-label=pending
 ```
-**Epic sub-issue label propagation:** If issue type is `epic`, also apply `reviewed` label to all sub-issues:
+**Epic sub-issue label propagation:** If issue type is `epic`, also apply to all sub-issues:
 1. Retrieve sub-issues: `gh pmu sub list $ISSUE`
-2. For each sub-issue: `gh issue edit $SUB_ISSUE --add-label=reviewed`
+2. For each sub-issue: `gh issue edit $SUB_ISSUE --add-label=reviewed --remove-label=pending`
 3. Track count for Step 6 reporting
 If not an epic, only the issue itself is labeled.
-If not "Ready for": skip.
+If NOT "Ready for" (Needs minor revision, Needs revision, Needs major rework):
+```bash
+gh issue edit $ISSUE --add-label=pending --remove-label=reviewed
+```
 
 <!-- USER-EXTENSION-START: post-review -->
 <!-- USER-EXTENSION-END: post-review -->

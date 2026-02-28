@@ -1,4 +1,4 @@
-version: 1.0.0
+version: 1.0.1
 project:
     name: gh-pmu
     number: 11
@@ -35,7 +35,7 @@ acceptance:
     accepted: true
     user: sbeals
     date: "2026-02-23"
-    version: 1.0.0
+    version: 1.0.1
 metadata:
     project:
         id: PVT_kwHOAATLPs4BJeuX

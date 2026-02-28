@@ -1,11 +1,11 @@
 ---
-version: "v0.49.1"
+version: "v0.53.1"
 description: Verify hub upgrade integrity for project commands and scripts
 argument-hint: ""
 ---
 <!-- MANAGED -->
 # /check-upgrade
-Verifies hub upgrade integrity for a user project. After updating the hub via `install-hub.js`, confirms extension blocks preserved, custom scripts survived, commands are current, and symlinks healthy.
+Verifies hub upgrade integrity for a user project. After updating the hub, confirms extension blocks preserved, custom scripts survived, commands are current, and symlinks healthy.
 **Backing script:** `.claude/scripts/shared/check-upgrade.js`
 ---
 ## Prerequisites
@@ -47,13 +47,26 @@ Call `checkCustomScripts(projectDir)`:
 | FAIL | Custom script(s) missing |
 ### Step 4: Command Version Drift Check
 Call `checkCommandVersionDrift(projectDir, hubDir)`:
-1. Parse version from EXTENSIBLE/MANAGED marker headers
-2. Compare project vs hub source versions
+1. List all `.claude/commands/*.md` in project
+2. Read EXTENSIBLE or MANAGED marker header
+3. **Fast path:** If both files have version numbers, compare directly
+4. **Default path (diff-based):** Normalize extension block content (strip user customizations), compare project vs hub content
+5. For EXTENSIBLE commands, only template content compared — user extension block content stripped before diff
 | Result | Meaning |
 |--------|---------|
-| PASS | All commands current |
-| WARN | Version headers not present |
-| FAIL | Command(s) stale |
+| PASS | All commands match hub version (by version or content diff) |
+| FAIL | Command(s) have drifted — content differs from hub |
+### Step 4.5: Stale Config Reference Check
+Call `checkStaleConfigReferences(projectDir, hubDir)`:
+1. Scan all `.claude/commands/*.md` for `.gh-pmu.yml` references
+2. If hub available, classify:
+   - **Stale:** Project has `.gh-pmu.yml`, hub has `.gh-pmu.json` → needs update
+   - **Migrated:** Both have `.gh-pmu.json` → already updated
+3. If no hub, flag all `.gh-pmu.yml` references as stale
+| Result | Meaning |
+|--------|---------|
+| PASS | No stale `.gh-pmu.yml` references |
+| WARN | Some commands still reference `.gh-pmu.yml` |
 ### Step 5: Symlink Health Check
 Call `checkSymlinkHealth(projectDir)`:
 Check: `.claude/rules/`, `.claude/hooks/`, `.claude/scripts/shared/`, `.claude/metadata/`, `.claude/skills/`
@@ -66,22 +79,29 @@ For each: verify symlink exists, target valid, target has files.
 ### Step 6: Produce Report
 ```
 /check-upgrade Report
-  ✅ Extension Integrity  — N commands checked, blocks intact
-  ✅ Custom Scripts        — M scripts verified
-  ⚠️ Version Drift        — 2 commands have no version header
-  ✅ Symlink Health        — 5/5 valid
-Overall: PASS (1 warning)
+  ✅ Extension Integrity     — N commands checked, blocks intact
+  ✅ Custom Scripts           — M scripts verified
+  ✅ Version Drift            — N commands at current hub version
+  ✅ Stale Config References  — No .gh-pmu.yml references found
+  ✅ Symlink Health           — 5/5 valid
+Overall: PASS
 ```
 **Remediation for failures:**
 - Extension FAIL: Re-run `install-hub.js` or restore from git
 - Custom script FAIL: Restore from git
 - Version drift FAIL: Re-run `install-hub.js`
+- Stale config refs WARN: Replace `.gh-pmu.yml` with `.gh-pmu.json` or re-run project installer
 - Symlink FAIL: Re-run project installer
 ### Step 7: Optional Commit
 If all checks PASS:
 1. Check `--commit` / `--no-commit` flags
 2. If neither: ask user
-3. If committing: `git add .claude/commands/ .claude/rules/ .claude/hooks/ && git commit -m "Upgrade IDPF hub — all checks passed"`
+3. If committing (stage only copied, non-symlinked files):
+   ```bash
+   git add .claude/commands/ framework-config.json
+   git commit -m "Upgrade IDPF hub — all checks passed"
+   ```
+   **Note:** Symlinked directories (`.claude/rules/`, `.claude/hooks/`, `.claude/scripts/shared/`, `.claude/metadata/`, `.claude/skills/`) are excluded — they point to the hub and are not project-owned.
 If any FAIL: skip commit, report issues first.
 ---
 ## Error Handling

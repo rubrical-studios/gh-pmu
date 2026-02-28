@@ -1,5 +1,5 @@
 ---
-version: "v0.49.1"
+version: "v0.53.1"
 description: Create GitHub epics/stories from PRD (project)
 argument-hint: "<issue-number> (e.g., 151)"
 ---
@@ -123,7 +123,7 @@ gh pmu create \
   -F .tmp-story-body.md
 ```
 Clean up: `rm .tmp-story-body.md`
-Link to parent: `gh pmu sub add {epic_number} {story_number}`
+Link to parent: `gh pmu sub add {epic_number} {story_number} || true`
 ### Story Body Template
 **DEPENDENCY:** Uses `/add-story` Phase 3 Story Body Template (atomic - all sections required).
 | Template Section | Source |
