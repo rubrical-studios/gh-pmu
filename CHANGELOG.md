@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-03-01
+
+### Changed
+- Removed "Board" suffix from project title during `gh pmu init` (#718)
+  - `runInitNonInteractive()` and `autoCreateProject()` now use the repository name directly as the project title
+  - Extracted `deriveProjectTitle()` helper for testability
+
 ## [1.0.3] - 2026-03-01
 
 ### Changed
