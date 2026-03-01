@@ -1577,6 +1577,52 @@ func TestInitNonInteractive_ConfigUsesNewProjectNumber(t *testing.T) {
 	}
 }
 
+func TestInitNonInteractive_HelpDescribesSourceProjectCopy(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+
+	// Verify help mentions source project copying semantics
+	if !strings.Contains(output, "source") {
+		t.Error("Expected help to mention 'source' project")
+	}
+	if !strings.Contains(output, "copy") {
+		t.Error("Expected help to mention 'copy' behavior")
+	}
+}
+
+func TestInitNonInteractive_ErrorMentionsSourceProject(t *testing.T) {
+	// When --source-project is missing, error should mention --source-project
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive", "--repo", "owner/repo"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Expected error when --source-project is missing")
+	}
+
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "--source-project") {
+		t.Errorf("Error should mention --source-project, got: %s", errOutput)
+	}
+	// Should NOT mention the old --project flag
+	if strings.Contains(errOutput, " --project") && !strings.Contains(errOutput, "--source-project") {
+		t.Errorf("Error should not mention old --project flag, got: %s", errOutput)
+	}
+}
+
 func TestWriteConfig_CreatesJSONCompanion(t *testing.T) {
 	tmpDir := t.TempDir()
 
