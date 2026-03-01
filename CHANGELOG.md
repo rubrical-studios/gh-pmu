@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-03-01
+
+### Changed
+- Renamed `--project` flag to `--source-project` in `gh pmu init --non-interactive` (#714)
+  - Non-interactive mode now creates a new project by copying from the source project template
+  - Links repository to the newly created project automatically
+  - Config file records the new project number (not the source)
+- Fixed `CopyProjectV2` GraphQL mutation to use named input type (#714)
+
 ## [1.0.2] - 2026-02-27
 
 ### Added
