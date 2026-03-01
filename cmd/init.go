@@ -661,7 +661,7 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	}
 
 	// Derive project title from repository name
-	projectTitle := fmt.Sprintf("%s Board", repoName)
+	projectTitle := deriveProjectTitle(repoName)
 
 	// Copy project from source
 	newProject, err := client.CopyProjectFromTemplate(ownerID, sourceProject.ID, projectTitle)
@@ -856,6 +856,11 @@ func splitRepository(repo string) (owner, name string) {
 		return parts[0], parts[1]
 	}
 	return "", ""
+}
+
+// deriveProjectTitle returns the project title for a given repository name.
+func deriveProjectTitle(repoName string) string {
+	return repoName
 }
 
 // InitConfig holds the configuration gathered during init.
@@ -1275,7 +1280,7 @@ func autoCreateProject(cmd *cobra.Command, client *api.Client, u *ui.UI, owner, 
 
 	// Derive project title from repository name
 	_, repoName := splitRepository(repo)
-	projectTitle := fmt.Sprintf("%s Board", repoName)
+	projectTitle := deriveProjectTitle(repoName)
 
 	// Copy project from template
 	spinner = ui.NewSpinner(cmd.OutOrStdout(), fmt.Sprintf("Creating project '%s'...", projectTitle))

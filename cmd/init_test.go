@@ -1542,7 +1542,7 @@ func TestInitNonInteractive_ConfigUsesNewProjectNumber(t *testing.T) {
 	sourceNumber := 30
 	newNumber := 99
 	cfg := &InitConfig{
-		ProjectName:   "New Board",
+		ProjectName:   "testrepo",
 		ProjectOwner:  "testowner",
 		ProjectNumber: newNumber, // Must be the NEW project number
 		Repositories:  []string{"testowner/testrepo"},
@@ -1620,6 +1620,42 @@ func TestInitNonInteractive_ErrorMentionsSourceProject(t *testing.T) {
 	// Should NOT mention the old --project flag
 	if strings.Contains(errOutput, " --project") && !strings.Contains(errOutput, "--source-project") {
 		t.Errorf("Error should not mention old --project flag, got: %s", errOutput)
+	}
+}
+
+func TestDeriveProjectTitle_NoSuffix(t *testing.T) {
+	tests := []struct {
+		name     string
+		repoName string
+		expected string
+	}{
+		{
+			name:     "simple repo name",
+			repoName: "my-app",
+			expected: "my-app",
+		},
+		{
+			name:     "hyphenated repo name",
+			repoName: "gh-pmu",
+			expected: "gh-pmu",
+		},
+		{
+			name:     "single word repo name",
+			repoName: "project",
+			expected: "project",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := deriveProjectTitle(tt.repoName)
+			if got != tt.expected {
+				t.Errorf("deriveProjectTitle(%q) = %q, want %q", tt.repoName, got, tt.expected)
+			}
+			if strings.Contains(got, "Board") {
+				t.Errorf("deriveProjectTitle(%q) should not contain 'Board', got %q", tt.repoName, got)
+			}
+		})
 	}
 }
 
