@@ -1290,7 +1290,7 @@ func TestInitCommand_HasNonInteractiveFlag(t *testing.T) {
 	}
 }
 
-func TestInitCommand_HasProjectFlag(t *testing.T) {
+func TestInitCommand_HasSourceProjectFlag(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetArgs([]string{"init", "--help"})
 
@@ -1301,8 +1301,8 @@ func TestInitCommand_HasProjectFlag(t *testing.T) {
 	_ = cmd.Execute()
 
 	output := buf.String()
-	if !strings.Contains(output, "--project") {
-		t.Error("Expected help output to mention '--project'")
+	if !strings.Contains(output, "--source-project") {
+		t.Error("Expected help output to mention '--source-project'")
 	}
 }
 
@@ -1388,7 +1388,7 @@ func TestInitOptions_DefaultFramework(t *testing.T) {
 	}
 }
 
-func TestInitNonInteractive_MissingProjectFlag(t *testing.T) {
+func TestInitNonInteractive_MissingSourceProjectFlag(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetArgs([]string{"init", "--non-interactive", "--repo", "owner/repo"})
 
@@ -1399,19 +1399,19 @@ func TestInitNonInteractive_MissingProjectFlag(t *testing.T) {
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Error("Expected error when --project is missing in non-interactive mode")
+		t.Error("Expected error when --source-project is missing in non-interactive mode")
 	}
 
-	// Check error mentions --project
+	// Check error mentions --source-project
 	errOutput := errBuf.String()
-	if !strings.Contains(errOutput, "--project") {
-		t.Errorf("Expected error to mention --project, got: %s", errOutput)
+	if !strings.Contains(errOutput, "--source-project") {
+		t.Errorf("Expected error to mention --source-project, got: %s", errOutput)
 	}
 }
 
 func TestInitNonInteractive_MissingRepoFlag(t *testing.T) {
 	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5"})
+	cmd.SetArgs([]string{"init", "--non-interactive", "--source-project", "5"})
 
 	buf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)
@@ -1441,19 +1441,19 @@ func TestInitNonInteractive_MissingBothFlags(t *testing.T) {
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Error("Expected error when both --project and --repo are missing")
+		t.Error("Expected error when both --source-project and --repo are missing")
 	}
 
 	// Check error mentions both flags
 	errOutput := errBuf.String()
-	if !strings.Contains(errOutput, "--project") || !strings.Contains(errOutput, "--repo") {
-		t.Errorf("Expected error to mention both --project and --repo, got: %s", errOutput)
+	if !strings.Contains(errOutput, "--source-project") || !strings.Contains(errOutput, "--repo") {
+		t.Errorf("Expected error to mention both --source-project and --repo, got: %s", errOutput)
 	}
 }
 
 func TestInitNonInteractive_InvalidRepoFormat(t *testing.T) {
 	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5", "--repo", "invalidrepo"})
+	cmd.SetArgs([]string{"init", "--non-interactive", "--source-project", "5", "--repo", "invalidrepo"})
 
 	buf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)
@@ -1512,7 +1512,7 @@ func TestInitNonInteractive_ExistingConfigWithoutYes(t *testing.T) {
 	defer func() { _ = os.Chdir(oldWd) }()
 
 	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5", "--repo", "owner/repo"})
+	cmd.SetArgs([]string{"init", "--non-interactive", "--source-project", "5", "--repo", "owner/repo"})
 
 	buf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)

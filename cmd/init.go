@@ -45,7 +45,7 @@ func isRepoRoot(dir string) bool {
 // initOptions holds the command-line options for init
 type initOptions struct {
 	nonInteractive bool
-	project        int
+	sourceProject  int
 	repo           string
 	owner          string
 	framework      string
@@ -67,14 +67,15 @@ This command will:
 - Create a .gh-pmu.yml configuration file
 
 Non-interactive mode (--non-interactive) disables all prompts and requires
---project and --repo flags. Use this for CI/CD pipelines and automation.`,
+--source-project and --repo flags. It creates a new project by copying
+from the source project template. Use this for CI/CD pipelines and automation.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd, args, opts)
 		},
 	}
 
-	cmd.Flags().BoolVar(&opts.nonInteractive, "non-interactive", false, "Disable UI and prompts (requires --project and --repo)")
-	cmd.Flags().IntVar(&opts.project, "project", 0, "Project number")
+	cmd.Flags().BoolVar(&opts.nonInteractive, "non-interactive", false, "Disable UI and prompts (requires --source-project and --repo)")
+	cmd.Flags().IntVar(&opts.sourceProject, "source-project", 0, "Source project number to copy from")
 	cmd.Flags().StringVar(&opts.repo, "repo", "", "Repository (owner/repo format)")
 	cmd.Flags().StringVar(&opts.owner, "owner", "", "Project owner (defaults to repo owner)")
 	cmd.Flags().StringVar(&opts.framework, "framework", "IDPF", "Framework type (IDPF or none)")
@@ -151,9 +152,9 @@ func runInit(cmd *cobra.Command, args []string, opts *initOptions) error {
 		owner = opts.owner
 	}
 
-	// Handle --project flag
-	if opts.project > 0 {
-		projectNumber = opts.project
+	// Handle --source-project flag (pre-select project in interactive mode)
+	if opts.sourceProject > 0 {
+		projectNumber = opts.sourceProject
 	}
 
 	// Initialize API client
@@ -593,8 +594,8 @@ projectSelected:
 func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	// Validate required flags
 	var missingFlags []string
-	if opts.project == 0 {
-		missingFlags = append(missingFlags, "--project")
+	if opts.sourceProject == 0 {
+		missingFlags = append(missingFlags, "--source-project")
 	}
 	if opts.repo == "" {
 		missingFlags = append(missingFlags, "--repo")
@@ -645,9 +646,9 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	client := api.NewClient()
 
 	// Validate project exists
-	selectedProject, err := client.GetProject(owner, opts.project)
+	selectedProject, err := client.GetProject(owner, opts.sourceProject)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: failed to find project %s/%d: %v\n", owner, opts.project, err)
+		fmt.Fprintf(os.Stderr, "error: failed to find project %s/%d: %v\n", owner, opts.sourceProject, err)
 		return fmt.Errorf("failed to find project: %w", err)
 	}
 
@@ -748,7 +749,7 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	cfg := &InitConfig{
 		ProjectName:   selectedProject.Title,
 		ProjectOwner:  owner,
-		ProjectNumber: opts.project,
+		ProjectNumber: opts.sourceProject,
 		Repositories:  []string{opts.repo},
 		Framework:     framework,
 	}
@@ -761,7 +762,7 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	}
 
 	// Output success to stdout (minimal for CI/CD parsing)
-	fmt.Fprintf(cmd.OutOrStdout(), "Created .gh-pmu.yml for %s (#%d)\n", selectedProject.Title, opts.project)
+	fmt.Fprintf(cmd.OutOrStdout(), "Created .gh-pmu.yml for %s (#%d)\n", selectedProject.Title, opts.sourceProject)
 
 	return nil
 }
