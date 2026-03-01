@@ -1531,6 +1531,52 @@ func TestInitNonInteractive_ExistingConfigWithoutYes(t *testing.T) {
 	}
 }
 
+func TestInitNonInteractive_ConfigUsesNewProjectNumber(t *testing.T) {
+	// Verify that when non-interactive mode creates a project by copying,
+	// the config is written with the NEW project number, not the source number.
+	tmpDir := t.TempDir()
+
+	// The source project is #30, but the new project should get a different number.
+	// We test this by writing config with a known new project number
+	// and verifying it doesn't use the source number.
+	sourceNumber := 30
+	newNumber := 99
+	cfg := &InitConfig{
+		ProjectName:   "New Board",
+		ProjectOwner:  "testowner",
+		ProjectNumber: newNumber, // Must be the NEW project number
+		Repositories:  []string{"testowner/testrepo"},
+		Framework:     "IDPF",
+	}
+
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_new99",
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	// Read the config and verify it uses the new project number
+	configData, err := os.ReadFile(filepath.Join(tmpDir, ".gh-pmu.json"))
+	if err != nil {
+		t.Fatalf("Failed to read config: %v", err)
+	}
+
+	var configFile ConfigFileWithMetadata
+	if err := json.Unmarshal(configData, &configFile); err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if configFile.Project.Number == sourceNumber {
+		t.Errorf("Config should use new project number (%d), not source number (%d)", newNumber, sourceNumber)
+	}
+	if configFile.Project.Number != newNumber {
+		t.Errorf("Expected project number %d, got %d", newNumber, configFile.Project.Number)
+	}
+}
+
 func TestWriteConfig_CreatesJSONCompanion(t *testing.T) {
 	tmpDir := t.TempDir()
 

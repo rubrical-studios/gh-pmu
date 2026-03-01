@@ -590,7 +590,8 @@ projectSelected:
 }
 
 // runInitNonInteractive handles init in non-interactive mode (for CI/CD).
-// It requires --project and --repo flags and outputs errors to STDERR.
+// It copies from a source project specified by --source-project, creates a new
+// project, links the repository, and writes config with the new project number.
 func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	// Validate required flags
 	var missingFlags []string
@@ -645,11 +646,38 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	// Initialize API client
 	client := api.NewClient()
 
-	// Validate project exists
-	selectedProject, err := client.GetProject(owner, opts.sourceProject)
+	// Get owner ID for the new project
+	ownerID, err := client.GetOwnerID(owner)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: failed to find project %s/%d: %v\n", owner, opts.sourceProject, err)
-		return fmt.Errorf("failed to find project: %w", err)
+		fmt.Fprintf(os.Stderr, "error: failed to get owner ID for %s: %v\n", owner, err)
+		return fmt.Errorf("failed to get owner ID: %w", err)
+	}
+
+	// Fetch source project to copy from
+	sourceProject, err := client.GetProject(owner, opts.sourceProject)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: failed to find source project %s/%d: %v\n", owner, opts.sourceProject, err)
+		return fmt.Errorf("failed to find source project: %w", err)
+	}
+
+	// Derive project title from repository name
+	projectTitle := fmt.Sprintf("%s Board", repoName)
+
+	// Copy project from source
+	newProject, err := client.CopyProjectFromTemplate(ownerID, sourceProject.ID, projectTitle)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: failed to create project from source: %v\n", err)
+		return fmt.Errorf("failed to create project from source: %w", err)
+	}
+
+	// Link repository to the new project
+	repoID, err := client.GetRepositoryID(repoOwner, repoName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not get repository ID: %v\n", err)
+	} else {
+		if linkErr := client.LinkProjectToRepository(newProject.ID, repoID); linkErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not link repository: %v\n", linkErr)
+		}
 	}
 
 	// Load embedded defaults
@@ -659,8 +687,8 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 		return fmt.Errorf("failed to load embedded defaults: %w", err)
 	}
 
-	// Fetch project fields
-	projectFields, err := client.GetProjectFields(selectedProject.ID)
+	// Fetch fields from the NEW project
+	projectFields, err := client.GetProjectFields(newProject.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: could not fetch project fields: %v\n", err)
 		return fmt.Errorf("could not fetch project fields: %w", err)
@@ -702,12 +730,12 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 
 		// Create optional fields if missing
 		for _, optField := range defs.Fields.CreateIfMissing {
-			exists, err := client.FieldExists(selectedProject.ID, optField.Name)
+			exists, err := client.FieldExists(newProject.ID, optField.Name)
 			if err != nil {
 				continue // Skip on error in non-interactive mode
 			}
 			if !exists {
-				_, _ = client.CreateProjectField(selectedProject.ID, optField.Name, optField.Type, optField.Options)
+				_, _ = client.CreateProjectField(newProject.ID, optField.Name, optField.Type, optField.Options)
 			}
 		}
 
@@ -724,11 +752,11 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	}
 
 	// Refetch fields after potential creation
-	fields, _ := client.GetProjectFields(selectedProject.ID)
+	fields, _ := client.GetProjectFields(newProject.ID)
 
 	// Convert to metadata
 	metadata := &ProjectMetadata{
-		ProjectID: selectedProject.ID,
+		ProjectID: newProject.ID,
 	}
 	for _, f := range fields {
 		fm := FieldMetadata{
@@ -745,11 +773,11 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 		metadata.Fields = append(metadata.Fields, fm)
 	}
 
-	// Create config
+	// Create config with NEW project number (not the source)
 	cfg := &InitConfig{
-		ProjectName:   selectedProject.Title,
+		ProjectName:   newProject.Title,
 		ProjectOwner:  owner,
-		ProjectNumber: opts.sourceProject,
+		ProjectNumber: newProject.Number,
 		Repositories:  []string{opts.repo},
 		Framework:     framework,
 	}
@@ -762,7 +790,8 @@ func runInitNonInteractive(cmd *cobra.Command, opts *initOptions) error {
 	}
 
 	// Output success to stdout (minimal for CI/CD parsing)
-	fmt.Fprintf(cmd.OutOrStdout(), "Created .gh-pmu.yml for %s (#%d)\n", selectedProject.Title, opts.sourceProject)
+	fmt.Fprintf(cmd.OutOrStdout(), "Created .gh-pmu.yml for %s (#%d) [copied from source project #%d]\n",
+		newProject.Title, newProject.Number, opts.sourceProject)
 
 	return nil
 }
