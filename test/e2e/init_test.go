@@ -12,7 +12,7 @@ import (
 )
 
 // TestInitNonInteractiveMode tests the init command in non-interactive mode.
-// This uses the test project #41 configured in config_test.go.
+// This copies from the source project #41 configured in config_test.go.
 func TestInitNonInteractiveMode(t *testing.T) {
 	// Create a temp directory for the init test
 	tmpDir := t.TempDir()
@@ -24,7 +24,7 @@ func TestInitNonInteractiveMode(t *testing.T) {
 		// Run init in non-interactive mode
 		result := runPMU(t, tmpDir, "init",
 			"--non-interactive",
-			"--project", "41",
+			"--source-project", "41",
 			"--repo", "rubrical-studios/gh-pmu-e2e-test",
 		)
 
@@ -52,8 +52,11 @@ func TestInitNonInteractiveMode(t *testing.T) {
 		if !ok {
 			t.Error("Config missing 'project' section")
 		} else {
-			if project["number"] != 41 {
-				t.Errorf("Expected project number 41, got %v", project["number"])
+			// Non-interactive mode copies from source project, so the new
+			// project number will differ from the source (41). Just verify
+			// a positive number was assigned.
+			if num, ok := project["number"].(int); !ok || num <= 0 {
+				t.Errorf("Expected positive project number, got %v", project["number"])
 			}
 			if project["owner"] != "rubrical-studios" {
 				t.Errorf("Expected owner 'rubrical-studios', got %v", project["owner"])
@@ -91,7 +94,7 @@ func TestInitNonInteractiveFrameworkNone(t *testing.T) {
 
 	result := runPMU(t, tmpDir, "init",
 		"--non-interactive",
-		"--project", "41",
+		"--source-project", "41",
 		"--repo", "rubrical-studios/gh-pmu-e2e-test",
 		"--framework", "none",
 	)
@@ -128,7 +131,7 @@ func TestInitNonInteractiveWithOwner(t *testing.T) {
 	// Using explicit owner (same as repo owner in this test)
 	result := runPMU(t, tmpDir, "init",
 		"--non-interactive",
-		"--project", "41",
+		"--source-project", "41",
 		"--repo", "rubrical-studios/gh-pmu-e2e-test",
 		"--owner", "rubrical-studios",
 	)
@@ -157,7 +160,7 @@ func TestInitNonInteractiveOverwrite(t *testing.T) {
 	// Run init with --yes to overwrite
 	result := runPMU(t, tmpDir, "init",
 		"--non-interactive",
-		"--project", "41",
+		"--source-project", "41",
 		"--repo", "rubrical-studios/gh-pmu-e2e-test",
 		"--yes",
 	)
@@ -185,7 +188,7 @@ func TestInitNonInteractiveMissingFlags(t *testing.T) {
 	t.Run("missing_both_flags", func(t *testing.T) {
 		result := runPMU(t, tmpDir, "init", "--non-interactive")
 		assertExitCode(t, result, 1)
-		assertContains(t, result.Stderr, "--project")
+		assertContains(t, result.Stderr, "--source-project")
 		assertContains(t, result.Stderr, "--repo")
 	})
 
@@ -195,13 +198,13 @@ func TestInitNonInteractiveMissingFlags(t *testing.T) {
 			"--repo", "owner/repo",
 		)
 		assertExitCode(t, result, 1)
-		assertContains(t, result.Stderr, "--project")
+		assertContains(t, result.Stderr, "--source-project")
 	})
 
 	t.Run("missing_repo", func(t *testing.T) {
 		result := runPMU(t, tmpDir, "init",
 			"--non-interactive",
-			"--project", "41",
+			"--source-project", "41",
 		)
 		assertExitCode(t, result, 1)
 		assertContains(t, result.Stderr, "--repo")
@@ -214,7 +217,7 @@ func TestInitNonInteractiveInvalidRepoFormat(t *testing.T) {
 
 	result := runPMU(t, tmpDir, "init",
 		"--non-interactive",
-		"--project", "41",
+		"--source-project", "41",
 		"--repo", "invalid-repo-format",
 	)
 
@@ -237,7 +240,7 @@ func TestInitNonInteractiveExistingConfigNoYes(t *testing.T) {
 
 	result := runPMU(t, tmpDir, "init",
 		"--non-interactive",
-		"--project", "41",
+		"--source-project", "41",
 		"--repo", "rubrical-studios/gh-pmu-e2e-test",
 	)
 
