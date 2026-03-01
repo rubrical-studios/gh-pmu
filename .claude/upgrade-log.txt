@@ -1,0 +1,144 @@
+=== Upgrade Log: v0.53.1 → v0.54.0 | 2026-02-28T02:38:22.123Z ===
+
+add-story.md (managed) — copied as-is
+
+assign-branch.md (managed) — copied as-is
+
+bad-test-review.md (managed) — copied as-is
+
+bug.md (extensible)
+  · pre-create: empty
+  · post-create: empty
+
+change-domain-expert.md (managed) — copied as-is
+
+charter.md (managed) — copied as-is
+
+check-upgrade.md (managed) — copied as-is
+
+ci.md (extensible)
+  · pre-add: empty
+  · post-add: empty
+  · pre-recommend: empty
+  · post-recommend: empty
+  · custom-subcommands: empty
+
+code-review.md (managed) — copied as-is
+
+complete-prd.md (managed) — copied as-is
+
+create-backlog.md (managed) — copied as-is
+
+create-branch.md (extensible)
+  ✓ pre-create: preserved (5 lines)
+  · post-create: empty
+
+create-prd.md (extensible)
+  · pre-analysis: empty
+  · post-analysis: empty
+  · pre-transform: empty
+  · post-transform: empty
+  · pre-diagram: empty
+  · diagram-generator: empty
+  · post-diagram: empty
+  · pre-generation: empty
+  · post-generation: empty
+  · quality-checklist: empty
+
+destroy-branch.md (extensible)
+  ✓ pre-destroy: preserved (1 lines)
+  ✓ post-confirm: preserved (1 lines)
+  ✓ post-destroy: preserved (1 lines)
+
+done.md (extensible)
+  · pre-done: empty
+  · post-done: empty
+
+enhancement.md (extensible)
+  · pre-create: empty
+  · post-create: empty
+
+extensions.md (managed) — copied as-is
+
+install-skill.md (managed) — copied as-is
+
+merge-branch.md (extensible)
+  ✓ pre-gate: preserved (1 lines)
+  ✓ gates: preserved (13 lines)
+  ✓ post-gate: preserved (1 lines)
+  ✓ post-pr-create: preserved (4 lines)
+  ✓ post-merge: preserved (1 lines)
+  ✓ post-close: preserved (1 lines)
+
+pivot.md (managed) — copied as-is
+
+plan-workstreams.md (managed) — copied as-is
+
+playwright-check.md (managed) — copied as-is
+
+prepare-beta.md (extensible)
+  ✓ post-analysis: preserved (26 lines)
+  ✓ pre-validation: preserved (11 lines)
+  ✓ post-validation: preserved (23 lines)
+  ✓ post-prepare: preserved (9 lines)
+  · pre-commit: empty
+  ✓ pre-tag: preserved (17 lines)
+  ✓ post-tag: preserved (14 lines)
+  ✓ checklist-before-tag: preserved (1 lines)
+  ✓ checklist-after-tag: preserved (1 lines)
+
+prepare-release.md (extensible)
+  ✓ post-analysis: preserved (22 lines)
+  ✓ pre-validation: preserved (18 lines)
+  ✓ post-validation: preserved (44 lines)
+  ✓ pre-commit: preserved (3 lines)
+  ✓ post-prepare: preserved (9 lines)
+  ✓ post-pr-create: preserved (5 lines)
+  ✓ pre-tag: preserved (8 lines)
+  ✓ post-tag: preserved (32 lines)
+  ✓ checklist-before-tag: preserved (2 lines)
+  ✓ checklist-after-tag: preserved (3 lines)
+  ✓ pre-close: preserved (1 lines)
+  · post-close: empty
+  ✓ checklist-close: preserved (4 lines)
+
+proposal.md (extensible)
+  · pre-create: empty
+  · post-create: empty
+
+resolve-review.md (managed) — copied as-is
+
+review-issue.md (extensible)
+  · pre-review: empty
+  · criteria-customize: empty
+  · post-review: empty
+
+review-prd.md (extensible)
+  · pre-review: empty
+  · criteria-customize: empty
+  · post-review: empty
+
+review-proposal.md (extensible)
+  · pre-review: empty
+  · criteria-customize: empty
+  · post-review: empty
+
+review-test-plan.md (managed) — copied as-is
+
+split-story.md (managed) — copied as-is
+
+switch-branch.md (managed) — copied as-is
+
+transfer-issue.md (managed) — copied as-is
+
+work.md (extensible)
+  · pre-work: empty
+  · post-work-start: empty
+  · pre-framework-dispatch: empty
+  · post-documentation: empty
+  · post-implementation: empty
+  · post-ac-verification: empty
+  · post-sub-issue-done: empty
+
+Summary: 34 commands processed, 30 extensions preserved, 42 empty
+===

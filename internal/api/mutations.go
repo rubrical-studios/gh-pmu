@@ -642,6 +642,14 @@ func (c *Client) DeleteProjectField(fieldID string) error {
 	return nil
 }
 
+// CopyProjectV2Input represents the input for copying a project.
+type CopyProjectV2Input struct {
+	OwnerId            graphql.ID      `json:"ownerId"`
+	ProjectId          graphql.ID      `json:"projectId"`
+	Title              graphql.String  `json:"title"`
+	IncludeDraftIssues graphql.Boolean `json:"includeDraftIssues"`
+}
+
 // CopyProjectFromTemplate creates a new project by copying from a template project.
 // ownerID is the node ID of the owner (user or organization)
 // sourceProjectID is the node ID of the template project to copy from
@@ -662,12 +670,7 @@ func (c *Client) CopyProjectFromTemplate(ownerID, sourceProjectID, title string)
 		} `graphql:"copyProjectV2(input: $input)"`
 	}
 
-	input := struct {
-		OwnerId            graphql.ID      `json:"ownerId"`
-		ProjectId          graphql.ID      `json:"projectId"`
-		Title              graphql.String  `json:"title"`
-		IncludeDraftIssues graphql.Boolean `json:"includeDraftIssues"`
-	}{
+	input := CopyProjectV2Input{
 		OwnerId:            graphql.ID(ownerID),
 		ProjectId:          graphql.ID(sourceProjectID),
 		Title:              graphql.String(title),

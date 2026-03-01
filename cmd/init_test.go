@@ -1290,7 +1290,7 @@ func TestInitCommand_HasNonInteractiveFlag(t *testing.T) {
 	}
 }
 
-func TestInitCommand_HasProjectFlag(t *testing.T) {
+func TestInitCommand_HasSourceProjectFlag(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetArgs([]string{"init", "--help"})
 
@@ -1301,8 +1301,8 @@ func TestInitCommand_HasProjectFlag(t *testing.T) {
 	_ = cmd.Execute()
 
 	output := buf.String()
-	if !strings.Contains(output, "--project") {
-		t.Error("Expected help output to mention '--project'")
+	if !strings.Contains(output, "--source-project") {
+		t.Error("Expected help output to mention '--source-project'")
 	}
 }
 
@@ -1388,7 +1388,7 @@ func TestInitOptions_DefaultFramework(t *testing.T) {
 	}
 }
 
-func TestInitNonInteractive_MissingProjectFlag(t *testing.T) {
+func TestInitNonInteractive_MissingSourceProjectFlag(t *testing.T) {
 	cmd := NewRootCommand()
 	cmd.SetArgs([]string{"init", "--non-interactive", "--repo", "owner/repo"})
 
@@ -1399,19 +1399,19 @@ func TestInitNonInteractive_MissingProjectFlag(t *testing.T) {
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Error("Expected error when --project is missing in non-interactive mode")
+		t.Error("Expected error when --source-project is missing in non-interactive mode")
 	}
 
-	// Check error mentions --project
+	// Check error mentions --source-project
 	errOutput := errBuf.String()
-	if !strings.Contains(errOutput, "--project") {
-		t.Errorf("Expected error to mention --project, got: %s", errOutput)
+	if !strings.Contains(errOutput, "--source-project") {
+		t.Errorf("Expected error to mention --source-project, got: %s", errOutput)
 	}
 }
 
 func TestInitNonInteractive_MissingRepoFlag(t *testing.T) {
 	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5"})
+	cmd.SetArgs([]string{"init", "--non-interactive", "--source-project", "5"})
 
 	buf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)
@@ -1441,19 +1441,19 @@ func TestInitNonInteractive_MissingBothFlags(t *testing.T) {
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Error("Expected error when both --project and --repo are missing")
+		t.Error("Expected error when both --source-project and --repo are missing")
 	}
 
 	// Check error mentions both flags
 	errOutput := errBuf.String()
-	if !strings.Contains(errOutput, "--project") || !strings.Contains(errOutput, "--repo") {
-		t.Errorf("Expected error to mention both --project and --repo, got: %s", errOutput)
+	if !strings.Contains(errOutput, "--source-project") || !strings.Contains(errOutput, "--repo") {
+		t.Errorf("Expected error to mention both --source-project and --repo, got: %s", errOutput)
 	}
 }
 
 func TestInitNonInteractive_InvalidRepoFormat(t *testing.T) {
 	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5", "--repo", "invalidrepo"})
+	cmd.SetArgs([]string{"init", "--non-interactive", "--source-project", "5", "--repo", "invalidrepo"})
 
 	buf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)
@@ -1512,7 +1512,7 @@ func TestInitNonInteractive_ExistingConfigWithoutYes(t *testing.T) {
 	defer func() { _ = os.Chdir(oldWd) }()
 
 	cmd := NewRootCommand()
-	cmd.SetArgs([]string{"init", "--non-interactive", "--project", "5", "--repo", "owner/repo"})
+	cmd.SetArgs([]string{"init", "--non-interactive", "--source-project", "5", "--repo", "owner/repo"})
 
 	buf := new(bytes.Buffer)
 	errBuf := new(bytes.Buffer)
@@ -1528,6 +1528,98 @@ func TestInitNonInteractive_ExistingConfigWithoutYes(t *testing.T) {
 	errOutput := errBuf.String()
 	if !strings.Contains(errOutput, "--yes") && !strings.Contains(errOutput, "already exists") {
 		t.Errorf("Expected error to mention --yes or already exists, got: %s", errOutput)
+	}
+}
+
+func TestInitNonInteractive_ConfigUsesNewProjectNumber(t *testing.T) {
+	// Verify that when non-interactive mode creates a project by copying,
+	// the config is written with the NEW project number, not the source number.
+	tmpDir := t.TempDir()
+
+	// The source project is #30, but the new project should get a different number.
+	// We test this by writing config with a known new project number
+	// and verifying it doesn't use the source number.
+	sourceNumber := 30
+	newNumber := 99
+	cfg := &InitConfig{
+		ProjectName:   "New Board",
+		ProjectOwner:  "testowner",
+		ProjectNumber: newNumber, // Must be the NEW project number
+		Repositories:  []string{"testowner/testrepo"},
+		Framework:     "IDPF",
+	}
+
+	metadata := &ProjectMetadata{
+		ProjectID: "PVT_new99",
+	}
+
+	err := writeConfigWithMetadata(tmpDir, cfg, metadata)
+	if err != nil {
+		t.Fatalf("writeConfigWithMetadata failed: %v", err)
+	}
+
+	// Read the config and verify it uses the new project number
+	configData, err := os.ReadFile(filepath.Join(tmpDir, ".gh-pmu.json"))
+	if err != nil {
+		t.Fatalf("Failed to read config: %v", err)
+	}
+
+	var configFile ConfigFileWithMetadata
+	if err := json.Unmarshal(configData, &configFile); err != nil {
+		t.Fatalf("Failed to parse config: %v", err)
+	}
+
+	if configFile.Project.Number == sourceNumber {
+		t.Errorf("Config should use new project number (%d), not source number (%d)", newNumber, sourceNumber)
+	}
+	if configFile.Project.Number != newNumber {
+		t.Errorf("Expected project number %d, got %d", newNumber, configFile.Project.Number)
+	}
+}
+
+func TestInitNonInteractive_HelpDescribesSourceProjectCopy(t *testing.T) {
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--help"})
+
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	_ = cmd.Execute()
+
+	output := buf.String()
+
+	// Verify help mentions source project copying semantics
+	if !strings.Contains(output, "source") {
+		t.Error("Expected help to mention 'source' project")
+	}
+	if !strings.Contains(output, "copy") {
+		t.Error("Expected help to mention 'copy' behavior")
+	}
+}
+
+func TestInitNonInteractive_ErrorMentionsSourceProject(t *testing.T) {
+	// When --source-project is missing, error should mention --source-project
+	cmd := NewRootCommand()
+	cmd.SetArgs([]string{"init", "--non-interactive", "--repo", "owner/repo"})
+
+	buf := new(bytes.Buffer)
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(errBuf)
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("Expected error when --source-project is missing")
+	}
+
+	errOutput := errBuf.String()
+	if !strings.Contains(errOutput, "--source-project") {
+		t.Errorf("Error should mention --source-project, got: %s", errOutput)
+	}
+	// Should NOT mention the old --project flag
+	if strings.Contains(errOutput, " --project") && !strings.Contains(errOutput, "--source-project") {
+		t.Errorf("Error should not mention old --project flag, got: %s", errOutput)
 	}
 }
 

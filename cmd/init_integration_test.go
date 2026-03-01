@@ -473,7 +473,7 @@ func TestRunInit_Integration_NonInteractiveMode(t *testing.T) {
 	// Run init in non-interactive mode
 	cmd := exec.Command("gh", "pmu", "init",
 		"--non-interactive",
-		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--source-project", fmt.Sprintf("%d", env.ProjectNumber),
 		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName))
 	cmd.Dir = tempDir
 
@@ -540,7 +540,7 @@ func TestRunInit_Integration_NonInteractiveWithOwner(t *testing.T) {
 	// Run init with explicit --owner (same as repo owner in this test)
 	cmd := exec.Command("gh", "pmu", "init",
 		"--non-interactive",
-		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--source-project", fmt.Sprintf("%d", env.ProjectNumber),
 		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName),
 		"--owner", env.RepoOwner)
 	cmd.Dir = tempDir
@@ -581,7 +581,7 @@ func TestRunInit_Integration_NonInteractiveFrameworkNone(t *testing.T) {
 	// Run init with --framework none
 	cmd := exec.Command("gh", "pmu", "init",
 		"--non-interactive",
-		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--source-project", fmt.Sprintf("%d", env.ProjectNumber),
 		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName),
 		"--framework", "none")
 	cmd.Dir = tempDir
@@ -643,7 +643,7 @@ func TestRunInit_Integration_NonInteractiveOverwrite(t *testing.T) {
 	// Run init with --yes to overwrite
 	cmd := exec.Command("gh", "pmu", "init",
 		"--non-interactive",
-		"--project", fmt.Sprintf("%d", env.ProjectNumber),
+		"--source-project", fmt.Sprintf("%d", env.ProjectNumber),
 		"--repo", fmt.Sprintf("%s/%s", env.RepoOwner, env.RepoName),
 		"--yes")
 	cmd.Dir = tempDir
@@ -695,7 +695,7 @@ func TestRunInit_Integration_NonInteractiveMissingFlags(t *testing.T) {
 
 	// Check stderr contains error about missing flags
 	stderrOutput := stderr.String()
-	if !strings.Contains(stderrOutput, "--project") || !strings.Contains(stderrOutput, "--repo") {
+	if !strings.Contains(stderrOutput, "--source-project") || !strings.Contains(stderrOutput, "--repo") {
 		t.Errorf("Expected stderr to mention missing flags, got: %s", stderrOutput)
 	}
 }
