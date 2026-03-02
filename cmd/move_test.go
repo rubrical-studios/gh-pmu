@@ -281,6 +281,7 @@ func testMoveConfig() *config.Config {
 			"status": {
 				Field: "Status",
 				Values: map[string]string{
+					"backlog":     "Backlog",
 					"in_progress": "In Progress",
 					"done":        "Done",
 					"todo":        "Todo",
@@ -1694,6 +1695,71 @@ func TestRunMoveWithDeps_BacklogWithStatus(t *testing.T) {
 	}
 	if !releaseCleared {
 		t.Error("Expected Release field to be cleared")
+	}
+}
+
+func TestRunMoveWithDeps_BacklogSetsStatusToBacklog(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// --backlog alone (no explicit --status) should set Status to Backlog
+	opts := &moveOptions{backlog: true, yes: true}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Status was set to Backlog
+	statusSet := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Status" && update.value == "Backlog" {
+			statusSet = true
+		}
+	}
+	if !statusSet {
+		t.Error("Expected Status field to be set to 'Backlog' when --backlog is used")
+	}
+}
+
+func TestRunMoveWithDeps_BacklogExplicitStatusOverrides(t *testing.T) {
+	mock := setupMockWithIssue(42, "Test Issue", "item-42")
+	cfg := testMoveConfig()
+
+	cmd := &cobra.Command{}
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+
+	// --backlog with explicit --status should use the explicit status, not Backlog
+	opts := &moveOptions{backlog: true, status: "done"}
+
+	err := runMoveWithDeps(cmd, []string{"42"}, opts, cfg, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify Status was set to Done (not Backlog)
+	statusSetToDone := false
+	statusSetToBacklog := false
+	for _, update := range mock.fieldUpdates {
+		if update.fieldName == "Status" && update.value == "Done" {
+			statusSetToDone = true
+		}
+		if update.fieldName == "Status" && update.value == "Backlog" {
+			statusSetToBacklog = true
+		}
+	}
+	if !statusSetToDone {
+		t.Error("Expected Status field to be set to 'Done' (explicit --status)")
+	}
+	if statusSetToBacklog {
+		t.Error("Status should NOT be set to 'Backlog' when --status explicitly overrides")
 	}
 }
 

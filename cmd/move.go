@@ -331,9 +331,13 @@ func runMoveWithDeps(cmd *cobra.Command, args []string, opts *moveOptions, cfg *
 		changeDescriptions = append(changeDescriptions, fmt.Sprintf("Priority -> %s", priorityValue))
 	}
 	if opts.backlog {
-		// --backlog clears branch field
+		// --backlog clears branch field and sets status to Backlog (unless --status explicitly provided)
 		clearRelease = true
 		changeDescriptions = append(changeDescriptions, "Branch -> (cleared)")
+		if opts.status == "" {
+			statusValue = cfg.ResolveFieldValue("status", "backlog")
+			changeDescriptions = append(changeDescriptions, fmt.Sprintf("Status -> %s", statusValue))
+		}
 	}
 	if opts.branch != "" {
 		if opts.branch == "current" {
