@@ -25,6 +25,28 @@ type viewClient interface {
 	GetSubIssues(owner, repo string, number int) ([]api.SubIssue, error)
 	GetParentIssue(owner, repo string, number int) (*api.Issue, error)
 	GetIssueComments(owner, repo string, number int) ([]api.Comment, error)
+	// Batch methods for multi-issue mode
+	GetIssuesWithProjectFieldsBatch(owner, repo string, numbers []int) (map[int]*api.Issue, map[int][]api.FieldValue, map[int]error, error)
+	GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][]api.SubIssue, error)
+	GetParentIssueBatch(owner, repo string, numbers []int) (map[int]*api.Issue, error)
+}
+
+// viewIssueRef represents a parsed issue reference for the view command
+type viewIssueRef struct {
+	owner  string
+	repo   string
+	number int
+}
+
+// viewResult holds all data for a single issue in multi-issue mode
+type viewResult struct {
+	number      int
+	issue       *api.Issue
+	fieldValues []api.FieldValue
+	subIssues   []api.SubIssue
+	parentIssue *api.Issue
+	comments    []api.Comment
+	err         error
 }
 
 type viewOptions struct {
@@ -63,21 +85,26 @@ func newViewCommand() *cobra.Command {
 	opts := &viewOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "view <issue-number>",
-		Short: "View an issue with project metadata",
-		Long: `View an issue with all its project field values.
+		Use:   "view <issue-number> [issue-number...]",
+		Short: "View one or more issues with project metadata",
+		Long: `View one or more issues with project field values.
 
 Displays issue details including title, body, state, labels, assignees,
 and all project-specific fields like Status and Priority.
 
-Also shows sub-issues if any exist, and parent issue if this is a sub-issue.`,
+When viewing multiple issues, results are shown sequentially with separators.
+JSON output (--json) returns an array for multiple issues, a single object for one.
+
+Also shows sub-issues if any exist, and parent issue if this is a sub-issue.
+
+Note: --body-file, --body-stdout, and --web are only supported for single issues.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			// --json-fields doesn't require an issue number
 			if listFields, _ := cmd.Flags().GetBool("json-fields"); listFields {
 				return nil
 			}
-			if len(args) != 1 {
-				return fmt.Errorf("accepts 1 arg(s), received %d", len(args))
+			if len(args) < 1 {
+				return fmt.Errorf("requires at least 1 arg(s), received %d", len(args))
 			}
 			return nil
 		},
@@ -120,12 +147,6 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	// Parse issue reference
-	owner, repo, number, err := parseIssueReference(args[0])
-	if err != nil {
-		return err
-	}
-
 	// Determine default repository (--repo flag takes precedence over config)
 	defaultOwner, defaultRepo := "", ""
 	if opts.repo != "" {
@@ -141,19 +162,215 @@ func runView(cmd *cobra.Command, args []string, opts *viewOptions) error {
 		}
 	}
 
-	// If owner/repo not specified in issue reference, use default
-	if owner == "" || repo == "" {
-		if defaultOwner == "" || defaultRepo == "" {
-			return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
+	// Parse all issue references
+	var refs []viewIssueRef
+	var parseErrors []string
+
+	for _, arg := range args {
+		owner, repo, number, err := parseIssueReference(arg)
+		if err != nil {
+			parseErrors = append(parseErrors, fmt.Sprintf("%s: %v", arg, err))
+			continue
 		}
-		owner = defaultOwner
-		repo = defaultRepo
+		if owner == "" || repo == "" {
+			if defaultOwner == "" || defaultRepo == "" {
+				return fmt.Errorf("no repository specified and none configured (use --repo or configure in .gh-pmu.yml)")
+			}
+			owner = defaultOwner
+			repo = defaultRepo
+		}
+		refs = append(refs, viewIssueRef{owner, repo, number})
 	}
 
 	// Create API client
 	client := api.NewClient()
 
-	return runViewWithDeps(cmd, opts, client, owner, repo, number)
+	// Single-issue path (backward compatible, unchanged behavior)
+	if len(refs) == 1 && len(parseErrors) == 0 {
+		return runViewWithDeps(cmd, opts, client, refs[0].owner, refs[0].repo, refs[0].number)
+	}
+
+	// Multi-issue path
+	return runViewMulti(cmd, opts, client, refs, parseErrors)
+}
+
+// runViewMulti handles viewing multiple issues with batch API calls
+func runViewMulti(cmd *cobra.Command, opts *viewOptions, client viewClient, refs []viewIssueRef, parseErrors []string) error {
+	// Validate single-issue-only flags
+	if opts.bodyFile {
+		return fmt.Errorf("--body-file is only supported for single issue")
+	}
+	if opts.bodyStdout {
+		return fmt.Errorf("--body-stdout is only supported for single issue")
+	}
+	if opts.web {
+		return fmt.Errorf("--web is only supported for single issue")
+	}
+	if opts.template != "" {
+		return fmt.Errorf("--template is not supported")
+	}
+	if opts.jq != "" && opts.jsonFields == "" {
+		return fmt.Errorf("--jq requires --json")
+	}
+	if opts.jsonFields != "" && opts.comments {
+		return fmt.Errorf("cannot use --json with --comments; use --json comments instead")
+	}
+
+	// Report parse errors to stderr
+	for _, pe := range parseErrors {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", pe)
+	}
+
+	if len(refs) == 0 {
+		return fmt.Errorf("no valid issue numbers provided")
+	}
+
+	// Group by repo (all issues typically in same repo)
+	type repoKey struct{ owner, repo string }
+	grouped := make(map[repoKey][]int)
+	refOrder := make([]int, 0, len(refs))
+	for _, ref := range refs {
+		key := repoKey{ref.owner, ref.repo}
+		grouped[key] = append(grouped[key], ref.number)
+		refOrder = append(refOrder, ref.number)
+	}
+
+	// Fetch all data with batch calls
+	allIssues := make(map[int]*api.Issue)
+	allFieldValues := make(map[int][]api.FieldValue)
+	allSubIssues := make(map[int][]api.SubIssue)
+	allParentIssues := make(map[int]*api.Issue)
+	allErrors := make(map[int]error)
+
+	for key, numbers := range grouped {
+		// Call 1: Issues + project fields
+		issues, fieldValues, issueErrors, err := client.GetIssuesWithProjectFieldsBatch(key.owner, key.repo, numbers)
+		if err != nil {
+			return fmt.Errorf("failed to fetch issues: %w", err)
+		}
+		for num, issue := range issues {
+			allIssues[num] = issue
+		}
+		for num, fvs := range fieldValues {
+			allFieldValues[num] = fvs
+		}
+		for num, e := range issueErrors {
+			allErrors[num] = e
+		}
+
+		// Collect successfully fetched issue numbers for sub-issue/parent batch
+		var validNumbers []int
+		for _, num := range numbers {
+			if _, ok := allIssues[num]; ok {
+				validNumbers = append(validNumbers, num)
+			}
+		}
+
+		// Calls 2-3: Sub-issues + parent issues (parallel)
+		var subIssuesMap map[int][]api.SubIssue
+		var parentIssuesMap map[int]*api.Issue
+		var wg sync.WaitGroup
+
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			subIssuesMap, _ = client.GetSubIssuesBatch(key.owner, key.repo, validNumbers)
+		}()
+		go func() {
+			defer wg.Done()
+			parentIssuesMap, _ = client.GetParentIssueBatch(key.owner, key.repo, validNumbers)
+		}()
+		wg.Wait()
+
+		for num, subs := range subIssuesMap {
+			allSubIssues[num] = subs
+		}
+		for num, parent := range parentIssuesMap {
+			allParentIssues[num] = parent
+		}
+	}
+
+	// Fetch comments per-issue if requested (sequential, opt-in)
+	allComments := make(map[int][]api.Comment)
+	if opts.comments {
+		for _, ref := range refs {
+			if _, ok := allIssues[ref.number]; ok {
+				comments, _ := client.GetIssueComments(ref.owner, ref.repo, ref.number)
+				allComments[ref.number] = comments
+			}
+		}
+	}
+
+	// Build results in argument order
+	var results []viewResult
+	for _, num := range refOrder {
+		if e, ok := allErrors[num]; ok && e != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to get issue #%d: %v\n", num, e)
+			continue
+		}
+		issue, ok := allIssues[num]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Warning: issue #%d not found\n", num)
+			continue
+		}
+		results = append(results, viewResult{
+			number:      num,
+			issue:       issue,
+			fieldValues: allFieldValues[num],
+			subIssues:   allSubIssues[num],
+			parentIssue: allParentIssues[num],
+			comments:    allComments[num],
+		})
+	}
+
+	if len(results) == 0 {
+		return fmt.Errorf("all issues failed to load")
+	}
+
+	// Output
+	if opts.jsonFields != "" {
+		return outputViewMultiJSON(cmd, opts, results)
+	}
+	return outputViewMultiTable(cmd, results)
+}
+
+// outputViewMultiJSON outputs multiple issues as a JSON array
+func outputViewMultiJSON(cmd *cobra.Command, opts *viewOptions, results []viewResult) error {
+	requestedFields := parseJSONFields(opts.jsonFields, viewAvailableFields)
+
+	var jsonArray []map[string]interface{}
+	for _, r := range results {
+		fullOutput := buildViewJSONOutput(r.issue, r.fieldValues, r.subIssues, r.parentIssue, r.comments)
+		filteredOutput := filterViewJSONFields(fullOutput, requestedFields)
+		jsonArray = append(jsonArray, filteredOutput)
+	}
+
+	jsonBytes, err := json.MarshalIndent(jsonArray, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
+	if opts.jq != "" {
+		return applyJQFilter(jsonBytes, opts.jq)
+	}
+
+	fmt.Println(string(jsonBytes))
+	return nil
+}
+
+// outputViewMultiTable outputs multiple issues sequentially with separators
+func outputViewMultiTable(cmd *cobra.Command, results []viewResult) error {
+	for i, r := range results {
+		if i > 0 {
+			fmt.Println()
+			fmt.Println(strings.Repeat("\u2550", 60))
+			fmt.Println()
+		}
+		if err := outputViewTable(cmd, r.issue, r.fieldValues, r.subIssues, r.parentIssue, r.comments); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // runViewWithDeps is the testable implementation of runView

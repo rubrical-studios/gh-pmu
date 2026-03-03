@@ -29,6 +29,13 @@ type mockViewClient struct {
 	getSubIssuesErr              error
 	getParentIssueErr            error
 	getIssueCommentsErr          error
+
+	// Multi-issue support
+	issues          map[int]*api.Issue
+	fieldValuesMap  map[int][]api.FieldValue
+	subIssuesMap    map[int][]api.SubIssue
+	parentIssuesMap map[int]*api.Issue
+	issueErrors     map[int]error
 }
 
 func newMockViewClient() *mockViewClient {
@@ -78,6 +85,55 @@ func (m *mockViewClient) GetIssueComments(owner, repo string, number int) ([]api
 		return nil, m.getIssueCommentsErr
 	}
 	return m.comments, nil
+}
+
+func (m *mockViewClient) GetIssuesWithProjectFieldsBatch(owner, repo string, numbers []int) (map[int]*api.Issue, map[int][]api.FieldValue, map[int]error, error) {
+	issues := make(map[int]*api.Issue)
+	fvs := make(map[int][]api.FieldValue)
+	errs := make(map[int]error)
+	for _, n := range numbers {
+		if m.issueErrors != nil {
+			if e, ok := m.issueErrors[n]; ok {
+				errs[n] = e
+				continue
+			}
+		}
+		if m.issues != nil {
+			if iss, ok := m.issues[n]; ok {
+				issues[n] = iss
+			}
+		}
+		if m.fieldValuesMap != nil {
+			if fv, ok := m.fieldValuesMap[n]; ok {
+				fvs[n] = fv
+			}
+		}
+	}
+	return issues, fvs, errs, nil
+}
+
+func (m *mockViewClient) GetSubIssuesBatch(owner, repo string, numbers []int) (map[int][]api.SubIssue, error) {
+	result := make(map[int][]api.SubIssue)
+	for _, n := range numbers {
+		if m.subIssuesMap != nil {
+			if subs, ok := m.subIssuesMap[n]; ok {
+				result[n] = subs
+			}
+		}
+	}
+	return result, nil
+}
+
+func (m *mockViewClient) GetParentIssueBatch(owner, repo string, numbers []int) (map[int]*api.Issue, error) {
+	result := make(map[int]*api.Issue)
+	for _, n := range numbers {
+		if m.parentIssuesMap != nil {
+			if parent, ok := m.parentIssuesMap[n]; ok {
+				result[n] = parent
+			}
+		}
+	}
+	return result, nil
 }
 
 // ============================================================================
@@ -1673,5 +1729,276 @@ func TestFilterViewJSONFields_AllStatusValues(t *testing.T) {
 		if result["status"] != status {
 			t.Errorf("expected status %q, got %v", status, result["status"])
 		}
+	}
+}
+
+// ============================================================================
+// Multi-Issue Tests
+// ============================================================================
+
+func newMultiMockViewClient() *mockViewClient {
+	return &mockViewClient{
+		issues: map[int]*api.Issue{
+			42: {Number: 42, Title: "First Issue", State: "OPEN", URL: "https://github.com/o/r/issues/42", Author: api.Actor{Login: "user1"}},
+			43: {Number: 43, Title: "Second Issue", State: "CLOSED", URL: "https://github.com/o/r/issues/43", Author: api.Actor{Login: "user2"}},
+		},
+		fieldValuesMap: map[int][]api.FieldValue{
+			42: {{Field: "Status", Value: "In progress"}},
+			43: {{Field: "Status", Value: "Done"}},
+		},
+		subIssuesMap:    map[int][]api.SubIssue{},
+		parentIssuesMap: map[int]*api.Issue{},
+	}
+}
+
+func TestRunViewMulti_JSONArray(t *testing.T) {
+	mock := newMultiMockViewClient()
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(w)
+	opts := &viewOptions{jsonFields: "number,title,state"}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 43},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	var result []map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatalf("expected valid JSON array, got error: %v\noutput: %s", err, output)
+	}
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 items in array, got %d", len(result))
+	}
+
+	if result[0]["number"].(float64) != 42 {
+		t.Errorf("expected first issue number 42, got %v", result[0]["number"])
+	}
+	if result[1]["number"].(float64) != 43 {
+		t.Errorf("expected second issue number 43, got %v", result[1]["number"])
+	}
+}
+
+func TestRunViewMulti_TableWithSeparator(t *testing.T) {
+	mock := newMultiMockViewClient()
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(w)
+	opts := &viewOptions{}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 43},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	// Should contain both issue titles
+	if !strings.Contains(output, "First Issue") {
+		t.Error("expected output to contain 'First Issue'")
+	}
+	if !strings.Contains(output, "Second Issue") {
+		t.Error("expected output to contain 'Second Issue'")
+	}
+	// Should contain separator
+	if !strings.Contains(output, "\u2550") {
+		t.Error("expected output to contain separator line")
+	}
+}
+
+func TestRunViewMulti_InvalidIssuePartialSuccess(t *testing.T) {
+	mock := newMultiMockViewClient()
+	mock.issueErrors = map[int]error{
+		99: errors.New("issue not found"),
+	}
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	// Capture stderr too
+	oldErr := os.Stderr
+	rErr, wErr, _ := os.Pipe()
+	os.Stderr = wErr
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(w)
+	opts := &viewOptions{jsonFields: "number,title"}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 99},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+
+	w.Close()
+	wErr.Close()
+	os.Stdout = old
+	os.Stderr = oldErr
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	var errBuf bytes.Buffer
+	io.Copy(&errBuf, rErr)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should output valid JSON with just issue 42
+	var result []map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("expected valid JSON array: %v\noutput: %s", err, buf.String())
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 item (partial success), got %d", len(result))
+	}
+	if result[0]["number"].(float64) != 42 {
+		t.Errorf("expected issue 42, got %v", result[0]["number"])
+	}
+
+	// Should warn on stderr about issue 99
+	if !strings.Contains(errBuf.String(), "#99") {
+		t.Errorf("expected stderr warning about #99, got: %s", errBuf.String())
+	}
+}
+
+func TestRunViewMulti_BodyStdoutError(t *testing.T) {
+	mock := newMultiMockViewClient()
+	cmd := &cobra.Command{}
+	opts := &viewOptions{bodyStdout: true}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 43},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+	if err == nil {
+		t.Fatal("expected error for --body-stdout with multiple issues")
+	}
+	if !strings.Contains(err.Error(), "only supported for single issue") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunViewMulti_BodyFileError(t *testing.T) {
+	mock := newMultiMockViewClient()
+	cmd := &cobra.Command{}
+	opts := &viewOptions{bodyFile: true}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 43},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+	if err == nil {
+		t.Fatal("expected error for --body-file with multiple issues")
+	}
+	if !strings.Contains(err.Error(), "only supported for single issue") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunViewMulti_WebError(t *testing.T) {
+	mock := newMultiMockViewClient()
+	cmd := &cobra.Command{}
+	opts := &viewOptions{web: true}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 43},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+	if err == nil {
+		t.Fatal("expected error for --web with multiple issues")
+	}
+	if !strings.Contains(err.Error(), "only supported for single issue") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunViewMulti_JQWithArray(t *testing.T) {
+	mock := newMultiMockViewClient()
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(w)
+	opts := &viewOptions{jsonFields: "number,title", jq: ".[].number"}
+	refs := []viewIssueRef{
+		{owner: "o", repo: "r", number: 42},
+		{owner: "o", repo: "r", number: 43},
+	}
+
+	err := runViewMulti(cmd, opts, mock, refs, nil)
+
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := strings.TrimSpace(buf.String())
+	// jq .[].number should output "42\n43"
+	if !strings.Contains(output, "42") || !strings.Contains(output, "43") {
+		t.Errorf("expected jq output to contain 42 and 43, got: %s", output)
+	}
+}
+
+func TestViewCommand_AcceptsMultipleArgs(t *testing.T) {
+	cmd := newViewCommand()
+	// The args validator should accept 2+ args
+	err := cmd.Args(cmd, []string{"42", "43"})
+	if err != nil {
+		t.Errorf("expected no error for multiple args, got: %v", err)
+	}
+}
+
+func TestViewCommand_AcceptsSingleArg(t *testing.T) {
+	cmd := newViewCommand()
+	err := cmd.Args(cmd, []string{"42"})
+	if err != nil {
+		t.Errorf("expected no error for single arg, got: %v", err)
+	}
+}
+
+func TestViewCommand_RejectsZeroArgs(t *testing.T) {
+	cmd := newViewCommand()
+	err := cmd.Args(cmd, []string{})
+	if err == nil {
+		t.Error("expected error for zero args")
 	}
 }

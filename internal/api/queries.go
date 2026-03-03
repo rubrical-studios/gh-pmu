@@ -2335,3 +2335,310 @@ func (c *Client) listOrgProjects(owner string) ([]Project, error) {
 
 	return projects, nil
 }
+
+// GetIssuesWithProjectFieldsBatch fetches multiple issues with full detail
+// (including author, milestone, labels, assignees) and project field values
+// in a single GraphQL query. Optimized for the view command's batch mode.
+func (c *Client) GetIssuesWithProjectFieldsBatch(owner, repo string, numbers []int) (map[int]*Issue, map[int][]FieldValue, map[int]error, error) {
+	issues := make(map[int]*Issue)
+	fieldValues := make(map[int][]FieldValue)
+	issueErrors := make(map[int]error)
+
+	if len(numbers) == 0 {
+		return issues, fieldValues, issueErrors, nil
+	}
+
+	var queryParts []string
+	for i, num := range numbers {
+		queryParts = append(queryParts, fmt.Sprintf(`i%d: issue(number: %d) {
+			id
+			number
+			title
+			body
+			state
+			url
+			author { login }
+			assignees(first: 10) { nodes { login } }
+			labels(first: 20) { nodes { name color } }
+			milestone { title }
+			projectItems(first: 10) {
+				nodes {
+					fieldValues(first: 20) {
+						nodes {
+							__typename
+							... on ProjectV2ItemFieldSingleSelectValue {
+								name
+								field { ... on ProjectV2SingleSelectField { name } }
+							}
+							... on ProjectV2ItemFieldTextValue {
+								text
+								field { ... on ProjectV2Field { name } }
+							}
+						}
+					}
+				}
+			}
+		}`, i, num))
+	}
+
+	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) { %s } }`,
+		owner, repo, strings.Join(queryParts, " "))
+
+	requestBody, err := buildGraphQLRequestBody(query)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to build batch issues request: %w", err)
+	}
+	cmd := exec.Command("gh", "api", "graphql", "--input", "-")
+	cmd.Stdin = strings.NewReader(requestBody)
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, nil, nil, fmt.Errorf("failed to execute batch issues query: %s", string(exitErr.Stderr))
+		}
+		return nil, nil, nil, fmt.Errorf("failed to execute batch issues query: %w", err)
+	}
+
+	return parseIssuesBatchResponse(output, numbers, owner, repo)
+}
+
+// parseIssuesBatchResponse parses the JSON response from a batch issues query.
+func parseIssuesBatchResponse(data []byte, numbers []int, owner, repo string) (map[int]*Issue, map[int][]FieldValue, map[int]error, error) {
+	var response struct {
+		Data struct {
+			Repository map[string]json.RawMessage `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string   `json:"message"`
+			Path    []string `json:"path"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to parse batch issues response: %w", err)
+	}
+
+	issues := make(map[int]*Issue)
+	fieldValues := make(map[int][]FieldValue)
+	issueErrors := make(map[int]error)
+
+	// Map GraphQL errors to specific aliases
+	aliasErrors := make(map[string]string)
+	for _, gqlErr := range response.Errors {
+		if len(gqlErr.Path) >= 2 {
+			aliasErrors[gqlErr.Path[1]] = gqlErr.Message
+		}
+	}
+
+	for i, num := range numbers {
+		alias := fmt.Sprintf("i%d", i)
+
+		if errMsg, ok := aliasErrors[alias]; ok {
+			issueErrors[num] = fmt.Errorf("%s", errMsg)
+			continue
+		}
+
+		issueData, ok := response.Data.Repository[alias]
+		if !ok || string(issueData) == "null" {
+			issueErrors[num] = fmt.Errorf("issue #%d not found", num)
+			continue
+		}
+
+		var raw struct {
+			ID     string `json:"id"`
+			Number int    `json:"number"`
+			Title  string `json:"title"`
+			Body   string `json:"body"`
+			State  string `json:"state"`
+			URL    string `json:"url"`
+			Author struct {
+				Login string `json:"login"`
+			} `json:"author"`
+			Assignees struct {
+				Nodes []struct {
+					Login string `json:"login"`
+				} `json:"nodes"`
+			} `json:"assignees"`
+			Labels struct {
+				Nodes []struct {
+					Name  string `json:"name"`
+					Color string `json:"color"`
+				} `json:"nodes"`
+			} `json:"labels"`
+			Milestone struct {
+				Title string `json:"title"`
+			} `json:"milestone"`
+			ProjectItems struct {
+				Nodes []struct {
+					FieldValues struct {
+						Nodes []struct {
+							TypeName string `json:"__typename"`
+							Name     string `json:"name"`
+							Text     string `json:"text"`
+							Field    struct {
+								Name string `json:"name"`
+							} `json:"field"`
+						} `json:"nodes"`
+					} `json:"fieldValues"`
+				} `json:"nodes"`
+			} `json:"projectItems"`
+		}
+
+		if err := json.Unmarshal(issueData, &raw); err != nil {
+			issueErrors[num] = fmt.Errorf("failed to parse issue #%d: %w", num, err)
+			continue
+		}
+
+		issue := &Issue{
+			ID:     raw.ID,
+			Number: raw.Number,
+			Title:  raw.Title,
+			Body:   raw.Body,
+			State:  raw.State,
+			URL:    raw.URL,
+			Repository: Repository{
+				Owner: owner,
+				Name:  repo,
+			},
+			Author: Actor{Login: raw.Author.Login},
+		}
+
+		for _, a := range raw.Assignees.Nodes {
+			issue.Assignees = append(issue.Assignees, Actor{Login: a.Login})
+		}
+		for _, l := range raw.Labels.Nodes {
+			issue.Labels = append(issue.Labels, Label{Name: l.Name, Color: l.Color})
+		}
+		if raw.Milestone.Title != "" {
+			issue.Milestone = &Milestone{Title: raw.Milestone.Title}
+		}
+
+		issues[num] = issue
+
+		var fvs []FieldValue
+		for _, projectItem := range raw.ProjectItems.Nodes {
+			for _, fv := range projectItem.FieldValues.Nodes {
+				switch fv.TypeName {
+				case "ProjectV2ItemFieldSingleSelectValue":
+					if fv.Name != "" {
+						fvs = append(fvs, FieldValue{
+							Field: fv.Field.Name,
+							Value: fv.Name,
+						})
+					}
+				case "ProjectV2ItemFieldTextValue":
+					if fv.Text != "" {
+						fvs = append(fvs, FieldValue{
+							Field: fv.Field.Name,
+							Value: fv.Text,
+						})
+					}
+				}
+			}
+		}
+		fieldValues[num] = fvs
+	}
+
+	return issues, fieldValues, issueErrors, nil
+}
+
+// GetParentIssueBatch fetches parent issues for multiple issues in a single query.
+// Returns a map from child issue number to parent *Issue (nil if no parent).
+func (c *Client) GetParentIssueBatch(owner, repo string, numbers []int) (map[int]*Issue, error) {
+	result := make(map[int]*Issue)
+	if len(numbers) == 0 {
+		return result, nil
+	}
+
+	var queryParts []string
+	for i, num := range numbers {
+		queryParts = append(queryParts, fmt.Sprintf(`i%d: issue(number: %d) {
+			parent {
+				id
+				number
+				title
+				state
+				url
+			}
+		}`, i, num))
+	}
+
+	query := fmt.Sprintf(`query { repository(owner: %q, name: %q) { %s } }`,
+		owner, repo, strings.Join(queryParts, " "))
+
+	requestBody, err := buildGraphQLRequestBody(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build batch parent issue request: %w", err)
+	}
+	cmd := exec.Command("gh", "api", "graphql",
+		"-H", "X-Github-Next: sub_issues",
+		"--input", "-")
+	cmd.Stdin = strings.NewReader(requestBody)
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("failed to execute batch parent issue query: %s", string(exitErr.Stderr))
+		}
+		return nil, fmt.Errorf("failed to execute batch parent issue query: %w", err)
+	}
+
+	return parseParentIssueBatchResponse(output, numbers)
+}
+
+// parseParentIssueBatchResponse parses the JSON response from a batch parent issue query.
+func parseParentIssueBatchResponse(data []byte, numbers []int) (map[int]*Issue, error) {
+	var response struct {
+		Data struct {
+			Repository map[string]json.RawMessage `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse batch parent issue response: %w", err)
+	}
+
+	result := make(map[int]*Issue)
+
+	for i, num := range numbers {
+		alias := fmt.Sprintf("i%d", i)
+		issueData, ok := response.Data.Repository[alias]
+		if !ok || string(issueData) == "null" {
+			result[num] = nil
+			continue
+		}
+
+		var raw struct {
+			Parent *struct {
+				ID     string `json:"id"`
+				Number int    `json:"number"`
+				Title  string `json:"title"`
+				State  string `json:"state"`
+				URL    string `json:"url"`
+			} `json:"parent"`
+		}
+
+		if err := json.Unmarshal(issueData, &raw); err != nil {
+			result[num] = nil
+			continue
+		}
+
+		if raw.Parent == nil || raw.Parent.ID == "" {
+			result[num] = nil
+			continue
+		}
+
+		result[num] = &Issue{
+			ID:     raw.Parent.ID,
+			Number: raw.Parent.Number,
+			Title:  raw.Parent.Title,
+			State:  raw.Parent.State,
+			URL:    raw.Parent.URL,
+		}
+	}
+
+	return result, nil
+}

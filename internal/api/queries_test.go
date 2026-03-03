@@ -3464,3 +3464,178 @@ func TestBuildGraphQLRequestBody_WithExtraHeaders(t *testing.T) {
 		t.Errorf("Expected exactly 1 key in request body, got %d", len(parsed))
 	}
 }
+
+// ============================================================================
+// parseIssuesBatchResponse Tests
+// ============================================================================
+
+func TestParseIssuesBatchResponse_MultipleIssues(t *testing.T) {
+	data := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"id": "ID1", "number": 42, "title": "First", "body": "body1",
+					"state": "OPEN", "url": "https://example.com/42",
+					"author": {"login": "user1"},
+					"assignees": {"nodes": [{"login": "dev1"}]},
+					"labels": {"nodes": [{"name": "bug", "color": "d73a4a"}]},
+					"milestone": {"title": "v1.0"},
+					"projectItems": {"nodes": []}
+				},
+				"i1": {
+					"id": "ID2", "number": 43, "title": "Second", "body": "body2",
+					"state": "CLOSED", "url": "https://example.com/43",
+					"author": {"login": "user2"},
+					"assignees": {"nodes": []},
+					"labels": {"nodes": []},
+					"milestone": {"title": ""},
+					"projectItems": {"nodes": []}
+				}
+			}
+		}
+	}`)
+
+	issues, fieldValues, issueErrors, err := parseIssuesBatchResponse(data, []int{42, 43}, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(issueErrors) != 0 {
+		t.Errorf("expected no issue errors, got %d", len(issueErrors))
+	}
+	if len(issues) != 2 {
+		t.Fatalf("expected 2 issues, got %d", len(issues))
+	}
+	if issues[42].Title != "First" {
+		t.Errorf("expected title 'First', got %q", issues[42].Title)
+	}
+	if issues[43].Title != "Second" {
+		t.Errorf("expected title 'Second', got %q", issues[43].Title)
+	}
+	if issues[42].Author.Login != "user1" {
+		t.Errorf("expected author 'user1', got %q", issues[42].Author.Login)
+	}
+	if len(issues[42].Assignees) != 1 {
+		t.Errorf("expected 1 assignee for issue 42, got %d", len(issues[42].Assignees))
+	}
+	if len(issues[42].Labels) != 1 {
+		t.Errorf("expected 1 label for issue 42, got %d", len(issues[42].Labels))
+	}
+	if issues[42].Milestone == nil || issues[42].Milestone.Title != "v1.0" {
+		t.Errorf("expected milestone 'v1.0' for issue 42")
+	}
+	if issues[43].Milestone != nil {
+		t.Errorf("expected nil milestone for issue 43")
+	}
+	// fieldValues should exist (may be empty)
+	if _, ok := fieldValues[42]; !ok {
+		t.Error("expected fieldValues entry for issue 42")
+	}
+}
+
+func TestParseIssuesBatchResponse_NullIssue(t *testing.T) {
+	data := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"id": "ID1", "number": 42, "title": "Valid", "body": "",
+					"state": "OPEN", "url": "https://example.com/42",
+					"author": {"login": "user1"},
+					"assignees": {"nodes": []},
+					"labels": {"nodes": []},
+					"milestone": {"title": ""},
+					"projectItems": {"nodes": []}
+				},
+				"i1": null
+			}
+		},
+		"errors": [{"message": "Could not resolve to an issue", "path": ["repository", "i1"]}]
+	}`)
+
+	issues, _, issueErrors, err := parseIssuesBatchResponse(data, []int{42, 99}, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 valid issue, got %d", len(issues))
+	}
+	if _, ok := issues[42]; !ok {
+		t.Error("expected issue 42 in results")
+	}
+	if issueErrors[99] == nil {
+		t.Error("expected error for issue 99")
+	}
+}
+
+func TestParseIssuesBatchResponse_WithFieldValues(t *testing.T) {
+	data := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"id": "ID1", "number": 42, "title": "Test", "body": "",
+					"state": "OPEN", "url": "https://example.com/42",
+					"author": {"login": "user1"},
+					"assignees": {"nodes": []},
+					"labels": {"nodes": []},
+					"milestone": {"title": ""},
+					"projectItems": {"nodes": [{
+						"fieldValues": {"nodes": [
+							{"__typename": "ProjectV2ItemFieldSingleSelectValue", "name": "In progress", "text": "", "field": {"name": "Status"}},
+							{"__typename": "ProjectV2ItemFieldTextValue", "name": "", "text": "feature/x", "field": {"name": "Branch"}}
+						]}
+					}]}
+				}
+			}
+		}
+	}`)
+
+	_, fieldValues, _, err := parseIssuesBatchResponse(data, []int{42}, "owner", "repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(fieldValues[42]) != 2 {
+		t.Fatalf("expected 2 field values, got %d", len(fieldValues[42]))
+	}
+}
+
+// ============================================================================
+// parseParentIssueBatchResponse Tests
+// ============================================================================
+
+func TestParseParentIssueBatchResponse_WithParent(t *testing.T) {
+	data := []byte(`{
+		"data": {
+			"repository": {
+				"i0": {
+					"parent": {"id": "PID1", "number": 10, "title": "Epic", "state": "OPEN", "url": "https://example.com/10"}
+				},
+				"i1": {
+					"parent": null
+				}
+			}
+		}
+	}`)
+
+	result, err := parseParentIssueBatchResponse(data, []int{42, 43})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result[42] == nil {
+		t.Fatal("expected parent for issue 42")
+	}
+	if result[42].Number != 10 {
+		t.Errorf("expected parent number 10, got %d", result[42].Number)
+	}
+	if result[43] != nil {
+		t.Errorf("expected nil parent for issue 43, got %v", result[43])
+	}
+}
+
+func TestParseParentIssueBatchResponse_EmptyInput(t *testing.T) {
+	result, err := parseParentIssueBatchResponse([]byte(`{"data":{"repository":{}}}`), []int{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(result))
+	}
+}
