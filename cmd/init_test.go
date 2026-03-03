@@ -1726,7 +1726,16 @@ func seedAcceptance(t *testing.T, dir, version string) {
 
 func TestWriteConfigWithMetadata_PreservesAcceptance_PatchVersion(t *testing.T) {
 	tmpDir := t.TempDir()
-	seedAcceptance(t, tmpDir, "1.0.0")
+
+	// Derive seed version from current version with same major.minor but patch 0
+	// so that writeConfigWithMetadata sees a patch-only difference and preserves acceptance.
+	cur := getVersion()
+	parts := strings.SplitN(cur, ".", 3)
+	seedVer := "1.0.0" // fallback for dev builds
+	if len(parts) >= 2 {
+		seedVer = parts[0] + "." + parts[1] + ".0"
+	}
+	seedAcceptance(t, tmpDir, seedVer)
 
 	cfg := &InitConfig{
 		ProjectOwner:  "owner",
@@ -1737,10 +1746,6 @@ func TestWriteConfigWithMetadata_PreservesAcceptance_PatchVersion(t *testing.T) 
 		ProjectID: "test-project-id",
 		Fields:    []FieldMetadata{},
 	}
-
-	// Simulate current version being a patch bump (1.0.1)
-	origVersion := getVersion()
-	_ = origVersion // current version may differ; the test relies on RequiresReAcceptance logic
 
 	err := writeConfigWithMetadata(tmpDir, cfg, meta)
 	if err != nil {
